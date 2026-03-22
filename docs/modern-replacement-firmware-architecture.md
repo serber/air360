@@ -58,7 +58,7 @@ Those behaviors matter because the replacement should preserve the real backend 
 
 ## Recommendation
 
-**Primary recommendation: C++17 on ESP-IDF 5.x, built with native ESP-IDF CMake, with PlatformIO optional only as a local convenience wrapper.**
+**Primary recommendation: C++17 on ESP-IDF 6.x, built with native ESP-IDF CMake, with PlatformIO optional only as a local convenience wrapper.**
 
 ## Why this is the best fit
 

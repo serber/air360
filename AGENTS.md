@@ -6,21 +6,17 @@ The repository now has two active areas. `docs/` contains architecture, compatib
 
 ## Build, Test, and Development Commands
 
-Run all firmware commands from `firmware/`. The active local workflow uses the ESP-IDF environment plus direct CMake/Ninja builds, including from VS Code. If `idf.py` is already available in the current shell, use it directly. Otherwise source the local ESP-IDF export script from the path used during installation before running configure, build, or flash commands:
+Run all firmware work from `firmware/`. The active local workflow uses the VS Code ESP-IDF extension for target selection, build, flash, and monitor. Use direct CMake/Ninja commands only as the terminal equivalent for local verification.
 
-- `. /path/to/esp-idf/export.sh` loads `idf.py`, toolchains, and Python deps into the current shell. A common default is `. $HOME/esp/esp-idf/export.sh`, but do not assume that path exists on every machine.
-- `idf.py --version` verifies that the ESP-IDF environment is active in the current shell.
-- `idf.py set-target esp32s3` selects the Phase 1 target and regenerates `sdkconfig` for this SoC. Run this once for a new build directory or after removing `sdkconfig`.
+- In the VS Code ESP-IDF extension, select target `esp32s3` for this project and let the extension manage `sdkconfig`.
 - `cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DESP_PLATFORM=1 -B build -S . -DSDKCONFIG="$PWD/sdkconfig"` configures the firmware build. This matches the VS Code workflow.
 - `cmake --build build` compiles the firmware.
-- `idf.py -p /dev/PORT flash` writes the firmware to the board.
-- `idf.py -p /dev/PORT monitor` opens the serial monitor.
-- `idf.py -p /dev/PORT flash monitor` flashes the board and immediately opens the serial monitor.
+- Use the VS Code ESP-IDF extension for flashing the board and opening the serial monitor.
 - `ls /dev/cu.*` helps find the serial port on macOS before flashing.
 - `git diff --check` catches whitespace and merge-marker issues before commit.
 - `rg --files docs firmware` is the fastest way to inspect tracked source and docs files.
 
-Do not claim that ESP-IDF build dependencies are unavailable unless you verified it in the current shell, for example with `idf.py --version`, by running the CMake configure step, or by confirming that the configured `export.sh` path is missing.
+Do not claim that ESP-IDF build dependencies are unavailable unless you verified it in the current shell by running the CMake configure step or by checking that the VS Code ESP-IDF extension is not configured for the local installation.
 
 ## Coding Style & Naming Conventions
 
@@ -28,7 +24,7 @@ Use C++17 for firmware code and keep interfaces explicit. Match the current layo
 
 ## Testing Guidelines
 
-At minimum, every firmware change should pass the CMake configure and build steps: `cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DESP_PLATFORM=1 -B build -S . -DSDKCONFIG="$PWD/sdkconfig"` and `cmake --build build`. For hardware-facing changes, verify boot logs and HTTP behavior with `idf.py -p /dev/PORT flash monitor`; Phase 1 should expose `/` and `/status` on the device. For docs-only changes, check Markdown rendering and cross-document consistency. Add host-side unit tests when introducing pure logic that does not require ESP32 hardware.
+At minimum, every firmware change should pass the CMake configure and build steps: `cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DESP_PLATFORM=1 -B build -S . -DSDKCONFIG="$PWD/sdkconfig"` and `cmake --build build`. For hardware-facing changes, verify boot logs and HTTP behavior through the VS Code ESP-IDF extension; Phase 1 should expose `/` and `/status` on the device. For docs-only changes, check Markdown rendering and cross-document consistency. Add host-side unit tests when introducing pure logic that does not require ESP32 hardware.
 
 ## Commit & Pull Request Guidelines
 

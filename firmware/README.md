@@ -13,52 +13,49 @@ This directory contains the Phase 1 ESP-IDF firmware foundation described in `do
 ## Intended target
 
 - `ESP32-S3-DevKitC-1`
-- ESP-IDF 5.x
+- ESP-IDF 6.x
+
+## Development environment
+
+Recommended setup on macOS:
+
+1. Install ESP-IDF by following the official Espressif macOS guide:
+   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/macos-setup.html
+2. Install the ESP-IDF extension in VS Code.
+3. In VS Code, point the extension to your local ESP-IDF installation.
+4. Open this repository and work from `firmware/`.
+
+First-time initialization for this repository:
+
+1. Open the repository in VS Code.
+2. Open the `firmware/` project.
+3. In the ESP-IDF extension, select target `esp32s3`.
+4. Let the extension create or update `sdkconfig` for this target.
+
+If you already had this project configured for plain `esp32`, reset the local target-specific files first:
+
+```bash
+cd firmware
+rm -rf build sdkconfig
+```
+
+Then reopen the project in VS Code and select target `esp32s3` again in the extension.
 
 ## Build and deploy
 
-Run all commands from `firmware/`. The normal local workflow is CMake configure/build, including when VS Code triggers the build.
+The usual workflow is to build from VS Code through the ESP-IDF extension. The extension configures the project through CMake and uses the local `sdkconfig`.
 
-If `idf.py` is not already available in your shell, first activate the ESP-IDF environment from the path used during installation:
+Minimal flow:
 
-```bash
-. /path/to/esp-idf/export.sh
-```
+1. Make sure the target is set to `esp32s3` in the ESP-IDF extension.
+2. Start the build from VS Code.
+3. Flash and monitor from VS Code.
 
-Common default install path:
-
-```bash
-. $HOME/esp/esp-idf/export.sh
-```
-
-Optional sanity check:
+If you need the terminal equivalent of the VS Code build:
 
 ```bash
-idf.py --version
-```
-
-Initialize or change the target before the first build, or after removing `sdkconfig`:
-
-```bash
-idf.py set-target esp32s3
-```
-
-If you previously configured the project for plain `esp32`, clear the old target-specific state first:
-
-```bash
-rm -rf build sdkconfig
-idf.py set-target esp32s3
-```
-
-Configure the build. This is the same shape of command that VS Code runs:
-
-```bash
+cd firmware
 cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DESP_PLATFORM=1 -B build -S . -DSDKCONFIG="$PWD/sdkconfig"
-```
-
-Build the firmware:
-
-```bash
 cmake --build build
 ```
 
@@ -66,21 +63,6 @@ Find the serial port on macOS before flashing:
 
 ```bash
 ls /dev/cu.*
-```
-
-Flash the board and open the serial monitor:
-
-```bash
-idf.py -p /dev/cu.usbserial-0001 flash monitor
-```
-
-If you use VS Code, its build task may show an equivalent configure command with absolute paths, for example `cmake ... -B /abs/path/to/build -S /abs/path/to/firmware -DSDKCONFIG='/abs/path/to/sdkconfig'`.
-
-You can also run the steps separately:
-
-```bash
-idf.py -p /dev/cu.usbserial-0001 flash
-idf.py -p /dev/cu.usbserial-0001 monitor
 ```
 
 Phase 1 should expose:
