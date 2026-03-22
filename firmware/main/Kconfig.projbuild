@@ -1,0 +1,42 @@
+menu "air360 firmware"
+
+config AIR360_BOARD_NAME
+    string "Board name"
+    default "esp32-s3-devkitc-1"
+
+config AIR360_DEVICE_NAME
+    string "Default device name"
+    default "air360-node"
+
+config AIR360_HTTP_PORT
+    int "HTTP status server port"
+    range 1 65535
+    default 80
+
+config AIR360_ENABLE_LAB_AP
+    bool "Enable lab AP bring-up hook"
+    default y
+
+config AIR360_LAB_AP_SSID
+    string "Lab AP SSID"
+    depends on AIR360_ENABLE_LAB_AP
+    default "air360-phase1"
+
+config AIR360_LAB_AP_PASSWORD
+    string "Lab AP password"
+    depends on AIR360_ENABLE_LAB_AP
+    default "air360phase1"
+
+config AIR360_LAB_AP_CHANNEL
+    int "Lab AP channel"
+    depends on AIR360_ENABLE_LAB_AP
+    range 1 13
+    default 1
+
+config AIR360_LAB_AP_MAX_CONNECTIONS
+    int "Lab AP max clients"
+    depends on AIR360_ENABLE_LAB_AP
+    range 1 8
+    default 4
+
+endmenu

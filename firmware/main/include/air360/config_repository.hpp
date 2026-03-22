@@ -1,0 +1,39 @@
+#pragma once
+
+#include <cstdint>
+
+#include "esp_err.h"
+
+namespace air360 {
+
+constexpr std::uint32_t kDeviceConfigMagic = 0x41333630U;
+constexpr std::uint16_t kDeviceConfigSchemaVersion = 1U;
+
+struct DeviceConfig {
+    std::uint32_t magic;
+    std::uint16_t schema_version;
+    std::uint16_t record_size;
+    std::uint16_t http_port;
+    std::uint8_t lab_ap_enabled;
+    std::uint8_t reserved0;
+    char device_name[32];
+    char lab_ap_ssid[33];
+    char lab_ap_password[65];
+};
+
+DeviceConfig makeDefaultDeviceConfig();
+
+class ConfigRepository {
+  public:
+    esp_err_t loadOrCreate(
+        DeviceConfig& out_config,
+        bool& loaded_from_storage,
+        bool& wrote_defaults);
+    esp_err_t save(const DeviceConfig& config);
+    esp_err_t incrementBootCount(std::uint32_t& out_boot_count);
+
+  private:
+    bool isValid(const DeviceConfig& config) const;
+};
+
+}  // namespace air360
