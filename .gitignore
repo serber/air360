@@ -6,7 +6,11 @@
 # Directory metadata
 .directory
 
-.vscode
+.vscode/
+**/.vscode/*
+!firmware/.vscode/
+!firmware/.vscode/settings.json
+!firmware/.vscode/c_cpp_properties.json
 
 # Temporary files
 *~
