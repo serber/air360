@@ -55,9 +55,12 @@ If you need the terminal equivalent of the VS Code build:
 
 ```bash
 cd firmware
+. "$HOME/.espressif/v6.0/esp-idf/export.sh"
 cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DESP_PLATFORM=1 -B build -S . -DSDKCONFIG="$PWD/sdkconfig"
 cmake --build build
 ```
+
+If CMake reports that it cannot include `/tools/cmake/project.cmake`, `IDF_PATH` is empty in the current shell or editor session. Load the ESP-IDF environment first, or reopen `firmware/` via the ESP-IDF VS Code extension so it injects the required variables.
 
 Find the serial port on macOS before flashing:
 
