@@ -4,13 +4,13 @@
 
 This document describes the firmware implementation in `firmware/`.
 
-The current firmware is an early Phase 1 ESP-IDF runtime for `ESP32-S3-DevKitC-1`. Its purpose today is narrow:
+The current firmware is a Phase 2 ESP-IDF onboarding runtime for `ESP32-S3-DevKitC-1`. Its purpose today is still narrow:
 
 - boot cleanly as a native ESP-IDF C++17 application
 - initialize core platform services
 - persist a small device configuration record in NVS
-- expose a lab-only SoftAP bring-up path
-- provide a minimal local status surface at `/` and `/status`
+- expose a recoverable setup AP mode at `192.168.4.1`
+- provide a minimal local configuration and status surface at `/`, `/status`, and `/config`
 
 The broader replacement-firmware goals for `sensor.community` exist in `../docs/`, but this document treats `firmware/` as the source of truth for what is implemented now.
 
@@ -71,9 +71,10 @@ The startup flow currently confirmed by the source tree is:
 8. If no config exists, or if the stored config is invalid, default config values are generated from compile-time `CONFIG_AIR360_*` settings and written to NVS.
 9. The boot counter is read, incremented, and committed in NVS.
 10. `StatusService` is constructed and populated with build metadata, config state, boot count, and later network state.
-11. If `lab_ap_enabled` is set in the loaded config, `NetworkManager` starts a SoftAP at `192.168.4.1`.
-12. `WebServer` starts `esp_http_server` on the configured HTTP port and registers `/` and `/status`.
-13. The startup task removes itself from the watchdog and then stays alive in a low-activity loop using `vTaskDelay()`.
+11. If saved station credentials are present, `NetworkManager` attempts Wi-Fi station join.
+12. If station config is missing or the join attempt fails, `NetworkManager` starts setup AP mode at `192.168.4.1`.
+13. `WebServer` starts `esp_http_server` on the configured HTTP port and registers `/`, `/status`, and `/config`.
+14. The startup task removes itself from the watchdog and then stays alive in a low-activity loop using `vTaskDelay()`.
 
 Startup failures are handled conservatively:
 
@@ -82,7 +83,8 @@ Startup failures are handled conservatively:
 - network core init failure aborts startup
 - web server start failure aborts startup
 - config load failure falls back to in-memory defaults
-- lab AP start failure logs a warning and the firmware continues toward web server startup
+- station join failure logs a warning and the firmware falls back to setup AP mode
+- setup AP start failure logs a warning and the firmware continues toward web server startup
 
 ## Runtime Model
 
@@ -144,14 +146,14 @@ Synchronous startup-time logic; no background task.
 ### BuildInfo
 
 **Responsibility**  
-Reads build metadata from the app image and combines it with the configured board name.
+Reads build metadata from the app image and combines it with the configured board name plus device identity fields.
 
 **Key files**  
 `main/include/air360/build_info.hpp`  
 `main/src/build_info.cpp`
 
 **Inputs**  
-ESP-IDF app description metadata and `CONFIG_AIR360_BOARD_NAME`.
+ESP-IDF app description metadata, `CONFIG_AIR360_BOARD_NAME`, efuse MAC, and station MAC.
 
 **Outputs**  
 A `BuildInfo` struct consumed by the status layer.
@@ -165,7 +167,7 @@ Synchronous helper called during startup.
 ### NetworkManager
 
 **Responsibility**  
-Starts and reports the current lab SoftAP state.
+Resolves Wi-Fi mode at boot, attempts station join from saved credentials, falls back to setup AP mode, and reports the resulting network state.
 
 **Key files**  
 `main/include/air360/network_manager.hpp`  
@@ -175,7 +177,7 @@ Starts and reports the current lab SoftAP state.
 Loaded `DeviceConfig`, compile-time AP channel and max-connection settings.
 
 **Outputs**  
-Wi-Fi AP state and IP address in `NetworkState`.
+Wi-Fi mode, station attempt/result, AP state, SSID summary, last error, and IP address in `NetworkState`.
 
 **Dependencies**  
 `esp_netif`, `esp_wifi`, lwIP IPv4 helpers.
@@ -214,10 +216,10 @@ Starts the HTTP server and binds the current local interface.
 `main/src/web_server.cpp`
 
 **Inputs**  
-`StatusService` and the configured HTTP port.
+`StatusService`, `ConfigRepository`, the in-memory `DeviceConfig`, and the configured HTTP port.
 
 **Outputs**  
-The `/` HTML endpoint and `/status` JSON endpoint.
+The `/` HTML endpoint, `/status` JSON endpoint, and `/config` GET/POST flow.
 
 **Dependencies**  
 `esp_http_server`.
@@ -258,7 +260,10 @@ The runtime configuration stored in NVS is `DeviceConfig`, which currently conta
 - record header fields for magic, schema version, and record size
 - HTTP port
 - `lab_ap_enabled`
+- `local_auth_enabled`
 - device name
+- Wi-Fi station SSID
+- Wi-Fi station password
 - lab AP SSID
 - lab AP password
 
@@ -302,6 +307,8 @@ The firmware validates the loaded config for:
 - expected record size
 - non-zero HTTP port
 - valid string termination
+- Wi-Fi station SSID length
+- Wi-Fi station password length
 - SSID length
 - password length
 
@@ -342,21 +349,22 @@ The current firmware exposes only local interfaces.
 Implemented endpoints:
 
 - `/`
-  A small HTML status page showing board name, device name, build metadata, boot count, and lab AP state.
+  In setup AP mode this redirects to `/config`. In station mode it renders a small HTML runtime page with boot, config, and network summary.
 - `/status`
   A JSON status payload with build, reset, config, network, and uptime information.
+- `/config`
+  A local HTML configuration form with GET/POST handlers. It stores Wi-Fi credentials and basic device settings in NVS, then reboots the device.
 
 ### Wi-Fi
 
-If enabled in the loaded config, the firmware starts a SoftAP using the configured SSID and password and serves the local HTTP endpoints there.
+If station credentials are configured, the firmware tries station mode first. If credentials are missing or station join fails, it starts a setup AP using the configured SSID and password and serves the local HTTP endpoints there.
 
 ### What is not implemented yet
 
 There is no confirmed implementation in `firmware/` for:
 
-- station-mode onboarding
-- captive portal or `/config` UI
 - backend uploads
+- wildcard DNS or captive portal DNS behavior
 - OTA update flows
 - sensor sampling interfaces
 
@@ -383,7 +391,8 @@ Error-handling behavior by area:
 - NVS init failure aborts startup
 - invalid or missing config is repaired by rewriting defaults
 - boot counter failures log a warning and startup continues
-- lab AP failures log a warning and startup continues
+- station join failures log a warning and trigger AP fallback
+- setup AP failures log a warning and startup continues
 - web server startup failure aborts startup
 
 The overall pattern is fail-fast for mandatory platform services and degrade-when-possible for optional bring-up steps.
@@ -397,9 +406,10 @@ The overall pattern is fail-fast for mandatory platform services and degrade-whe
 - startup watchdog initialization
 - NVS-based config and boot counter persistence
 - network core initialization with `esp_netif` and the default event loop
-- lab SoftAP startup path at `192.168.4.1`
-- local HTTP endpoints `/` and `/status`
-- status reporting of build metadata, reset reason, boot count, and AP state
+- station-mode join attempt using persisted Wi-Fi credentials
+- setup AP fallback path at `192.168.4.1`
+- local HTTP endpoints `/`, `/status`, and `/config`
+- status reporting of build metadata, reset reason, boot count, config summary, and network state
 
 ### Inferred from structure
 
@@ -409,7 +419,7 @@ The overall pattern is fail-fast for mandatory platform services and degrade-whe
 
 ### Planned or described in docs
 
-- a broader onboarding flow centered on `/config`
+- wildcard-DNS captive onboarding around `/config`
 - legacy compatibility adapters for server uploads
 - wider sensor support
 - richer runtime architecture around connectivity, normalization, and uploads

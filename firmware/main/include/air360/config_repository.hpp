@@ -7,7 +7,7 @@
 namespace air360 {
 
 constexpr std::uint32_t kDeviceConfigMagic = 0x41333630U;
-constexpr std::uint16_t kDeviceConfigSchemaVersion = 1U;
+constexpr std::uint16_t kDeviceConfigSchemaVersion = 2U;
 
 struct DeviceConfig {
     std::uint32_t magic;
@@ -15,8 +15,11 @@ struct DeviceConfig {
     std::uint16_t record_size;
     std::uint16_t http_port;
     std::uint8_t lab_ap_enabled;
-    std::uint8_t reserved0;
+    std::uint8_t local_auth_enabled;
+    std::uint16_t reserved0;
     char device_name[32];
+    char wifi_sta_ssid[33];
+    char wifi_sta_password[65];
     char lab_ap_ssid[33];
     char lab_ap_password[65];
 };

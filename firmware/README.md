@@ -2,7 +2,7 @@
 
 This directory contains the ESP-IDF firmware project for Air360.
 
-The current implementation is an early Phase 1 runtime for `ESP32-S3-DevKitC-1` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates a small device config record, starts a lab-only SoftAP when enabled, and exposes local status endpoints at `/` and `/status`.
+The current implementation is a Phase 2 onboarding runtime for `ESP32-S3-DevKitC-1` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates a persisted device config record, resolves whether the device should run in station mode or setup AP mode, and exposes local HTTP endpoints at `/`, `/status`, and `/config`.
 
 ## Project Structure
 
@@ -38,15 +38,15 @@ Public component headers for the current runtime:
 - `app.hpp`
   Declares the top-level `air360::App` runner.
 - `build_info.hpp`
-  Defines `BuildInfo` and the helper that reads project metadata from the built app image.
+  Defines `BuildInfo` and the helper that reads build metadata plus device identity fields used by the status layer.
 - `config_repository.hpp`
   Defines the persisted `DeviceConfig` record and the NVS-backed repository API.
 - `network_manager.hpp`
-  Declares the lab AP startup path and reported network state.
+  Declares the station join flow, setup AP fallback, and reported network state.
 - `status_service.hpp`
   Declares the service that renders the root HTML page and `/status` JSON.
 - `web_server.hpp`
-  Declares the wrapper around `esp_http_server`.
+  Declares the wrapper around `esp_http_server`, including the config form route.
 
 ### `main/src/`
 
@@ -55,17 +55,17 @@ Current implementation files:
 - `app_main.cpp`
   C entry point that constructs `air360::App` and calls `run()`.
 - `app.cpp`
-  Main startup flow: watchdog, NVS, event loop, config load/create, boot counter, lab AP, and HTTP server.
+  Main startup flow: watchdog, NVS, event loop, config load/create, boot counter, network mode resolution, and HTTP server startup.
 - `build_info.cpp`
-  Reads project name, version, build date/time, ESP-IDF version, and board name.
+  Reads project name, version, build date/time, ESP-IDF version, board name, and device identity fields.
 - `config_repository.cpp`
   Stores and validates the `DeviceConfig` blob and boot counter in NVS.
 - `network_manager.cpp`
-  Starts the lab SoftAP at `192.168.4.1` using ESP-IDF Wi-Fi and `esp_netif`.
+  Attempts Wi-Fi station join from saved credentials and falls back to setup AP mode at `192.168.4.1`.
 - `status_service.cpp`
-  Produces the simple status HTML and JSON payloads.
+  Produces the runtime HTML and JSON payloads, including build, config, and network summaries.
 - `web_server.cpp`
-  Starts `esp_http_server` and registers `/` and `/status`.
+  Starts `esp_http_server` and registers `/`, `/status`, and `/config` GET/POST handlers.
 
 ## Requirements
 
@@ -95,11 +95,11 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
 - `CONFIG_AIR360_HTTP_PORT`
   Port used by the status web server.
 - `CONFIG_AIR360_ENABLE_LAB_AP`
-  Enables the current Phase 1 lab AP bring-up path.
+  Controls whether setup AP defaults are enabled in the initial persisted config.
 - `CONFIG_AIR360_LAB_AP_SSID`
-  Default SSID for the lab AP.
+  Default SSID for the setup AP.
 - `CONFIG_AIR360_LAB_AP_PASSWORD`
-  Default password for the lab AP.
+  Default password for the setup AP.
 - `CONFIG_AIR360_LAB_AP_CHANNEL`
   Compile-time Wi-Fi channel used by the AP.
 - `CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS`
@@ -206,12 +206,14 @@ cd firmware
 idf.py -p /dev/tty.usbserial-0001 flash monitor
 ```
 
-After boot, the Phase 1 runtime should expose:
+After boot, the runtime exposes one of two local access paths:
 
-- `http://192.168.4.1/`
-- `http://192.168.4.1/status`
-
-when the lab AP path is enabled and started successfully.
+- in setup AP mode:
+  - `http://192.168.4.1/`
+  - `http://192.168.4.1/config`
+  - `http://192.168.4.1/status`
+- in station mode:
+  - the same routes are served on the DHCP address obtained by the device on the configured Wi-Fi network
 
 ## Architecture Overview
 
@@ -224,11 +226,12 @@ The current startup flow is:
 5. `ConfigRepository` loads or creates a `DeviceConfig` record
 6. the boot counter is incremented in NVS
 7. `StatusService` is populated with build, config, and runtime state
-8. `NetworkManager` starts the lab AP if enabled
-9. `WebServer` starts `esp_http_server` on the configured HTTP port
-10. the runtime stays alive and serves `/` and `/status`
+8. `NetworkManager` attempts station join when Wi-Fi credentials are present
+9. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
+10. `WebServer` starts `esp_http_server` on the configured HTTP port
+11. `/` serves runtime status in station mode and redirects to `/config` in setup mode
 
-This is a small single-runtime design at the moment. There are no sensor drivers, uploader adapters, or onboarding UI flows implemented yet in this project tree.
+This is still a small single-runtime design. There are no sensor drivers or uploader adapters yet, but the local onboarding and configuration flow is implemented in the firmware tree.
 
 ## Storage and Partitions
 
@@ -245,7 +248,7 @@ The project uses a custom partition table in `partitions.csv`:
 - `storage`
   A `spiffs` data partition reserved for future file-backed storage. The current runtime does not mount or use it yet.
 
-Phase 1 depends on NVS, not on SPIFFS.
+The current runtime depends on NVS, not on SPIFFS.
 
 ## Debugging Notes
 
@@ -259,7 +262,9 @@ Phase 1 depends on NVS, not on SPIFFS.
 Current limitations confirmed by the source tree:
 
 - no sensor readout path is implemented yet
-- no station-mode onboarding flow or `/config` UI exists yet in the new firmware
 - no backend upload logic is implemented yet
+- no captive-portal DNS or wildcard DNS flow is implemented yet
+- config changes are applied by reboot rather than live reconfiguration
+- the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
-- the project currently exposes only a minimal root page and `/status` JSON endpoint
+- the project currently exposes only the minimal runtime pages `/`, `/status`, and `/config`

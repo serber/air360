@@ -46,6 +46,7 @@ DeviceConfig makeDefaultDeviceConfig() {
 #else
     config.lab_ap_enabled = 0U;
 #endif
+    config.local_auth_enabled = 0U;
     config.reserved0 = 0U;
     copyString(config.device_name, sizeof(config.device_name), CONFIG_AIR360_DEVICE_NAME);
 #ifdef CONFIG_AIR360_LAB_AP_SSID
@@ -70,13 +71,25 @@ bool ConfigRepository::isValid(const DeviceConfig& config) const {
 
     if (config.device_name[0] == '\0' ||
         config.device_name[sizeof(config.device_name) - 1U] != '\0' ||
+        config.wifi_sta_ssid[sizeof(config.wifi_sta_ssid) - 1U] != '\0' ||
+        config.wifi_sta_password[sizeof(config.wifi_sta_password) - 1U] != '\0' ||
         config.lab_ap_ssid[sizeof(config.lab_ap_ssid) - 1U] != '\0' ||
         config.lab_ap_password[sizeof(config.lab_ap_password) - 1U] != '\0') {
         return false;
     }
 
+    const std::size_t wifi_ssid_length = std::strlen(config.wifi_sta_ssid);
+    const std::size_t wifi_password_length = std::strlen(config.wifi_sta_password);
     const std::size_t ssid_length = std::strlen(config.lab_ap_ssid);
     const std::size_t password_length = std::strlen(config.lab_ap_password);
+    if (wifi_ssid_length > 32U) {
+        return false;
+    }
+
+    if (wifi_password_length > 63U) {
+        return false;
+    }
+
     if (ssid_length == 0U || ssid_length > 32U) {
         return false;
     }

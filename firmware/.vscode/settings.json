@@ -14,5 +14,7 @@
         "--compile-commands-dir=build"
     ],
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-    "cmake.configureOnOpen": false
+    "cmake.configureOnOpen": false,
+    "idf.currentSetup": "~/.espressif/v6.0/esp-idf",
+    "idf.port": "/dev/tty.usbserial-0001"
 }

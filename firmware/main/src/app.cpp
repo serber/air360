@@ -23,6 +23,10 @@ namespace {
 
 constexpr char kTag[] = "air360.app";
 
+bool hasStationConfig(const DeviceConfig& config) {
+    return config.wifi_sta_ssid[0] != '\0';
+}
+
 esp_err_t initWatchdog() {
     esp_task_wdt_config_t config{};
     config.timeout_ms = 10000;
@@ -123,20 +127,33 @@ void App::run() {
     status_service.setBootCount(boot_count);
 
     NetworkManager network_manager;
-    if (config.lab_ap_enabled != 0U) {
-        ESP_LOGI(kTag, "Boot step 5/6: start lab AP bring-up hook");
+    ESP_LOGI(kTag, "Boot step 5/6: resolve network mode");
+    if (hasStationConfig(config)) {
+        ESP_LOGI(kTag, "Station config present, attempting normal mode Wi-Fi join");
+        const esp_err_t station_err = network_manager.connectStation(config);
+        if (station_err != ESP_OK) {
+            ESP_LOGW(
+                kTag,
+                "Station join failed, falling back to setup AP: %s",
+                esp_err_to_name(station_err));
+            const esp_err_t ap_err = network_manager.startLabAp(config);
+            if (ap_err != ESP_OK) {
+                ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
+            }
+        }
+    } else {
+        ESP_LOGI(kTag, "No station config present, entering setup AP mode");
         const esp_err_t ap_err = network_manager.startLabAp(config);
         if (ap_err != ESP_OK) {
-            ESP_LOGW(kTag, "Lab AP start failed: %s", esp_err_to_name(ap_err));
+            ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
         }
-        status_service.setNetworkState(network_manager.state());
-    } else {
-        ESP_LOGI(kTag, "Boot step 5/6: lab AP disabled in config");
     }
+    status_service.setNetworkState(network_manager.state());
 
     ESP_LOGI(kTag, "Boot step 6/6: start status web server");
     WebServer web_server;
-    const esp_err_t web_err = web_server.start(status_service, config.http_port);
+    const esp_err_t web_err =
+        web_server.start(status_service, config_repository, config, config.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
         return;
@@ -145,7 +162,7 @@ void App::run() {
 
     ESP_LOGI(
         kTag,
-        "Phase 1 runtime ready on port %" PRIu16,
+        "Phase 2 runtime ready on port %" PRIu16,
         config.http_port);
 
     esp_task_wdt_delete(nullptr);
