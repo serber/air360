@@ -346,7 +346,7 @@ std::string renderSensorsPage(
         html += "</div>";
     }
 
-    const auto& runtime_sensors = sensor_manager.sensors();
+    const auto runtime_sensors = sensor_manager.sensors();
     if (runtime_sensors.empty()) {
         html += "<p>No sensors configured yet.</p>";
     } else {
@@ -374,6 +374,34 @@ std::string renderSensorsPage(
                 html += htmlEscape(runtime_info->last_error);
             }
             html += "</p>";
+            if (runtime_info != nullptr &&
+                (runtime_info->measurement.has_temperature ||
+                 runtime_info->measurement.has_humidity ||
+                 runtime_info->measurement.has_pressure)) {
+                html += "<p>Latest reading: <code>";
+                bool first_value = true;
+                if (runtime_info->measurement.has_temperature) {
+                    html += htmlEscape(std::to_string(runtime_info->measurement.temperature_c));
+                    html += " C";
+                    first_value = false;
+                }
+                if (runtime_info->measurement.has_humidity) {
+                    if (!first_value) {
+                        html += " · ";
+                    }
+                    html += htmlEscape(std::to_string(runtime_info->measurement.humidity_percent));
+                    html += " %";
+                    first_value = false;
+                }
+                if (runtime_info->measurement.has_pressure) {
+                    if (!first_value) {
+                        html += " · ";
+                    }
+                    html += htmlEscape(std::to_string(runtime_info->measurement.pressure_hpa));
+                    html += " hPa";
+                }
+                html += "</code></p>";
+            }
             html += "<form method='POST' action='/sensors'>";
             html += "<input type='hidden' name='action' value='update'>";
             html += "<input type='hidden' name='sensor_id' value='";

@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
 
 #include "air360/build_info.hpp"
 #include "air360/config_repository.hpp"
@@ -35,7 +34,7 @@ class StatusService {
     BuildInfo build_info_;
     DeviceConfig config_{};
     NetworkState network_state_{};
-    std::vector<SensorRuntimeInfo> sensors_{};
+    const SensorManager* sensor_manager_ = nullptr;
     std::uint32_t boot_count_ = 0;
     bool nvs_ready_ = false;
     bool watchdog_armed_ = false;

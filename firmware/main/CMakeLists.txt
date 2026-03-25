@@ -6,8 +6,10 @@ idf_component_register(
         "src/config_repository.cpp"
         "src/network_manager.cpp"
         "src/sensors/sensor_config_repository.cpp"
+        "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
+        "src/sensors/transport_binding.cpp"
         "src/status_service.cpp"
         "src/web_server.cpp"
     INCLUDE_DIRS
@@ -16,7 +18,9 @@ idf_component_register(
         esp_app_format
         esp_common
         esp_event
+        esp_driver_gpio
         esp_http_server
+        esp_driver_i2c
         esp_netif
         esp_system
         esp_timer

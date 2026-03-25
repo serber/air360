@@ -3,6 +3,8 @@
 #include <cstring>
 #include <string>
 
+#include "air360/sensors/drivers/bme280_sensor.hpp"
+
 namespace air360 {
 
 namespace {
@@ -67,12 +69,12 @@ constexpr SensorDescriptor kDescriptors[] = {
         "BME280",
         true,
         false,
-        false,
+        true,
         10000U,
         0U,
         0x76U,
         &validateBme280Record,
-        nullptr,
+        &createBme280Sensor,
     },
 };
 

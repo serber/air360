@@ -13,6 +13,16 @@ config AIR360_HTTP_PORT
     range 1 65535
     default 80
 
+config AIR360_I2C0_SDA_GPIO
+    int "I2C bus 0 SDA GPIO"
+    range 0 48
+    default 8
+
+config AIR360_I2C0_SCL_GPIO
+    int "I2C bus 0 SCL GPIO"
+    range 0 48
+    default 9
+
 config AIR360_ENABLE_LAB_AP
     bool "Enable lab AP bring-up hook"
     default y

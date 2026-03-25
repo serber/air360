@@ -10,6 +10,7 @@
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/web_server.hpp"
+#include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -24,6 +25,32 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.app";
+constexpr gpio_num_t kGreenLedGpio = GPIO_NUM_11;
+constexpr gpio_num_t kRedLedGpio = GPIO_NUM_10;
+
+void setBootLedState(bool green_on, bool red_on) {
+    gpio_set_level(kGreenLedGpio, green_on ? 1 : 0);
+    gpio_set_level(kRedLedGpio, red_on ? 1 : 0);
+}
+
+esp_err_t initBootLeds() {
+    gpio_config_t config{};
+    config.pin_bit_mask =
+        (1ULL << static_cast<unsigned>(kGreenLedGpio)) |
+        (1ULL << static_cast<unsigned>(kRedLedGpio));
+    config.mode = GPIO_MODE_OUTPUT;
+    config.pull_up_en = GPIO_PULLUP_DISABLE;
+    config.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    config.intr_type = GPIO_INTR_DISABLE;
+
+    const esp_err_t err = gpio_config(&config);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    setBootLedState(false, false);
+    return ESP_OK;
+}
 
 bool hasStationConfig(const DeviceConfig& config) {
     return config.wifi_sta_ssid[0] != '\0';
@@ -84,6 +111,11 @@ void App::run() {
     static NetworkManager network_manager;
     static WebServer web_server;
 
+    const esp_err_t leds_err = initBootLeds();
+    if (leds_err != ESP_OK) {
+        ESP_LOGW(kTag, "Boot LED setup failed: %s", esp_err_to_name(leds_err));
+    }
+
     ESP_LOGI(kTag, "Boot step 1/7: arm task watchdog");
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
@@ -94,6 +126,7 @@ void App::run() {
     const esp_err_t storage_err = initStorage();
     if (storage_err != ESP_OK) {
         ESP_LOGE(kTag, "NVS init failed: %s", esp_err_to_name(storage_err));
+        setBootLedState(false, true);
         return;
     }
 
@@ -104,6 +137,7 @@ void App::run() {
             kTag,
             "Network core init failed: %s",
             esp_err_to_name(network_core_err));
+        setBootLedState(false, true);
         return;
     }
 
@@ -193,14 +227,16 @@ void App::run() {
             config.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
+        setBootLedState(false, true);
         return;
     }
     status_service.setWebServerStarted(true);
 
     ESP_LOGI(
         kTag,
-        "Phase 3.1 runtime ready on port %" PRIu16,
+        "Phase 3.2 runtime ready on port %" PRIu16,
         config.http_port);
+    setBootLedState(true, false);
 
     esp_task_wdt_delete(nullptr);
 

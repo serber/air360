@@ -89,6 +89,43 @@ std::uint64_t uptimeMilliseconds() {
     return static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
 }
 
+std::string formatFloat(float value, int precision) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.*f", precision, static_cast<double>(value));
+    return buffer;
+}
+
+std::string measurementSummary(const SensorRuntimeInfo& sensor) {
+    std::string summary;
+    if (sensor.measurement.has_temperature) {
+        summary += formatFloat(sensor.measurement.temperature_c, 1);
+        summary += " C";
+    }
+    if (sensor.measurement.has_humidity) {
+        if (!summary.empty()) {
+            summary += " · ";
+        }
+        summary += formatFloat(sensor.measurement.humidity_percent, 1);
+        summary += " %";
+    }
+    if (sensor.measurement.has_pressure) {
+        if (!summary.empty()) {
+            summary += " · ";
+        }
+        summary += formatFloat(sensor.measurement.pressure_hpa, 1);
+        summary += " hPa";
+    }
+    return summary;
+}
+
+std::string jsonNumberOrNull(bool has_value, float value, int precision) {
+    if (!has_value) {
+        return "null";
+    }
+
+    return formatFloat(value, precision);
+}
+
 }  // namespace
 
 StatusService::StatusService(BuildInfo build_info) : build_info_(std::move(build_info)) {}
@@ -119,7 +156,7 @@ void StatusService::setNetworkState(const NetworkState& state) {
 }
 
 void StatusService::setSensors(const SensorManager& sensor_manager) {
-    sensors_ = sensor_manager.sensors();
+    sensor_manager_ = &sensor_manager;
 }
 
 void StatusService::setWebServerStarted(bool started) {
@@ -127,6 +164,9 @@ void StatusService::setWebServerStarted(bool started) {
 }
 
 std::string StatusService::renderRootHtml() const {
+    const std::vector<SensorRuntimeInfo> sensors =
+        sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
+
     std::string html;
     html.reserve(4000);
     html += "<!doctype html><html><head><meta charset='utf-8'>";
@@ -160,13 +200,13 @@ std::string StatusService::renderRootHtml() const {
     html += "<p>Local UI: <a href='/config'>/config</a> · Sensors: <a href='/sensors'>/sensors</a> · JSON status: <a href='/status'>/status</a></p>";
     html += "<h2>Sensors</h2>";
     html += "<p>Configured sensors: <code>";
-    html += std::to_string(sensors_.size());
+    html += std::to_string(sensors.size());
     html += "</code></p>";
-    if (sensors_.empty()) {
+    if (sensors.empty()) {
         html += "<p>No sensors configured yet.</p>";
     } else {
         html += "<ul>";
-        for (const auto& sensor : sensors_) {
+        for (const auto& sensor : sensors) {
             html += "<li><strong>";
             html += htmlEscape(sensor.display_name);
             html += "</strong> · <code>";
@@ -179,6 +219,11 @@ std::string StatusService::renderRootHtml() const {
             if (!sensor.last_error.empty()) {
                 html += " · ";
                 html += htmlEscape(sensor.last_error);
+            }
+            const std::string readings = measurementSummary(sensor);
+            if (!readings.empty()) {
+                html += " · ";
+                html += htmlEscape(readings);
             }
             html += "</li>";
         }
@@ -213,15 +258,18 @@ std::string StatusService::renderRootHtml() const {
     html += "\nwifi_configured: ";
     html += (config_.wifi_sta_ssid[0] != '\0' ? "true" : "false");
     html += "\nconfigured_sensors: ";
-    html += std::to_string(sensors_.size());
+    html += std::to_string(sensors.size());
     html += "\n";
     html += "</pre></body></html>";
     return html;
 }
 
 std::string StatusService::renderStatusJson() const {
+    const std::vector<SensorRuntimeInfo> sensors =
+        sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
+
     std::string json;
-    json.reserve(4096);
+    json.reserve(6144);
     json += "{";
     json += "\"project_name\":\"" + jsonEscape(build_info_.project_name) + "\",";
     json += "\"project_version\":\"" + jsonEscape(build_info_.project_version) + "\",";
@@ -269,10 +317,10 @@ std::string StatusService::renderStatusJson() const {
     json += "\"active_setup_ap_ssid\":\"" + jsonEscape(network_state_.lab_ap_ssid) + "\",";
     json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
     json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
-    json += "\"configured_sensors_count\":" + std::to_string(sensors_.size()) + ",";
+    json += "\"configured_sensors_count\":" + std::to_string(sensors.size()) + ",";
     json += "\"sensors\":[";
-    for (std::size_t index = 0; index < sensors_.size(); ++index) {
-        const auto& sensor = sensors_[index];
+    for (std::size_t index = 0; index < sensors.size(); ++index) {
+        const auto& sensor = sensors[index];
         if (index > 0U) {
             json += ",";
         }
@@ -286,6 +334,14 @@ std::string StatusService::renderStatusJson() const {
         json += "\"transport_kind\":\"" + jsonEscape(transportKindKey(sensor.transport_kind)) + "\",";
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
+        json += "\"last_sample_time_ms\":" + std::to_string(sensor.last_sample_time_ms) + ",";
+        json += "\"temperature_c\":";
+        json += jsonNumberOrNull(sensor.measurement.has_temperature, sensor.measurement.temperature_c, 2);
+        json += ",\"humidity_percent\":";
+        json += jsonNumberOrNull(sensor.measurement.has_humidity, sensor.measurement.humidity_percent, 2);
+        json += ",\"pressure_hpa\":";
+        json += jsonNumberOrNull(sensor.measurement.has_pressure, sensor.measurement.pressure_hpa, 2);
+        json += ",";
         json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
         json += "}";
     }
