@@ -80,13 +80,23 @@ std::string bindingSummary(const SensorRecord& record) {
 void SensorManager::applyConfig(const SensorConfigList& config) {
     stop();
     ensureMutex();
-    lock();
-    sensors_.clear();
-    sensors_.reserve(config.sensor_count);
 
+    std::vector<ManagedSensor> next_sensors = buildManagedSensors(config);
+
+    lock();
+    sensors_ = std::move(next_sensors);
+    startLocked();
+    unlock();
+}
+
+std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
+    const SensorConfigList& config) {
     SensorRegistry registry;
     const SensorDriverContext driver_context{&i2c_bus_manager_};
     const std::uint64_t now_ms = uptimeMilliseconds();
+    std::vector<ManagedSensor> sensors;
+    sensors.reserve(config.sensor_count);
+
     for (std::size_t index = 0; index < config.sensor_count; ++index) {
         const SensorRecord& record = config.sensors[index];
         const SensorDescriptor* descriptor = registry.findByType(record.sensor_type);
@@ -142,11 +152,10 @@ void SensorManager::applyConfig(const SensorConfigList& config) {
             }
         }
 
-        sensors_.push_back(std::move(managed));
+        sensors.push_back(std::move(managed));
     }
 
-    startLocked();
-    unlock();
+    return sensors;
 }
 
 void SensorManager::stop() {
@@ -276,51 +285,67 @@ void SensorManager::taskMain() {
         const std::uint64_t now_ms = uptimeMilliseconds();
 
         lock();
-        for (auto& sensor : sensors_) {
-            if (!sensor.runtime.enabled || sensor.driver == nullptr) {
-                continue;
-            }
+        const std::size_t sensor_count = sensors_.size();
+        unlock();
 
-            if (now_ms < sensor.next_action_time_ms) {
-                continue;
-            }
+        for (std::size_t index = 0; index < sensor_count; ++index) {
+            SensorDriver* driver = nullptr;
+            SensorRecord record{};
+            bool needs_init = false;
 
-            if (!sensor.driver_ready) {
-                const esp_err_t init_err = sensor.driver->init(sensor.record, driver_context);
-                if (init_err == ESP_OK) {
-                    sensor.driver_ready = true;
-                    sensor.runtime.state = SensorRuntimeState::kInitialized;
-                    sensor.runtime.last_error.clear();
-                    sensor.runtime.measurement = sensor.driver->latestMeasurement();
-                    sensor.runtime.last_sample_time_ms =
-                        sensor.runtime.measurement.sample_time_ms;
-                    sensor.next_action_time_ms = now_ms;
-                } else {
-                    sensor.runtime.state = classifyFailureState(init_err);
-                    sensor.runtime.last_error = errorText(*sensor.driver, init_err);
-                    sensor.next_action_time_ms =
-                        now_ms + std::min<std::uint32_t>(sensor.record.poll_interval_ms, kRetryDelayMs);
+            lock();
+            if (index < sensors_.size()) {
+                auto& sensor = sensors_[index];
+                if (sensor.runtime.enabled && sensor.driver != nullptr &&
+                    now_ms >= sensor.next_action_time_ms) {
+                    driver = sensor.driver.get();
+                    record = sensor.record;
+                    needs_init = !sensor.driver_ready;
                 }
+            }
+            unlock();
+
+            if (driver == nullptr) {
                 continue;
             }
 
-            const esp_err_t poll_err = sensor.driver->poll();
-            if (poll_err == ESP_OK) {
-                sensor.runtime.measurement = sensor.driver->latestMeasurement();
-                sensor.runtime.last_sample_time_ms =
-                    sensor.runtime.measurement.sample_time_ms;
-                sensor.runtime.state = SensorRuntimeState::kPolling;
+            const esp_err_t op_err =
+                needs_init ? driver->init(record, driver_context) : driver->poll();
+            const SensorMeasurement measurement =
+                op_err == ESP_OK ? driver->latestMeasurement() : SensorMeasurement{};
+            const std::string last_error =
+                op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
+
+            lock();
+            if (index >= sensors_.size()) {
+                unlock();
+                continue;
+            }
+
+            auto& sensor = sensors_[index];
+            if (sensor.driver.get() != driver) {
+                unlock();
+                continue;
+            }
+
+            if (op_err == ESP_OK) {
+                sensor.driver_ready = true;
+                sensor.runtime.measurement = measurement;
+                sensor.runtime.last_sample_time_ms = measurement.sample_time_ms;
+                sensor.runtime.state = needs_init ? SensorRuntimeState::kInitialized
+                                                  : SensorRuntimeState::kPolling;
                 sensor.runtime.last_error.clear();
-                sensor.next_action_time_ms = now_ms + sensor.record.poll_interval_ms;
+                sensor.next_action_time_ms =
+                    now_ms + (needs_init ? 0U : sensor.record.poll_interval_ms);
             } else {
                 sensor.driver_ready = false;
-                sensor.runtime.state = classifyFailureState(poll_err);
-                sensor.runtime.last_error = errorText(*sensor.driver, poll_err);
+                sensor.runtime.state = classifyFailureState(op_err);
+                sensor.runtime.last_error = last_error;
                 sensor.next_action_time_ms =
                     now_ms + std::min<std::uint32_t>(sensor.record.poll_interval_ms, kRetryDelayMs);
             }
+            unlock();
         }
-        unlock();
 
         vTaskDelay(kManagerLoopDelay);
     }

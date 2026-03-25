@@ -40,8 +40,13 @@ class Bme280Sensor final : public SensorDriver {
         std::int8_t dig_h6 = 0;
     };
 
+    esp_err_t resetSensor();
+    esp_err_t readChipId(std::uint8_t& chip_id);
+    esp_err_t readChipIdWithRetry(std::uint8_t& chip_id);
     esp_err_t readCalibration();
     esp_err_t configureSensor();
+    esp_err_t startForcedMeasurement();
+    esp_err_t waitForMeasurement();
     esp_err_t readRawValues(
         std::int32_t& raw_temperature,
         std::int32_t& raw_pressure,

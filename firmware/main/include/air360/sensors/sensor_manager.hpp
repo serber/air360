@@ -53,6 +53,7 @@ class SensorManager {
     void ensureMutex() const;
     void lock() const;
     void unlock() const;
+    std::vector<ManagedSensor> buildManagedSensors(const SensorConfigList& config);
     void startLocked();
     static void taskEntry(void* arg);
     void taskMain();

@@ -8,6 +8,8 @@
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_timer.h"
 
 namespace air360 {
@@ -19,14 +21,29 @@ constexpr std::uint8_t kExpectedChipId = 0x60U;
 constexpr std::uint8_t kRegisterCalibration0 = 0x88U;
 constexpr std::uint8_t kRegisterHumidity1 = 0xA1U;
 constexpr std::uint8_t kRegisterCalibration1 = 0xE1U;
+constexpr std::uint8_t kRegisterReset = 0xE0U;
 constexpr std::uint8_t kRegisterCtrlHum = 0xF2U;
 constexpr std::uint8_t kRegisterStatus = 0xF3U;
 constexpr std::uint8_t kRegisterCtrlMeas = 0xF4U;
 constexpr std::uint8_t kRegisterConfig = 0xF5U;
 constexpr std::uint8_t kRegisterMeasurementStart = 0xF7U;
-constexpr std::uint8_t kConfigStandby1000msFilterOff = 0xA0U;
-constexpr std::uint8_t kCtrlHumOversampling1x = 0x01U;
-constexpr std::uint8_t kCtrlMeasNormal1x = 0x27U;
+constexpr std::uint8_t kResetCommand = 0xB6U;
+constexpr std::uint8_t kStatusImUpdateMask = 0x01U;
+constexpr std::uint8_t kStatusMeasuringMask = 0x08U;
+constexpr std::uint8_t kConfigFilterOff = 0x00U;
+constexpr std::uint8_t kOversampling1x = 0x01U;
+constexpr std::uint8_t kPowerModeForced = 0x01U;
+constexpr std::uint8_t kCtrlMeasForced1x =
+    static_cast<std::uint8_t>((kOversampling1x << 5U) | (kOversampling1x << 2U) | kPowerModeForced);
+constexpr std::uint32_t kMeasurementTimeUs =
+    1250U + (2300U * kOversampling1x) + ((2300U * kOversampling1x) + 575U) +
+    ((2300U * kOversampling1x) + 575U);
+constexpr TickType_t kMeasurementWaitTicks =
+    pdMS_TO_TICKS((kMeasurementTimeUs + 999U) / 1000U + 1U);
+constexpr TickType_t kStatusPollTicks = pdMS_TO_TICKS(2U);
+constexpr std::uint8_t kStatusPollAttempts = 5U;
+constexpr std::uint8_t kChipIdReadAttempts = 5U;
+constexpr TickType_t kChipIdRetryTicks = pdMS_TO_TICKS(2U);
 
 std::uint16_t readU16Le(const std::uint8_t* data) {
     return static_cast<std::uint16_t>(data[0] | (static_cast<std::uint16_t>(data[1]) << 8U));
@@ -34,6 +51,10 @@ std::uint16_t readU16Le(const std::uint8_t* data) {
 
 std::int16_t readS16Le(const std::uint8_t* data) {
     return static_cast<std::int16_t>(readU16Le(data));
+}
+
+void delayAtLeastOneTick(TickType_t ticks) {
+    vTaskDelay(ticks == 0 ? 1 : ticks);
 }
 
 }  // namespace
@@ -64,12 +85,7 @@ esp_err_t Bme280Sensor::init(
     }
 
     std::uint8_t chip_id = 0U;
-    err = i2c_bus_manager_->readRegister(
-        record_.i2c_bus_id,
-        record_.i2c_address,
-        kRegisterChipId,
-        &chip_id,
-        1U);
+    err = readChipIdWithRetry(chip_id);
     if (err != ESP_OK) {
         setError("Failed to read BME280 chip id.");
         return err;
@@ -84,6 +100,12 @@ esp_err_t Bme280Sensor::init(
             static_cast<unsigned>(chip_id));
         setError(message);
         return ESP_ERR_NOT_FOUND;
+    }
+
+    err = resetSensor();
+    if (err != ESP_OK) {
+        setError("Failed to reset BME280.");
+        return err;
     }
 
     err = readCalibration();
@@ -107,10 +129,24 @@ esp_err_t Bme280Sensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
+    esp_err_t err = startForcedMeasurement();
+    if (err != ESP_OK) {
+        setError("Failed to start forced BME280 measurement.");
+        initialized_ = false;
+        return err;
+    }
+
+    err = waitForMeasurement();
+    if (err != ESP_OK) {
+        setError("Timed out waiting for BME280 measurement.");
+        initialized_ = false;
+        return err;
+    }
+
     std::int32_t raw_temperature = 0;
     std::int32_t raw_pressure = 0;
     std::int32_t raw_humidity = 0;
-    esp_err_t err = readRawValues(raw_temperature, raw_pressure, raw_humidity);
+    err = readRawValues(raw_temperature, raw_pressure, raw_humidity);
     if (err != ESP_OK) {
         setError("Failed to read raw BME280 measurement registers.");
         initialized_ = false;
@@ -191,6 +227,67 @@ std::string Bme280Sensor::lastError() const {
     return last_error_;
 }
 
+esp_err_t Bme280Sensor::resetSensor() {
+    esp_err_t err = i2c_bus_manager_->writeRegister(
+        record_.i2c_bus_id,
+        record_.i2c_address,
+        kRegisterReset,
+        kResetCommand);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    delayAtLeastOneTick(pdMS_TO_TICKS(3U));
+
+    std::uint8_t status = 0U;
+    for (std::uint8_t attempt = 0; attempt < kStatusPollAttempts; ++attempt) {
+        err = i2c_bus_manager_->readRegister(
+            record_.i2c_bus_id,
+            record_.i2c_address,
+            kRegisterStatus,
+            &status,
+            1U);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        if ((status & kStatusImUpdateMask) == 0U) {
+            return ESP_OK;
+        }
+
+        delayAtLeastOneTick(kStatusPollTicks);
+    }
+
+    return ESP_ERR_TIMEOUT;
+}
+
+esp_err_t Bme280Sensor::readChipId(std::uint8_t& chip_id) {
+    return i2c_bus_manager_->readRegister(
+        record_.i2c_bus_id,
+        record_.i2c_address,
+        kRegisterChipId,
+        &chip_id,
+        1U);
+}
+
+esp_err_t Bme280Sensor::readChipIdWithRetry(std::uint8_t& chip_id) {
+    esp_err_t last_err = ESP_FAIL;
+    chip_id = 0U;
+
+    for (std::uint8_t attempt = 0; attempt < kChipIdReadAttempts; ++attempt) {
+        last_err = readChipId(chip_id);
+        if (last_err == ESP_OK && chip_id == kExpectedChipId) {
+            return ESP_OK;
+        }
+
+        if (attempt + 1U < kChipIdReadAttempts) {
+            delayAtLeastOneTick(kChipIdRetryTicks);
+        }
+    }
+
+    return last_err;
+}
+
 esp_err_t Bme280Sensor::readCalibration() {
     std::uint8_t calib0[24]{};
     esp_err_t err = i2c_bus_manager_->readRegister(
@@ -258,7 +355,7 @@ esp_err_t Bme280Sensor::configureSensor() {
         record_.i2c_bus_id,
         record_.i2c_address,
         kRegisterCtrlHum,
-        kCtrlHumOversampling1x);
+        kOversampling1x);
     if (err != ESP_OK) {
         setError("Failed to configure BME280 humidity oversampling.");
         return err;
@@ -268,19 +365,9 @@ esp_err_t Bme280Sensor::configureSensor() {
         record_.i2c_bus_id,
         record_.i2c_address,
         kRegisterConfig,
-        kConfigStandby1000msFilterOff);
+        kConfigFilterOff);
     if (err != ESP_OK) {
         setError("Failed to configure BME280 sensor config register.");
-        return err;
-    }
-
-    err = i2c_bus_manager_->writeRegister(
-        record_.i2c_bus_id,
-        record_.i2c_address,
-        kRegisterCtrlMeas,
-        kCtrlMeasNormal1x);
-    if (err != ESP_OK) {
-        setError("Failed to configure BME280 measurement mode.");
         return err;
     }
 
@@ -297,6 +384,48 @@ esp_err_t Bme280Sensor::configureSensor() {
     }
 
     return ESP_OK;
+}
+
+esp_err_t Bme280Sensor::startForcedMeasurement() {
+    esp_err_t err = i2c_bus_manager_->writeRegister(
+        record_.i2c_bus_id,
+        record_.i2c_address,
+        kRegisterCtrlHum,
+        kOversampling1x);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    return i2c_bus_manager_->writeRegister(
+        record_.i2c_bus_id,
+        record_.i2c_address,
+        kRegisterCtrlMeas,
+        kCtrlMeasForced1x);
+}
+
+esp_err_t Bme280Sensor::waitForMeasurement() {
+    delayAtLeastOneTick(kMeasurementWaitTicks);
+
+    std::uint8_t status = 0U;
+    for (std::uint8_t attempt = 0; attempt < kStatusPollAttempts; ++attempt) {
+        esp_err_t err = i2c_bus_manager_->readRegister(
+            record_.i2c_bus_id,
+            record_.i2c_address,
+            kRegisterStatus,
+            &status,
+            1U);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        if ((status & kStatusMeasuringMask) == 0U) {
+            return ESP_OK;
+        }
+
+        delayAtLeastOneTick(kStatusPollTicks);
+    }
+
+    return ESP_ERR_TIMEOUT;
 }
 
 esp_err_t Bme280Sensor::readRawValues(
