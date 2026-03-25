@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "air360/sensors/sensor_types.hpp"
 #include "esp_timer.h"
 
 namespace air360 {
@@ -117,13 +118,17 @@ void StatusService::setNetworkState(const NetworkState& state) {
     network_state_ = state;
 }
 
+void StatusService::setSensors(const SensorManager& sensor_manager) {
+    sensors_ = sensor_manager.sensors();
+}
+
 void StatusService::setWebServerStarted(bool started) {
     web_server_started_ = started;
 }
 
 std::string StatusService::renderRootHtml() const {
     std::string html;
-    html.reserve(2000);
+    html.reserve(4000);
     html += "<!doctype html><html><head><meta charset='utf-8'>";
     html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
     html += "<title>air360 runtime</title>";
@@ -152,7 +157,33 @@ std::string StatusService::renderRootHtml() const {
     html += "<p>Mode: <code>";
     html += networkModeString(network_state_.mode);
     html += "</code></p>";
-    html += "<p>Local UI: <a href='/config'>/config</a> · JSON status: <a href='/status'>/status</a></p>";
+    html += "<p>Local UI: <a href='/config'>/config</a> · Sensors: <a href='/sensors'>/sensors</a> · JSON status: <a href='/status'>/status</a></p>";
+    html += "<h2>Sensors</h2>";
+    html += "<p>Configured sensors: <code>";
+    html += std::to_string(sensors_.size());
+    html += "</code></p>";
+    if (sensors_.empty()) {
+        html += "<p>No sensors configured yet.</p>";
+    } else {
+        html += "<ul>";
+        for (const auto& sensor : sensors_) {
+            html += "<li><strong>";
+            html += htmlEscape(sensor.display_name);
+            html += "</strong> · <code>";
+            html += htmlEscape(sensor.type_key);
+            html += "</code> · <code>";
+            html += htmlEscape(sensor.binding_summary);
+            html += "</code> · state <code>";
+            html += htmlEscape(sensorRuntimeStateKey(sensor.state));
+            html += "</code>";
+            if (!sensor.last_error.empty()) {
+                html += " · ";
+                html += htmlEscape(sensor.last_error);
+            }
+            html += "</li>";
+        }
+        html += "</ul>";
+    }
     html += "<pre>";
     html += "project: " + htmlEscape(build_info_.project_name) + "\n";
     html += "version: " + htmlEscape(build_info_.project_version) + "\n";
@@ -181,107 +212,85 @@ std::string StatusService::renderRootHtml() const {
     html += std::to_string(config_.http_port);
     html += "\nwifi_configured: ";
     html += (config_.wifi_sta_ssid[0] != '\0' ? "true" : "false");
+    html += "\nconfigured_sensors: ";
+    html += std::to_string(sensors_.size());
     html += "\n";
     html += "</pre></body></html>";
     return html;
 }
 
 std::string StatusService::renderStatusJson() const {
-    const std::string project_name = jsonEscape(build_info_.project_name);
-    const std::string project_version = jsonEscape(build_info_.project_version);
-    const std::string idf_version = jsonEscape(build_info_.idf_version);
-    const std::string board_name = jsonEscape(build_info_.board_name);
-    const std::string chip_name = jsonEscape(build_info_.chip_name);
-    const std::string chip_revision = jsonEscape(build_info_.chip_revision);
-    const std::string compile_date = jsonEscape(build_info_.compile_date);
-    const std::string compile_time = jsonEscape(build_info_.compile_time);
-    const std::string chip_id = jsonEscape(build_info_.chip_id);
-    const std::string short_chip_id = jsonEscape(build_info_.short_chip_id);
-    const std::string esp_mac_id = jsonEscape(build_info_.esp_mac_id);
-    const std::string device_name = jsonEscape(config_.device_name);
-    const std::string station_ssid = jsonEscape(config_.wifi_sta_ssid);
-    const std::string setup_ap_ssid = jsonEscape(config_.lab_ap_ssid);
-    const std::string lab_ap_ip = jsonEscape(network_state_.ip_address);
-    const std::string active_station_ssid = jsonEscape(network_state_.station_ssid);
-    const std::string active_setup_ap_ssid = jsonEscape(network_state_.lab_ap_ssid);
-    const std::string last_error = jsonEscape(network_state_.last_error);
-    const char* network_mode = networkModeString(network_state_.mode);
-
-    char buffer[1800];
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "{"
-        "\"project_name\":\"%s\","
-        "\"project_version\":\"%s\","
-        "\"idf_version\":\"%s\","
-        "\"board_name\":\"%s\","
-        "\"chip_name\":\"%s\","
-        "\"chip_revision\":\"%s\","
-        "\"compile_date\":\"%s\","
-        "\"compile_time\":\"%s\","
-        "\"chip_id\":\"%s\","
-        "\"short_chip_id\":\"%s\","
-        "\"esp_mac_id\":\"%s\","
-        "\"device_name\":\"%s\","
-        "\"wifi_station_ssid\":\"%s\","
-        "\"setup_ap_ssid\":\"%s\","
-        "\"boot_count\":%" PRIu32 ","
-        "\"uptime_ms\":%" PRIu64 ","
-        "\"reset_reason\":%d,"
-        "\"nvs_ready\":%s,"
-        "\"watchdog_armed\":%s,"
-        "\"config_loaded_from_storage\":%s,"
-        "\"wrote_default_config\":%s,"
-        "\"web_server_started\":%s,"
-        "\"http_port\":%" PRIu16 ","
-        "\"lab_ap_enabled\":%s,"
-        "\"local_auth_enabled\":%s,"
-        "\"network_mode\":\"%s\","
-        "\"station_config_present\":%s,"
-        "\"station_connect_attempted\":%s,"
-        "\"station_connected\":%s,"
-        "\"lab_ap_active\":%s,"
-        "\"active_station_ssid\":\"%s\","
-        "\"active_setup_ap_ssid\":\"%s\","
-        "\"lab_ap_ip\":\"%s\","
-        "\"last_error\":\"%s\""
-        "}",
-        project_name.c_str(),
-        project_version.c_str(),
-        idf_version.c_str(),
-        board_name.c_str(),
-        chip_name.c_str(),
-        chip_revision.c_str(),
-        compile_date.c_str(),
-        compile_time.c_str(),
-        chip_id.c_str(),
-        short_chip_id.c_str(),
-        esp_mac_id.c_str(),
-        device_name.c_str(),
-        station_ssid.c_str(),
-        setup_ap_ssid.c_str(),
-        boot_count_,
-        uptimeMilliseconds(),
-        static_cast<int>(reset_reason_),
-        boolString(nvs_ready_),
-        boolString(watchdog_armed_),
-        boolString(config_loaded_from_storage_),
-        boolString(wrote_default_config_),
-        boolString(web_server_started_),
-        config_.http_port,
-        boolString(config_.lab_ap_enabled != 0U),
-        boolString(config_.local_auth_enabled != 0U),
-        network_mode,
-        boolString(network_state_.station_config_present),
-        boolString(network_state_.station_connect_attempted),
-        boolString(network_state_.station_connected),
-        boolString(network_state_.lab_ap_active),
-        active_station_ssid.c_str(),
-        active_setup_ap_ssid.c_str(),
-        lab_ap_ip.c_str(),
-        last_error.c_str());
-    return buffer;
+    std::string json;
+    json.reserve(4096);
+    json += "{";
+    json += "\"project_name\":\"" + jsonEscape(build_info_.project_name) + "\",";
+    json += "\"project_version\":\"" + jsonEscape(build_info_.project_version) + "\",";
+    json += "\"idf_version\":\"" + jsonEscape(build_info_.idf_version) + "\",";
+    json += "\"board_name\":\"" + jsonEscape(build_info_.board_name) + "\",";
+    json += "\"chip_name\":\"" + jsonEscape(build_info_.chip_name) + "\",";
+    json += "\"chip_revision\":\"" + jsonEscape(build_info_.chip_revision) + "\",";
+    json += "\"compile_date\":\"" + jsonEscape(build_info_.compile_date) + "\",";
+    json += "\"compile_time\":\"" + jsonEscape(build_info_.compile_time) + "\",";
+    json += "\"chip_id\":\"" + jsonEscape(build_info_.chip_id) + "\",";
+    json += "\"short_chip_id\":\"" + jsonEscape(build_info_.short_chip_id) + "\",";
+    json += "\"esp_mac_id\":\"" + jsonEscape(build_info_.esp_mac_id) + "\",";
+    json += "\"device_name\":\"" + jsonEscape(config_.device_name) + "\",";
+    json += "\"wifi_station_ssid\":\"" + jsonEscape(config_.wifi_sta_ssid) + "\",";
+    json += "\"setup_ap_ssid\":\"" + jsonEscape(config_.lab_ap_ssid) + "\",";
+    json += "\"boot_count\":" + std::to_string(boot_count_) + ",";
+    json += "\"uptime_ms\":" + std::to_string(uptimeMilliseconds()) + ",";
+    json += "\"reset_reason\":" + std::to_string(static_cast<int>(reset_reason_)) + ",";
+    json += "\"nvs_ready\":";
+    json += boolString(nvs_ready_);
+    json += ",\"watchdog_armed\":";
+    json += boolString(watchdog_armed_);
+    json += ",\"config_loaded_from_storage\":";
+    json += boolString(config_loaded_from_storage_);
+    json += ",\"wrote_default_config\":";
+    json += boolString(wrote_default_config_);
+    json += ",\"web_server_started\":";
+    json += boolString(web_server_started_);
+    json += ",\"http_port\":" + std::to_string(config_.http_port) + ",";
+    json += "\"lab_ap_enabled\":";
+    json += boolString(config_.lab_ap_enabled != 0U);
+    json += ",\"local_auth_enabled\":";
+    json += boolString(config_.local_auth_enabled != 0U);
+    json += ",\"network_mode\":\"";
+    json += networkModeString(network_state_.mode);
+    json += "\",\"station_config_present\":";
+    json += boolString(network_state_.station_config_present);
+    json += ",\"station_connect_attempted\":";
+    json += boolString(network_state_.station_connect_attempted);
+    json += ",\"station_connected\":";
+    json += boolString(network_state_.station_connected);
+    json += ",\"lab_ap_active\":";
+    json += boolString(network_state_.lab_ap_active);
+    json += ",\"active_station_ssid\":\"" + jsonEscape(network_state_.station_ssid) + "\",";
+    json += "\"active_setup_ap_ssid\":\"" + jsonEscape(network_state_.lab_ap_ssid) + "\",";
+    json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
+    json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
+    json += "\"configured_sensors_count\":" + std::to_string(sensors_.size()) + ",";
+    json += "\"sensors\":[";
+    for (std::size_t index = 0; index < sensors_.size(); ++index) {
+        const auto& sensor = sensors_[index];
+        if (index > 0U) {
+            json += ",";
+        }
+        json += "{";
+        json += "\"id\":" + std::to_string(sensor.id) + ",";
+        json += "\"enabled\":";
+        json += boolString(sensor.enabled);
+        json += ",\"sensor_type\":\"" + jsonEscape(sensor.type_key) + "\",";
+        json += "\"sensor_name\":\"" + jsonEscape(sensor.type_name) + "\",";
+        json += "\"display_name\":\"" + jsonEscape(sensor.display_name) + "\",";
+        json += "\"transport_kind\":\"" + jsonEscape(transportKindKey(sensor.transport_kind)) + "\",";
+        json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
+        json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
+        json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
+        json += "}";
+    }
+    json += "]}";
+    return json;
 }
 
 const NetworkState& StatusService::networkState() const {

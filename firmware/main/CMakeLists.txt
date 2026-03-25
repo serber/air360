@@ -5,6 +5,9 @@ idf_component_register(
         "src/build_info.cpp"
         "src/config_repository.cpp"
         "src/network_manager.cpp"
+        "src/sensors/sensor_config_repository.cpp"
+        "src/sensors/sensor_manager.cpp"
+        "src/sensors/sensor_registry.cpp"
         "src/status_service.cpp"
         "src/web_server.cpp"
     INCLUDE_DIRS

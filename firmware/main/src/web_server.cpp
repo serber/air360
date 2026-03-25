@@ -3,10 +3,15 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstring>
+#include <cstdlib>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "air360/sensors/sensor_config_repository.hpp"
+#include "air360/sensors/sensor_manager.hpp"
+#include "air360/sensors/sensor_registry.hpp"
+#include "air360/sensors/sensor_types.hpp"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -253,7 +258,276 @@ std::string renderConfigPage(
     html += "style='width:auto;max-width:none;margin-right:.5rem'>Local auth placeholder (stored only, not enforced yet)</label>";
     html += "<button type='submit'>Save and reboot</button>";
     html += "</form></div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/status'>JSON status</a></p>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/sensors'>Sensors</a> · <a href='/status'>JSON status</a></p>";
+    html += "</body></html>";
+    return html;
+}
+
+bool parseUnsignedLong(
+    const std::string& input,
+    unsigned long& value,
+    int base = 10) {
+    if (input.empty()) {
+        return false;
+    }
+
+    char* end = nullptr;
+    value = std::strtoul(input.c_str(), &end, base);
+    return end != nullptr && *end == '\0';
+}
+
+bool parseAddressValue(const std::string& input, std::uint8_t& out_value) {
+    unsigned long parsed = 0UL;
+    if (input.rfind("0x", 0U) == 0U || input.rfind("0X", 0U) == 0U) {
+        if (!parseUnsignedLong(input.substr(2U), parsed, 16)) {
+            return false;
+        }
+    } else if (!parseUnsignedLong(input, parsed, 10)) {
+        return false;
+    }
+
+    if (parsed > 0xFFUL) {
+        return false;
+    }
+
+    out_value = static_cast<std::uint8_t>(parsed);
+    return true;
+}
+
+bool parseTransportKind(const std::string& input, TransportKind& out_kind) {
+    if (input == "i2c") {
+        out_kind = TransportKind::kI2c;
+        return true;
+    }
+    if (input == "analog") {
+        out_kind = TransportKind::kAnalog;
+        return true;
+    }
+
+    out_kind = TransportKind::kUnknown;
+    return false;
+}
+
+std::string renderSensorsPage(
+    const SensorConfigList& sensor_config_list,
+    const SensorManager& sensor_manager,
+    const std::string& notice,
+    bool error_notice) {
+    SensorRegistry registry;
+
+    std::string html;
+    html.reserve(12000);
+    html += "<!doctype html><html><head><meta charset='utf-8'>";
+    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
+    html += "<title>air360 sensors</title>";
+    html += "<style>";
+    html += "body{font-family:system-ui,sans-serif;margin:2rem;max-width:70rem;line-height:1.5}";
+    html += "label{display:block;margin-top:.75rem;font-weight:600}";
+    html += "input,select{width:100%;max-width:28rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem}";
+    html += "button{margin-top:1rem;padding:.65rem 1rem;border:0;border-radius:.45rem;background:#0f766e;color:white;font-weight:700}";
+    html += ".secondary{background:#334155}.danger{background:#b91c1c}";
+    html += ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem 1.25rem;margin:1rem 0}";
+    html += ".notice{margin:1rem 0;padding:.8rem 1rem;border-radius:.5rem}";
+    html += ".ok{background:#ecfdf5;color:#166534}.err{background:#fef2f2;color:#991b1b}";
+    html += "code{background:#f1f5f9;padding:.1rem .35rem;border-radius:.25rem}";
+    html += "</style></head><body>";
+    html += "<h1>air360 Sensors</h1>";
+    html += "<p>Configured sensors: <code>";
+    html += std::to_string(sensor_config_list.sensor_count);
+    html += "</code> / <code>";
+    html += std::to_string(kMaxConfiguredSensors);
+    html += "</code></p>";
+
+    if (!notice.empty()) {
+        html += "<div class='notice ";
+        html += error_notice ? "err" : "ok";
+        html += "'>";
+        html += htmlEscape(notice);
+        html += "</div>";
+    }
+
+    const auto& runtime_sensors = sensor_manager.sensors();
+    if (runtime_sensors.empty()) {
+        html += "<p>No sensors configured yet.</p>";
+    } else {
+        for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
+            const SensorRecord& record = sensor_config_list.sensors[index];
+            const SensorRuntimeInfo* runtime_info = nullptr;
+            for (const auto& sensor : runtime_sensors) {
+                if (sensor.id == record.id) {
+                    runtime_info = &sensor;
+                    break;
+                }
+            }
+
+            html += "<div class='card'>";
+            html += "<h2>";
+            html += htmlEscape(record.display_name[0] != '\0' ? record.display_name : "Sensor");
+            html += "</h2>";
+            html += "<p>Runtime state: <code>";
+            html += htmlEscape(
+                runtime_info != nullptr ? sensorRuntimeStateKey(runtime_info->state)
+                                        : "unknown");
+            html += "</code>";
+            if (runtime_info != nullptr && !runtime_info->last_error.empty()) {
+                html += " · ";
+                html += htmlEscape(runtime_info->last_error);
+            }
+            html += "</p>";
+            html += "<form method='POST' action='/sensors'>";
+            html += "<input type='hidden' name='action' value='update'>";
+            html += "<input type='hidden' name='sensor_id' value='";
+            html += std::to_string(record.id);
+            html += "'>";
+            html += "<label for='display_name_";
+            html += std::to_string(record.id);
+            html += "'>Display name</label>";
+            html += "<input id='display_name_";
+            html += std::to_string(record.id);
+            html += "' name='display_name' maxlength='31' value='";
+            html += htmlEscape(record.display_name);
+            html += "'>";
+            html += "<label for='sensor_type_";
+            html += std::to_string(record.id);
+            html += "'>Sensor type</label>";
+            html += "<select id='sensor_type_";
+            html += std::to_string(record.id);
+            html += "' name='sensor_type'>";
+            for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
+                 ++descriptor_index) {
+                const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
+                html += "<option value='";
+                html += htmlEscape(descriptor.type_key);
+                html += "'";
+                if (descriptor.type == record.sensor_type) {
+                    html += " selected";
+                }
+                html += ">";
+                html += htmlEscape(descriptor.display_name);
+                html += "</option>";
+            }
+            html += "</select>";
+            html += "<label for='transport_kind_";
+            html += std::to_string(record.id);
+            html += "'>Transport</label>";
+            html += "<select id='transport_kind_";
+            html += std::to_string(record.id);
+            html += "' name='transport_kind'>";
+            html += "<option value='i2c'";
+            if (record.transport_kind == TransportKind::kI2c) {
+                html += " selected";
+            }
+            html += ">I2C</option>";
+            html += "<option value='analog'";
+            if (record.transport_kind == TransportKind::kAnalog) {
+                html += " selected";
+            }
+            html += ">Analog</option>";
+            html += "</select>";
+            html += "<label for='poll_interval_ms_";
+            html += std::to_string(record.id);
+            html += "'>Poll interval (ms)</label>";
+            html += "<input id='poll_interval_ms_";
+            html += std::to_string(record.id);
+            html += "' name='poll_interval_ms' inputmode='numeric' value='";
+            html += std::to_string(record.poll_interval_ms);
+            html += "'>";
+            html += "<label for='i2c_bus_id_";
+            html += std::to_string(record.id);
+            html += "'>I2C bus id</label>";
+            html += "<select id='i2c_bus_id_";
+            html += std::to_string(record.id);
+            html += "' name='i2c_bus_id'>";
+            html += "<option value='0'";
+            if (record.i2c_bus_id == 0U) {
+                html += " selected";
+            }
+            html += ">I2C Bus 0</option>";
+            html += "<option value='1'";
+            if (record.i2c_bus_id == 1U) {
+                html += " selected";
+            }
+            html += ">I2C Bus 1</option>";
+            html += "</select>";
+            char address_buffer[8];
+            std::snprintf(
+                address_buffer,
+                sizeof(address_buffer),
+                "0x%02x",
+                static_cast<unsigned>(record.i2c_address));
+            html += "<label for='i2c_address_";
+            html += std::to_string(record.id);
+            html += "'>I2C address</label>";
+            html += "<input id='i2c_address_";
+            html += std::to_string(record.id);
+            html += "' name='i2c_address' value='";
+            html += htmlEscape(address_buffer);
+            html += "'>";
+            html += "<label for='analog_gpio_pin_";
+            html += std::to_string(record.id);
+            html += "'>Analog GPIO pin</label>";
+            html += "<input id='analog_gpio_pin_";
+            html += std::to_string(record.id);
+            html += "' name='analog_gpio_pin' inputmode='numeric' value='";
+            html += std::to_string(static_cast<int>(record.analog_gpio_pin));
+            html += "'>";
+            html += "<label><input name='enabled' type='checkbox' ";
+            if (record.enabled != 0U) {
+                html += "checked ";
+            }
+            html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
+            html += "<button type='submit'>Save sensor</button>";
+            html += "</form>";
+            html += "<form method='POST' action='/sensors'>";
+            html += "<input type='hidden' name='action' value='delete'>";
+            html += "<input type='hidden' name='sensor_id' value='";
+            html += std::to_string(record.id);
+            html += "'>";
+            html += "<button class='danger' type='submit'>Delete sensor</button>";
+            html += "</form>";
+            html += "</div>";
+        }
+    }
+
+    html += "<div class='card'>";
+    html += "<h2>Add sensor</h2>";
+    html += "<form method='POST' action='/sensors'>";
+    html += "<input type='hidden' name='action' value='add'>";
+    html += "<label for='sensor_type_add'>Sensor type</label>";
+    html += "<select id='sensor_type_add' name='sensor_type'>";
+    for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
+         ++descriptor_index) {
+        const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
+        html += "<option value='";
+        html += htmlEscape(descriptor.type_key);
+        html += "'>";
+        html += htmlEscape(descriptor.display_name);
+        html += "</option>";
+    }
+    html += "</select>";
+    html += "<label for='display_name_add'>Display name</label>";
+    html += "<input id='display_name_add' name='display_name' maxlength='31' value=''>";
+    html += "<label for='transport_kind_add'>Transport</label>";
+    html += "<select id='transport_kind_add' name='transport_kind'>";
+    html += "<option value='i2c'>I2C</option>";
+    html += "<option value='analog'>Analog</option>";
+    html += "</select>";
+    html += "<label for='poll_interval_ms_add'>Poll interval (ms)</label>";
+    html += "<input id='poll_interval_ms_add' name='poll_interval_ms' inputmode='numeric' value='10000'>";
+    html += "<label for='i2c_bus_id_add'>I2C bus id</label>";
+    html += "<select id='i2c_bus_id_add' name='i2c_bus_id'>";
+    html += "<option value='0'>I2C Bus 0</option>";
+    html += "<option value='1'>I2C Bus 1</option>";
+    html += "</select>";
+    html += "<label for='i2c_address_add'>I2C address</label>";
+    html += "<input id='i2c_address_add' name='i2c_address' value='0x76'>";
+    html += "<label for='analog_gpio_pin_add'>Analog GPIO pin</label>";
+    html += "<input id='analog_gpio_pin_add' name='analog_gpio_pin' inputmode='numeric' value='-1'>";
+    html += "<label><input name='enabled' type='checkbox' checked style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
+    html += "<button type='submit'>Add sensor</button>";
+    html += "</form>";
+    html += "</div>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/status'>JSON status</a></p>";
     html += "</body></html>";
     return html;
 }
@@ -334,6 +608,9 @@ esp_err_t WebServer::start(
     StatusService& status_service,
     ConfigRepository& config_repository,
     DeviceConfig& config,
+    SensorConfigRepository& sensor_config_repository,
+    SensorConfigList& sensor_config_list,
+    SensorManager& sensor_manager,
     std::uint16_t port) {
     if (handle_ != nullptr) {
         return ESP_ERR_INVALID_STATE;
@@ -342,6 +619,9 @@ esp_err_t WebServer::start(
     status_service_ = &status_service;
     config_repository_ = &config_repository;
     config_ = &config;
+    sensor_config_repository_ = &sensor_config_repository;
+    sensor_config_list_ = &sensor_config_list;
+    sensor_manager_ = &sensor_manager;
 
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();
     config_httpd.server_port = port;
@@ -395,8 +675,210 @@ esp_err_t WebServer::start(
         return err;
     }
 
+    httpd_uri_t sensors_get_uri{};
+    sensors_get_uri.uri = "/sensors";
+    sensors_get_uri.method = HTTP_GET;
+    sensors_get_uri.handler = &WebServer::handleSensors;
+    sensors_get_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &sensors_get_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t sensors_post_uri{};
+    sensors_post_uri.uri = "/sensors";
+    sensors_post_uri.method = HTTP_POST;
+    sensors_post_uri.handler = &WebServer::handleSensors;
+    sensors_post_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &sensors_post_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
     ESP_LOGI(kTag, "HTTP server listening on port %" PRIu16, port);
     return ESP_OK;
+}
+
+esp_err_t WebServer::handleSensors(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+
+    if (request->method == HTTP_GET) {
+        const std::string html = renderSensorsPage(
+            *server->sensor_config_list_,
+            *server->sensor_manager_,
+            "",
+            false);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    std::string body;
+    if (readRequestBody(request, body) != ESP_OK) {
+        const std::string html = renderSensorsPage(
+            *server->sensor_config_list_,
+            *server->sensor_manager_,
+            "Failed to read form body.",
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    const FormFields fields = parseFormBody(body);
+    const std::string action = findFormValue(fields, "action");
+    SensorConfigList updated = *server->sensor_config_list_;
+    SensorRegistry registry;
+
+    if (action == "delete") {
+        unsigned long sensor_id = 0UL;
+        if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id) ||
+            !eraseSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id))) {
+            const std::string html = renderSensorsPage(
+                *server->sensor_config_list_,
+                *server->sensor_manager_,
+                "Failed to delete sensor: invalid sensor id.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+    } else if (action == "add" || action == "update") {
+        const std::string sensor_type_value = findFormValue(fields, "sensor_type");
+        const SensorDescriptor* descriptor = registry.findByTypeKey(sensor_type_value);
+        if (descriptor == nullptr) {
+            const std::string html = renderSensorsPage(
+                *server->sensor_config_list_,
+                *server->sensor_manager_,
+                "Unsupported sensor type.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
+        TransportKind transport_kind = TransportKind::kUnknown;
+        if (!parseTransportKind(findFormValue(fields, "transport_kind"), transport_kind)) {
+            const std::string html = renderSensorsPage(
+                *server->sensor_config_list_,
+                *server->sensor_manager_,
+                "Unsupported transport kind.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
+        unsigned long poll_interval_ms = 0UL;
+        unsigned long i2c_bus_id = 0UL;
+        std::uint8_t i2c_address = 0U;
+
+        if (!parseUnsignedLong(findFormValue(fields, "poll_interval_ms"), poll_interval_ms) ||
+            !parseUnsignedLong(findFormValue(fields, "i2c_bus_id"), i2c_bus_id) ||
+            !parseAddressValue(findFormValue(fields, "i2c_address"), i2c_address)) {
+            const std::string html = renderSensorsPage(
+                *server->sensor_config_list_,
+                *server->sensor_manager_,
+                "Invalid numeric sensor fields.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
+        const std::string analog_gpio_pin_value = findFormValue(fields, "analog_gpio_pin");
+        int analog_pin = -1;
+        if (!analog_gpio_pin_value.empty()) {
+            char* end = nullptr;
+            const long parsed = std::strtol(analog_gpio_pin_value.c_str(), &end, 10);
+            if (end == nullptr || *end != '\0') {
+                const std::string html = renderSensorsPage(
+                    *server->sensor_config_list_,
+                    *server->sensor_manager_,
+                    "Analog GPIO pin must be a valid integer.",
+                    true);
+                return httpd_resp_send(request, html.c_str(), html.size());
+            }
+            analog_pin = static_cast<int>(parsed);
+        }
+
+        SensorRecord record{};
+        record.enabled = formHasKey(fields, "enabled") ? 1U : 0U;
+        record.sensor_type = descriptor->type;
+        record.transport_kind = transport_kind;
+        record.poll_interval_ms = static_cast<std::uint32_t>(poll_interval_ms);
+        record.i2c_bus_id = static_cast<std::uint8_t>(i2c_bus_id);
+        record.i2c_address = i2c_address;
+        record.analog_gpio_pin = static_cast<std::int16_t>(analog_pin);
+        copyString(
+            record.display_name,
+            sizeof(record.display_name),
+            findFormValue(fields, "display_name"));
+
+        if (action == "add") {
+            if (updated.sensor_count >= kMaxConfiguredSensors) {
+                const std::string html = renderSensorsPage(
+                    *server->sensor_config_list_,
+                    *server->sensor_manager_,
+                    "Sensor list is full.",
+                    true);
+                return httpd_resp_send(request, html.c_str(), html.size());
+            }
+            record.id = updated.next_sensor_id++;
+            updated.sensors[updated.sensor_count++] = record;
+        } else {
+            unsigned long sensor_id = 0UL;
+            if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id)) {
+                const std::string html = renderSensorsPage(
+                    *server->sensor_config_list_,
+                    *server->sensor_manager_,
+                    "Invalid sensor id.",
+                    true);
+                return httpd_resp_send(request, html.c_str(), html.size());
+            }
+            record.id = static_cast<std::uint32_t>(sensor_id);
+            SensorRecord* existing =
+                findSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id));
+            if (existing == nullptr) {
+                const std::string html = renderSensorsPage(
+                    *server->sensor_config_list_,
+                    *server->sensor_manager_,
+                    "Sensor not found.",
+                    true);
+                return httpd_resp_send(request, html.c_str(), html.size());
+            }
+            *existing = record;
+        }
+
+        std::string validation_error;
+        if (!registry.validateRecord(record, validation_error)) {
+            const std::string html = renderSensorsPage(
+                *server->sensor_config_list_,
+                *server->sensor_manager_,
+                validation_error,
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+    } else {
+        const std::string html = renderSensorsPage(
+            *server->sensor_config_list_,
+            *server->sensor_manager_,
+            "Unsupported sensor action.",
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    const esp_err_t save_err = server->sensor_config_repository_->save(updated);
+    if (save_err != ESP_OK) {
+        const std::string html = renderSensorsPage(
+            *server->sensor_config_list_,
+            *server->sensor_manager_,
+            std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    *server->sensor_config_list_ = updated;
+    server->sensor_manager_->applyConfig(updated);
+    server->status_service_->setSensors(*server->sensor_manager_);
+    const std::string html = renderSensorsPage(
+        *server->sensor_config_list_,
+        *server->sensor_manager_,
+        action == "delete" ? "Sensor removed." : "Sensor configuration saved.",
+        false);
+    return httpd_resp_send(request, html.c_str(), html.size());
 }
 
 void WebServer::stop() {

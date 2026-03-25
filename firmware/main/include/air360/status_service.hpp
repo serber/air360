@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "air360/build_info.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
+#include "air360/sensors/sensor_manager.hpp"
 #include "esp_system.h"
 
 namespace air360 {
@@ -22,6 +24,7 @@ class StatusService {
         bool wrote_defaults);
     void setBootCount(std::uint32_t boot_count);
     void setNetworkState(const NetworkState& state);
+    void setSensors(const SensorManager& sensor_manager);
     void setWebServerStarted(bool started);
 
     std::string renderRootHtml() const;
@@ -32,6 +35,7 @@ class StatusService {
     BuildInfo build_info_;
     DeviceConfig config_{};
     NetworkState network_state_{};
+    std::vector<SensorRuntimeInfo> sensors_{};
     std::uint32_t boot_count_ = 0;
     bool nvs_ready_ = false;
     bool watchdog_armed_ = false;

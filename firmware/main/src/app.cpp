@@ -7,6 +7,8 @@
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
 #include "air360/status_service.hpp"
+#include "air360/sensors/sensor_config_repository.hpp"
+#include "air360/sensors/sensor_manager.hpp"
 #include "air360/web_server.hpp"
 #include "esp_err.h"
 #include "esp_event.h"
@@ -72,20 +74,30 @@ esp_err_t initNetworkingCore() {
 }  // namespace
 
 void App::run() {
-    ESP_LOGI(kTag, "Boot step 1/6: arm task watchdog");
+    // Keep long-lived runtime objects out of the small ESP-IDF main task stack.
+    static ConfigRepository config_repository;
+    static DeviceConfig config = makeDefaultDeviceConfig();
+    static StatusService status_service(getBuildInfo());
+    static SensorConfigRepository sensor_config_repository;
+    static SensorConfigList sensor_config_list = makeDefaultSensorConfigList();
+    static SensorManager sensor_manager;
+    static NetworkManager network_manager;
+    static WebServer web_server;
+
+    ESP_LOGI(kTag, "Boot step 1/7: arm task watchdog");
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
     }
 
-    ESP_LOGI(kTag, "Boot step 2/6: initialize NVS");
+    ESP_LOGI(kTag, "Boot step 2/7: initialize NVS");
     const esp_err_t storage_err = initStorage();
     if (storage_err != ESP_OK) {
         ESP_LOGE(kTag, "NVS init failed: %s", esp_err_to_name(storage_err));
         return;
     }
 
-    ESP_LOGI(kTag, "Boot step 3/6: initialize network core");
+    ESP_LOGI(kTag, "Boot step 3/7: initialize network core");
     const esp_err_t network_core_err = initNetworkingCore();
     if (network_core_err != ESP_OK) {
         ESP_LOGE(
@@ -95,12 +107,11 @@ void App::run() {
         return;
     }
 
-    ConfigRepository config_repository;
-    DeviceConfig config = makeDefaultDeviceConfig();
+    config = makeDefaultDeviceConfig();
     bool loaded_from_storage = false;
     bool wrote_defaults = false;
 
-    ESP_LOGI(kTag, "Boot step 4/6: load or create device config");
+    ESP_LOGI(kTag, "Boot step 4/7: load or create device config");
     esp_err_t config_err =
         config_repository.loadOrCreate(config, loaded_from_storage, wrote_defaults);
     if (config_err != ESP_OK) {
@@ -120,14 +131,34 @@ void App::run() {
             esp_err_to_name(boot_count_err));
     }
 
-    StatusService status_service(getBuildInfo());
     status_service.markWatchdogArmed(watchdog_err == ESP_OK);
     status_service.markNvsReady(true);
     status_service.setConfig(config, loaded_from_storage, wrote_defaults);
     status_service.setBootCount(boot_count);
 
-    NetworkManager network_manager;
-    ESP_LOGI(kTag, "Boot step 5/6: resolve network mode");
+    sensor_config_list = makeDefaultSensorConfigList();
+    bool sensor_config_loaded = false;
+    bool sensor_defaults_written = false;
+
+    ESP_LOGI(kTag, "Boot step 5/7: load or create sensor config");
+    const esp_err_t sensor_config_err = sensor_config_repository.loadOrCreate(
+        sensor_config_list,
+        sensor_config_loaded,
+        sensor_defaults_written);
+    if (sensor_config_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Sensor config load failed, using in-memory defaults: %s",
+            esp_err_to_name(sensor_config_err));
+        sensor_config_list = makeDefaultSensorConfigList();
+    }
+    static_cast<void>(sensor_config_loaded);
+    static_cast<void>(sensor_defaults_written);
+
+    sensor_manager.applyConfig(sensor_config_list);
+    status_service.setSensors(sensor_manager);
+
+    ESP_LOGI(kTag, "Boot step 6/7: resolve network mode");
     if (hasStationConfig(config)) {
         ESP_LOGI(kTag, "Station config present, attempting normal mode Wi-Fi join");
         const esp_err_t station_err = network_manager.connectStation(config);
@@ -150,10 +181,16 @@ void App::run() {
     }
     status_service.setNetworkState(network_manager.state());
 
-    ESP_LOGI(kTag, "Boot step 6/6: start status web server");
-    WebServer web_server;
+    ESP_LOGI(kTag, "Boot step 7/7: start status web server");
     const esp_err_t web_err =
-        web_server.start(status_service, config_repository, config, config.http_port);
+        web_server.start(
+            status_service,
+            config_repository,
+            config,
+            sensor_config_repository,
+            sensor_config_list,
+            sensor_manager,
+            config.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
         return;
@@ -162,7 +199,7 @@ void App::run() {
 
     ESP_LOGI(
         kTag,
-        "Phase 2 runtime ready on port %" PRIu16,
+        "Phase 3.1 runtime ready on port %" PRIu16,
         config.http_port);
 
     esp_task_wdt_delete(nullptr);
