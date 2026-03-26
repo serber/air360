@@ -2,7 +2,9 @@
 
 This directory contains the ESP-IDF firmware project for Air360.
 
-The current implementation is a Phase 2 onboarding runtime for `ESP32-S3-DevKitC-1` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates a persisted device config record, resolves whether the device should run in station mode or setup AP mode, and exposes local HTTP endpoints at `/`, `/status`, and `/config`.
+The current implementation is a Phase 3.2 runtime for `esp32s3` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device and sensor configuration, resolves whether the device should run in station mode or setup AP mode, exposes local HTTP endpoints at `/`, `/status`, `/config`, and `/sensors`, and runs a background sensor manager for supported sensor drivers.
+
+Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/).
 
 ## Project Structure
 
@@ -26,6 +28,8 @@ Key files and directories:
   Custom partition table used by this project.
 - `firmware.code-workspace`
   VS Code workspace entry point for opening this directory as an ESP-IDF project.
+- `main/third_party/`
+  Vendor source snapshots for BME280, BME680, and SPS30 wrappers.
 
 ### `main/`
 
@@ -46,7 +50,9 @@ Public component headers for the current runtime:
 - `status_service.hpp`
   Declares the service that renders the root HTML page and `/status` JSON.
 - `web_server.hpp`
-  Declares the wrapper around `esp_http_server`, including the config form route.
+  Declares the wrapper around `esp_http_server`, including config and sensor routes.
+- `sensors/`
+  Declares the sensor runtime types, registry, transport bindings, config model, and driver interfaces.
 
 ### `main/src/`
 
@@ -55,7 +61,7 @@ Current implementation files:
 - `app_main.cpp`
   C entry point that constructs `air360::App` and calls `run()`.
 - `app.cpp`
-  Main startup flow: watchdog, NVS, event loop, config load/create, boot counter, network mode resolution, and HTTP server startup.
+  Main startup flow: boot LEDs, watchdog, NVS, network core, config load/create, boot counter, sensor config load/create, network mode resolution, and HTTP server startup.
 - `build_info.cpp`
   Reads project name, version, build date/time, ESP-IDF version, board name, and device identity fields.
 - `config_repository.cpp`
@@ -63,15 +69,16 @@ Current implementation files:
 - `network_manager.cpp`
   Attempts Wi-Fi station join from saved credentials and falls back to setup AP mode at `192.168.4.1`.
 - `status_service.cpp`
-  Produces the runtime HTML and JSON payloads, including build, config, and network summaries.
+  Produces the runtime HTML and JSON payloads, including build, config, network, and sensor summaries.
 - `web_server.cpp`
-  Starts `esp_http_server` and registers `/`, `/status`, and `/config` GET/POST handlers.
+  Starts `esp_http_server` and registers `/`, `/status`, `/config`, and `/sensors` handlers.
+- `sensors/`
+  Contains sensor persistence, registry, transport helpers, background orchestration, and concrete drivers.
 
 ## Requirements
 
 Current project assumptions:
 
-- board: `ESP32-S3-DevKitC-1`
 - target: `esp32s3`
 - runtime: ESP-IDF 6.x
 - build system: native ESP-IDF CMake
@@ -82,7 +89,7 @@ For terminal builds, the ESP-IDF environment must be loaded first so `IDF_PATH`,
 
 ## Configuration
 
-This project uses three configuration layers:
+This project uses compile-time defaults plus persisted runtime state.
 
 ### `main/Kconfig.projbuild`
 
@@ -94,6 +101,22 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
   Default logical device name stored in the initial config record.
 - `CONFIG_AIR360_HTTP_PORT`
   Port used by the status web server.
+- `CONFIG_AIR360_I2C0_SDA_GPIO`
+  Board-level I2C bus 0 SDA pin.
+- `CONFIG_AIR360_I2C0_SCL_GPIO`
+  Board-level I2C bus 0 SCL pin.
+- `CONFIG_AIR360_GPS_DEFAULT_UART_PORT`
+  Fixed UART port used by the GPS path.
+- `CONFIG_AIR360_GPS_DEFAULT_RX_GPIO`
+  Board-level GPS RX pin.
+- `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO`
+  Board-level GPS TX pin.
+- `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE`
+  Default GPS baud rate.
+- `CONFIG_AIR360_GPIO_SENSOR_PIN_0`
+- `CONFIG_AIR360_GPIO_SENSOR_PIN_1`
+- `CONFIG_AIR360_GPIO_SENSOR_PIN_2`
+  The allowed board GPIO slots for GPIO-backed sensors such as DHT.
 - `CONFIG_AIR360_ENABLE_LAB_AP`
   Controls whether setup AP defaults are enabled in the initial persisted config.
 - `CONFIG_AIR360_LAB_AP_SSID`
@@ -105,7 +128,7 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
 - `CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS`
   Compile-time max station count for the AP.
 
-These options are consumed by the firmware through generated `CONFIG_*` macros. Some become defaults in the persisted `DeviceConfig`, while AP channel and max connections are currently read directly as compile-time settings.
+These options are consumed by the firmware through generated `CONFIG_*` macros. Some become defaults in the persisted `DeviceConfig`, some control board-level transport defaults, and AP channel and max connections are still read directly as compile-time settings.
 
 ### `sdkconfig.defaults`
 
@@ -115,6 +138,7 @@ This file provides repository defaults for a fresh configuration:
 - custom partition table enabled via `partitions.csv`
 - C++ exceptions disabled
 - C++ RTTI disabled
+- main task stack size increased to `6144`
 - project defaults for the Air360 Kconfig options
 
 This is the file to update when the project-wide default target or default runtime settings need to change.
@@ -129,6 +153,15 @@ This is the generated full configuration for the current local build. It include
 - the selected partition table and flash settings
 
 Treat `sdkconfig` as the current effective build config, not as a concise source of project intent.
+
+### Persisted runtime configuration
+
+The runtime stores two separate NVS-backed models:
+
+- `DeviceConfig`
+  Device name, HTTP port, station credentials, setup AP credentials, and local auth placeholder flag.
+- `SensorConfigList`
+  The configured sensor inventory, including type, transport, poll interval, display name, and transport-specific fields.
 
 ## Build
 
@@ -211,6 +244,7 @@ After boot, the runtime exposes one of two local access paths:
 - in setup AP mode:
   - `http://192.168.4.1/`
   - `http://192.168.4.1/config`
+  - `http://192.168.4.1/sensors`
   - `http://192.168.4.1/status`
 - in station mode:
   - the same routes are served on the DHCP address obtained by the device on the configured Wi-Fi network
@@ -220,25 +254,39 @@ After boot, the runtime exposes one of two local access paths:
 The current startup flow is:
 
 1. `app_main()` creates `air360::App`
-2. `App::run()` arms the task watchdog
+2. `App::run()` initializes boot LEDs and arms the task watchdog
 3. NVS is initialized
 4. `esp_netif` and the default event loop are initialized
 5. `ConfigRepository` loads or creates a `DeviceConfig` record
 6. the boot counter is incremented in NVS
-7. `StatusService` is populated with build, config, and runtime state
-8. `NetworkManager` attempts station join when Wi-Fi credentials are present
-9. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
-10. `WebServer` starts `esp_http_server` on the configured HTTP port
-11. `/` serves runtime status in station mode and redirects to `/config` in setup mode
+7. `SensorConfigRepository` loads or creates a `SensorConfigList`
+8. `SensorManager` builds the managed sensor set and starts the `air360_sensor` FreeRTOS polling task when needed
+9. `StatusService` is populated with build, config, network, and sensor runtime state
+10. `NetworkManager` attempts station join when Wi-Fi credentials are present
+11. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
+12. `WebServer` starts `esp_http_server` on the configured HTTP port
 
-This is still a small single-runtime design. There are no sensor drivers or uploader adapters yet, but the local onboarding and configuration flow is implemented in the firmware tree.
+The firmware now has a clear central sensor orchestration model:
+
+- one `SensorManager`
+- one background polling task
+- one runtime snapshot consumed by `/` and `/status`
+
+Supported drivers confirmed by the current registry:
+
+- `BME280`
+- `BME680`
+- `SPS30`
+- `GPS (NMEA)`
+- `DHT11`
+- `DHT22`
 
 ## Storage and Partitions
 
 The project uses a custom partition table in `partitions.csv`:
 
 - `nvs`
-  Used now for the persisted device config blob and boot counter.
+  Used now for the persisted device config blob, sensor config blob, and boot counter.
 - `otadata`
   Present for OTA metadata, but the current firmware does not implement OTA update logic yet.
 - `phy_init`
@@ -261,10 +309,10 @@ The current runtime depends on NVS, not on SPIFFS.
 
 Current limitations confirmed by the source tree:
 
-- no sensor readout path is implemented yet
+- no analog sensor driver is implemented yet
 - no backend upload logic is implemented yet
 - no captive-portal DNS or wildcard DNS flow is implemented yet
 - config changes are applied by reboot rather than live reconfiguration
 - the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
-- the project currently exposes only the minimal runtime pages `/`, `/status`, and `/config`
+- the local UI is still assembled directly in C++ strings
