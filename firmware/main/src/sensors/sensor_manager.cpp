@@ -69,6 +69,13 @@ std::string bindingSummary(const SensorRecord& record) {
                 "GPIO %d",
                 static_cast<int>(record.analog_gpio_pin));
             return buffer;
+        case TransportKind::kGpio:
+            std::snprintf(
+                buffer,
+                sizeof(buffer),
+                "GPIO %d",
+                static_cast<int>(record.analog_gpio_pin));
+            return buffer;
         case TransportKind::kUart:
             std::snprintf(
                 buffer,

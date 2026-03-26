@@ -43,6 +43,21 @@ config AIR360_GPS_DEFAULT_BAUD_RATE
     range 1200 115200
     default 9600
 
+config AIR360_GPIO_SENSOR_PIN_0
+    int "GPIO sensor slot 0"
+    range 0 48
+    default 4
+
+config AIR360_GPIO_SENSOR_PIN_1
+    int "GPIO sensor slot 1"
+    range 0 48
+    default 5
+
+config AIR360_GPIO_SENSOR_PIN_2
+    int "GPIO sensor slot 2"
+    range 0 48
+    default 6
+
 config AIR360_ENABLE_LAB_AP
     bool "Enable lab AP bring-up hook"
     default y

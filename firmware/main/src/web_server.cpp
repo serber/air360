@@ -35,6 +35,18 @@
 #define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
 #endif
 
+#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
+#define CONFIG_AIR360_GPIO_SENSOR_PIN_0 4
+#endif
+
+#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_1
+#define CONFIG_AIR360_GPIO_SENSOR_PIN_1 5
+#endif
+
+#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_2
+#define CONFIG_AIR360_GPIO_SENSOR_PIN_2 6
+#endif
+
 namespace air360 {
 
 namespace {
@@ -330,6 +342,10 @@ bool parseTransportKind(const std::string& input, TransportKind& out_kind) {
         out_kind = TransportKind::kAnalog;
         return true;
     }
+    if (input == "gpio") {
+        out_kind = TransportKind::kGpio;
+        return true;
+    }
     if (input == "uart") {
         out_kind = TransportKind::kUart;
         return true;
@@ -366,6 +382,26 @@ std::string measurementSummary(const SensorMeasurement& measurement) {
         summary += formatMeasurementValue(measurement.values[index]);
     }
     return summary;
+}
+
+void appendBoardGpioOptions(std::string& html, std::int16_t selected_pin) {
+    const int pins[] = {
+        CONFIG_AIR360_GPIO_SENSOR_PIN_0,
+        CONFIG_AIR360_GPIO_SENSOR_PIN_1,
+        CONFIG_AIR360_GPIO_SENSOR_PIN_2,
+    };
+
+    for (const int pin : pins) {
+        html += "<option value='";
+        html += std::to_string(pin);
+        html += "'";
+        if (selected_pin == pin) {
+            html += " selected";
+        }
+        html += ">GPIO ";
+        html += std::to_string(pin);
+        html += "</option>";
+    }
 }
 
 std::string renderSensorsPage(
@@ -488,6 +524,11 @@ std::string renderSensorsPage(
                 html += " selected";
             }
             html += ">Analog</option>";
+            html += "<option value='gpio'";
+            if (record.transport_kind == TransportKind::kGpio) {
+                html += " selected";
+            }
+            html += ">GPIO</option>";
             html += "<option value='uart'";
             if (record.transport_kind == TransportKind::kUart) {
                 html += " selected";
@@ -535,44 +576,27 @@ std::string renderSensorsPage(
             html += "'>";
             html += "<label for='analog_gpio_pin_";
             html += std::to_string(record.id);
-            html += "'>Analog GPIO pin</label>";
-            html += "<input id='analog_gpio_pin_";
+            html += "'>GPIO pin</label>";
+            html += "<select id='analog_gpio_pin_";
             html += std::to_string(record.id);
-            html += "' name='analog_gpio_pin' inputmode='numeric' value='";
-            html += std::to_string(static_cast<int>(record.analog_gpio_pin));
-            html += "'>";
-            html += "<label for='uart_port_id_";
-            html += std::to_string(record.id);
-            html += "'>UART port id</label>";
-            html += "<select id='uart_port_id_";
-            html += std::to_string(record.id);
-            html += "' name='uart_port_id'>";
-            html += "<option value='1'";
-            if (record.uart_port_id == 1U) {
-                html += " selected";
-            }
-            html += ">UART 1</option>";
-            html += "<option value='2'";
-            if (record.uart_port_id == 2U) {
-                html += " selected";
-            }
-            html += ">UART 2</option>";
+            html += "' name='analog_gpio_pin'>";
+            appendBoardGpioOptions(html, record.analog_gpio_pin);
             html += "</select>";
-            html += "<label for='uart_rx_gpio_pin_";
-            html += std::to_string(record.id);
-            html += "'>UART RX GPIO pin</label>";
-            html += "<input id='uart_rx_gpio_pin_";
-            html += std::to_string(record.id);
-            html += "' name='uart_rx_gpio_pin' inputmode='numeric' value='";
-            html += std::to_string(static_cast<int>(record.uart_rx_gpio_pin));
+            html += "<p>Fixed UART binding: <code>uart";
+            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
+            html += " RX";
+            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
+            html += " TX";
+            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
+            html += "</code></p>";
+            html += "<input type='hidden' name='uart_port_id' value='";
+            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
             html += "'>";
-            html += "<label for='uart_tx_gpio_pin_";
-            html += std::to_string(record.id);
-            html += "'>UART TX GPIO pin</label>";
-            html += "<input id='uart_tx_gpio_pin_";
-            html += std::to_string(record.id);
-            html += "' name='uart_tx_gpio_pin' inputmode='numeric' value='";
-            html += std::to_string(static_cast<int>(record.uart_tx_gpio_pin));
+            html += "<input type='hidden' name='uart_rx_gpio_pin' value='";
+            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
+            html += "'>";
+            html += "<input type='hidden' name='uart_tx_gpio_pin' value='";
+            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
             html += "'>";
             html += "<label for='uart_baud_rate_";
             html += std::to_string(record.id);
@@ -622,6 +646,7 @@ std::string renderSensorsPage(
     html += "<select id='transport_kind_add' name='transport_kind'>";
     html += "<option value='i2c'>I2C</option>";
     html += "<option value='analog'>Analog</option>";
+    html += "<option value='gpio'>GPIO</option>";
     html += "<option value='uart'>UART</option>";
     html += "</select>";
     html += "<label for='poll_interval_ms_add'>Poll interval (ms)</label>";
@@ -633,27 +658,24 @@ std::string renderSensorsPage(
     html += "</select>";
     html += "<label for='i2c_address_add'>I2C address</label>";
     html += "<input id='i2c_address_add' name='i2c_address' value='0x76'>";
-    html += "<label for='analog_gpio_pin_add'>Analog GPIO pin</label>";
-    html += "<input id='analog_gpio_pin_add' name='analog_gpio_pin' inputmode='numeric' value='-1'>";
-    html += "<label for='uart_port_id_add'>UART port id</label>";
-    html += "<select id='uart_port_id_add' name='uart_port_id'>";
-    html += "<option value='1'";
-    if (CONFIG_AIR360_GPS_DEFAULT_UART_PORT == 1) {
-        html += " selected";
-    }
-    html += ">UART 1</option>";
-    html += "<option value='2'";
-    if (CONFIG_AIR360_GPS_DEFAULT_UART_PORT == 2) {
-        html += " selected";
-    }
-    html += ">UART 2</option>";
+    html += "<label for='analog_gpio_pin_add'>GPIO pin</label>";
+    html += "<select id='analog_gpio_pin_add' name='analog_gpio_pin'>";
+    appendBoardGpioOptions(html, CONFIG_AIR360_GPIO_SENSOR_PIN_0);
     html += "</select>";
-    html += "<label for='uart_rx_gpio_pin_add'>UART RX GPIO pin</label>";
-    html += "<input id='uart_rx_gpio_pin_add' name='uart_rx_gpio_pin' inputmode='numeric' value='";
+    html += "<p>Fixed UART binding: <code>uart";
+    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
+    html += " RX";
+    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
+    html += " TX";
+    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
+    html += "</code></p>";
+    html += "<input type='hidden' id='uart_port_id_add' name='uart_port_id' value='";
+    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
+    html += "'>";
+    html += "<input type='hidden' id='uart_rx_gpio_pin_add' name='uart_rx_gpio_pin' value='";
     html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
     html += "'>";
-    html += "<label for='uart_tx_gpio_pin_add'>UART TX GPIO pin</label>";
-    html += "<input id='uart_tx_gpio_pin_add' name='uart_tx_gpio_pin' inputmode='numeric' value='";
+    html += "<input type='hidden' id='uart_tx_gpio_pin_add' name='uart_tx_gpio_pin' value='";
     html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
     html += "'>";
     html += "<label for='uart_baud_rate_add'>UART baud rate</label>";

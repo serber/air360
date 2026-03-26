@@ -20,6 +20,7 @@ struct SensorDescriptor {
     bool supports_i2c;
     bool supports_analog;
     bool supports_uart;
+    bool supports_gpio;
     bool driver_implemented;
     std::uint32_t default_poll_interval_ms;
     std::uint8_t default_i2c_bus_id;

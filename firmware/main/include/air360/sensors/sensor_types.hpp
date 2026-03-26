@@ -12,6 +12,8 @@ enum class SensorType : std::uint8_t {
     kUnknown = 0U,
     kBme280 = 1U,
     kGpsNmea = 2U,
+    kDht11 = 3U,
+    kDht22 = 4U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -19,6 +21,7 @@ enum class TransportKind : std::uint8_t {
     kI2c = 1U,
     kAnalog = 2U,
     kUart = 3U,
+    kGpio = 4U,
 };
 
 enum class SensorRuntimeState : std::uint8_t {
@@ -39,6 +42,8 @@ inline const char* transportKindKey(TransportKind kind) {
             return "analog";
         case TransportKind::kUart:
             return "uart";
+        case TransportKind::kGpio:
+            return "gpio";
         case TransportKind::kUnknown:
         default:
             return "unknown";
