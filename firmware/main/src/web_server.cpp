@@ -423,6 +423,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x76.";
         case SensorType::kBme680:
             return "Defaults: I2C bus 0 at address 0x76. Gas resistance is reported when the heater run is valid.";
+        case SensorType::kSps30:
+            return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
         case SensorType::kGpsNmea: {
             std::string hint = "Defaults: fixed UART ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);

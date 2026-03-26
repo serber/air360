@@ -26,6 +26,16 @@ class I2cBusManager {
         std::uint8_t reg,
         const std::uint8_t* buffer,
         std::size_t buffer_size);
+    esp_err_t writeRaw(
+        std::uint8_t bus_id,
+        std::uint8_t address,
+        const std::uint8_t* buffer,
+        std::size_t buffer_size);
+    esp_err_t readRaw(
+        std::uint8_t bus_id,
+        std::uint8_t address,
+        std::uint8_t* buffer,
+        std::size_t buffer_size);
     esp_err_t readRegister(
         std::uint8_t bus_id,
         std::uint8_t address,

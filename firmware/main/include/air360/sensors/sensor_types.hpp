@@ -15,6 +15,7 @@ enum class SensorType : std::uint8_t {
     kDht11 = 3U,
     kDht22 = 4U,
     kBme680 = 5U,
+    kSps30 = 6U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -51,7 +52,7 @@ inline const char* transportKindKey(TransportKind kind) {
     }
 }
 
-constexpr std::size_t kMaxMeasurementValues = 8U;
+constexpr std::size_t kMaxMeasurementValues = 16U;
 
 enum class SensorValueKind : std::uint8_t {
     kUnknown = 0U,
@@ -64,6 +65,16 @@ enum class SensorValueKind : std::uint8_t {
     kSatellites = 7U,
     kSpeedKnots = 8U,
     kGasResistanceOhms = 9U,
+    kPm1_0UgM3 = 10U,
+    kPm2_5UgM3 = 11U,
+    kPm4_0UgM3 = 12U,
+    kPm10_0UgM3 = 13U,
+    kNc0_5PerCm3 = 14U,
+    kNc1_0PerCm3 = 15U,
+    kNc2_5PerCm3 = 16U,
+    kNc4_0PerCm3 = 17U,
+    kNc10_0PerCm3 = 18U,
+    kTypicalParticleSizeUm = 19U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -86,6 +97,26 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "speed_knots";
         case SensorValueKind::kGasResistanceOhms:
             return "gas_resistance_ohms";
+        case SensorValueKind::kPm1_0UgM3:
+            return "pm1_0_ug_m3";
+        case SensorValueKind::kPm2_5UgM3:
+            return "pm2_5_ug_m3";
+        case SensorValueKind::kPm4_0UgM3:
+            return "pm4_0_ug_m3";
+        case SensorValueKind::kPm10_0UgM3:
+            return "pm10_0_ug_m3";
+        case SensorValueKind::kNc0_5PerCm3:
+            return "nc0_5_per_cm3";
+        case SensorValueKind::kNc1_0PerCm3:
+            return "nc1_0_per_cm3";
+        case SensorValueKind::kNc2_5PerCm3:
+            return "nc2_5_per_cm3";
+        case SensorValueKind::kNc4_0PerCm3:
+            return "nc4_0_per_cm3";
+        case SensorValueKind::kNc10_0PerCm3:
+            return "nc10_0_per_cm3";
+        case SensorValueKind::kTypicalParticleSizeUm:
+            return "typical_particle_size_um";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -112,6 +143,26 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "Speed";
         case SensorValueKind::kGasResistanceOhms:
             return "Gas resistance";
+        case SensorValueKind::kPm1_0UgM3:
+            return "PM1.0";
+        case SensorValueKind::kPm2_5UgM3:
+            return "PM2.5";
+        case SensorValueKind::kPm4_0UgM3:
+            return "PM4.0";
+        case SensorValueKind::kPm10_0UgM3:
+            return "PM10";
+        case SensorValueKind::kNc0_5PerCm3:
+            return "NC0.5";
+        case SensorValueKind::kNc1_0PerCm3:
+            return "NC1.0";
+        case SensorValueKind::kNc2_5PerCm3:
+            return "NC2.5";
+        case SensorValueKind::kNc4_0PerCm3:
+            return "NC4.0";
+        case SensorValueKind::kNc10_0PerCm3:
+            return "NC10";
+        case SensorValueKind::kTypicalParticleSizeUm:
+            return "Particle size";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -137,6 +188,19 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "kn";
         case SensorValueKind::kGasResistanceOhms:
             return "Ohm";
+        case SensorValueKind::kPm1_0UgM3:
+        case SensorValueKind::kPm2_5UgM3:
+        case SensorValueKind::kPm4_0UgM3:
+        case SensorValueKind::kPm10_0UgM3:
+            return "ug/m3";
+        case SensorValueKind::kNc0_5PerCm3:
+        case SensorValueKind::kNc1_0PerCm3:
+        case SensorValueKind::kNc2_5PerCm3:
+        case SensorValueKind::kNc4_0PerCm3:
+        case SensorValueKind::kNc10_0PerCm3:
+            return "#/cm3";
+        case SensorValueKind::kTypicalParticleSizeUm:
+            return "um";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -153,6 +217,17 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
             return 1;
         case SensorValueKind::kGasResistanceOhms:
             return 0;
+        case SensorValueKind::kPm1_0UgM3:
+        case SensorValueKind::kPm2_5UgM3:
+        case SensorValueKind::kPm4_0UgM3:
+        case SensorValueKind::kPm10_0UgM3:
+        case SensorValueKind::kNc0_5PerCm3:
+        case SensorValueKind::kNc1_0PerCm3:
+        case SensorValueKind::kNc2_5PerCm3:
+        case SensorValueKind::kNc4_0PerCm3:
+        case SensorValueKind::kNc10_0PerCm3:
+        case SensorValueKind::kTypicalParticleSizeUm:
+            return 1;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:
             return 6;

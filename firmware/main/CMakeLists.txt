@@ -11,17 +11,23 @@ idf_component_register(
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
+        "src/sensors/drivers/sensirion_i2c_hal.cpp"
+        "src/sensors/drivers/sps30_sensor.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
         "third_party/bme280/bme280.c"
         "third_party/bme68x/bme68x.c"
+        "third_party/sps30/sensirion_common.c"
+        "third_party/sps30/sensirion_i2c.c"
+        "third_party/sps30/sps30_i2c.c"
         "src/status_service.cpp"
         "src/web_server.cpp"
     INCLUDE_DIRS
         "include"
         "third_party/bme280"
         "third_party/bme68x"
+        "third_party/sps30"
     REQUIRES
         esp_app_format
         esp_common

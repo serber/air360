@@ -152,6 +152,46 @@ esp_err_t I2cBusManager::write(
     return err;
 }
 
+esp_err_t I2cBusManager::writeRaw(
+    std::uint8_t bus_id,
+    std::uint8_t address,
+    const std::uint8_t* buffer,
+    std::size_t buffer_size) {
+    if (buffer == nullptr || buffer_size == 0U) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    i2c_master_dev_handle_t device = nullptr;
+    esp_err_t err = withDevice(bus_id, address, device);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = i2c_master_transmit(device, buffer, buffer_size, kI2cTransferTimeoutMs);
+    releaseDevice(device);
+    return err;
+}
+
+esp_err_t I2cBusManager::readRaw(
+    std::uint8_t bus_id,
+    std::uint8_t address,
+    std::uint8_t* buffer,
+    std::size_t buffer_size) {
+    if (buffer == nullptr || buffer_size == 0U) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    i2c_master_dev_handle_t device = nullptr;
+    esp_err_t err = withDevice(bus_id, address, device);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = i2c_master_receive(device, buffer, buffer_size, kI2cTransferTimeoutMs);
+    releaseDevice(device);
+    return err;
+}
+
 esp_err_t I2cBusManager::readRegister(
     std::uint8_t bus_id,
     std::uint8_t address,

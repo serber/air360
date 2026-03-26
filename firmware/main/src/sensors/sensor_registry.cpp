@@ -7,6 +7,7 @@
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
+#include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "sdkconfig.h"
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_UART_PORT
@@ -107,6 +108,29 @@ bool validateBme680Record(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x76U && record.i2c_address != 0x77U) {
         error = "BME680 I2C address must be 0x76 or 0x77.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateSps30Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "SPS30 currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id > 1U) {
+        error = "I2C bus id must be 0 or 1.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x69U) {
+        error = "SPS30 I2C address must be 0x69.";
         return false;
     }
 
@@ -216,6 +240,21 @@ constexpr SensorDescriptor kDescriptors[] = {
         0x76U,
         &validateBme680Record,
         &createBme680Sensor,
+    },
+    {
+        SensorType::kSps30,
+        "sps30",
+        "SPS30",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x69U,
+        &validateSps30Record,
+        &createSps30Sensor,
     },
     {
         SensorType::kDht11,
