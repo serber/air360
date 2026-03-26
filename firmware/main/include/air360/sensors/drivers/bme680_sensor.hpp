@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "air360/sensors/drivers/bosch_i2c_support.hpp"
 #include "air360/sensors/sensor_driver.hpp"
 
 namespace air360 {
@@ -12,12 +13,6 @@ struct Bme680DriverState;
 
 class Bme680Sensor final : public SensorDriver {
   public:
-    struct InterfaceContext {
-        I2cBusManager* bus_manager = nullptr;
-        std::uint8_t bus_id = 0U;
-        std::uint8_t address = 0U;
-    };
-
     ~Bme680Sensor() override;
     SensorType type() const override;
     esp_err_t init(
@@ -32,7 +27,7 @@ class Bme680Sensor final : public SensorDriver {
     void setError(const std::string& message);
 
     SensorRecord record_{};
-    InterfaceContext interface_context_{};
+    BoschI2cContext interface_context_{};
     SensorMeasurement measurement_{};
     std::string last_error_;
     Bme680DriverState* state_ = nullptr;

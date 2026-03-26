@@ -417,6 +417,33 @@ std::int16_t defaultBoardGpioPin() {
     return static_cast<std::int16_t>(CONFIG_AIR360_GPIO_SENSOR_PIN_0);
 }
 
+std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
+    switch (descriptor.type) {
+        case SensorType::kBme280:
+            return "Defaults: I2C bus 0 at address 0x76.";
+        case SensorType::kBme680:
+            return "Defaults: I2C bus 0 at address 0x76. Gas resistance is reported when the heater run is valid.";
+        case SensorType::kGpsNmea: {
+            std::string hint = "Defaults: fixed UART ";
+            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
+            hint += " RX";
+            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
+            hint += " TX";
+            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
+            hint += " @ ";
+            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE);
+            hint += " baud.";
+            return hint;
+        }
+        case SensorType::kDht11:
+        case SensorType::kDht22:
+            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
+        case SensorType::kUnknown:
+        default:
+            return "";
+    }
+}
+
 std::string renderSensorsPage(
     const SensorConfigList& sensor_config_list,
     const SensorManager& sensor_manager,
@@ -461,6 +488,7 @@ std::string renderSensorsPage(
     } else {
         for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
             const SensorRecord& record = sensor_config_list.sensors[index];
+            const SensorDescriptor* descriptor = registry.findByType(record.sensor_type);
             const SensorRuntimeInfo* runtime_info = nullptr;
             for (const auto& sensor : runtime_sensors) {
                 if (sensor.id == record.id) {
@@ -524,6 +552,14 @@ std::string renderSensorsPage(
             html += "<p>Transport: <code>";
             html += htmlEscape(transportSummaryForRecord(record));
             html += "</code></p>";
+            if (descriptor != nullptr) {
+                const std::string hint = sensorDefaultsHint(*descriptor);
+                if (!hint.empty()) {
+                    html += "<p>";
+                    html += htmlEscape(hint);
+                    html += "</p>";
+                }
+            }
             html += "<label for='poll_interval_ms_";
             html += std::to_string(record.id);
             html += "'>Poll interval (ms)</label>";
@@ -580,6 +616,21 @@ std::string renderSensorsPage(
     html += "<label for='display_name_add'>Display name</label>";
     html += "<input id='display_name_add' name='display_name' maxlength='31' value=''>";
     html += "<p>Transport is inferred from sensor type.</p>";
+    html += "<p>Type defaults:</p><ul>";
+    for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
+         ++descriptor_index) {
+        const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
+        const std::string hint = sensorDefaultsHint(descriptor);
+        if (hint.empty()) {
+            continue;
+        }
+        html += "<li><strong>";
+        html += htmlEscape(descriptor.display_name);
+        html += ":</strong> ";
+        html += htmlEscape(hint);
+        html += "</li>";
+    }
+    html += "</ul>";
     html += "<label for='poll_interval_ms_add'>Poll interval (ms)</label>";
     html += "<input id='poll_interval_ms_add' name='poll_interval_ms' inputmode='numeric' value='10000'>";
     html += "<label for='analog_gpio_pin_add'>GPIO pin";

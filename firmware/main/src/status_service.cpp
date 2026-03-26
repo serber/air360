@@ -367,6 +367,8 @@ std::string StatusService::renderStatusJson() const {
         json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kHumidityPercent);
         json += ",\"pressure_hpa\":";
         json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kPressureHpa);
+        json += ",\"gas_resistance_ohms\":";
+        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kGasResistanceOhms);
         json += ",";
         json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
         json += "}";
