@@ -7,6 +7,7 @@ idf_component_register(
         "src/network_manager.cpp"
         "src/sensors/sensor_config_repository.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
+        "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
@@ -21,6 +22,7 @@ idf_component_register(
         esp_driver_gpio
         esp_http_server
         esp_driver_i2c
+        esp_driver_uart
         esp_netif
         esp_system
         esp_timer

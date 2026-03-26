@@ -23,6 +23,26 @@ config AIR360_I2C0_SCL_GPIO
     range 0 48
     default 9
 
+config AIR360_GPS_DEFAULT_UART_PORT
+    int "GPS default UART port"
+    range 1 2
+    default 1
+
+config AIR360_GPS_DEFAULT_RX_GPIO
+    int "GPS default RX GPIO"
+    range 0 48
+    default 44
+
+config AIR360_GPS_DEFAULT_TX_GPIO
+    int "GPS default TX GPIO"
+    range 0 48
+    default 43
+
+config AIR360_GPS_DEFAULT_BAUD_RATE
+    int "GPS default UART baud rate"
+    range 1200 115200
+    default 9600
+
 config AIR360_ENABLE_LAB_AP
     bool "Enable lab AP bring-up hook"
     default y

@@ -4,6 +4,7 @@
 #include <string>
 
 #include "air360/sensors/drivers/bme280_sensor.hpp"
+#include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 
 namespace air360 {
 
@@ -62,6 +63,34 @@ bool validateBme280Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateGpsNmeaRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "GPS currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_port_id < 1U || record.uart_port_id > 2U) {
+        error = "UART port id must be 1 or 2.";
+        return false;
+    }
+
+    if (record.uart_rx_gpio_pin < 0 || record.uart_tx_gpio_pin < 0) {
+        error = "UART RX and TX GPIO pins must be configured.";
+        return false;
+    }
+
+    if (record.uart_baud_rate < 1200U || record.uart_baud_rate > 115200U) {
+        error = "UART baud rate must be between 1200 and 115200.";
+        return false;
+    }
+
+    return true;
+}
+
 constexpr SensorDescriptor kDescriptors[] = {
     {
         SensorType::kBme280,
@@ -69,12 +98,27 @@ constexpr SensorDescriptor kDescriptors[] = {
         "BME280",
         true,
         false,
+        false,
         true,
         10000U,
         0U,
         0x76U,
         &validateBme280Record,
         &createBme280Sensor,
+    },
+    {
+        SensorType::kGpsNmea,
+        "gps_nmea",
+        "GPS (NMEA)",
+        false,
+        false,
+        true,
+        true,
+        2000U,
+        0U,
+        0x00U,
+        &validateGpsNmeaRecord,
+        &createGpsNmeaSensor,
     },
 };
 
@@ -116,6 +160,8 @@ bool SensorRegistry::supportsTransport(
             return descriptor.supports_i2c;
         case TransportKind::kAnalog:
             return descriptor.supports_analog;
+        case TransportKind::kUart:
+            return descriptor.supports_uart;
         case TransportKind::kUnknown:
         default:
             return false;

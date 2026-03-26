@@ -95,35 +95,58 @@ std::string formatFloat(float value, int precision) {
     return buffer;
 }
 
-std::string measurementSummary(const SensorRuntimeInfo& sensor) {
+std::string formatMeasurementValue(const SensorValue& value) {
+    std::string text = sensorValueKindLabel(value.kind);
+    text += " ";
+    text += formatFloat(value.value, sensorValueKindPrecision(value.kind));
+    const char* unit = sensorValueKindUnit(value.kind);
+    if (unit[0] != '\0') {
+        text += " ";
+        text += unit;
+    }
+    return text;
+}
+
+std::string measurementSummary(const SensorMeasurement& measurement) {
     std::string summary;
-    if (sensor.measurement.has_temperature) {
-        summary += formatFloat(sensor.measurement.temperature_c, 1);
-        summary += " C";
-    }
-    if (sensor.measurement.has_humidity) {
+    for (std::size_t index = 0; index < measurement.value_count; ++index) {
         if (!summary.empty()) {
             summary += " · ";
         }
-        summary += formatFloat(sensor.measurement.humidity_percent, 1);
-        summary += " %";
-    }
-    if (sensor.measurement.has_pressure) {
-        if (!summary.empty()) {
-            summary += " · ";
-        }
-        summary += formatFloat(sensor.measurement.pressure_hpa, 1);
-        summary += " hPa";
+        summary += formatMeasurementValue(measurement.values[index]);
     }
     return summary;
 }
 
-std::string jsonNumberOrNull(bool has_value, float value, int precision) {
-    if (!has_value) {
+std::string jsonNumberOrNull(const SensorMeasurement& measurement, SensorValueKind kind) {
+    const SensorValue* value = measurement.findValue(kind);
+    if (value == nullptr) {
         return "null";
     }
 
-    return formatFloat(value, precision);
+    return formatFloat(value->value, sensorValueKindPrecision(kind));
+}
+
+std::string measurementArrayJson(const SensorMeasurement& measurement) {
+    std::string json = "[";
+    for (std::size_t index = 0; index < measurement.value_count; ++index) {
+        if (index > 0U) {
+            json += ",";
+        }
+        const SensorValue& value = measurement.values[index];
+        json += "{";
+        json += "\"kind\":\"";
+        json += jsonEscape(sensorValueKindKey(value.kind));
+        json += "\",\"label\":\"";
+        json += jsonEscape(sensorValueKindLabel(value.kind));
+        json += "\",\"unit\":\"";
+        json += jsonEscape(sensorValueKindUnit(value.kind));
+        json += "\",\"value\":";
+        json += formatFloat(value.value, sensorValueKindPrecision(value.kind));
+        json += "}";
+    }
+    json += "]";
+    return json;
 }
 
 }  // namespace
@@ -220,7 +243,7 @@ std::string StatusService::renderRootHtml() const {
                 html += " · ";
                 html += htmlEscape(sensor.last_error);
             }
-            const std::string readings = measurementSummary(sensor);
+            const std::string readings = measurementSummary(sensor.measurement);
             if (!readings.empty()) {
                 html += " · ";
                 html += htmlEscape(readings);
@@ -335,12 +358,15 @@ std::string StatusService::renderStatusJson() const {
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
         json += "\"last_sample_time_ms\":" + std::to_string(sensor.last_sample_time_ms) + ",";
+        json += "\"measurements\":";
+        json += measurementArrayJson(sensor.measurement);
+        json += ",";
         json += "\"temperature_c\":";
-        json += jsonNumberOrNull(sensor.measurement.has_temperature, sensor.measurement.temperature_c, 2);
+        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kTemperatureC);
         json += ",\"humidity_percent\":";
-        json += jsonNumberOrNull(sensor.measurement.has_humidity, sensor.measurement.humidity_percent, 2);
+        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kHumidityPercent);
         json += ",\"pressure_hpa\":";
-        json += jsonNumberOrNull(sensor.measurement.has_pressure, sensor.measurement.pressure_hpa, 2);
+        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kPressureHpa);
         json += ",";
         json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
         json += "}";

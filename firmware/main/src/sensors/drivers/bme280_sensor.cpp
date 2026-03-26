@@ -68,7 +68,7 @@ esp_err_t Bme280Sensor::init(
     const SensorDriverContext& context) {
     record_ = record;
     i2c_bus_manager_ = context.i2c_bus_manager;
-    measurement_ = SensorMeasurement{};
+    measurement_.clear();
     t_fine_ = 0;
     initialized_ = false;
     last_error_.clear();
@@ -207,14 +207,12 @@ esp_err_t Bme280Sensor::poll() {
         humidity_percent = std::clamp(humidity, 0.0, 100.0);
     }
 
-    measurement_.has_temperature = true;
-    measurement_.has_humidity = true;
-    measurement_.has_pressure = true;
-    measurement_.temperature_c = static_cast<float>(temperature_c);
-    measurement_.humidity_percent = static_cast<float>(humidity_percent);
-    measurement_.pressure_hpa = static_cast<float>(pressure_hpa);
     measurement_.sample_time_ms =
         static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
+    measurement_.value_count = 0U;
+    measurement_.addValue(SensorValueKind::kTemperatureC, static_cast<float>(temperature_c));
+    measurement_.addValue(SensorValueKind::kHumidityPercent, static_cast<float>(humidity_percent));
+    measurement_.addValue(SensorValueKind::kPressureHpa, static_cast<float>(pressure_hpa));
     last_error_.clear();
     return ESP_OK;
 }

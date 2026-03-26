@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -9,19 +11,50 @@
 namespace air360 {
 
 class I2cBusManager;
+class UartPortManager;
+
+struct SensorValue {
+    SensorValueKind kind = SensorValueKind::kUnknown;
+    float value = 0.0F;
+};
 
 struct SensorMeasurement {
-    bool has_temperature = false;
-    bool has_humidity = false;
-    bool has_pressure = false;
-    float temperature_c = 0.0F;
-    float humidity_percent = 0.0F;
-    float pressure_hpa = 0.0F;
     std::uint64_t sample_time_ms = 0U;
+    std::uint8_t value_count = 0U;
+    std::array<SensorValue, kMaxMeasurementValues> values{};
+
+    void clear() {
+        sample_time_ms = 0U;
+        value_count = 0U;
+        values.fill(SensorValue{});
+    }
+
+    bool addValue(SensorValueKind kind, float value) {
+        if (value_count >= values.size()) {
+            return false;
+        }
+
+        values[value_count++] = SensorValue{kind, value};
+        return true;
+    }
+
+    bool empty() const {
+        return value_count == 0U;
+    }
+
+    const SensorValue* findValue(SensorValueKind kind) const {
+        for (std::size_t index = 0; index < value_count; ++index) {
+            if (values[index].kind == kind) {
+                return &values[index];
+            }
+        }
+        return nullptr;
+    }
 };
 
 struct SensorDriverContext {
     I2cBusManager* i2c_bus_manager = nullptr;
+    UartPortManager* uart_port_manager = nullptr;
 };
 
 class SensorDriver {

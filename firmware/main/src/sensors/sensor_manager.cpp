@@ -69,6 +69,16 @@ std::string bindingSummary(const SensorRecord& record) {
                 "GPIO %d",
                 static_cast<int>(record.analog_gpio_pin));
             return buffer;
+        case TransportKind::kUart:
+            std::snprintf(
+                buffer,
+                sizeof(buffer),
+                "uart%u RX%d TX%d @ %u",
+                static_cast<unsigned>(record.uart_port_id),
+                static_cast<int>(record.uart_rx_gpio_pin),
+                static_cast<int>(record.uart_tx_gpio_pin),
+                static_cast<unsigned>(record.uart_baud_rate));
+            return buffer;
         case TransportKind::kUnknown:
         default:
             return "unbound";
@@ -92,7 +102,7 @@ void SensorManager::applyConfig(const SensorConfigList& config) {
 std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     const SensorConfigList& config) {
     SensorRegistry registry;
-    const SensorDriverContext driver_context{&i2c_bus_manager_};
+    const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
     const std::uint64_t now_ms = uptimeMilliseconds();
     std::vector<ManagedSensor> sensors;
     sensors.reserve(config.sensor_count);
@@ -182,6 +192,7 @@ void SensorManager::stop() {
     stop_requested_ = false;
     unlock();
     i2c_bus_manager_.shutdown();
+    uart_port_manager_.shutdown();
 }
 
 std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
@@ -272,7 +283,7 @@ void SensorManager::taskEntry(void* arg) {
 }
 
 void SensorManager::taskMain() {
-    const SensorDriverContext driver_context{&i2c_bus_manager_};
+    const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
 
     for (;;) {
         lock();

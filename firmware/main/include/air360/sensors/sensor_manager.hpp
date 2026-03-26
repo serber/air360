@@ -64,6 +64,7 @@ class SensorManager {
     bool stop_requested_ = false;
     std::vector<ManagedSensor> sensors_;
     I2cBusManager i2c_bus_manager_;
+    UartPortManager uart_port_manager_;
 };
 
 }  // namespace air360

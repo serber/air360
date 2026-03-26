@@ -6,6 +6,7 @@
 
 #include "driver/i2c_master.h"
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
 
 namespace air360 {
 
@@ -41,6 +42,43 @@ class I2cBusManager {
     void releaseDevice(i2c_master_dev_handle_t device);
 
     std::array<BusState, 2> buses_{};
+};
+
+class UartPortManager {
+  public:
+    ~UartPortManager();
+
+    esp_err_t open(
+        std::uint8_t port_id,
+        std::int16_t rx_pin,
+        std::int16_t tx_pin,
+        std::uint32_t baud_rate);
+    int read(
+        std::uint8_t port_id,
+        std::uint8_t* buffer,
+        std::size_t buffer_size,
+        TickType_t timeout_ticks);
+    esp_err_t flush(std::uint8_t port_id);
+    void shutdown();
+
+  private:
+    struct PortState {
+        bool initialized = false;
+        int port_number = 0;
+        std::int16_t rx_pin = -1;
+        std::int16_t tx_pin = -1;
+        std::uint32_t baud_rate = 0U;
+    };
+
+    esp_err_t ensurePort(
+        std::uint8_t port_id,
+        std::int16_t rx_pin,
+        std::int16_t tx_pin,
+        std::uint32_t baud_rate,
+        PortState*& out_state);
+    static bool resolvePort(std::uint8_t port_id, int& out_port_number);
+
+    std::array<PortState, 2> ports_{};
 };
 
 }  // namespace air360
