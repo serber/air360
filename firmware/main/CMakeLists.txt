@@ -7,15 +7,18 @@ idf_component_register(
         "src/network_manager.cpp"
         "src/sensors/sensor_config_repository.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
+        "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
+        "third_party/bme68x/bme68x.c"
         "src/status_service.cpp"
         "src/web_server.cpp"
     INCLUDE_DIRS
         "include"
+        "third_party/bme68x"
     REQUIRES
         esp_app_format
         esp_common

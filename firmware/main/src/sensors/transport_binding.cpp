@@ -117,14 +117,37 @@ esp_err_t I2cBusManager::writeRegister(
     std::uint8_t address,
     std::uint8_t reg,
     std::uint8_t value) {
+    return write(bus_id, address, reg, &value, 1U);
+}
+
+esp_err_t I2cBusManager::write(
+    std::uint8_t bus_id,
+    std::uint8_t address,
+    std::uint8_t reg,
+    const std::uint8_t* buffer,
+    std::size_t buffer_size) {
+    if (buffer == nullptr || buffer_size == 0U) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     i2c_master_dev_handle_t device = nullptr;
     esp_err_t err = withDevice(bus_id, address, device);
     if (err != ESP_OK) {
         return err;
     }
 
-    const std::uint8_t buffer[2] = {reg, value};
-    err = i2c_master_transmit(device, buffer, sizeof(buffer), kI2cTransferTimeoutMs);
+    std::uint8_t staging[32];
+    if (buffer_size + 1U > sizeof(staging)) {
+        releaseDevice(device);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    staging[0] = reg;
+    for (std::size_t index = 0; index < buffer_size; ++index) {
+        staging[index + 1U] = buffer[index];
+    }
+
+    err = i2c_master_transmit(device, staging, buffer_size + 1U, kI2cTransferTimeoutMs);
     releaseDevice(device);
     return err;
 }

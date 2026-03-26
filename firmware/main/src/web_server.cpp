@@ -315,46 +315,6 @@ bool parseSignedLong(const std::string& input, long& value) {
     return end != nullptr && *end == '\0';
 }
 
-bool parseAddressValue(const std::string& input, std::uint8_t& out_value) {
-    unsigned long parsed = 0UL;
-    if (input.rfind("0x", 0U) == 0U || input.rfind("0X", 0U) == 0U) {
-        if (!parseUnsignedLong(input.substr(2U), parsed, 16)) {
-            return false;
-        }
-    } else if (!parseUnsignedLong(input, parsed, 10)) {
-        return false;
-    }
-
-    if (parsed > 0xFFUL) {
-        return false;
-    }
-
-    out_value = static_cast<std::uint8_t>(parsed);
-    return true;
-}
-
-bool parseTransportKind(const std::string& input, TransportKind& out_kind) {
-    if (input == "i2c") {
-        out_kind = TransportKind::kI2c;
-        return true;
-    }
-    if (input == "analog") {
-        out_kind = TransportKind::kAnalog;
-        return true;
-    }
-    if (input == "gpio") {
-        out_kind = TransportKind::kGpio;
-        return true;
-    }
-    if (input == "uart") {
-        out_kind = TransportKind::kUart;
-        return true;
-    }
-
-    out_kind = TransportKind::kUnknown;
-    return false;
-}
-
 std::string formatMeasurementValue(const SensorValue& value) {
     char buffer[48];
     std::snprintf(
@@ -384,6 +344,55 @@ std::string measurementSummary(const SensorMeasurement& measurement) {
     return summary;
 }
 
+TransportKind inferredTransportKind(const SensorDescriptor& descriptor) {
+    if (descriptor.supports_i2c) {
+        return TransportKind::kI2c;
+    }
+    if (descriptor.supports_uart) {
+        return TransportKind::kUart;
+    }
+    if (descriptor.supports_gpio) {
+        return TransportKind::kGpio;
+    }
+    if (descriptor.supports_analog) {
+        return TransportKind::kAnalog;
+    }
+    return TransportKind::kUnknown;
+}
+
+std::string transportSummaryForRecord(const SensorRecord& record) {
+    switch (record.transport_kind) {
+        case TransportKind::kI2c: {
+            char buffer[32];
+            std::snprintf(
+                buffer,
+                sizeof(buffer),
+                "I2C bus %u @ 0x%02x",
+                static_cast<unsigned>(record.i2c_bus_id),
+                static_cast<unsigned>(record.i2c_address));
+            return buffer;
+        }
+        case TransportKind::kUart: {
+            char buffer[64];
+            std::snprintf(
+                buffer,
+                sizeof(buffer),
+                "UART %u RX%d TX%d @ %u",
+                static_cast<unsigned>(record.uart_port_id),
+                static_cast<int>(record.uart_rx_gpio_pin),
+                static_cast<int>(record.uart_tx_gpio_pin),
+                static_cast<unsigned>(record.uart_baud_rate));
+            return buffer;
+        }
+        case TransportKind::kGpio:
+        case TransportKind::kAnalog:
+            return std::string("GPIO ") + std::to_string(static_cast<int>(record.analog_gpio_pin));
+        case TransportKind::kUnknown:
+        default:
+            return "Unknown";
+    }
+}
+
 void appendBoardGpioOptions(std::string& html, std::int16_t selected_pin) {
     const int pins[] = {
         CONFIG_AIR360_GPIO_SENSOR_PIN_0,
@@ -402,6 +411,10 @@ void appendBoardGpioOptions(std::string& html, std::int16_t selected_pin) {
         html += std::to_string(pin);
         html += "</option>";
     }
+}
+
+std::int16_t defaultBoardGpioPin() {
+    return static_cast<std::int16_t>(CONFIG_AIR360_GPIO_SENSOR_PIN_0);
 }
 
 std::string renderSensorsPage(
@@ -508,33 +521,9 @@ std::string renderSensorsPage(
                 html += "</option>";
             }
             html += "</select>";
-            html += "<label for='transport_kind_";
-            html += std::to_string(record.id);
-            html += "'>Transport</label>";
-            html += "<select id='transport_kind_";
-            html += std::to_string(record.id);
-            html += "' name='transport_kind'>";
-            html += "<option value='i2c'";
-            if (record.transport_kind == TransportKind::kI2c) {
-                html += " selected";
-            }
-            html += ">I2C</option>";
-            html += "<option value='analog'";
-            if (record.transport_kind == TransportKind::kAnalog) {
-                html += " selected";
-            }
-            html += ">Analog</option>";
-            html += "<option value='gpio'";
-            if (record.transport_kind == TransportKind::kGpio) {
-                html += " selected";
-            }
-            html += ">GPIO</option>";
-            html += "<option value='uart'";
-            if (record.transport_kind == TransportKind::kUart) {
-                html += " selected";
-            }
-            html += ">UART</option>";
-            html += "</select>";
+            html += "<p>Transport: <code>";
+            html += htmlEscape(transportSummaryForRecord(record));
+            html += "</code></p>";
             html += "<label for='poll_interval_ms_";
             html += std::to_string(record.id);
             html += "'>Poll interval (ms)</label>";
@@ -543,69 +532,17 @@ std::string renderSensorsPage(
             html += "' name='poll_interval_ms' inputmode='numeric' value='";
             html += std::to_string(record.poll_interval_ms);
             html += "'>";
-            html += "<label for='i2c_bus_id_";
-            html += std::to_string(record.id);
-            html += "'>I2C bus id</label>";
-            html += "<select id='i2c_bus_id_";
-            html += std::to_string(record.id);
-            html += "' name='i2c_bus_id'>";
-            html += "<option value='0'";
-            if (record.i2c_bus_id == 0U) {
-                html += " selected";
+            if (record.transport_kind == TransportKind::kGpio ||
+                record.transport_kind == TransportKind::kAnalog) {
+                html += "<label for='analog_gpio_pin_";
+                html += std::to_string(record.id);
+                html += "'>GPIO pin</label>";
+                html += "<select id='analog_gpio_pin_";
+                html += std::to_string(record.id);
+                html += "' name='analog_gpio_pin'>";
+                appendBoardGpioOptions(html, record.analog_gpio_pin);
+                html += "</select>";
             }
-            html += ">I2C Bus 0</option>";
-            html += "<option value='1'";
-            if (record.i2c_bus_id == 1U) {
-                html += " selected";
-            }
-            html += ">I2C Bus 1</option>";
-            html += "</select>";
-            char address_buffer[8];
-            std::snprintf(
-                address_buffer,
-                sizeof(address_buffer),
-                "0x%02x",
-                static_cast<unsigned>(record.i2c_address));
-            html += "<label for='i2c_address_";
-            html += std::to_string(record.id);
-            html += "'>I2C address</label>";
-            html += "<input id='i2c_address_";
-            html += std::to_string(record.id);
-            html += "' name='i2c_address' value='";
-            html += htmlEscape(address_buffer);
-            html += "'>";
-            html += "<label for='analog_gpio_pin_";
-            html += std::to_string(record.id);
-            html += "'>GPIO pin</label>";
-            html += "<select id='analog_gpio_pin_";
-            html += std::to_string(record.id);
-            html += "' name='analog_gpio_pin'>";
-            appendBoardGpioOptions(html, record.analog_gpio_pin);
-            html += "</select>";
-            html += "<p>Fixed UART binding: <code>uart";
-            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
-            html += " RX";
-            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
-            html += " TX";
-            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
-            html += "</code></p>";
-            html += "<input type='hidden' name='uart_port_id' value='";
-            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
-            html += "'>";
-            html += "<input type='hidden' name='uart_rx_gpio_pin' value='";
-            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
-            html += "'>";
-            html += "<input type='hidden' name='uart_tx_gpio_pin' value='";
-            html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
-            html += "'>";
-            html += "<label for='uart_baud_rate_";
-            html += std::to_string(record.id);
-            html += "'>UART baud rate</label>";
-            html += "<input id='uart_baud_rate_";
-            html += std::to_string(record.id);
-            html += "' name='uart_baud_rate' inputmode='numeric' value='";
-            html += std::to_string(record.uart_baud_rate);
-            html += "'>";
             html += "<label><input name='enabled' type='checkbox' ";
             if (record.enabled != 0U) {
                 html += "checked ";
@@ -642,46 +579,14 @@ std::string renderSensorsPage(
     html += "</select>";
     html += "<label for='display_name_add'>Display name</label>";
     html += "<input id='display_name_add' name='display_name' maxlength='31' value=''>";
-    html += "<label for='transport_kind_add'>Transport</label>";
-    html += "<select id='transport_kind_add' name='transport_kind'>";
-    html += "<option value='i2c'>I2C</option>";
-    html += "<option value='analog'>Analog</option>";
-    html += "<option value='gpio'>GPIO</option>";
-    html += "<option value='uart'>UART</option>";
-    html += "</select>";
+    html += "<p>Transport is inferred from sensor type.</p>";
     html += "<label for='poll_interval_ms_add'>Poll interval (ms)</label>";
     html += "<input id='poll_interval_ms_add' name='poll_interval_ms' inputmode='numeric' value='10000'>";
-    html += "<label for='i2c_bus_id_add'>I2C bus id</label>";
-    html += "<select id='i2c_bus_id_add' name='i2c_bus_id'>";
-    html += "<option value='0'>I2C Bus 0</option>";
-    html += "<option value='1'>I2C Bus 1</option>";
-    html += "</select>";
-    html += "<label for='i2c_address_add'>I2C address</label>";
-    html += "<input id='i2c_address_add' name='i2c_address' value='0x76'>";
-    html += "<label for='analog_gpio_pin_add'>GPIO pin</label>";
+    html += "<label for='analog_gpio_pin_add'>GPIO pin";
+    html += " (used only by GPIO sensors)</label>";
     html += "<select id='analog_gpio_pin_add' name='analog_gpio_pin'>";
     appendBoardGpioOptions(html, CONFIG_AIR360_GPIO_SENSOR_PIN_0);
     html += "</select>";
-    html += "<p>Fixed UART binding: <code>uart";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
-    html += " RX";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
-    html += " TX";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
-    html += "</code></p>";
-    html += "<input type='hidden' id='uart_port_id_add' name='uart_port_id' value='";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
-    html += "'>";
-    html += "<input type='hidden' id='uart_rx_gpio_pin_add' name='uart_rx_gpio_pin' value='";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
-    html += "'>";
-    html += "<input type='hidden' id='uart_tx_gpio_pin_add' name='uart_tx_gpio_pin' value='";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
-    html += "'>";
-    html += "<label for='uart_baud_rate_add'>UART baud rate</label>";
-    html += "<input id='uart_baud_rate_add' name='uart_baud_rate' inputmode='numeric' value='";
-    html += std::to_string(CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE);
-    html += "'>";
     html += "<label><input name='enabled' type='checkbox' checked style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
     html += "<button type='submit'>Add sensor</button>";
     html += "</form>";
@@ -912,27 +817,8 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             return httpd_resp_send(request, html.c_str(), html.size());
         }
 
-        TransportKind transport_kind = TransportKind::kUnknown;
-        if (!parseTransportKind(findFormValue(fields, "transport_kind"), transport_kind)) {
-            const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
-                *server->sensor_manager_,
-                "Unsupported transport kind.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-
         unsigned long poll_interval_ms = 0UL;
-        unsigned long i2c_bus_id = 0UL;
-        unsigned long uart_port_id = 0UL;
-        unsigned long uart_baud_rate = 0UL;
-        std::uint8_t i2c_address = 0U;
-
-        if (!parseUnsignedLong(findFormValue(fields, "poll_interval_ms"), poll_interval_ms) ||
-            !parseUnsignedLong(findFormValue(fields, "i2c_bus_id"), i2c_bus_id) ||
-            !parseUnsignedLong(findFormValue(fields, "uart_port_id"), uart_port_id) ||
-            !parseUnsignedLong(findFormValue(fields, "uart_baud_rate"), uart_baud_rate) ||
-            !parseAddressValue(findFormValue(fields, "i2c_address"), i2c_address)) {
+        if (!parseUnsignedLong(findFormValue(fields, "poll_interval_ms"), poll_interval_ms)) {
             const std::string html = renderSensorsPage(
                 *server->sensor_config_list_,
                 *server->sensor_manager_,
@@ -942,7 +828,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         }
 
         const std::string analog_gpio_pin_value = findFormValue(fields, "analog_gpio_pin");
-        int analog_pin = -1;
+        std::int16_t analog_pin = -1;
         long parsed_signed = -1;
         if (!analog_gpio_pin_value.empty() &&
             !parseSignedLong(analog_gpio_pin_value, parsed_signed)) {
@@ -953,46 +839,83 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
         }
-        analog_pin = static_cast<int>(parsed_signed);
-
-        int uart_rx_gpio_pin = -1;
-        if (!parseSignedLong(findFormValue(fields, "uart_rx_gpio_pin"), parsed_signed)) {
-            const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
-                *server->sensor_manager_,
-                "UART RX GPIO pin must be a valid integer.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-        uart_rx_gpio_pin = static_cast<int>(parsed_signed);
-
-        int uart_tx_gpio_pin = -1;
-        if (!parseSignedLong(findFormValue(fields, "uart_tx_gpio_pin"), parsed_signed)) {
-            const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
-                *server->sensor_manager_,
-                "UART TX GPIO pin must be a valid integer.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-        uart_tx_gpio_pin = static_cast<int>(parsed_signed);
+        analog_pin = static_cast<std::int16_t>(parsed_signed);
 
         SensorRecord record{};
+        const SensorRecord* existing = nullptr;
+        if (action == "update") {
+            unsigned long sensor_id = 0UL;
+            if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id)) {
+                const std::string html = renderSensorsPage(
+                    *server->sensor_config_list_,
+                    *server->sensor_manager_,
+                    "Invalid sensor id.",
+                    true);
+                return httpd_resp_send(request, html.c_str(), html.size());
+            }
+
+            existing = findSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id));
+            if (existing == nullptr) {
+                const std::string html = renderSensorsPage(
+                    *server->sensor_config_list_,
+                    *server->sensor_manager_,
+                    "Sensor not found.",
+                    true);
+                return httpd_resp_send(request, html.c_str(), html.size());
+            }
+
+            record = *existing;
+            record.id = static_cast<std::uint32_t>(sensor_id);
+        }
+
+        const bool type_changed = existing == nullptr || existing->sensor_type != descriptor->type;
+        if (type_changed) {
+            const std::uint32_t preserved_id = record.id;
+            const std::uint8_t preserved_enabled = formHasKey(fields, "enabled") ? 1U : 0U;
+            SensorRecord rebuilt{};
+            rebuilt.id = preserved_id;
+            rebuilt.enabled = preserved_enabled;
+            rebuilt.uart_baud_rate = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE;
+            rebuilt.analog_gpio_pin = defaultBoardGpioPin();
+            record = rebuilt;
+        }
+
         record.enabled = formHasKey(fields, "enabled") ? 1U : 0U;
         record.sensor_type = descriptor->type;
-        record.transport_kind = transport_kind;
         record.poll_interval_ms = static_cast<std::uint32_t>(poll_interval_ms);
-        record.i2c_bus_id = static_cast<std::uint8_t>(i2c_bus_id);
-        record.i2c_address = i2c_address;
-        record.uart_port_id = static_cast<std::uint8_t>(uart_port_id);
-        record.analog_gpio_pin = static_cast<std::int16_t>(analog_pin);
-        record.uart_rx_gpio_pin = static_cast<std::int16_t>(uart_rx_gpio_pin);
-        record.uart_tx_gpio_pin = static_cast<std::int16_t>(uart_tx_gpio_pin);
-        record.uart_baud_rate = static_cast<std::uint32_t>(uart_baud_rate);
         copyString(
             record.display_name,
             sizeof(record.display_name),
             findFormValue(fields, "display_name"));
+
+        record.transport_kind = inferredTransportKind(*descriptor);
+        switch (record.transport_kind) {
+            case TransportKind::kI2c:
+                if (type_changed) {
+                    record.i2c_bus_id = descriptor->default_i2c_bus_id;
+                    record.i2c_address = descriptor->default_i2c_address;
+                }
+                break;
+            case TransportKind::kUart:
+                record.uart_port_id = CONFIG_AIR360_GPS_DEFAULT_UART_PORT;
+                record.uart_rx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_RX_GPIO;
+                record.uart_tx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_TX_GPIO;
+                if (record.uart_baud_rate == 0U) {
+                    record.uart_baud_rate = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE;
+                }
+                break;
+            case TransportKind::kGpio:
+            case TransportKind::kAnalog:
+                if (!analog_gpio_pin_value.empty()) {
+                    record.analog_gpio_pin = analog_pin;
+                } else if (type_changed || record.analog_gpio_pin < 0) {
+                    record.analog_gpio_pin = defaultBoardGpioPin();
+                }
+                break;
+            case TransportKind::kUnknown:
+            default:
+                break;
+        }
 
         if (action == "add") {
             if (updated.sensor_count >= kMaxConfiguredSensors) {
@@ -1006,27 +929,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             record.id = updated.next_sensor_id++;
             updated.sensors[updated.sensor_count++] = record;
         } else {
-            unsigned long sensor_id = 0UL;
-            if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id)) {
-                const std::string html = renderSensorsPage(
-                    *server->sensor_config_list_,
-                    *server->sensor_manager_,
-                    "Invalid sensor id.",
-                    true);
-                return httpd_resp_send(request, html.c_str(), html.size());
-            }
-            record.id = static_cast<std::uint32_t>(sensor_id);
-            SensorRecord* existing =
-                findSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id));
-            if (existing == nullptr) {
-                const std::string html = renderSensorsPage(
-                    *server->sensor_config_list_,
-                    *server->sensor_manager_,
-                    "Sensor not found.",
-                    true);
-                return httpd_resp_send(request, html.c_str(), html.size());
-            }
-            *existing = record;
+            *findSensorRecordById(updated, record.id) = record;
         }
 
         std::string validation_error;

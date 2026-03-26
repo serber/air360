@@ -14,6 +14,7 @@ enum class SensorType : std::uint8_t {
     kGpsNmea = 2U,
     kDht11 = 3U,
     kDht22 = 4U,
+    kBme680 = 5U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -62,6 +63,7 @@ enum class SensorValueKind : std::uint8_t {
     kAltitudeM = 6U,
     kSatellites = 7U,
     kSpeedKnots = 8U,
+    kGasResistanceOhms = 9U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -82,6 +84,8 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "satellites";
         case SensorValueKind::kSpeedKnots:
             return "speed_knots";
+        case SensorValueKind::kGasResistanceOhms:
+            return "gas_resistance_ohms";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -106,6 +110,8 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "Satellites";
         case SensorValueKind::kSpeedKnots:
             return "Speed";
+        case SensorValueKind::kGasResistanceOhms:
+            return "Gas resistance";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -129,6 +135,8 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "";
         case SensorValueKind::kSpeedKnots:
             return "kn";
+        case SensorValueKind::kGasResistanceOhms:
+            return "Ohm";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -143,6 +151,8 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kAltitudeM:
         case SensorValueKind::kSpeedKnots:
             return 1;
+        case SensorValueKind::kGasResistanceOhms:
+            return 0;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:
             return 6;
