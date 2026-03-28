@@ -21,7 +21,6 @@ firmware/
 ├── sdkconfig
 ├── sdkconfig.defaults
 ├── README.md
-├── ARCHITECTURE.md
 └── firmware.code-workspace
 ```
 
@@ -88,7 +87,7 @@ Core files:
 - [`../../firmware/main/src/sensors/sensor_manager.cpp`](../../firmware/main/src/sensors/sensor_manager.cpp)
   Sensor orchestrator and background polling task.
 - [`../../firmware/main/src/sensors/transport_binding.cpp`](../../firmware/main/src/sensors/transport_binding.cpp)
-  Shared I2C and UART transport helpers for drivers.
+  Shared I2C and UART transport helpers for drivers, including the board wiring used by current sensor integrations.
 
 Driver implementations are intentionally isolated under [`../../firmware/main/src/sensors/drivers/`](../../firmware/main/src/sensors/drivers/):
 
@@ -98,6 +97,8 @@ Driver implementations are intentionally isolated under [`../../firmware/main/sr
 - `gps_nmea_sensor.cpp`
 - `sps30_sensor.cpp`
 - shared vendor-bridge helpers such as `bosch_i2c_support.cpp` and `sensirion_i2c_hal.cpp`
+
+This layout is deliberate: adding a new sensor should usually mean adding one new driver plus one registry entry, not editing the whole runtime.
 
 ## Third-Party Driver Sources
 

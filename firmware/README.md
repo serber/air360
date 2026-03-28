@@ -161,7 +161,7 @@ The runtime stores two separate NVS-backed models:
 - `DeviceConfig`
   Device name, HTTP port, station credentials, setup AP credentials, and local auth placeholder flag.
 - `SensorConfigList`
-  The configured sensor inventory, including type, transport, poll interval, display name, and transport-specific fields.
+  The configured sensor inventory, including type, inferred transport, poll interval, display name, and transport-specific fields.
 
 ## Build
 
@@ -271,6 +271,7 @@ The firmware now has a clear central sensor orchestration model:
 - one `SensorManager`
 - one background polling task
 - one runtime snapshot consumed by `/` and `/status`
+- one generic measurement model used by all drivers through typed value channels rather than sensor-specific top-level structs
 
 Supported drivers confirmed by the current registry:
 
@@ -280,6 +281,17 @@ Supported drivers confirmed by the current registry:
 - `GPS (NMEA)`
 - `DHT11`
 - `DHT22`
+
+Current transport model by sensor type:
+
+- `BME280`, `BME680`, `SPS30`
+  I2C sensors on bus 0 by default, with board wiring from `CONFIG_AIR360_I2C0_*`.
+- `GPS (NMEA)`
+  UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
+- `DHT11`, `DHT22`
+  GPIO sensors restricted to the board sensor slots from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`.
+
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, GPIO-backed sensors expose only the allowed board GPIO slots, and GPS uses the fixed UART binding for the board.
 
 ## Storage and Partitions
 
@@ -313,6 +325,7 @@ Current limitations confirmed by the source tree:
 - no backend upload logic is implemented yet
 - no captive-portal DNS or wildcard DNS flow is implemented yet
 - config changes are applied by reboot rather than live reconfiguration
+- sensor changes are applied live through `SensorManager::applyConfig()`, but device config changes still reboot the runtime
 - the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the local UI is still assembled directly in C++ strings

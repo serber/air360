@@ -48,6 +48,7 @@ Examples:
 - `BME280` publishes temperature, humidity, pressure
 - `BME680` publishes temperature, humidity, pressure, and gas resistance
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, and speed
+- `DHT11` and `DHT22` publish temperature and humidity
 - `SPS30` publishes PM mass, number concentration, and particle size channels
 
 ## Supported Sensor Types
@@ -81,7 +82,7 @@ Current transport usage by implemented drivers:
 - `DHT11`: GPIO
 - `DHT22`: GPIO
 
-`analog` exists in the shared type model, but no analog driver is implemented yet.
+`analog` exists in the shared type model, but no analog driver is implemented yet and the current `/sensors` flow does not expose any analog-specific setup beyond the shared GPIO slot field carried in `SensorRecord`.
 
 ## Board-Level Wiring Assumptions
 
@@ -151,8 +152,10 @@ Current behavior:
 - edit an existing sensor
 - delete a sensor
 - infer the transport from the selected sensor type
+- show transport as derived board wiring rather than an editable free-form choice
 - expose only valid board pin options for GPIO sensors
 - apply fixed board UART wiring for GPS
+- save the updated list to NVS and reapply it live through `SensorManager::applyConfig()`
 
 After a successful save:
 
@@ -185,3 +188,4 @@ This lets the UI distinguish between:
 - Sensor config still stores several transport-specific fields directly in `SensorRecord`.
 - The HTML UI is still server-rendered in C++.
 - There is no dedicated upload pipeline yet; measurements are only exposed locally through the runtime pages and `/status`.
+- I2C validation accepts bus ids `0` and `1`, but the current board defaults only describe wiring for bus 0.

@@ -89,7 +89,7 @@ Owns Wi-Fi startup decisions:
 
 [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp)
 
-Aggregates runtime state from build info, persisted config, network state, and sensor manager snapshots. It renders both the root HTML page and the `/status` JSON document.
+Aggregates runtime state from build info, persisted config, network state, and sensor manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes both a generic `measurements` array and a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
 
 ### WebServer
 
@@ -102,7 +102,7 @@ Owns route registration and POST handling for:
 - `/config`
 - `/sensors`
 
-It also saves configuration changes and triggers `esp_restart()` after a successful device config save.
+It also saves configuration changes and triggers `esp_restart()` after a successful device config save. Sensor config changes are applied live by persisting the updated list and calling `SensorManager::applyConfig()` without forcing a reboot.
 
 ### SensorConfigRepository
 
@@ -171,6 +171,8 @@ Implemented in the current firmware:
 - Phase 3 sensor configuration through `/sensors`
 - background polling through `SensorManager`
 - working drivers for selected I2C, GPIO, and UART sensors
+- vendor-backed wrappers for Bosch BME280, Bosch BME680, and Sensirion SPS30
+- a generic measurement model that allows different drivers to publish different channel sets
 - local status reporting for live sensor state and measurements
 
 Still clearly outside the current implementation:

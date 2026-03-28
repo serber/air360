@@ -1,6 +1,6 @@
 ---
 name: air360-firmware-docs
-description: Use this skill when the task is to create, update, audit, or improve documentation for the ESP-IDF firmware project located in ./firmware. Best for firmware README generation, build/flash/monitor instructions, architecture docs based on firmware/main, sdkconfig explanation, partition table notes, Kconfig documentation, source layout explanation, and implementation-focused developer documentation for the C++17 firmware.
+description: "Use this skill when the task is to create, update, audit, or improve documentation for the ESP-IDF firmware project located in ./firmware. Best for firmware README generation, build/flash/monitor instructions, architecture docs based on firmware/main, sdkconfig explanation, partition table notes, Kconfig documentation, source layout explanation, and implementation-focused developer documentation for the C++17 firmware."
 ---
 
 # Air360 Firmware Documentation Skill
@@ -317,6 +317,15 @@ Focus on implementation first:
 ### If asked to "update docs"
 
 Preserve useful project-specific text in `firmware/README.md`, remove stale or generic wording, and align the document with the current codebase.
+
+---
+
+## Working style
+
+- Keep the focus on `firmware/`, not repo-wide onboarding.
+- Prefer implementation evidence from source files over planning text in `docs/`.
+- Treat `docs/firmware/` as the preferred destination for firmware-facing documentation when the task is about implementation docs outside `firmware/` itself.
+- Use the bundled templates as structure only; do not preserve template boilerplate that does not match the project.
 
 ---
 

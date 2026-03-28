@@ -118,6 +118,13 @@ Current schema version:
 - `SensorConfigList`: v2
 - migration implemented from stored v1 sensor config
 
+Important current behavior:
+
+- the persisted schema still stores transport-specific fields directly in `SensorRecord`
+- the `/sensors` UI infers transport from sensor type rather than letting the user choose arbitrary transport combinations
+- GPS records are validated against fixed board UART wiring
+- GPIO-backed sensors are constrained to the configured board GPIO slots
+
 ## Partition Table
 
 The project uses a custom partition table in [`../../firmware/partitions.csv`](../../firmware/partitions.csv).

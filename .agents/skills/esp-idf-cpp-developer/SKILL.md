@@ -1,40 +1,21 @@
 ---
 name: esp-idf-cpp-developer
-description: Use for tasks involving ESP-IDF firmware development in C++: creating components, drivers, FreeRTOS tasks, Wi-Fi/BLE/network features, sdkconfig-aware changes, CMakeLists updates, debugging build errors, and improving embedded architecture. Do not use for Arduino-only projects unless the repository already mixes Arduino with ESP-IDF.
+description: "Use for ESP-IDF firmware development in C++ for ESP32-family repositories: component or driver work, FreeRTOS tasks, Wi-Fi/BLE/network features, sdkconfig-aware changes, CMakeLists or Kconfig updates, partition work, build-error triage, and embedded architecture refactors. Do not use for Arduino-only sketches unless the repository already mixes Arduino with ESP-IDF."
 ---
 
 # ESP-IDF C++ Developer
 
-You are an expert ESP-IDF and embedded C++ developer working in an ESP32-family firmware repository.
+Work as an ESP-IDF and embedded C++ engineer inside an ESP32-family firmware repository.
 
-## When to use this
-Use this skill when the task involves:
-- ESP-IDF application code or components
-- C++ firmware architecture for ESP32 / ESP32-S3 / ESP32-C3 / ESP32-C6
-- `idf.py` build/test/flash workflows
-- `sdkconfig`-sensitive changes
-- FreeRTOS tasks, queues, event groups, timers
-- UART / I2C / SPI / GPIO / ADC / PWM / I2S / Wi-Fi / BLE / NVS
-- fixing build, linker, partition, menuconfig, component dependency, or CMake issues
-- adding or modifying `CMakeLists.txt`, `idf_component_register`, Kconfig, partitions, or component layout
-
-Do not use this skill for:
-- pure Arduino sketches without ESP-IDF structure
-- desktop-only C++ applications
-- generic electronics advice not tied to repository code
-
-## Operating principles
+## Workflow
 - Prefer repository conventions over generic examples.
 - Inspect existing components, `main/`, `components/`, `CMakeLists.txt`, `sdkconfig.defaults`, partition tables, and any local docs before changing code.
 - Make minimal, production-oriented changes.
 - Keep changes buildable.
-- Favor clear, maintainable C++ over clever abstractions.
-- Avoid dynamic allocation in hot paths unless already established in the codebase.
-- Be explicit about thread-safety, ownership, error handling, and initialization order.
-- Use RAII where appropriate, but do not fight ESP-IDF / C APIs unnecessarily.
-- Prefer `ESP_LOGI/W/E/D`, `esp_err_t`, and `ESP_ERROR_CHECK` patterns consistent with the repo.
+- Read [`references/project-layout.md`](references/project-layout.md) when you need a quick reminder of the typical ESP-IDF repository structure.
+- Read [`references/coding-rules.md`](references/coding-rules.md) before making substantive firmware changes so local embedded constraints are not missed.
 
-## Code style
+## Implementation rules
 - Use modern C++ conservatively: `enum class`, `constexpr`, `std::array`, small wrappers around C APIs.
 - Avoid exceptions and RTTI unless the project clearly enables and uses them.
 - Avoid large template-heavy abstractions in firmware code unless already present.
@@ -42,6 +23,9 @@ Do not use this skill for:
 - Minimize global mutable state.
 - Separate hardware abstraction, application logic, and task orchestration.
 - Use `const` aggressively.
+- State thread-safety, ownership, error handling, and initialization order explicitly.
+- Use RAII where helpful, but do not fight ESP-IDF C APIs unnecessarily.
+- Prefer `ESP_LOGI/W/E/D`, `esp_err_t`, and `ESP_ERROR_CHECK` patterns that match the repo.
 - Document timing assumptions, units, pin mappings, and task stack sizes.
 
 ## ESP-IDF specifics
@@ -65,8 +49,8 @@ Do not use this skill for:
 - For low-power work:
   - mention wake sources, retention needs, and peripheral re-init requirements
 
-## Build and verification workflow
-When making changes:
+## Build and verification
+Follow this order:
 1. Read relevant files before editing.
 2. Identify target component(s) and build dependencies.
 3. Make the smallest coherent patch.
@@ -80,9 +64,8 @@ Preferred validation commands:
 
 If tests or hardware validation cannot be executed, state exactly what remains unverified.
 
-## Output expectations
-For each substantial task:
-- briefly explain the root cause or design choice
+## Response expectations
+- Explain the root cause or design choice briefly.
 - list files changed
 - mention any `sdkconfig`, partition, or CMake implications
 - mention runtime risks: stack, heap, timing, concurrency, watchdogs, flash wear, reconnect behavior

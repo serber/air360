@@ -1,6 +1,6 @@
 ---
 name: air360-docs
-description: Use this skill when the task is to create, update, audit, or improve repository-level documentation for the Air360 project. Best for root README generation, repository structure explanation, documentation map creation, onboarding docs, architecture summaries based on docs/, and explaining how docs/ and firmware/ relate. Do not use for low-level firmware build or implementation documentation unless the request is primarily about the repository as a whole.
+description: "Use this skill when the task is to create, update, audit, or improve repository-level documentation for the Air360 project. Best for root README generation, repository structure explanation, documentation map creation, onboarding docs, architecture summaries based on docs/, and explaining how docs/ and firmware/ relate. Do not use for low-level firmware build or implementation documentation unless the request is primarily about the repository as a whole."
 ---
 
 # Air360 Repository Documentation Skill
@@ -231,6 +231,16 @@ Check whether current repository documentation:
 - explains the purpose of `docs/`
 - points clearly to `firmware/`
 - distinguishes design docs from implemented behavior
+
+---
+
+## Working style
+
+- Keep repository-level scope. Do not drift into detailed firmware implementation docs unless the request is explicitly about repo-level navigation to them.
+- Treat `docs/` as planning, architecture, and project context by default.
+- Treat `docs/firmware/` as implementation-oriented firmware documentation when it exists.
+- Treat `firmware/` as the implementation source of truth.
+- Prefer short, accurate navigation documents over broad generic summaries.
 
 ---
 

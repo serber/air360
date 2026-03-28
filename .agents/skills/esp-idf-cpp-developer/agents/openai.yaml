@@ -1,0 +1,4 @@
+interface:
+  display_name: "ESP-IDF C++ Developer"
+  short_description: "Implement and debug ESP-IDF C++ firmware work"
+  default_prompt: "Use $esp-idf-cpp-developer to implement or debug ESP-IDF C++ firmware changes in this repository."

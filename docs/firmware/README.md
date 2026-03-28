@@ -6,7 +6,7 @@ These documents are written from the current `firmware/` source tree. They are m
 
 ## What Is In Scope
 
-The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local configuration runtime, persists device and sensor configuration in NVS, brings up either Wi-Fi station mode or setup AP mode, exposes a small local web UI, and runs a background sensor manager for supported sensor drivers.
+The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local configuration runtime, persists device and sensor configuration in NVS, brings up either Wi-Fi station mode or setup AP mode, exposes a local web UI at `/`, `/status`, `/config`, and `/sensors`, and runs a background sensor manager for supported sensor drivers.
 
 ## Document Map
 
@@ -17,7 +17,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local 
 - [`project-structure.md`](project-structure.md)
   Source tree walkthrough, component layout, build inputs, and developer navigation.
 - [`sensors.md`](sensors.md)
-  Sensor subsystem architecture, registry/runtime model, supported sensors, transports, and current board wiring assumptions.
+  Sensor subsystem architecture, registry/runtime model, supported drivers, generic measurements, transports, and current board wiring assumptions.
 
 ## How To Use These Docs
 
