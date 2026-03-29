@@ -130,20 +130,6 @@ esp_err_t Bme680Sensor::init(
         return ESP_ERR_INVALID_STATE;
     }
 
-    const esp_err_t probe_err = context.i2c_bus_manager->probe(record.i2c_bus_id, record.i2c_address);
-    if (probe_err != ESP_OK) {
-        char message[160];
-        std::snprintf(
-            message,
-            sizeof(message),
-            "BME680 probe failed on I2C bus %u address 0x%02X: %s.",
-            static_cast<unsigned>(record.i2c_bus_id),
-            static_cast<unsigned>(record.i2c_address),
-            esp_err_to_name(probe_err));
-        setError(message);
-        return probe_err;
-    }
-
     interface_context_.bus_manager = context.i2c_bus_manager;
     interface_context_.bus_id = record.i2c_bus_id;
     interface_context_.address = record.i2c_address;

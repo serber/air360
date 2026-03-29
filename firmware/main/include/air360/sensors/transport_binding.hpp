@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -46,27 +46,28 @@ class I2cBusManager {
     void shutdown();
 
   private:
+    struct DeviceState {
+        bool initialized = false;
+        std::uint8_t address = 0U;
+        i2c_master_dev_handle_t handle = nullptr;
+    };
+
     struct BusState {
         bool initialized = false;
-        i2c_port_t port = I2C_NUM_0;
+        i2c_master_bus_handle_t handle = nullptr;
+        std::array<DeviceState, 8> devices{};
     };
 
     void ensureMutex();
     void lock();
     void unlock();
     esp_err_t ensureBus(std::uint8_t bus_id, BusState*& out_state);
-    esp_err_t writeToAddress(
-        BusState& bus,
+    esp_err_t ensureDevice(
+        std::uint8_t bus_id,
         std::uint8_t address,
-        const std::uint8_t* buffer,
-        std::size_t buffer_size);
-    esp_err_t writeReadToAddress(
-        BusState& bus,
-        std::uint8_t address,
-        const std::uint8_t* tx_buffer,
-        std::size_t tx_size,
-        std::uint8_t* rx_buffer,
-        std::size_t rx_size);
+        BusState*& out_bus,
+        i2c_master_dev_handle_t& out_device);
+    void releaseDevices(BusState& bus);
 
     StaticSemaphore_t mutex_buffer_{};
     SemaphoreHandle_t mutex_ = nullptr;

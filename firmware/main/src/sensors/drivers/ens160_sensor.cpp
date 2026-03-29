@@ -144,7 +144,7 @@ esp_err_t Ens160Sensor::poll() {
     const bool has_fresh_sample =
         (status & kStatusNewDataMask) != 0U || validity == kStatusValidityNormal;
     const bool zero_sample = isZeroMeasurement(aqi, tvoc, eco2);
-    if (has_fresh_sample && !(validity != kStatusValidityNormal && zero_sample)) {
+    if (has_fresh_sample && !zero_sample) {
         measurement_.clear();
         measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
         measurement_.addValue(SensorValueKind::kAqi, static_cast<float>(aqi));
@@ -249,32 +249,36 @@ esp_err_t Ens160Sensor::probeAndBindAddress() {
         configured_address == kEns160PrimaryAddress ? kEns160SecondaryAddress : kEns160PrimaryAddress;
 
     const std::uint8_t candidates[] = {configured_address, alternate_address};
-    esp_err_t last_probe_err = ESP_ERR_NOT_FOUND;
+    esp_err_t last_err = ESP_ERR_NOT_FOUND;
 
     for (const std::uint8_t candidate : candidates) {
         if (candidate != kEns160PrimaryAddress && candidate != kEns160SecondaryAddress) {
             continue;
         }
 
-        const esp_err_t probe_err = i2c_bus_manager_->probe(record_.i2c_bus_id, candidate);
-        if (probe_err == ESP_OK) {
+        active_address_ = candidate;
+        std::uint16_t part_id = 0U;
+        const esp_err_t read_err = readPartId(part_id);
+        if (read_err == ESP_OK && part_id == kExpectedPartId) {
             active_address_ = candidate;
             return ESP_OK;
         }
-        last_probe_err = probe_err;
+        last_err = read_err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : read_err;
     }
+
+    active_address_ = 0U;
 
     char message[160];
     std::snprintf(
         message,
         sizeof(message),
-        "ENS160 probe failed on I2C bus %u at addresses 0x%02X and 0x%02X: %s.",
+        "ENS160 identification failed on I2C bus %u at addresses 0x%02X and 0x%02X: %s.",
         static_cast<unsigned>(record_.i2c_bus_id),
         static_cast<unsigned>(configured_address),
         static_cast<unsigned>(alternate_address),
-        esp_err_to_name(last_probe_err));
+        esp_err_to_name(last_err));
     setError(message);
-    return last_probe_err;
+    return last_err;
 }
 
 void Ens160Sensor::setError(const std::string& message) {

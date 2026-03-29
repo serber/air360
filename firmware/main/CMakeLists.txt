@@ -30,7 +30,6 @@ idf_component_register(
         "third_party/bme68x"
         "third_party/sps30"
     REQUIRES
-        driver
         esp_app_format
         esp_common
         esp_event
