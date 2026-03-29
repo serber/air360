@@ -5,10 +5,14 @@
 
 #include "air360/sensors/sensor_driver.hpp"
 
+class TinyGPSPlus;
+
 namespace air360 {
 
 class GpsNmeaSensor final : public SensorDriver {
   public:
+    ~GpsNmeaSensor() override;
+
     SensorType type() const override;
     esp_err_t init(
         const SensorRecord& record,
@@ -18,37 +22,15 @@ class GpsNmeaSensor final : public SensorDriver {
     std::string lastError() const override;
 
   private:
-    esp_err_t processBytes(const std::uint8_t* data, std::size_t size, bool& saw_valid_fix);
-    bool processSentence(const std::string& sentence, bool& saw_valid_fix);
-    bool processGga(const std::string& payload, bool& saw_valid_fix);
-    bool processRmc(const std::string& payload, bool& saw_valid_fix);
-    bool validateChecksum(const std::string& sentence) const;
-    static bool parseCoordinate(
-        const std::string& raw_value,
-        const std::string& hemisphere,
-        bool latitude,
-        float& out_value);
-    static bool parseFloat(const std::string& input, float& out_value);
-    static bool parseUnsigned(const std::string& input, unsigned long& out_value);
-    void rebuildMeasurement(bool has_fix);
+    void rebuildMeasurement();
     void setError(const std::string& message);
 
     SensorRecord record_{};
     UartPortManager* uart_port_manager_ = nullptr;
+    std::unique_ptr<TinyGPSPlus> parser_;
     SensorMeasurement measurement_{};
     std::string last_error_;
-    std::string line_buffer_;
     bool initialized_ = false;
-    bool has_latitude_ = false;
-    bool has_longitude_ = false;
-    bool has_altitude_ = false;
-    bool has_satellites_ = false;
-    bool has_speed_knots_ = false;
-    float latitude_deg_ = 0.0F;
-    float longitude_deg_ = 0.0F;
-    float altitude_m_ = 0.0F;
-    float satellites_ = 0.0F;
-    float speed_knots_ = 0.0F;
 };
 
 std::unique_ptr<SensorDriver> createGpsNmeaSensor();
