@@ -63,8 +63,8 @@ The current registry defines these implemented sensor types. The authoritative l
 | `sps30` | `SPS30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
 | `ens160` | `ENS160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
 | `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
-| `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6 |
-| `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6 |
+| `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
+| `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
 
 `analog` exists in the shared type model, but no analog driver is implemented yet and the current `/sensors` flow does not expose any analog-specific setup beyond the shared GPIO slot field carried in `SensorRecord`.
 
@@ -106,6 +106,9 @@ Concrete drivers are isolated under [`../../firmware/main/src/sensors/drivers/`]
 
 Current patterns:
 
+- Adafruit-backed wrapper
+  - `dht_sensor.cpp`
+  - vendored driver under `third_party/adafruit_dht/`
 - Bosch-backed wrappers
   - `bme280_sensor.cpp`
   - `bme680_sensor.cpp`
@@ -118,7 +121,6 @@ Current patterns:
   - vendored parser under `third_party/tinygpsplus/`
 - Native local drivers
   - `ens160_sensor.cpp`
-  - `dht_sensor.cpp`
 
 Vendor source snapshots are compiled from [`../../firmware/main/third_party/`](../../firmware/main/third_party/).
 

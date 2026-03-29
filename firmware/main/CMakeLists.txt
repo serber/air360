@@ -14,6 +14,7 @@ idf_component_register(
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
+        "third_party/adafruit_dht/DHT.cpp"
         "third_party/tinygpsplus/TinyGPS++.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
@@ -30,6 +31,7 @@ idf_component_register(
         "third_party/bme280"
         "third_party/bme68x"
         "third_party/sps30"
+        "third_party/adafruit_dht"
         "third_party/tinygpsplus"
     REQUIRES
         esp_app_format

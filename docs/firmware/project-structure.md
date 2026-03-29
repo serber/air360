@@ -105,6 +105,7 @@ This layout is deliberate: adding a new sensor should usually mean adding one ne
 
 Vendor source snapshots live under [`../../firmware/main/third_party/`](../../firmware/main/third_party/):
 
+- `adafruit_dht/`
 - `bme280/`
 - `bme68x/`
 - `sps30/`

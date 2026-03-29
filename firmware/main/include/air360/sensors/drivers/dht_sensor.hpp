@@ -5,6 +5,8 @@
 
 #include "air360/sensors/sensor_driver.hpp"
 
+class DHT;
+
 namespace air360 {
 
 enum class DhtModel : std::uint8_t {
@@ -15,6 +17,7 @@ enum class DhtModel : std::uint8_t {
 class DhtSensor final : public SensorDriver {
   public:
     explicit DhtSensor(DhtModel model);
+    ~DhtSensor() override;
 
     SensorType type() const override;
     esp_err_t init(
@@ -25,12 +28,11 @@ class DhtSensor final : public SensorDriver {
     std::string lastError() const override;
 
   private:
-    esp_err_t readRawFrame(std::uint8_t data[5]);
-    bool decodeFrame(const std::uint8_t data[5], float& temperature_c, float& humidity_percent) const;
     void setError(const std::string& message);
 
     DhtModel model_;
     SensorRecord record_{};
+    std::unique_ptr<DHT> sensor_;
     SensorMeasurement measurement_{};
     std::string last_error_;
     bool initialized_ = false;

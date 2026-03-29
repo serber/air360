@@ -212,7 +212,7 @@ bool validateDhtRecord(const SensorRecord& record, std::string& error, std::uint
 }
 
 bool validateDht11Record(const SensorRecord& record, std::string& error) {
-    return validateDhtRecord(record, error, 1000U);
+    return validateDhtRecord(record, error, 2000U);
 }
 
 bool validateDht22Record(const SensorRecord& record, std::string& error) {

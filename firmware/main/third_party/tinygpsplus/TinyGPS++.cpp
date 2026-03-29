@@ -72,6 +72,7 @@ bool TinyGPSPlus::encode(char c)
   {
   case ',': // term terminators
     parity ^= (uint8_t)c;
+    [[fallthrough]];
   case '\r':
   case '\n':
   case '*':
