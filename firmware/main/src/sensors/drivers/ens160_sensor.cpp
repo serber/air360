@@ -7,7 +7,6 @@
 
 #include "air360/sensors/transport_binding.hpp"
 #include "esp_err.h"
-#include "esp_rom_sys.h"
 #include "esp_timer.h"
 
 namespace air360 {
@@ -23,7 +22,6 @@ constexpr std::uint8_t kRegisterDataAqi = 0x21U;
 constexpr std::uint8_t kRegisterDataTvoc = 0x22U;
 constexpr std::uint8_t kRegisterDataEco2 = 0x24U;
 constexpr std::uint16_t kExpectedPartId = 0x0160U;
-constexpr std::uint8_t kOpModeReset = 0xF0U;
 constexpr std::uint8_t kOpModeStandard = 0x02U;
 constexpr std::uint8_t kStatusNewDataMask = 0x02U;
 constexpr std::uint8_t kStatusValidityMask = 0x0CU;
@@ -98,13 +96,6 @@ esp_err_t Ens160Sensor::init(
         setError(message);
         return ESP_ERR_INVALID_RESPONSE;
     }
-
-    err = setOperatingMode(kOpModeReset);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to reset ENS160: ") + esp_err_to_name(err) + ".");
-        return err;
-    }
-    esp_rom_delay_us(2000U);
 
     err = setOperatingMode(kOpModeStandard);
     if (err != ESP_OK) {
