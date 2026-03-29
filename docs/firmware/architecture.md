@@ -108,7 +108,7 @@ It also saves configuration changes and triggers `esp_restart()` after a success
 
 [`../../firmware/main/src/sensors/sensor_config_repository.cpp`](../../firmware/main/src/sensors/sensor_config_repository.cpp)
 
-Persists the sensor inventory in NVS under a dedicated blob. It validates the stored schema and migrates v1 sensor records to v2.
+Persists the sensor inventory in NVS under a dedicated blob. It validates the stored schema and replaces invalid or incompatible stored sensor config with defaults.
 
 ### SensorRegistry
 
@@ -171,7 +171,7 @@ Implemented in the current firmware:
 - Phase 3 sensor configuration through `/sensors`
 - background polling through `SensorManager`
 - working drivers for selected I2C, GPIO, and UART sensors
-- vendor-backed wrappers for Bosch BME280, Bosch BME680, and Sensirion SPS30
+- vendor-backed wrappers for Bosch BME280, Bosch BME680, and Sensirion SPS30 plus local drivers for ENS160, GPS/NMEA, and DHT
 - a generic measurement model that allows different drivers to publish different channel sets
 - local status reporting for live sensor state and measurements
 

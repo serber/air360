@@ -87,13 +87,14 @@ Core files:
 - [`../../firmware/main/src/sensors/sensor_manager.cpp`](../../firmware/main/src/sensors/sensor_manager.cpp)
   Sensor orchestrator and background polling task.
 - [`../../firmware/main/src/sensors/transport_binding.cpp`](../../firmware/main/src/sensors/transport_binding.cpp)
-  Shared I2C and UART transport helpers for drivers, including the board wiring used by current sensor integrations.
+  Shared I2C and UART transport helpers for drivers, including the current `driver/i2c_master.h`-based I2C path and the board wiring used by sensor integrations.
 
 Driver implementations are intentionally isolated under [`../../firmware/main/src/sensors/drivers/`](../../firmware/main/src/sensors/drivers/):
 
 - `bme280_sensor.cpp`
 - `bme680_sensor.cpp`
 - `dht_sensor.cpp`
+- `ens160_sensor.cpp`
 - `gps_nmea_sensor.cpp`
 - `sps30_sensor.cpp`
 - shared vendor-bridge helpers such as `bosch_i2c_support.cpp` and `sensirion_i2c_hal.cpp`

@@ -429,7 +429,7 @@ std::int16_t defaultBoardGpioPin() {
 std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
     switch (descriptor.type) {
         case SensorType::kBme280:
-            return "Defaults: I2C bus 0 at address 0x76.";
+            return "Defaults: I2C bus 0 at address 0x77.";
         case SensorType::kBme680:
             return "Defaults: I2C bus 0 at address 0x77. Gas resistance is reported when the heater run is valid.";
         case SensorType::kSps30:

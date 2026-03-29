@@ -231,7 +231,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         true,
         10000U,
         0U,
-        0x76U,
+        0x77U,
         &validateBme280Record,
         &createBme280Sensor,
     },

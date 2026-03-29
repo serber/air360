@@ -47,40 +47,24 @@ Examples:
 
 - `BME280` publishes temperature, humidity, pressure
 - `BME680` publishes temperature, humidity, pressure, and gas resistance
+- `ENS160` publishes AQI, TVOC, and eCO2
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, and speed
 - `DHT11` and `DHT22` publish temperature and humidity
 - `SPS30` publishes PM mass, number concentration, and particle size channels
 
 ## Supported Sensor Types
 
-The current registry defines these implemented sensor types:
+The current registry defines these implemented sensor types. The authoritative list lives in [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp).
 
-- `bme280`
-- `bme680`
-- `sps30`
-- `gps_nmea`
-- `dht11`
-- `dht22`
-
-The authoritative list lives in [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp).
-
-## Transport Model
-
-The current transport kinds are defined in [`../../firmware/main/include/air360/sensors/sensor_types.hpp`](../../firmware/main/include/air360/sensors/sensor_types.hpp):
-
-- `i2c`
-- `analog`
-- `uart`
-- `gpio`
-
-Current transport usage by implemented drivers:
-
-- `BME280`: I2C
-- `BME680`: I2C
-- `SPS30`: I2C
-- `GPS (NMEA)`: UART
-- `DHT11`: GPIO
-- `DHT22`: GPIO
+| Type Key | Display Name | Transport | Reported Values | Default Binding |
+| --- | --- | --- | --- | --- |
+| `bme280` | `BME280` | `i2c` | `temperature`, `humidity`, `pressure` | bus 0, address `0x77` |
+| `bme680` | `BME680` | `i2c` | `temperature`, `humidity`, `pressure`, `gas_resistance` | bus 0, address `0x77` |
+| `sps30` | `SPS30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
+| `ens160` | `ENS160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
+| `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
+| `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6 |
+| `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6 |
 
 `analog` exists in the shared type model, but no analog driver is implemented yet and the current `/sensors` flow does not expose any analog-specific setup beyond the shared GPIO slot field carried in `SensorRecord`.
 
@@ -93,13 +77,7 @@ The current board defaults for I2C bus 0 come from `Kconfig`:
 - SDA: GPIO8
 - SCL: GPIO9
 
-I2C-capable sensor defaults:
-
-- `BME280`: bus 0, address `0x76`
-- `BME680`: bus 0, address `0x76`
-- `SPS30`: bus 0, address `0x69`
-
-The registry accepts I2C bus ids `0` and `1`, but only bus 0 has explicit board wiring defaults in the current project config.
+The current registry validates only bus 0 for I2C sensors, matching the only board wiring path implemented by the firmware.
 
 ### UART / GPS
 
@@ -136,10 +114,13 @@ Current patterns:
   - `sps30_sensor.cpp`
   - shared Sensirion HAL bridge in `sensirion_i2c_hal.cpp`
 - Native local drivers
+  - `ens160_sensor.cpp`
   - `gps_nmea_sensor.cpp`
   - `dht_sensor.cpp`
 
 Vendor source snapshots are compiled from [`../../firmware/main/third_party/`](../../firmware/main/third_party/).
+
+The shared I2C transport is implemented in [`../../firmware/main/src/sensors/transport_binding.cpp`](../../firmware/main/src/sensors/transport_binding.cpp) on top of ESP-IDF's `driver/i2c_master.h` API through `esp_driver_i2c`.
 
 ## Web Configuration Flow
 
@@ -188,4 +169,4 @@ This lets the UI distinguish between:
 - Sensor config still stores several transport-specific fields directly in `SensorRecord`.
 - The HTML UI is still server-rendered in C++.
 - There is no dedicated upload pipeline yet; measurements are only exposed locally through the runtime pages and `/status`.
-- I2C validation accepts bus ids `0` and `1`, but the current board defaults only describe wiring for bus 0.
+- Only I2C bus 0 is currently supported by the board wiring and runtime validation path.

@@ -278,18 +278,26 @@ Supported drivers confirmed by the current registry:
 - `BME280`
 - `BME680`
 - `SPS30`
+- `ENS160`
 - `GPS (NMEA)`
 - `DHT11`
 - `DHT22`
 
 Current transport model by sensor type:
 
-- `BME280`, `BME680`, `SPS30`
-  I2C sensors on bus 0 by default, with board wiring from `CONFIG_AIR360_I2C0_*`.
+- `BME280`, `BME680`, `SPS30`, `ENS160`
+  I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
 - `GPS (NMEA)`
   UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
 - `DHT11`, `DHT22`
   GPIO sensors restricted to the board sensor slots from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`.
+
+Current default I2C addresses from the registry are:
+
+- `BME280`: `0x77`
+- `BME680`: `0x77`
+- `SPS30`: `0x69`
+- `ENS160`: `0x52`
 
 The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, GPIO-backed sensors expose only the allowed board GPIO slots, and GPS uses the fixed UART binding for the board.
 

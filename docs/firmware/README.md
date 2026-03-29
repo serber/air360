@@ -18,6 +18,8 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local 
   Source tree walkthrough, component layout, build inputs, and developer navigation.
 - [`sensors.md`](sensors.md)
   Sensor subsystem architecture, registry/runtime model, supported drivers, generic measurements, transports, and current board wiring assumptions.
+- [`planned-device-support.md`](planned-device-support.md)
+  Forward-looking inventory of planned sensors, peripherals, and connectivity modules. This file is planning-oriented, not a record of what is already implemented.
 
 ## How To Use These Docs
 
@@ -25,9 +27,12 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local 
 - Read [`architecture.md`](architecture.md) to understand boot flow and service ownership.
 - Use [`configuration.md`](configuration.md) when changing defaults, `sdkconfig`, or partitions.
 - Use [`sensors.md`](sensors.md) before adding a new driver or changing sensor setup behavior.
+- Use [`planned-device-support.md`](planned-device-support.md) when discussing future hardware support beyond what is already implemented.
 
 ## Scope Boundary
 
-This directory documents the current firmware implementation.
+This directory mostly documents the current firmware implementation.
 
 Planning and compatibility notes for the wider replacement effort still live in the parent [`../`](../) directory. Those files are useful design context, but they should not be treated as proof that a feature already exists in `firmware/`.
+
+One exception in this directory is [`planned-device-support.md`](planned-device-support.md), which is intentionally forward-looking and should also be treated as planning context rather than implemented behavior.
