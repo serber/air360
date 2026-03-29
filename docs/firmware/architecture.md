@@ -171,7 +171,7 @@ Implemented in the current firmware:
 - Phase 3 sensor configuration through `/sensors`
 - background polling through `SensorManager`
 - working drivers for selected I2C, GPIO, and UART sensors
-- vendor-backed wrappers for Bosch BME280, Bosch BME680, Sensirion SPS30, TinyGPSPlus, and Adafruit DHT plus a local driver for ENS160
+- vendor-backed wrappers for Bosch BME280, Bosch BME680, ScioSense ENS160, Sensirion SPS30, TinyGPSPlus, and Adafruit DHT
 - a generic measurement model that allows different drivers to publish different channel sets
 - local status reporting for live sensor state and measurements
 

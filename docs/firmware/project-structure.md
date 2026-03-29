@@ -108,6 +108,7 @@ Vendor source snapshots live under [`../../firmware/main/third_party/`](../../fi
 - `adafruit_dht/`
 - `bme280/`
 - `bme68x/`
+- `ens160/`
 - `sps30/`
 - `tinygpsplus/`
 

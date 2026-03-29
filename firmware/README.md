@@ -29,7 +29,7 @@ Key files and directories:
 - `firmware.code-workspace`
   VS Code workspace entry point for opening this directory as an ESP-IDF project.
 - `main/third_party/`
-  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, SPS30, TinyGPSPlus, and Adafruit DHT.
+  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, and Adafruit DHT.
 
 ### `main/`
 
