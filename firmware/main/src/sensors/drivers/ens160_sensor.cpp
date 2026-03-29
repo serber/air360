@@ -30,6 +30,10 @@ constexpr std::uint8_t kStatusValidityMask = 0x0CU;
 constexpr std::uint8_t kStatusValidityShift = 2U;
 constexpr std::uint8_t kStatusValidityNormal = 0U;
 
+bool isZeroMeasurement(std::uint8_t aqi, std::uint16_t tvoc, std::uint16_t eco2) {
+    return aqi == 0U && tvoc == 0U && eco2 == 0U;
+}
+
 const char* validityText(std::uint8_t validity) {
     switch (validity) {
         case 0U:
@@ -137,8 +141,11 @@ esp_err_t Ens160Sensor::poll() {
         return err;
     }
 
-    measurement_.clear();
-    if ((status & kStatusNewDataMask) != 0U || validity == kStatusValidityNormal) {
+    const bool has_fresh_sample =
+        (status & kStatusNewDataMask) != 0U || validity == kStatusValidityNormal;
+    const bool zero_sample = isZeroMeasurement(aqi, tvoc, eco2);
+    if (has_fresh_sample && !(validity != kStatusValidityNormal && zero_sample)) {
+        measurement_.clear();
         measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
         measurement_.addValue(SensorValueKind::kAqi, static_cast<float>(aqi));
         measurement_.addValue(SensorValueKind::kTvocPpb, static_cast<float>(tvoc));
@@ -148,6 +155,8 @@ esp_err_t Ens160Sensor::poll() {
     last_error_.clear();
     if (validity != kStatusValidityNormal) {
         setError(std::string("ENS160 data validity state: ") + validityText(validity) + ".");
+    } else if (zero_sample) {
+        setError("ENS160 returned an all-zero sample; keeping previous reading.");
     }
 
     return ESP_OK;

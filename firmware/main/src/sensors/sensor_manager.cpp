@@ -235,10 +235,6 @@ std::size_t SensorManager::enabledCount() const {
     return count;
 }
 
-std::vector<std::uint8_t> SensorManager::scanI2cBus(std::uint8_t bus_id, esp_err_t& out_status) {
-    return i2c_bus_manager_.scan(bus_id, out_status);
-}
-
 void SensorManager::ensureMutex() const {
     if (mutex_ == nullptr) {
         mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
