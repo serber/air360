@@ -113,9 +113,11 @@ Current patterns:
 - Sensirion-backed wrapper
   - `sps30_sensor.cpp`
   - shared Sensirion HAL bridge in `sensirion_i2c_hal.cpp`
+- TinyGPSPlus-backed wrapper
+  - `gps_nmea_sensor.cpp`
+  - vendored parser under `third_party/tinygpsplus/`
 - Native local drivers
   - `ens160_sensor.cpp`
-  - `gps_nmea_sensor.cpp`
   - `dht_sensor.cpp`
 
 Vendor source snapshots are compiled from [`../../firmware/main/third_party/`](../../firmware/main/third_party/).

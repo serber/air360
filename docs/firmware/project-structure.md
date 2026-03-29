@@ -108,6 +108,7 @@ Vendor source snapshots live under [`../../firmware/main/third_party/`](../../fi
 - `bme280/`
 - `bme68x/`
 - `sps30/`
+- `tinygpsplus/`
 
 These are compiled as part of the `main` component. Local wrapper classes keep the vendor APIs behind the firmware's own `SensorDriver` abstraction.
 
