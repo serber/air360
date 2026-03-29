@@ -276,7 +276,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         true,
         1000U,
         0U,
-        0x53U,
+        0x52U,
         &validateEns160Record,
         &createEns160Sensor,
     },

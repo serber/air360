@@ -435,7 +435,7 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         case SensorType::kSps30:
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
         case SensorType::kEns160:
-            return "Defaults: I2C bus 0, usually address 0x53. The driver also probes 0x52 as a fallback.";
+            return "Defaults: I2C bus 0, currently address 0x52. The driver also probes 0x53 as a fallback.";
         case SensorType::kGpsNmea: {
             std::string hint = "Defaults: fixed UART ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
