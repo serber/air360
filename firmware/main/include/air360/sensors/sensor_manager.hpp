@@ -39,6 +39,7 @@ class SensorManager {
     std::vector<SensorRuntimeInfo> sensors() const;
     std::size_t configuredCount() const;
     std::size_t enabledCount() const;
+    std::vector<std::uint8_t> scanI2cBus(std::uint8_t bus_id, esp_err_t& out_status);
 
   private:
     struct ManagedSensor {

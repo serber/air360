@@ -18,7 +18,7 @@ struct SensorRecord {
     std::uint32_t poll_interval_ms = 10000U;
     char display_name[kSensorDisplayNameCapacity]{};
     std::uint8_t i2c_bus_id = 0U;
-    std::uint8_t i2c_address = 0x76U;
+    std::uint8_t i2c_address = 0x77U;
     std::uint8_t uart_port_id = 1U;
     std::uint8_t reserved0 = 0U;
     std::int16_t analog_gpio_pin = -1;

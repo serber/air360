@@ -116,7 +116,6 @@ Storage details:
 Current schema version:
 
 - `SensorConfigList`: v2
-- migration implemented from stored v1 sensor config
 
 Important current behavior:
 
@@ -124,6 +123,7 @@ Important current behavior:
 - the `/sensors` UI infers transport from sensor type rather than letting the user choose arbitrary transport combinations
 - GPS records are validated against fixed board UART wiring
 - GPIO-backed sensors are constrained to the configured board GPIO slots
+- stored sensor config with an older or incompatible layout is currently replaced with defaults rather than migrated
 
 ## Partition Table
 

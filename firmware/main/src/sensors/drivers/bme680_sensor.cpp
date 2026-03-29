@@ -1,5 +1,6 @@
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -10,6 +11,7 @@ extern "C" {
 }
 
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_err.h"
 #include "esp_timer.h"
 
 namespace air360 {
@@ -130,7 +132,15 @@ esp_err_t Bme680Sensor::init(
 
     const esp_err_t probe_err = context.i2c_bus_manager->probe(record.i2c_bus_id, record.i2c_address);
     if (probe_err != ESP_OK) {
-        setError("BME680 probe failed on the selected I2C bus and address.");
+        char message[160];
+        std::snprintf(
+            message,
+            sizeof(message),
+            "BME680 probe failed on I2C bus %u address 0x%02X: %s.",
+            static_cast<unsigned>(record.i2c_bus_id),
+            static_cast<unsigned>(record.i2c_address),
+            esp_err_to_name(probe_err));
+        setError(message);
         return probe_err;
     }
 

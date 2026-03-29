@@ -16,6 +16,7 @@ enum class SensorType : std::uint8_t {
     kDht22 = 4U,
     kBme680 = 5U,
     kSps30 = 6U,
+    kEns160 = 7U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -75,6 +76,9 @@ enum class SensorValueKind : std::uint8_t {
     kNc4_0PerCm3 = 17U,
     kNc10_0PerCm3 = 18U,
     kTypicalParticleSizeUm = 19U,
+    kAqi = 20U,
+    kTvocPpb = 21U,
+    kEco2Ppm = 22U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -117,6 +121,12 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "nc10_0_per_cm3";
         case SensorValueKind::kTypicalParticleSizeUm:
             return "typical_particle_size_um";
+        case SensorValueKind::kAqi:
+            return "aqi";
+        case SensorValueKind::kTvocPpb:
+            return "tvoc_ppb";
+        case SensorValueKind::kEco2Ppm:
+            return "eco2_ppm";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -163,6 +173,12 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "NC10";
         case SensorValueKind::kTypicalParticleSizeUm:
             return "Particle size";
+        case SensorValueKind::kAqi:
+            return "AQI";
+        case SensorValueKind::kTvocPpb:
+            return "TVOC";
+        case SensorValueKind::kEco2Ppm:
+            return "eCO2";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -201,6 +217,12 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "#/cm3";
         case SensorValueKind::kTypicalParticleSizeUm:
             return "um";
+        case SensorValueKind::kAqi:
+            return "";
+        case SensorValueKind::kTvocPpb:
+            return "ppb";
+        case SensorValueKind::kEco2Ppm:
+            return "ppm";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -228,6 +250,10 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kNc10_0PerCm3:
         case SensorValueKind::kTypicalParticleSizeUm:
             return 1;
+        case SensorValueKind::kAqi:
+        case SensorValueKind::kTvocPpb:
+        case SensorValueKind::kEco2Ppm:
+            return 0;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:
             return 6;

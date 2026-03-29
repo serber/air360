@@ -28,6 +28,7 @@ class WebServer {
     static esp_err_t handleStatus(httpd_req_t* request);
     static esp_err_t handleConfig(httpd_req_t* request);
     static esp_err_t handleSensors(httpd_req_t* request);
+    static esp_err_t handleI2cScan(httpd_req_t* request);
 
     httpd_handle_t handle_ = nullptr;
     StatusService* status_service_ = nullptr;

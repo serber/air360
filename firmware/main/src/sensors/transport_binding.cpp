@@ -37,6 +37,20 @@ I2cBusManager::~I2cBusManager() {
     shutdown();
 }
 
+void I2cBusManager::ensureMutex() {
+    if (mutex_ == nullptr) {
+        mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+    }
+}
+
+void I2cBusManager::lock() {
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+}
+
+void I2cBusManager::unlock() {
+    xSemaphoreGive(mutex_);
+}
+
 esp_err_t I2cBusManager::ensureBus(std::uint8_t bus_id, BusState*& out_state) {
     if (bus_id >= buses_.size()) {
         return ESP_ERR_INVALID_ARG;
@@ -103,13 +117,41 @@ void I2cBusManager::releaseDevice(i2c_master_dev_handle_t device) {
 }
 
 esp_err_t I2cBusManager::probe(std::uint8_t bus_id, std::uint8_t address) {
+    ensureMutex();
+    lock();
     BusState* bus_state = nullptr;
     esp_err_t err = ensureBus(bus_id, bus_state);
     if (err != ESP_OK) {
+        unlock();
         return err;
     }
 
-    return i2c_master_probe(bus_state->handle, address, kI2cTransferTimeoutMs);
+    err = i2c_master_probe(bus_state->handle, address, kI2cTransferTimeoutMs);
+    unlock();
+    return err;
+}
+
+std::vector<std::uint8_t> I2cBusManager::scan(std::uint8_t bus_id, esp_err_t& out_status) {
+    std::vector<std::uint8_t> found_addresses;
+    ensureMutex();
+    lock();
+
+    BusState* bus_state = nullptr;
+    out_status = ensureBus(bus_id, bus_state);
+    if (out_status != ESP_OK) {
+        unlock();
+        return found_addresses;
+    }
+
+    for (std::uint8_t address = 0x03U; address <= 0x77U; ++address) {
+        if (i2c_master_probe(bus_state->handle, address, kI2cTransferTimeoutMs) == ESP_OK) {
+            found_addresses.push_back(address);
+        }
+    }
+
+    out_status = ESP_OK;
+    unlock();
+    return found_addresses;
 }
 
 esp_err_t I2cBusManager::writeRegister(
@@ -130,15 +172,19 @@ esp_err_t I2cBusManager::write(
         return ESP_ERR_INVALID_ARG;
     }
 
+    ensureMutex();
+    lock();
     i2c_master_dev_handle_t device = nullptr;
     esp_err_t err = withDevice(bus_id, address, device);
     if (err != ESP_OK) {
+        unlock();
         return err;
     }
 
     std::uint8_t staging[32];
     if (buffer_size + 1U > sizeof(staging)) {
         releaseDevice(device);
+        unlock();
         return ESP_ERR_INVALID_SIZE;
     }
 
@@ -149,6 +195,7 @@ esp_err_t I2cBusManager::write(
 
     err = i2c_master_transmit(device, staging, buffer_size + 1U, kI2cTransferTimeoutMs);
     releaseDevice(device);
+    unlock();
     return err;
 }
 
@@ -161,14 +208,18 @@ esp_err_t I2cBusManager::writeRaw(
         return ESP_ERR_INVALID_ARG;
     }
 
+    ensureMutex();
+    lock();
     i2c_master_dev_handle_t device = nullptr;
     esp_err_t err = withDevice(bus_id, address, device);
     if (err != ESP_OK) {
+        unlock();
         return err;
     }
 
     err = i2c_master_transmit(device, buffer, buffer_size, kI2cTransferTimeoutMs);
     releaseDevice(device);
+    unlock();
     return err;
 }
 
@@ -181,14 +232,18 @@ esp_err_t I2cBusManager::readRaw(
         return ESP_ERR_INVALID_ARG;
     }
 
+    ensureMutex();
+    lock();
     i2c_master_dev_handle_t device = nullptr;
     esp_err_t err = withDevice(bus_id, address, device);
     if (err != ESP_OK) {
+        unlock();
         return err;
     }
 
     err = i2c_master_receive(device, buffer, buffer_size, kI2cTransferTimeoutMs);
     releaseDevice(device);
+    unlock();
     return err;
 }
 
@@ -202,9 +257,12 @@ esp_err_t I2cBusManager::readRegister(
         return ESP_ERR_INVALID_ARG;
     }
 
+    ensureMutex();
+    lock();
     i2c_master_dev_handle_t device = nullptr;
     esp_err_t err = withDevice(bus_id, address, device);
     if (err != ESP_OK) {
+        unlock();
         return err;
     }
 
@@ -216,10 +274,13 @@ esp_err_t I2cBusManager::readRegister(
         buffer_size,
         kI2cTransferTimeoutMs);
     releaseDevice(device);
+    unlock();
     return err;
 }
 
 void I2cBusManager::shutdown() {
+    ensureMutex();
+    lock();
     for (auto& bus : buses_) {
         if (!bus.initialized || bus.handle == nullptr) {
             continue;
@@ -229,6 +290,7 @@ void I2cBusManager::shutdown() {
         bus.handle = nullptr;
         bus.initialized = false;
     }
+    unlock();
 }
 
 UartPortManager::~UartPortManager() {

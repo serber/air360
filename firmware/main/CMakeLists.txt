@@ -10,6 +10,7 @@ idf_component_register(
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
+        "src/sensors/drivers/ens160_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"

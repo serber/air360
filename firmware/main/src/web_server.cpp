@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <string>
@@ -45,6 +46,14 @@
 
 #ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_2
 #define CONFIG_AIR360_GPIO_SENSOR_PIN_2 6
+#endif
+
+#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
+#define CONFIG_AIR360_I2C0_SDA_GPIO 8
+#endif
+
+#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
+#define CONFIG_AIR360_I2C0_SCL_GPIO 9
 #endif
 
 namespace air360 {
@@ -287,7 +296,7 @@ std::string renderConfigPage(
     html += "style='width:auto;max-width:none;margin-right:.5rem'>Local auth placeholder (stored only, not enforced yet)</label>";
     html += "<button type='submit'>Save and reboot</button>";
     html += "</form></div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/sensors'>Sensors</a> · <a href='/status'>JSON status</a></p>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/sensors'>Sensors</a> · <a href='/status'>JSON status</a> · <a href='/i2c-scan'>I2C scan</a></p>";
     html += "</body></html>";
     return html;
 }
@@ -425,6 +434,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x76. Gas resistance is reported when the heater run is valid.";
         case SensorType::kSps30:
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
+        case SensorType::kEns160:
+            return "Defaults: I2C bus 0, usually address 0x53. The driver also probes 0x52 as a fallback.";
         case SensorType::kGpsNmea: {
             std::string hint = "Defaults: fixed UART ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
@@ -444,6 +455,45 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         default:
             return "";
     }
+}
+
+std::string renderI2cScanText(SensorManager& sensor_manager) {
+    std::string text;
+    text.reserve(512);
+    text += "Air360 I2C scan\n";
+    text += "Bus 0 wiring: SDA GPIO";
+    text += std::to_string(CONFIG_AIR360_I2C0_SDA_GPIO);
+    text += ", SCL GPIO";
+    text += std::to_string(CONFIG_AIR360_I2C0_SCL_GPIO);
+    text += "\n\n";
+
+    for (std::uint8_t bus_id = 0U; bus_id <= 1U; ++bus_id) {
+        esp_err_t scan_err = ESP_OK;
+        const auto addresses = sensor_manager.scanI2cBus(bus_id, scan_err);
+        text += "Bus ";
+        text += std::to_string(bus_id);
+        text += ": ";
+        if (scan_err != ESP_OK) {
+            text += esp_err_to_name(scan_err);
+            text += "\n";
+            continue;
+        }
+
+        if (addresses.empty()) {
+            text += "no devices found\n";
+            continue;
+        }
+
+        text += "found";
+        for (const std::uint8_t address : addresses) {
+            char buffer[8];
+            std::snprintf(buffer, sizeof(buffer), " 0x%02X", static_cast<unsigned>(address));
+            text += buffer;
+        }
+        text += "\n";
+    }
+
+    return text;
 }
 
 std::string renderSensorsPage(
@@ -644,7 +694,7 @@ std::string renderSensorsPage(
     html += "<button type='submit'>Add sensor</button>";
     html += "</form>";
     html += "</div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/status'>JSON status</a></p>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/status'>JSON status</a> · <a href='/i2c-scan'>I2C scan</a></p>";
     html += "</body></html>";
     return html;
 }
@@ -809,6 +859,17 @@ esp_err_t WebServer::start(
     sensors_post_uri.handler = &WebServer::handleSensors;
     sensors_post_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &sensors_post_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t i2c_scan_uri{};
+    i2c_scan_uri.uri = "/i2c-scan";
+    i2c_scan_uri.method = HTTP_GET;
+    i2c_scan_uri.handler = &WebServer::handleI2cScan;
+    i2c_scan_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &i2c_scan_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -1051,6 +1112,14 @@ esp_err_t WebServer::handleStatus(httpd_req_t* request) {
     httpd_resp_set_type(request, "application/json");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
     return httpd_resp_send(request, json.c_str(), json.size());
+}
+
+esp_err_t WebServer::handleI2cScan(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "text/plain; charset=utf-8");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    const std::string text = renderI2cScanText(*server->sensor_manager_);
+    return httpd_resp_send(request, text.c_str(), text.size());
 }
 
 esp_err_t WebServer::handleConfig(httpd_req_t* request) {

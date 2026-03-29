@@ -83,7 +83,7 @@ Core files:
 - [`../../firmware/main/include/air360/sensors/sensor_registry.hpp`](../../firmware/main/include/air360/sensors/sensor_registry.hpp)
   Registry and descriptor model for supported sensors.
 - [`../../firmware/main/src/sensors/sensor_config_repository.cpp`](../../firmware/main/src/sensors/sensor_config_repository.cpp)
-  NVS-backed sensor configuration storage, including schema migration from v1 to v2.
+  NVS-backed sensor configuration storage and schema validation for the current persisted sensor inventory.
 - [`../../firmware/main/src/sensors/sensor_manager.cpp`](../../firmware/main/src/sensors/sensor_manager.cpp)
   Sensor orchestrator and background polling task.
 - [`../../firmware/main/src/sensors/transport_binding.cpp`](../../firmware/main/src/sensors/transport_binding.cpp)

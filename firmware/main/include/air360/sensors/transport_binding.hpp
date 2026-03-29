@@ -3,10 +3,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 namespace air360 {
 
@@ -15,6 +17,7 @@ class I2cBusManager {
     ~I2cBusManager();
 
     esp_err_t probe(std::uint8_t bus_id, std::uint8_t address);
+    std::vector<std::uint8_t> scan(std::uint8_t bus_id, esp_err_t& out_status);
     esp_err_t writeRegister(
         std::uint8_t bus_id,
         std::uint8_t address,
@@ -50,6 +53,9 @@ class I2cBusManager {
         i2c_master_bus_handle_t handle = nullptr;
     };
 
+    void ensureMutex();
+    void lock();
+    void unlock();
     esp_err_t ensureBus(std::uint8_t bus_id, BusState*& out_state);
     esp_err_t withDevice(
         std::uint8_t bus_id,
@@ -57,6 +63,8 @@ class I2cBusManager {
         i2c_master_dev_handle_t& out_device);
     void releaseDevice(i2c_master_dev_handle_t device);
 
+    StaticSemaphore_t mutex_buffer_{};
+    SemaphoreHandle_t mutex_ = nullptr;
     std::array<BusState, 2> buses_{};
 };
 
