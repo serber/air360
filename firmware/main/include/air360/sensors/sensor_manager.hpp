@@ -10,6 +10,7 @@
 #include "air360/sensors/sensor_driver.hpp"
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/sensors/transport_binding.hpp"
+#include "air360/uploads/measurement_store.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -33,6 +34,7 @@ struct SensorRuntimeInfo {
 
 class SensorManager {
   public:
+    void setMeasurementStore(MeasurementStore& measurement_store);
     void applyConfig(const SensorConfigList& config);
     void stop();
 
@@ -65,6 +67,7 @@ class SensorManager {
     std::vector<ManagedSensor> sensors_;
     I2cBusManager i2c_bus_manager_;
     UartPortManager uart_port_manager_;
+    MeasurementStore* measurement_store_ = nullptr;
 };
 
 }  // namespace air360

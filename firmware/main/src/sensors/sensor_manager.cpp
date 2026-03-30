@@ -94,6 +94,10 @@ std::string bindingSummary(const SensorRecord& record) {
 
 }  // namespace
 
+void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
+    measurement_store_ = &measurement_store;
+}
+
 void SensorManager::applyConfig(const SensorConfigList& config) {
     stop();
     ensureMutex();
@@ -333,6 +337,16 @@ void SensorManager::taskMain() {
                 op_err == ESP_OK ? driver->latestMeasurement() : SensorMeasurement{};
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
+
+            if (op_err == ESP_OK && !measurement.empty() && measurement_store_ != nullptr) {
+                measurement_store_->append(
+                    MeasurementSample{
+                        record.id,
+                        record.sensor_type,
+                        measurement.sample_time_ms,
+                        measurement,
+                    });
+            }
 
             lock();
             if (index >= sensors_.size()) {

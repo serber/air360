@@ -9,6 +9,9 @@
 #include "air360/status_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
+#include "air360/uploads/backend_config_repository.hpp"
+#include "air360/uploads/measurement_store.hpp"
+#include "air360/uploads/upload_manager.hpp"
 #include "air360/web_server.hpp"
 #include "driver/gpio.h"
 #include "esp_err.h"
@@ -102,12 +105,17 @@ esp_err_t initNetworkingCore() {
 
 void App::run() {
     // Keep long-lived runtime objects out of the small ESP-IDF main task stack.
+    static BuildInfo build_info = getBuildInfo();
     static ConfigRepository config_repository;
     static DeviceConfig config = makeDefaultDeviceConfig();
-    static StatusService status_service(getBuildInfo());
+    static StatusService status_service(build_info);
     static SensorConfigRepository sensor_config_repository;
     static SensorConfigList sensor_config_list = makeDefaultSensorConfigList();
     static SensorManager sensor_manager;
+    static MeasurementStore measurement_store;
+    static BackendConfigRepository backend_config_repository;
+    static BackendConfigList backend_config_list = makeDefaultBackendConfigList();
+    static UploadManager upload_manager;
     static NetworkManager network_manager;
     static WebServer web_server;
 
@@ -116,13 +124,13 @@ void App::run() {
         ESP_LOGW(kTag, "Boot LED setup failed: %s", esp_err_to_name(leds_err));
     }
 
-    ESP_LOGI(kTag, "Boot step 1/7: arm task watchdog");
+    ESP_LOGI(kTag, "Boot step 1/9: arm task watchdog");
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
     }
 
-    ESP_LOGI(kTag, "Boot step 2/7: initialize NVS");
+    ESP_LOGI(kTag, "Boot step 2/9: initialize NVS");
     const esp_err_t storage_err = initStorage();
     if (storage_err != ESP_OK) {
         ESP_LOGE(kTag, "NVS init failed: %s", esp_err_to_name(storage_err));
@@ -130,7 +138,7 @@ void App::run() {
         return;
     }
 
-    ESP_LOGI(kTag, "Boot step 3/7: initialize network core");
+    ESP_LOGI(kTag, "Boot step 3/9: initialize network core");
     const esp_err_t network_core_err = initNetworkingCore();
     if (network_core_err != ESP_OK) {
         ESP_LOGE(
@@ -145,7 +153,7 @@ void App::run() {
     bool loaded_from_storage = false;
     bool wrote_defaults = false;
 
-    ESP_LOGI(kTag, "Boot step 4/7: load or create device config");
+    ESP_LOGI(kTag, "Boot step 4/9: load or create device config");
     esp_err_t config_err =
         config_repository.loadOrCreate(config, loaded_from_storage, wrote_defaults);
     if (config_err != ESP_OK) {
@@ -174,7 +182,7 @@ void App::run() {
     bool sensor_config_loaded = false;
     bool sensor_defaults_written = false;
 
-    ESP_LOGI(kTag, "Boot step 5/7: load or create sensor config");
+    ESP_LOGI(kTag, "Boot step 5/9: load or create sensor config");
     const esp_err_t sensor_config_err = sensor_config_repository.loadOrCreate(
         sensor_config_list,
         sensor_config_loaded,
@@ -189,10 +197,30 @@ void App::run() {
     static_cast<void>(sensor_config_loaded);
     static_cast<void>(sensor_defaults_written);
 
+    sensor_manager.setMeasurementStore(measurement_store);
     sensor_manager.applyConfig(sensor_config_list);
     status_service.setSensors(sensor_manager);
 
-    ESP_LOGI(kTag, "Boot step 6/7: resolve network mode");
+    backend_config_list = makeDefaultBackendConfigList();
+    bool backend_config_loaded = false;
+    bool backend_defaults_written = false;
+
+    ESP_LOGI(kTag, "Boot step 6/9: load or create backend config");
+    const esp_err_t backend_config_err = backend_config_repository.loadOrCreate(
+        backend_config_list,
+        backend_config_loaded,
+        backend_defaults_written);
+    if (backend_config_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Backend config load failed, using in-memory defaults: %s",
+            esp_err_to_name(backend_config_err));
+        backend_config_list = makeDefaultBackendConfigList();
+    }
+    static_cast<void>(backend_config_loaded);
+    static_cast<void>(backend_defaults_written);
+
+    ESP_LOGI(kTag, "Boot step 7/9: resolve network mode");
     if (hasStationConfig(config)) {
         ESP_LOGI(kTag, "Station config present, attempting normal mode Wi-Fi join");
         const esp_err_t station_err = network_manager.connectStation(config);
@@ -215,7 +243,12 @@ void App::run() {
     }
     status_service.setNetworkState(network_manager.state());
 
-    ESP_LOGI(kTag, "Boot step 7/7: start status web server");
+    ESP_LOGI(kTag, "Boot step 8/9: start upload manager");
+    upload_manager.start(build_info, config, sensor_manager, measurement_store, network_manager);
+    upload_manager.applyConfig(backend_config_list);
+    status_service.setUploads(upload_manager);
+
+    ESP_LOGI(kTag, "Boot step 9/9: start status web server");
     const esp_err_t web_err =
         web_server.start(
             status_service,
@@ -224,6 +257,9 @@ void App::run() {
             sensor_config_repository,
             sensor_config_list,
             sensor_manager,
+            backend_config_repository,
+            backend_config_list,
+            upload_manager,
             config.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));

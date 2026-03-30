@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include <cstdio>
+#include <ctime>
 #include <string>
 #include <utility>
 
@@ -149,6 +150,24 @@ std::string measurementArrayJson(const SensorMeasurement& measurement) {
     return json;
 }
 
+std::string formatTimeForDisplay(std::int64_t unix_ms, std::uint64_t uptime_ms) {
+    if (unix_ms > 0) {
+        const std::time_t seconds = static_cast<std::time_t>(unix_ms / 1000LL);
+        std::tm utc{};
+        gmtime_r(&seconds, &utc);
+
+        char buffer[64];
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S UTC", &utc);
+        return buffer;
+    }
+
+    if (uptime_ms > 0U) {
+        return std::to_string(uptime_ms) + " ms uptime";
+    }
+
+    return "never";
+}
+
 }  // namespace
 
 StatusService::StatusService(BuildInfo build_info) : build_info_(std::move(build_info)) {}
@@ -182,6 +201,10 @@ void StatusService::setSensors(const SensorManager& sensor_manager) {
     sensor_manager_ = &sensor_manager;
 }
 
+void StatusService::setUploads(const UploadManager& upload_manager) {
+    upload_manager_ = &upload_manager;
+}
+
 void StatusService::setWebServerStarted(bool started) {
     web_server_started_ = started;
 }
@@ -189,9 +212,12 @@ void StatusService::setWebServerStarted(bool started) {
 std::string StatusService::renderRootHtml() const {
     const std::vector<SensorRuntimeInfo> sensors =
         sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
+    const std::vector<BackendStatusSnapshot> backends =
+        upload_manager_ != nullptr ? upload_manager_->backends()
+                                   : std::vector<BackendStatusSnapshot>{};
 
     std::string html;
-    html.reserve(4000);
+    html.reserve(5500);
     html += "<!doctype html><html><head><meta charset='utf-8'>";
     html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
     html += "<title>air360 runtime</title>";
@@ -220,7 +246,45 @@ std::string StatusService::renderRootHtml() const {
     html += "<p>Mode: <code>";
     html += networkModeString(network_state_.mode);
     html += "</code></p>";
-    html += "<p>Local UI: <a href='/config'>/config</a> · Sensors: <a href='/sensors'>/sensors</a> · JSON status: <a href='/status'>/status</a></p>";
+    html += "<p>Local UI: <a href='/config'>/config</a> · Sensors: <a href='/sensors'>/sensors</a> · Backends: <a href='/backends'>/backends</a> · JSON status: <a href='/status'>/status</a></p>";
+    html += "<h2>Backends</h2>";
+    html += "<p>Enabled backends: <code>";
+    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);
+    html += "</code> · degraded: <code>";
+    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->degradedCount() : 0U);
+    html += "</code> · interval <code>";
+    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->uploadIntervalMs() : 0U);
+    html += " ms</code></p>";
+    if (backends.empty()) {
+        html += "<p>No backends configured yet.</p>";
+    } else {
+        html += "<ul>";
+        for (const auto& backend : backends) {
+            html += "<li><strong>";
+            html += htmlEscape(backend.display_name);
+            html += "</strong> · <code>";
+            html += htmlEscape(backendRuntimeStateKey(backend.state));
+            html += "</code> · result <code>";
+            html += htmlEscape(uploadResultClassKey(backend.last_result));
+            html += "</code> · last attempt <code>";
+            html += htmlEscape(
+                formatTimeForDisplay(
+                    backend.last_attempt_unix_ms,
+                    backend.last_attempt_uptime_ms));
+            html += "</code>";
+            if (backend.last_http_status > 0) {
+                html += " · HTTP <code>";
+                html += std::to_string(backend.last_http_status);
+                html += "</code>";
+            }
+            if (!backend.last_error.empty()) {
+                html += " · ";
+                html += htmlEscape(backend.last_error);
+            }
+            html += "</li>";
+        }
+        html += "</ul>";
+    }
     html += "<h2>Sensors</h2>";
     html += "<p>Configured sensors: <code>";
     html += std::to_string(sensors.size());
@@ -282,6 +346,12 @@ std::string StatusService::renderRootHtml() const {
     html += (config_.wifi_sta_ssid[0] != '\0' ? "true" : "false");
     html += "\nconfigured_sensors: ";
     html += std::to_string(sensors.size());
+    html += "\nenabled_backends: ";
+    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);
+    html += "\ndegraded_backends: ";
+    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->degradedCount() : 0U);
+    html += "\nupload_interval_ms: ";
+    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->uploadIntervalMs() : 0U);
     html += "\n";
     html += "</pre></body></html>";
     return html;
@@ -290,9 +360,12 @@ std::string StatusService::renderRootHtml() const {
 std::string StatusService::renderStatusJson() const {
     const std::vector<SensorRuntimeInfo> sensors =
         sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
+    const std::vector<BackendStatusSnapshot> backends =
+        upload_manager_ != nullptr ? upload_manager_->backends()
+                                   : std::vector<BackendStatusSnapshot>{};
 
     std::string json;
-    json.reserve(6144);
+    json.reserve(8192);
     json += "{";
     json += "\"project_name\":\"" + jsonEscape(build_info_.project_name) + "\",";
     json += "\"project_version\":\"" + jsonEscape(build_info_.project_version) + "\",";
@@ -341,6 +414,57 @@ std::string StatusService::renderStatusJson() const {
     json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
     json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
     json += "\"configured_sensors_count\":" + std::to_string(sensors.size()) + ",";
+    json += "\"enabled_backends_count\":";
+    json += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);
+    json += ",\"degraded_backends_count\":";
+    json += std::to_string(upload_manager_ != nullptr ? upload_manager_->degradedCount() : 0U);
+    json += ",\"upload_interval_ms\":";
+    json += std::to_string(upload_manager_ != nullptr ? upload_manager_->uploadIntervalMs() : 0U);
+    json += ",\"last_upload_attempt_uptime_ms\":";
+    json += std::to_string(
+        upload_manager_ != nullptr ? upload_manager_->lastOverallAttemptUptimeMs() : 0U);
+    json += ",\"last_upload_attempt_unix_ms\":";
+    json += std::to_string(
+        upload_manager_ != nullptr ? upload_manager_->lastOverallAttemptUnixMs() : 0);
+    json += ",\"backends\":[";
+    for (std::size_t index = 0; index < backends.size(); ++index) {
+        const auto& backend = backends[index];
+        if (index > 0U) {
+            json += ",";
+        }
+        json += "{";
+        json += "\"id\":" + std::to_string(backend.id) + ",";
+        json += "\"backend_key\":\"" + jsonEscape(backend.backend_key) + "\",";
+        json += "\"display_name\":\"" + jsonEscape(backend.display_name) + "\",";
+        json += "\"enabled\":";
+        json += boolString(backend.enabled);
+        json += ",\"configured\":";
+        json += boolString(backend.configured);
+        json += ",\"implemented\":";
+        json += boolString(backend.implemented);
+        json += ",\"state\":\"";
+        json += jsonEscape(backendRuntimeStateKey(backend.state));
+        json += "\",\"last_result\":\"";
+        json += jsonEscape(uploadResultClassKey(backend.last_result));
+        json += "\",\"last_attempt_uptime_ms\":";
+        json += std::to_string(backend.last_attempt_uptime_ms);
+        json += ",\"last_success_uptime_ms\":";
+        json += std::to_string(backend.last_success_uptime_ms);
+        json += ",\"last_attempt_unix_ms\":";
+        json += std::to_string(backend.last_attempt_unix_ms);
+        json += ",\"last_success_unix_ms\":";
+        json += std::to_string(backend.last_success_unix_ms);
+        json += ",\"last_http_status\":";
+        json += std::to_string(backend.last_http_status);
+        json += ",\"retry_count\":";
+        json += std::to_string(backend.retry_count);
+        json += ",\"next_retry_uptime_ms\":";
+        json += std::to_string(backend.next_retry_uptime_ms);
+        json += ",\"last_error\":\"";
+        json += jsonEscape(backend.last_error);
+        json += "\"}";
+    }
+    json += "],";
     json += "\"sensors\":[";
     for (std::size_t index = 0; index < sensors.size(); ++index) {
         const auto& sensor = sensors[index];

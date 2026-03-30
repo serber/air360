@@ -5,6 +5,12 @@ idf_component_register(
         "src/build_info.cpp"
         "src/config_repository.cpp"
         "src/network_manager.cpp"
+        "src/uploads/backend_config_repository.cpp"
+        "src/uploads/backend_registry.cpp"
+        "src/uploads/adapters/sensor_community_uploader.cpp"
+        "src/uploads/measurement_store.cpp"
+        "src/uploads/upload_manager.cpp"
+        "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
         "src/sensors/drivers/bosch_i2c_support.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
@@ -41,6 +47,7 @@ idf_component_register(
         esp_common
         esp_event
         esp_driver_gpio
+        esp_http_client
         esp_http_server
         esp_driver_i2c
         esp_driver_uart

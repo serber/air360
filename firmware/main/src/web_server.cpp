@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
@@ -13,6 +14,8 @@
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/uploads/backend_registry.hpp"
+#include "air360/uploads/upload_manager.hpp"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -296,7 +299,7 @@ std::string renderConfigPage(
     html += "style='width:auto;max-width:none;margin-right:.5rem'>Local auth placeholder (stored only, not enforced yet)</label>";
     html += "<button type='submit'>Save and reboot</button>";
     html += "</form></div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/sensors'>Sensors</a> · <a href='/status'>JSON status</a></p>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/sensors'>Sensors</a> · <a href='/backends'>Backends</a> · <a href='/status'>JSON status</a></p>";
     html += "</body></html>";
     return html;
 }
@@ -458,6 +461,151 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         default:
             return "";
     }
+}
+
+std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
+    if (unix_ms > 0) {
+        const std::time_t seconds = static_cast<std::time_t>(unix_ms / 1000LL);
+        std::tm utc{};
+        gmtime_r(&seconds, &utc);
+
+        char buffer[64];
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S UTC", &utc);
+        return buffer;
+    }
+
+    if (uptime_ms > 0U) {
+        return std::to_string(uptime_ms) + " ms uptime";
+    }
+
+    return "never";
+}
+
+const BackendRecord* findBackendRecordForDescriptor(
+    const BackendConfigList& config,
+    const BackendDescriptor& descriptor) {
+    return findBackendRecordByType(config, descriptor.type);
+}
+
+const BackendStatusSnapshot* findBackendStatusForDescriptor(
+    const std::vector<BackendStatusSnapshot>& statuses,
+    const BackendDescriptor& descriptor) {
+    for (const auto& status : statuses) {
+        if (status.backend_type == descriptor.type) {
+            return &status;
+        }
+    }
+    return nullptr;
+}
+
+std::string renderBackendsPage(
+    const BackendConfigList& backend_config_list,
+    const UploadManager& upload_manager,
+    const std::string& notice,
+    bool error_notice) {
+    BackendRegistry registry;
+    const std::vector<BackendStatusSnapshot> backend_statuses = upload_manager.backends();
+
+    std::string html;
+    html.reserve(10000);
+    html += "<!doctype html><html><head><meta charset='utf-8'>";
+    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
+    html += "<title>air360 backends</title>";
+    html += "<style>";
+    html += "body{font-family:system-ui,sans-serif;margin:2rem;max-width:70rem;line-height:1.5}";
+    html += "label{display:block;margin-top:.75rem;font-weight:600}";
+    html += "button{margin-top:1rem;padding:.65rem 1rem;border:0;border-radius:.45rem;background:#0f766e;color:white;font-weight:700}";
+    html += ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem 1.25rem;margin:1rem 0}";
+    html += ".notice{margin:1rem 0;padding:.8rem 1rem;border-radius:.5rem}";
+    html += ".ok{background:#ecfdf5;color:#166534}.err{background:#fef2f2;color:#991b1b}";
+    html += "code{background:#f1f5f9;padding:.1rem .35rem;border-radius:.25rem}";
+    html += "</style></head><body>";
+    html += "<h1>air360 Backends</h1>";
+    html += "<p>Enabled backends: <code>";
+    html += std::to_string(upload_manager.enabledCount());
+    html += "</code> · degraded: <code>";
+    html += std::to_string(upload_manager.degradedCount());
+    html += "</code></p>";
+
+    if (!notice.empty()) {
+        html += "<div class='notice ";
+        html += error_notice ? "err" : "ok";
+        html += "'>";
+        html += htmlEscape(notice);
+        html += "</div>";
+    }
+
+    html += "<form method='POST' action='/backends'>";
+    html += "<label for='upload_interval_ms'>Upload interval (ms)</label>";
+    html += "<input id='upload_interval_ms' name='upload_interval_ms' inputmode='numeric' value='";
+    html += std::to_string(backend_config_list.upload_interval_ms);
+    html += "' style='width:100%;max-width:18rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
+    html += "<p>Allowed range: <code>10000</code> to <code>300000</code> ms.</p>";
+    for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
+        const BackendDescriptor& descriptor = registry.descriptors()[index];
+        const BackendRecord* record =
+            findBackendRecordForDescriptor(backend_config_list, descriptor);
+        const BackendStatusSnapshot* status =
+            findBackendStatusForDescriptor(backend_statuses, descriptor);
+        const bool enabled = record != nullptr && record->enabled != 0U;
+
+        html += "<div class='card'>";
+        html += "<h2>";
+        html += htmlEscape(descriptor.display_name);
+        html += "</h2>";
+        html += "<p>Key: <code>";
+        html += htmlEscape(descriptor.backend_key);
+        html += "</code> · implemented: <code>";
+        html += descriptor.implemented ? "true" : "false";
+        html += "</code></p>";
+        html += "<label><input type='checkbox' name='enabled_";
+        html += htmlEscape(descriptor.backend_key);
+        html += "' ";
+        if (enabled) {
+            html += "checked ";
+        }
+        html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
+
+        if (status != nullptr) {
+            html += "<p>Status: <code>";
+            html += htmlEscape(backendRuntimeStateKey(status->state));
+            html += "</code> · Result: <code>";
+            html += htmlEscape(uploadResultClassKey(status->last_result));
+            html += "</code></p>";
+            html += "<p>Last attempt: <code>";
+            html += htmlEscape(
+                formatStatusTime(
+                    status->last_attempt_unix_ms,
+                    status->last_attempt_uptime_ms));
+            html += "</code></p>";
+            html += "<p>Last success: <code>";
+            html += htmlEscape(
+                formatStatusTime(
+                    status->last_success_unix_ms,
+                    status->last_success_uptime_ms));
+            html += "</code></p>";
+            html += "<p>HTTP code: <code>";
+            html += status->last_http_status > 0 ? std::to_string(status->last_http_status)
+                                                 : std::string("n/a");
+            html += "</code> · Retry count: <code>";
+            html += std::to_string(status->retry_count);
+            html += "</code></p>";
+            if (!status->last_error.empty()) {
+                html += "<p>Last error: <code>";
+                html += htmlEscape(status->last_error);
+                html += "</code></p>";
+            }
+        } else {
+            html += "<p>Status: <code>unavailable</code></p>";
+        }
+
+        html += "</div>";
+    }
+    html += "<button type='submit'>Save backend selection</button>";
+    html += "</form>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/sensors'>Sensors</a> · <a href='/status'>JSON status</a></p>";
+    html += "</body></html>";
+    return html;
 }
 
 std::string renderSensorsPage(
@@ -674,7 +822,7 @@ std::string renderSensorsPage(
     html += "<button type='submit'>Stage new sensor</button>";
     html += "</form>";
     html += "</div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/status'>JSON status</a></p>";
+    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/backends'>Backends</a> · <a href='/status'>JSON status</a></p>";
     html += "</body></html>";
     return html;
 }
@@ -758,6 +906,9 @@ esp_err_t WebServer::start(
     SensorConfigRepository& sensor_config_repository,
     SensorConfigList& sensor_config_list,
     SensorManager& sensor_manager,
+    BackendConfigRepository& backend_config_repository,
+    BackendConfigList& backend_config_list,
+    UploadManager& upload_manager,
     std::uint16_t port) {
     if (handle_ != nullptr) {
         return ESP_ERR_INVALID_STATE;
@@ -769,6 +920,9 @@ esp_err_t WebServer::start(
     sensor_config_repository_ = &sensor_config_repository;
     sensor_config_list_ = &sensor_config_list;
     sensor_manager_ = &sensor_manager;
+    backend_config_repository_ = &backend_config_repository;
+    backend_config_list_ = &backend_config_list;
+    upload_manager_ = &upload_manager;
     staged_sensor_config_ = sensor_config_list;
     has_pending_sensor_changes_ = false;
 
@@ -841,6 +995,28 @@ esp_err_t WebServer::start(
     sensors_post_uri.handler = &WebServer::handleSensors;
     sensors_post_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &sensors_post_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t backends_get_uri{};
+    backends_get_uri.uri = "/backends";
+    backends_get_uri.method = HTTP_GET;
+    backends_get_uri.handler = &WebServer::handleBackends;
+    backends_get_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &backends_get_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t backends_post_uri{};
+    backends_post_uri.uri = "/backends";
+    backends_post_uri.method = HTTP_POST;
+    backends_post_uri.handler = &WebServer::handleBackends;
+    backends_post_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &backends_post_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -1088,6 +1264,86 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         *server->sensor_manager_,
         server->has_pending_sensor_changes_,
         action == "delete" ? "Sensor deletion staged." : "Sensor changes staged in memory.",
+        false);
+    return httpd_resp_send(request, html.c_str(), html.size());
+}
+
+esp_err_t WebServer::handleBackends(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+
+    if (request->method == HTTP_GET) {
+        const std::string html = renderBackendsPage(
+            *server->backend_config_list_,
+            *server->upload_manager_,
+            "",
+            false);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    std::string body;
+    if (readRequestBody(request, body) != ESP_OK) {
+        const std::string html = renderBackendsPage(
+            *server->backend_config_list_,
+            *server->upload_manager_,
+            "Failed to read form body.",
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    const FormFields fields = parseFormBody(body);
+    BackendRegistry registry;
+    BackendConfigList updated = *server->backend_config_list_;
+
+    const std::string upload_interval_value = findFormValue(fields, "upload_interval_ms");
+    unsigned long upload_interval_ms = 0UL;
+    if (!parseUnsignedLong(upload_interval_value, upload_interval_ms) ||
+        upload_interval_ms < 10000UL ||
+        upload_interval_ms > 300000UL) {
+        const std::string html = renderBackendsPage(
+            *server->backend_config_list_,
+            *server->upload_manager_,
+            "Upload interval must be between 10000 ms and 300000 ms.",
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+    updated.upload_interval_ms = static_cast<std::uint32_t>(upload_interval_ms);
+
+    for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
+        const BackendDescriptor& descriptor = registry.descriptors()[index];
+        BackendRecord* record = findBackendRecordByType(updated, descriptor.type);
+        if (record == nullptr) {
+            const std::string html = renderBackendsPage(
+                *server->backend_config_list_,
+                *server->upload_manager_,
+                "Backend configuration is incomplete.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
+        const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
+        record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
+    }
+
+    const esp_err_t save_err = server->backend_config_repository_->save(updated);
+    if (save_err != ESP_OK) {
+        const std::string html = renderBackendsPage(
+            *server->backend_config_list_,
+            *server->upload_manager_,
+            std::string("Failed to save backend configuration: ") + esp_err_to_name(save_err),
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    *server->backend_config_list_ = updated;
+    server->upload_manager_->applyConfig(updated);
+    server->status_service_->setUploads(*server->upload_manager_);
+
+    const std::string html = renderBackendsPage(
+        *server->backend_config_list_,
+        *server->upload_manager_,
+        "Backend selection saved.",
         false);
     return httpd_resp_send(request, html.c_str(), html.size());
 }

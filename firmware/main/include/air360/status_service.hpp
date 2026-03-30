@@ -7,6 +7,7 @@
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
 #include "air360/sensors/sensor_manager.hpp"
+#include "air360/uploads/upload_manager.hpp"
 #include "esp_system.h"
 
 namespace air360 {
@@ -24,6 +25,7 @@ class StatusService {
     void setBootCount(std::uint32_t boot_count);
     void setNetworkState(const NetworkState& state);
     void setSensors(const SensorManager& sensor_manager);
+    void setUploads(const UploadManager& upload_manager);
     void setWebServerStarted(bool started);
 
     std::string renderRootHtml() const;
@@ -35,6 +37,7 @@ class StatusService {
     DeviceConfig config_{};
     NetworkState network_state_{};
     const SensorManager* sensor_manager_ = nullptr;
+    const UploadManager* upload_manager_ = nullptr;
     std::uint32_t boot_count_ = 0;
     bool nvs_ready_ = false;
     bool watchdog_armed_ = false;

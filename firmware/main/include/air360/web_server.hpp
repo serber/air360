@@ -6,6 +6,8 @@
 #include "air360/status_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
+#include "air360/uploads/backend_config_repository.hpp"
+#include "air360/uploads/upload_manager.hpp"
 #include "esp_err.h"
 #include "esp_http_server.h"
 
@@ -20,6 +22,9 @@ class WebServer {
         SensorConfigRepository& sensor_config_repository,
         SensorConfigList& sensor_config_list,
         SensorManager& sensor_manager,
+        BackendConfigRepository& backend_config_repository,
+        BackendConfigList& backend_config_list,
+        UploadManager& upload_manager,
         std::uint16_t port);
     void stop();
 
@@ -28,6 +33,7 @@ class WebServer {
     static esp_err_t handleStatus(httpd_req_t* request);
     static esp_err_t handleConfig(httpd_req_t* request);
     static esp_err_t handleSensors(httpd_req_t* request);
+    static esp_err_t handleBackends(httpd_req_t* request);
 
     httpd_handle_t handle_ = nullptr;
     StatusService* status_service_ = nullptr;
@@ -36,6 +42,9 @@ class WebServer {
     SensorConfigRepository* sensor_config_repository_ = nullptr;
     SensorConfigList* sensor_config_list_ = nullptr;
     SensorManager* sensor_manager_ = nullptr;
+    BackendConfigRepository* backend_config_repository_ = nullptr;
+    BackendConfigList* backend_config_list_ = nullptr;
+    UploadManager* upload_manager_ = nullptr;
     SensorConfigList staged_sensor_config_{};
     bool has_pending_sensor_changes_ = false;
 };
