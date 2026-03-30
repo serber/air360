@@ -102,7 +102,7 @@ Owns route registration and POST handling for:
 - `/config`
 - `/sensors`
 
-It also saves configuration changes and triggers `esp_restart()` after a successful device config save. Sensor config changes are applied live by persisting the updated list and calling `SensorManager::applyConfig()` without forcing a reboot.
+It also saves configuration changes and triggers `esp_restart()` after a successful device config save. Sensor config changes are staged in memory inside `WebServer`; they are persisted only when the user explicitly applies them, and that action also reboots the device.
 
 ### SensorConfigRepository
 
@@ -144,7 +144,7 @@ The runtime exposes four local routes:
 - `/config`
   Device and Wi-Fi configuration form.
 - `/sensors`
-  Sensor add/edit/delete flow plus current runtime sensor state.
+  Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them.
 
 The HTML pages are still assembled directly in C++ strings. The repository has a separate planning note for later migration to embedded web assets, but that is not implemented yet.
 
@@ -172,6 +172,7 @@ Implemented in the current firmware:
 - background polling through `SensorManager`
 - working drivers for selected I2C, GPIO, and UART sensors
 - vendor-backed wrappers for Bosch BME280, Bosch BME680, ScioSense ENS160, Sensirion SPS30, TinyGPSPlus, and Adafruit DHT
+- a local ADC-backed `ME3-NO2` bring-up driver that currently reports raw ADC and calibrated millivolt readings for a custom analog AFE path
 - a generic measurement model that allows different drivers to publish different channel sets
 - local status reporting for live sensor state and measurements
 

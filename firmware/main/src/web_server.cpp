@@ -394,6 +394,7 @@ std::string transportSummaryForRecord(const SensorRecord& record) {
             return buffer;
         }
         case TransportKind::kGpio:
+            return std::string("GPIO ") + std::to_string(static_cast<int>(record.analog_gpio_pin));
         case TransportKind::kAnalog:
             return std::string("GPIO ") + std::to_string(static_cast<int>(record.analog_gpio_pin));
         case TransportKind::kUnknown:
@@ -451,6 +452,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         case SensorType::kDht11:
         case SensorType::kDht22:
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
+        case SensorType::kMe3No2:
+            return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6). Current driver reports raw ADC and calibrated voltage.";
         case SensorType::kUnknown:
         default:
             return "";
@@ -460,6 +463,7 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
 std::string renderSensorsPage(
     const SensorConfigList& sensor_config_list,
     const SensorManager& sensor_manager,
+    bool has_pending_changes,
     const std::string& notice,
     bool error_notice) {
     SensorRegistry registry;
@@ -486,6 +490,7 @@ std::string renderSensorsPage(
     html += "</code> / <code>";
     html += std::to_string(kMaxConfiguredSensors);
     html += "</code></p>";
+    html += "<p>Sensor edits are staged in memory only. Use <code>Apply and reboot</code> to persist them.</p>";
 
     if (!notice.empty()) {
         html += "<div class='notice ";
@@ -495,8 +500,23 @@ std::string renderSensorsPage(
         html += "</div>";
     }
 
+    html += "<div class='card'>";
+    html += "<h2>Pending sensor changes</h2>";
+    html += "<p>Status: <code>";
+    html += has_pending_changes ? "pending" : "clean";
+    html += "</code></p>";
+    html += "<form method='POST' action='/sensors'>";
+    html += "<input type='hidden' name='action' value='apply'>";
+    html += "<button type='submit'>Apply and reboot</button>";
+    html += "</form>";
+    html += "<form method='POST' action='/sensors'>";
+    html += "<input type='hidden' name='action' value='discard'>";
+    html += "<button class='secondary' type='submit'>Discard pending changes</button>";
+    html += "</form>";
+    html += "</div>";
+
     const auto runtime_sensors = sensor_manager.sensors();
-    if (runtime_sensors.empty()) {
+    if (sensor_config_list.sensor_count == 0U) {
         html += "<p>No sensors configured yet.</p>";
     } else {
         for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
@@ -585,7 +605,7 @@ std::string renderSensorsPage(
                 record.transport_kind == TransportKind::kAnalog) {
                 html += "<label for='analog_gpio_pin_";
                 html += std::to_string(record.id);
-                html += "'>GPIO pin</label>";
+                html += "'>Sensor pin</label>";
                 html += "<select id='analog_gpio_pin_";
                 html += std::to_string(record.id);
                 html += "' name='analog_gpio_pin'>";
@@ -597,14 +617,14 @@ std::string renderSensorsPage(
                 html += "checked ";
             }
             html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
-            html += "<button type='submit'>Save sensor</button>";
+            html += "<button type='submit'>Stage sensor changes</button>";
             html += "</form>";
             html += "<form method='POST' action='/sensors'>";
             html += "<input type='hidden' name='action' value='delete'>";
             html += "<input type='hidden' name='sensor_id' value='";
             html += std::to_string(record.id);
             html += "'>";
-            html += "<button class='danger' type='submit'>Delete sensor</button>";
+            html += "<button class='danger' type='submit'>Stage sensor deletion</button>";
             html += "</form>";
             html += "</div>";
         }
@@ -646,13 +666,12 @@ std::string renderSensorsPage(
     html += "</ul>";
     html += "<label for='poll_interval_ms_add'>Poll interval (ms)</label>";
     html += "<input id='poll_interval_ms_add' name='poll_interval_ms' inputmode='numeric' value='10000'>";
-    html += "<label for='analog_gpio_pin_add'>GPIO pin";
-    html += " (used only by GPIO sensors)</label>";
+    html += "<label for='analog_gpio_pin_add'>Sensor pin (GPIO 4, 5, or 6)</label>";
     html += "<select id='analog_gpio_pin_add' name='analog_gpio_pin'>";
     appendBoardGpioOptions(html, CONFIG_AIR360_GPIO_SENSOR_PIN_0);
     html += "</select>";
     html += "<label><input name='enabled' type='checkbox' checked style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
-    html += "<button type='submit'>Add sensor</button>";
+    html += "<button type='submit'>Stage new sensor</button>";
     html += "</form>";
     html += "</div>";
     html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/status'>JSON status</a></p>";
@@ -750,6 +769,8 @@ esp_err_t WebServer::start(
     sensor_config_repository_ = &sensor_config_repository;
     sensor_config_list_ = &sensor_config_list;
     sensor_manager_ = &sensor_manager;
+    staged_sensor_config_ = sensor_config_list;
+    has_pending_sensor_changes_ = false;
 
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();
     config_httpd.server_port = port;
@@ -836,8 +857,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
 
     if (request->method == HTTP_GET) {
         const std::string html = renderSensorsPage(
-            *server->sensor_config_list_,
+            server->staged_sensor_config_,
             *server->sensor_manager_,
+            server->has_pending_sensor_changes_,
             "",
             false);
         return httpd_resp_send(request, html.c_str(), html.size());
@@ -846,8 +868,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     std::string body;
     if (readRequestBody(request, body) != ESP_OK) {
         const std::string html = renderSensorsPage(
-            *server->sensor_config_list_,
+            server->staged_sensor_config_,
             *server->sensor_manager_,
+            server->has_pending_sensor_changes_,
             "Failed to read form body.",
             true);
         return httpd_resp_send(request, html.c_str(), html.size());
@@ -855,16 +878,52 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
 
     const FormFields fields = parseFormBody(body);
     const std::string action = findFormValue(fields, "action");
-    SensorConfigList updated = *server->sensor_config_list_;
+    SensorConfigList updated = server->staged_sensor_config_;
     SensorRegistry registry;
 
-    if (action == "delete") {
+    if (action == "apply") {
+        const esp_err_t save_err = server->sensor_config_repository_->save(server->staged_sensor_config_);
+        if (save_err != ESP_OK) {
+            const std::string html = renderSensorsPage(
+                server->staged_sensor_config_,
+                *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
+                std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
+        *server->sensor_config_list_ = server->staged_sensor_config_;
+        server->has_pending_sensor_changes_ = false;
+        const std::string html = renderSensorsPage(
+            server->staged_sensor_config_,
+            *server->sensor_manager_,
+            server->has_pending_sensor_changes_,
+            "Sensor configuration saved. Device is rebooting now.",
+            false);
+        esp_err_t response_err = httpd_resp_send(request, html.c_str(), html.size());
+        if (response_err == ESP_OK) {
+            scheduleRestart();
+        }
+        return response_err;
+    } else if (action == "discard") {
+        server->staged_sensor_config_ = *server->sensor_config_list_;
+        server->has_pending_sensor_changes_ = false;
+        const std::string html = renderSensorsPage(
+            server->staged_sensor_config_,
+            *server->sensor_manager_,
+            server->has_pending_sensor_changes_,
+            "Pending sensor changes discarded.",
+            false);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    } else if (action == "delete") {
         unsigned long sensor_id = 0UL;
         if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id) ||
             !eraseSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id))) {
             const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
+                server->staged_sensor_config_,
                 *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
                 "Failed to delete sensor: invalid sensor id.",
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
@@ -874,8 +933,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         const SensorDescriptor* descriptor = registry.findByTypeKey(sensor_type_value);
         if (descriptor == nullptr) {
             const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
+                server->staged_sensor_config_,
                 *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
                 "Unsupported sensor type.",
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
@@ -884,8 +944,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         unsigned long poll_interval_ms = 0UL;
         if (!parseUnsignedLong(findFormValue(fields, "poll_interval_ms"), poll_interval_ms)) {
             const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
+                server->staged_sensor_config_,
                 *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
                 "Invalid numeric sensor fields.",
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
@@ -897,9 +958,10 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         if (!analog_gpio_pin_value.empty() &&
             !parseSignedLong(analog_gpio_pin_value, parsed_signed)) {
             const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
+                server->staged_sensor_config_,
                 *server->sensor_manager_,
-                "Analog GPIO pin must be a valid integer.",
+                server->has_pending_sensor_changes_,
+                "Sensor pin must be a valid integer.",
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
         }
@@ -911,8 +973,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             unsigned long sensor_id = 0UL;
             if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id)) {
                 const std::string html = renderSensorsPage(
-                    *server->sensor_config_list_,
+                    server->staged_sensor_config_,
                     *server->sensor_manager_,
+                    server->has_pending_sensor_changes_,
                     "Invalid sensor id.",
                     true);
                 return httpd_resp_send(request, html.c_str(), html.size());
@@ -921,8 +984,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             existing = findSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id));
             if (existing == nullptr) {
                 const std::string html = renderSensorsPage(
-                    *server->sensor_config_list_,
+                    server->staged_sensor_config_,
                     *server->sensor_manager_,
+                    server->has_pending_sensor_changes_,
                     "Sensor not found.",
                     true);
                 return httpd_resp_send(request, html.c_str(), html.size());
@@ -984,8 +1048,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         if (action == "add") {
             if (updated.sensor_count >= kMaxConfiguredSensors) {
                 const std::string html = renderSensorsPage(
-                    *server->sensor_config_list_,
+                    server->staged_sensor_config_,
                     *server->sensor_manager_,
+                    server->has_pending_sensor_changes_,
                     "Sensor list is full.",
                     true);
                 return httpd_resp_send(request, html.c_str(), html.size());
@@ -999,38 +1064,30 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         std::string validation_error;
         if (!registry.validateRecord(record, validation_error)) {
             const std::string html = renderSensorsPage(
-                *server->sensor_config_list_,
+                server->staged_sensor_config_,
                 *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
                 validation_error,
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
         }
     } else {
         const std::string html = renderSensorsPage(
-            *server->sensor_config_list_,
+            server->staged_sensor_config_,
             *server->sensor_manager_,
+            server->has_pending_sensor_changes_,
             "Unsupported sensor action.",
             true);
         return httpd_resp_send(request, html.c_str(), html.size());
     }
 
-    const esp_err_t save_err = server->sensor_config_repository_->save(updated);
-    if (save_err != ESP_OK) {
-        const std::string html = renderSensorsPage(
-            *server->sensor_config_list_,
-            *server->sensor_manager_,
-            std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    *server->sensor_config_list_ = updated;
-    server->sensor_manager_->applyConfig(updated);
-    server->status_service_->setSensors(*server->sensor_manager_);
+    server->staged_sensor_config_ = updated;
+    server->has_pending_sensor_changes_ = true;
     const std::string html = renderSensorsPage(
-        *server->sensor_config_list_,
+        server->staged_sensor_config_,
         *server->sensor_manager_,
-        action == "delete" ? "Sensor removed." : "Sensor configuration saved.",
+        server->has_pending_sensor_changes_,
+        action == "delete" ? "Sensor deletion staged." : "Sensor changes staged in memory.",
         false);
     return httpd_resp_send(request, html.c_str(), html.size());
 }

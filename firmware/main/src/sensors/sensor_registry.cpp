@@ -8,6 +8,7 @@
 #include "air360/sensors/drivers/dht_sensor.hpp"
 #include "air360/sensors/drivers/ens160_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
+#include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "sdkconfig.h"
 
@@ -219,6 +220,26 @@ bool validateDht22Record(const SensorRecord& record, std::string& error) {
     return validateDhtRecord(record, error, 2000U);
 }
 
+bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kAnalog) {
+        error = "ME3-NO2 currently supports only analog transport.";
+        return false;
+    }
+
+    if (record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_0 &&
+        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_1 &&
+        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_2) {
+        error = "Analog pin must match one of the board sensor GPIO slots.";
+        return false;
+    }
+
+    return true;
+}
+
 constexpr SensorDescriptor kDescriptors[] = {
     {
         SensorType::kBme280,
@@ -324,6 +345,21 @@ constexpr SensorDescriptor kDescriptors[] = {
         0x00U,
         &validateDht22Record,
         &createDht22Sensor,
+    },
+    {
+        SensorType::kMe3No2,
+        "me3_no2",
+        "ME3-NO2",
+        false,
+        true,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x00U,
+        &validateMe3No2Record,
+        &createMe3No2Sensor,
     },
 };
 

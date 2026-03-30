@@ -71,7 +71,7 @@ Current implementation files:
 - `status_service.cpp`
   Produces the runtime HTML and JSON payloads, including build, config, network, and sensor summaries.
 - `web_server.cpp`
-  Starts `esp_http_server` and registers `/`, `/status`, `/config`, and `/sensors` handlers.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, and `/sensors` handlers, and stages sensor edits in memory until the user explicitly applies them and reboots.
 - `sensors/`
   Contains sensor persistence, registry, transport helpers, background orchestration, and concrete drivers.
 
@@ -116,7 +116,7 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_0`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_1`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_2`
-  The allowed board GPIO slots for GPIO-backed sensors such as DHT.
+  The allowed board sensor pins used by GPIO-backed and analog-backed sensors. The current defaults are GPIO4, GPIO5, and GPIO6.
 - `CONFIG_AIR360_ENABLE_LAB_AP`
   Controls whether setup AP defaults are enabled in the initial persisted config.
 - `CONFIG_AIR360_LAB_AP_SSID`
@@ -282,6 +282,7 @@ Supported drivers confirmed by the current registry:
 - `GPS (NMEA)`
 - `DHT11`
 - `DHT22`
+- `ME3-NO2`
 
 Current transport model by sensor type:
 
@@ -289,8 +290,8 @@ Current transport model by sensor type:
   I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
 - `GPS (NMEA)`
   UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
-- `DHT11`, `DHT22`
-  GPIO sensors restricted to the board sensor slots from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`.
+- `DHT11`, `DHT22`, `ME3-NO2`
+  Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
 
 Current default I2C addresses from the registry are:
 
@@ -299,7 +300,7 @@ Current default I2C addresses from the registry are:
 - `SPS30`: `0x69`
 - `ENS160`: `0x52`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, GPIO-backed sensors expose only the allowed board GPIO slots, and GPS uses the fixed UART binding for the board.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, and GPS uses the fixed UART binding for the board. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
 
 ## Storage and Partitions
 
@@ -329,11 +330,10 @@ The current runtime depends on NVS, not on SPIFFS.
 
 Current limitations confirmed by the source tree:
 
-- no analog sensor driver is implemented yet
 - no backend upload logic is implemented yet
 - no captive-portal DNS or wildcard DNS flow is implemented yet
 - config changes are applied by reboot rather than live reconfiguration
-- sensor changes are applied live through `SensorManager::applyConfig()`, but device config changes still reboot the runtime
+- sensor changes are not applied live; they are staged in memory and only persisted when the user explicitly applies them and reboots
 - the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the local UI is still assembled directly in C++ strings

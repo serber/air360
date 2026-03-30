@@ -12,6 +12,7 @@ idf_component_register(
         "src/sensors/drivers/dht_sensor.cpp"
         "src/sensors/drivers/ens160_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
+        "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
         "third_party/adafruit_dht/DHT.cpp"
@@ -43,6 +44,7 @@ idf_component_register(
         esp_http_server
         esp_driver_i2c
         esp_driver_uart
+        esp_adc
         esp_netif
         esp_system
         esp_timer

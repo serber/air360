@@ -28,6 +28,9 @@ Status:
 | BMP280 | pressure | i2c | `temperature`, `pressure` | medium | planned | Fallback when humidity is not needed. |
 | BMP180 | pressure | i2c | `temperature`, `pressure` | low | planned | Older Bosch pressure sensor. |
 | SCD30 | CO2 / environmental | i2c | `co2_ppm`, `temperature`, `humidity` | high | planned | Important CO2-class sensor candidate. |
+| Radiation SBM-19 | radiation | gpio / pulse | `cpm`, `radiation_level` | medium | planned | Geiger tube integration candidate. |
+| Radiation SBM-20 | radiation | gpio / pulse | `cpm`, `radiation_level` | medium | planned | Geiger tube integration candidate. |
+| Radiation Si22G | radiation | gpio / pulse | `cpm`, `radiation_level` | low | planned | Alternative radiation sensing candidate. |
 
 ## Peripherals
 

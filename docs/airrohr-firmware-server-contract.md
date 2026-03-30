@@ -172,23 +172,38 @@ Per-sensor `X-PIN` and transmitted `value_type` names:
 
 | Sensor family | Pin macro | `X-PIN` | Source fragment names | Names after prefix stripping |
 | --- | --- | --- | --- | --- |
-| PPD42NS | `PPD_API_PIN` | `5` | `durP1`, `ratioP1`, `P1`, `durP2`, `ratioP2`, `P2` | unchanged |
 | SDS011 | `SDS_API_PIN` | `1` | `SDS_P1`, `SDS_P2` | `P1`, `P2` |
-| PMSx003 | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
+| SDS021 | `SDS_API_PIN` | `1` | `SDS_P1`, `SDS_P2` | `P1`, `P2` |
+| PMS1003 | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
+| PMS3003 | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
+| PMS5003 | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
+| PMS6003 | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
+| PMS7003 | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
+| PMSx003 family (generic code path) | `PMS_API_PIN` | `1` | `PMS_P0`, `PMS_P1`, `PMS_P2` | `P0`, `P1`, `P2` |
 | Honeywell HPM | `HPM_API_PIN` | `1` | `HPM_P1`, `HPM_P2` | `P1`, `P2` |
+| HM3301 | `PMS_API_PIN` | `1` | not recovered | not recovered |
 | NextPM | `NPM_API_PIN` | `1` | `NPM_P0`, `NPM_P1`, `NPM_P2`, `NPM_N1`, `NPM_N10`, `NPM_N25` | `P0`, `P1`, `P2`, `N1`, `N10`, `N25` |
 | IPS-7100 | `IPS_API_PIN` | `1` | `IPS_P0`, `IPS_P1`, `IPS_P2`, `IPS_P01`, `IPS_P03`, `IPS_P05`, `IPS_P5`, `IPS_N1`, `IPS_N10`, `IPS_N25`, `IPS_N01`, `IPS_N03`, `IPS_N05`, `IPS_N5` | `P0`, `P1`, `P2`, `P01`, `P03`, `P05`, `P5`, `N1`, `N10`, `N25`, `N01`, `N03`, `N05`, `N5` |
 | SPS30 | `SPS30_API_PIN` | `1` | `SPS30_P0`, `SPS30_P2`, `SPS30_P4`, `SPS30_P1`, `SPS30_N05`, `SPS30_N1`, `SPS30_N25`, `SPS30_N4`, `SPS30_N10`, `SPS30_TS` | `P0`, `P2`, `P4`, `P1`, `N05`, `N1`, `N25`, `N4`, `N10`, `TS` |
-| DHT22 | `DHT_API_PIN` | `7` | `temperature`, `humidity` | unchanged |
-| HTU21D | `HTU21D_API_PIN` | `7` | `HTU21D_temperature`, `HTU21D_humidity` | `temperature`, `humidity` |
 | BMP180 | `BMP_API_PIN` | `3` | `BMP_pressure`, `BMP_temperature` | `pressure`, `temperature` |
-| BME280 | `BME280_API_PIN` | `11` | `BME280_temperature`, `BME280_pressure`, `BME280_humidity` | `temperature`, `pressure`, `humidity` |
 | BMP280 | `BMP280_API_PIN` | `3` | `BMP280_pressure`, `BMP280_temperature` | `pressure`, `temperature` |
+| PPD42NS | `PPD_API_PIN` | `5` | `durP1`, `ratioP1`, `P1`, `durP2`, `ratioP2`, `P2` | unchanged |
+| DHT22 | `DHT_API_PIN` | `7` | `temperature`, `humidity` | unchanged |
+| SHT10 / SHT11 / SHT15 | `DHT_API_PIN` | `7` | `temperature`, `humidity` | unchanged |
+| HTU21D | `HTU21D_API_PIN` | `7` | `HTU21D_temperature`, `HTU21D_humidity` | `temperature`, `humidity` |
+| SHT30 / SHT31 / SHT35 / SHT85 | `SHT3X_API_PIN` | `7` | `SHT3X_temperature`, `SHT3X_humidity` | `temperature`, `humidity` |
 | SHT3X | `SHT3X_API_PIN` | `7` | `SHT3X_temperature`, `SHT3X_humidity` | `temperature`, `humidity` |
-| SCD30 | `SCD30_API_PIN` | `17` | `SCD30_temperature`, `SCD30_humidity`, `SCD30_co2_ppm` | `temperature`, `humidity`, `co2_ppm` |
+| GPS | `GPS_API_PIN` | `9` | `GPS_lat`, `GPS_lon`, `GPS_height`, `GPS_timestamp` | `lat`, `lon`, `height`, `timestamp` |
+| BME280 | `BME280_API_PIN` | `11` | `BME280_temperature`, `BME280_pressure`, `BME280_humidity` | `temperature`, `pressure`, `humidity` |
+| DS18S20 | `DS18B20_API_PIN` | `13` | `DS18B20_temperature` | `temperature` |
 | DS18B20 | `DS18B20_API_PIN` | `13` | `DS18B20_temperature` | `temperature` |
 | DNMS | `DNMS_API_PIN` | `15` | `DNMS_noise_LAeq`, `DNMS_noise_LA_min`, `DNMS_noise_LA_max` | `noise_LAeq`, `noise_LA_min`, `noise_LA_max` |
-| GPS | `GPS_API_PIN` | `9` | `GPS_lat`, `GPS_lon`, `GPS_height`, `GPS_timestamp` | `lat`, `lon`, `height`, `timestamp` |
+| SEN5x | `SEN5X_API_PIN` | `16` | not recovered | not recovered |
+| SCD30 | `SCD30_API_PIN` | `17` | `SCD30_temperature`, `SCD30_humidity`, `SCD30_co2_ppm` | `temperature`, `humidity`, `co2_ppm` |
+| NO2-A43F | `SCD30_API_PIN` | `17` | not recovered | not recovered |
+| Radiation SBM-19 | `RADIATION_API_PIN` | `19` | not recovered | not recovered |
+| Radiation SBM-20 | `RADIATION_API_PIN` | `19` | not recovered | not recovered |
+| Radiation Si22G | `RADIATION_API_PIN` | `19` | not recovered | not recovered |
 
 Normalized request specification:
 

@@ -50,6 +50,7 @@ Examples:
 - `ENS160` publishes AQI, TVOC, and eCO2
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, and speed
 - `DHT11` and `DHT22` publish temperature and humidity
+- `ME3-NO2` publishes raw ADC and calibrated millivolt readings for a custom analog AFE path
 - `SPS30` publishes PM mass, number concentration, and particle size channels
 
 ## Supported Sensor Types
@@ -65,8 +66,7 @@ The current registry defines these implemented sensor types. The authoritative l
 | `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
 | `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
 | `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
-
-`analog` exists in the shared type model, but no analog driver is implemented yet and the current `/sensors` flow does not expose any analog-specific setup beyond the shared GPIO slot field carried in `SensorRecord`.
+| `me3_no2` | `ME3-NO2` | `analog` | `adc_raw`, `voltage_mv` | one of GPIO4, GPIO5, GPIO6; default poll `5000 ms` |
 
 ## Board-Level Wiring Assumptions
 
@@ -90,15 +90,15 @@ The GPS path is intentionally fixed to board wiring:
 
 The registry validates that GPS records match this fixed binding.
 
-### GPIO-bound sensors
+### Shared sensor pins
 
-GPIO sensor slots are constrained to three board-level pins:
+Board sensor pins are constrained to three board-level pins:
 
 - GPIO4
 - GPIO5
 - GPIO6
 
-The web UI exposes only those options for GPIO-based sensors.
+The web UI exposes only those options for sensor types that use board pins. The selected sensor type determines whether the runtime uses those pins through the GPIO path or the ADC path.
 
 ## Driver Organization
 
@@ -109,6 +109,8 @@ Current patterns:
 - Adafruit-backed wrapper
   - `dht_sensor.cpp`
   - vendored driver under `third_party/adafruit_dht/`
+- local ADC-backed driver
+  - `me3_no2_sensor.cpp`
 - Bosch-backed wrappers
   - `bme280_sensor.cpp`
   - `bme680_sensor.cpp`
@@ -139,14 +141,17 @@ Current behavior:
 - delete a sensor
 - infer the transport from the selected sensor type
 - show transport as derived board wiring rather than an editable free-form choice
-- expose only valid board pin options for GPIO sensors
+- expose only valid board pin options for GPIO-backed and analog-backed sensors
 - apply fixed board UART wiring for GPS
-- save the updated list to NVS and reapply it live through `SensorManager::applyConfig()`
+- keep edits in a staged in-memory `SensorConfigList`
+- persist staged changes only when the user explicitly applies them and reboots
+- allow discarding the staged list without touching persisted NVS state
 
-After a successful save:
+After `Apply and reboot`:
 
 - `SensorConfigRepository` persists the new list
-- `SensorManager::applyConfig()` rebuilds the active runtime state
+- the device reboots
+- startup loads the persisted list and `SensorManager::applyConfig()` rebuilds the active runtime state
 - `StatusService` starts exposing the new configuration through `/` and `/status`
 
 ## Runtime States
@@ -170,7 +175,6 @@ This lets the UI distinguish between:
 
 ## Current Limitations
 
-- There is no analog sensor driver yet, even though `analog` exists in the type model.
 - Sensor config still stores several transport-specific fields directly in `SensorRecord`.
 - The HTML UI is still server-rendered in C++.
 - There is no dedicated upload pipeline yet; measurements are only exposed locally through the runtime pages and `/status`.

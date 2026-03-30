@@ -96,6 +96,7 @@ Driver implementations are intentionally isolated under [`../../firmware/main/sr
 - `dht_sensor.cpp`
 - `ens160_sensor.cpp`
 - `gps_nmea_sensor.cpp`
+- `me3_no2_sensor.cpp`
 - `sps30_sensor.cpp`
 - shared vendor-bridge helpers such as `bosch_i2c_support.cpp` and `sensirion_i2c_hal.cpp`
 
@@ -127,7 +128,7 @@ Confirmed routes:
 - `/config`
   Device and Wi-Fi configuration form.
 - `/sensors`
-  Sensor configuration form for add, update, delete, and runtime inspection.
+  Sensor configuration form for add, update, delete, staged apply/discard, and runtime inspection.
 
 ## Build Workflow
 

@@ -17,6 +17,7 @@ enum class SensorType : std::uint8_t {
     kBme680 = 5U,
     kSps30 = 6U,
     kEns160 = 7U,
+    kMe3No2 = 8U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -79,6 +80,8 @@ enum class SensorValueKind : std::uint8_t {
     kAqi = 20U,
     kTvocPpb = 21U,
     kEco2Ppm = 22U,
+    kAdcRaw = 23U,
+    kVoltageMv = 24U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -127,6 +130,10 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "tvoc_ppb";
         case SensorValueKind::kEco2Ppm:
             return "eco2_ppm";
+        case SensorValueKind::kAdcRaw:
+            return "adc_raw";
+        case SensorValueKind::kVoltageMv:
+            return "voltage_mv";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -179,6 +186,10 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "TVOC";
         case SensorValueKind::kEco2Ppm:
             return "eCO2";
+        case SensorValueKind::kAdcRaw:
+            return "ADC raw";
+        case SensorValueKind::kVoltageMv:
+            return "Voltage";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -223,6 +234,10 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "ppb";
         case SensorValueKind::kEco2Ppm:
             return "ppm";
+        case SensorValueKind::kAdcRaw:
+            return "";
+        case SensorValueKind::kVoltageMv:
+            return "mV";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -253,6 +268,8 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kAqi:
         case SensorValueKind::kTvocPpb:
         case SensorValueKind::kEco2Ppm:
+        case SensorValueKind::kAdcRaw:
+        case SensorValueKind::kVoltageMv:
             return 0;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:

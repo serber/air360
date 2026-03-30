@@ -50,7 +50,7 @@ These define the fixed board wiring assumed for the GPS/NMEA sensor path. The cu
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_1`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_2`
 
-These define the allowed GPIO pins for GPIO-bound sensors such as DHT. The current defaults are GPIO4, GPIO5, and GPIO6.
+These define the shared board sensor pins used by GPIO-backed and analog-backed sensors. The current defaults are GPIO4, GPIO5, and GPIO6.
 
 ## Repository Defaults
 
@@ -122,7 +122,8 @@ Important current behavior:
 - the persisted schema still stores transport-specific fields directly in `SensorRecord`
 - the `/sensors` UI infers transport from sensor type rather than letting the user choose arbitrary transport combinations
 - GPS records are validated against fixed board UART wiring
-- GPIO-backed sensors are constrained to the configured board GPIO slots
+- GPIO-backed and analog-backed sensors are constrained to the configured board sensor pins
+- sensor edits in `/sensors` are staged in memory and only persisted when the user explicitly applies them and reboots
 - stored sensor config with an older or incompatible layout is currently replaced with defaults rather than migrated
 
 ## Partition Table

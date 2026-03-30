@@ -36,6 +36,8 @@ class WebServer {
     SensorConfigRepository* sensor_config_repository_ = nullptr;
     SensorConfigList* sensor_config_list_ = nullptr;
     SensorManager* sensor_manager_ = nullptr;
+    SensorConfigList staged_sensor_config_{};
+    bool has_pending_sensor_changes_ = false;
 };
 
 }  // namespace air360
