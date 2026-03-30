@@ -1,5 +1,10 @@
 # Phase 4 + 6 + 7 Backend Integration Plan
 
+## Related Documents
+
+- [Air360 API Measurement Ingest Draft](backend/air360-api-measurement-ingest-draft.md)
+- [Air360 Backend Stack Decision](backend/backend-stack-decision.md)
+
 ## Scope
 
 This document consolidates the backend-facing work that spans:
