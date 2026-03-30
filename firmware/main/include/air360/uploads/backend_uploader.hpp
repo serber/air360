@@ -35,6 +35,7 @@ struct UploadTransportResponse {
     esp_err_t transport_err = ESP_OK;
     int http_status = 0;
     int response_size = 0;
+    std::uint32_t response_time_ms = 0U;
     std::string body_snippet;
 };
 

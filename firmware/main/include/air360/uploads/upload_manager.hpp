@@ -36,6 +36,7 @@ struct BackendStatusSnapshot {
     std::int64_t last_attempt_unix_ms = 0;
     std::int64_t last_success_unix_ms = 0;
     int last_http_status = 0;
+    std::uint32_t last_response_time_ms = 0U;
     std::uint32_t retry_count = 0U;
     std::uint64_t next_retry_uptime_ms = 0U;
     std::string last_error;

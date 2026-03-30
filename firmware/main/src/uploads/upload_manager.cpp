@@ -409,7 +409,9 @@ void UploadManager::taskMain() {
             BackendRuntimeState next_state = BackendRuntimeState::kIdle;
             std::string last_error;
             int last_http_status = 0;
+            std::uint32_t last_response_time_ms = 0U;
             std::uint32_t next_retry_count = base_snapshot.retry_count;
+            const std::int64_t attempt_started_us = esp_timer_get_time();
 
             lock();
             last_overall_attempt_uptime_ms_ = now_ms;
@@ -463,6 +465,12 @@ void UploadManager::taskMain() {
                 }
             }
 
+            const std::int64_t attempt_finished_us = esp_timer_get_time();
+            if (attempt_finished_us > attempt_started_us) {
+                last_response_time_ms = static_cast<std::uint32_t>(
+                    (attempt_finished_us - attempt_started_us) / 1000LL);
+            }
+
             lock();
             if (index >= backends_.size()) {
                 unlock();
@@ -479,6 +487,7 @@ void UploadManager::taskMain() {
             backend.snapshot.last_attempt_unix_ms = unix_ms;
             backend.snapshot.last_result = aggregate_result;
             backend.snapshot.last_http_status = last_http_status;
+            backend.snapshot.last_response_time_ms = last_response_time_ms;
             backend.snapshot.last_error = last_error;
             backend.snapshot.retry_count = next_retry_count;
             backend.snapshot.state = next_state;

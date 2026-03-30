@@ -587,6 +587,10 @@ std::string renderBackendsPage(
             html += "<p>HTTP code: <code>";
             html += status->last_http_status > 0 ? std::to_string(status->last_http_status)
                                                  : std::string("n/a");
+            html += "</code> · Response time: <code>";
+            html += status->last_response_time_ms > 0
+                        ? std::to_string(status->last_response_time_ms) + " ms"
+                        : std::string("n/a");
             html += "</code> · Retry count: <code>";
             html += std::to_string(status->retry_count);
             html += "</code></p>";

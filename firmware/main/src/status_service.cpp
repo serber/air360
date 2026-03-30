@@ -277,6 +277,11 @@ std::string StatusService::renderRootHtml() const {
                 html += std::to_string(backend.last_http_status);
                 html += "</code>";
             }
+            if (backend.last_response_time_ms > 0U) {
+                html += " · ";
+                html += std::to_string(backend.last_response_time_ms);
+                html += " ms";
+            }
             if (!backend.last_error.empty()) {
                 html += " · ";
                 html += htmlEscape(backend.last_error);
@@ -456,6 +461,8 @@ std::string StatusService::renderStatusJson() const {
         json += std::to_string(backend.last_success_unix_ms);
         json += ",\"last_http_status\":";
         json += std::to_string(backend.last_http_status);
+        json += ",\"last_response_time_ms\":";
+        json += std::to_string(backend.last_response_time_ms);
         json += ",\"retry_count\":";
         json += std::to_string(backend.retry_count);
         json += ",\"next_retry_uptime_ms\":";

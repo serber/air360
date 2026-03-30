@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "esp_http_client.h"
+#include "esp_timer.h"
 
 namespace air360 {
 
@@ -20,6 +21,7 @@ esp_http_client_method_t toEspMethod(UploadMethod method) {
 
 UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& request) const {
     UploadTransportResponse response{};
+    const std::int64_t started_us = esp_timer_get_time();
 
     esp_http_client_config_t config{};
     config.url = request.url.c_str();
@@ -64,6 +66,12 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
         response.http_status = esp_http_client_get_status_code(client);
         const auto content_length = esp_http_client_get_content_length(client);
         response.response_size = content_length > 0 ? static_cast<int>(content_length) : 0;
+    }
+
+    const std::int64_t finished_us = esp_timer_get_time();
+    if (finished_us > started_us) {
+        response.response_time_ms =
+            static_cast<std::uint32_t>((finished_us - started_us) / 1000LL);
     }
 
     esp_http_client_cleanup(client);
