@@ -45,6 +45,14 @@ This is only a skeleton. The backend currently exposes:
 
 - `GET /` for a simple service response
 - `GET /health` for a health check
-- `PUT /api/v1/devices/:chip_id/batches/:client_batch_id` as a not-yet-implemented ingest route
+- `PUT /v1/devices/:chip_id/batches/:client_batch_id` as a mock ingest route that returns `201 Created` with the minimal accepted response shape
 
-The actual business logic, auth checks, and persistence are not implemented yet.
+The ingest route currently performs only basic payload checks:
+
+- `device.chip_id` must match the path `chip_id` when present
+- `batch.sample_count` must equal `batch.samples.length`
+- every sample must include `sample_time_unix_ms`
+- every `sample.sensor_type` must be one of the supported Air360 sensor types
+- every `values[].kind` must be one of the supported Air360 measurement keys
+
+The actual auth checks and persistence are not implemented yet.

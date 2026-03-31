@@ -2,9 +2,25 @@
 
 ## Status
 
-Draft contract for the first native Air360 backend.
+Draft contract for the first native Air360 backend ingest endpoint.
 
-This document defines the proposed request and response shape for direct device upload.
+This document describes the intended request and response shape for direct device upload.
+Current implementation status should be verified against the `/backend` source tree.
+
+## Current Scaffold Status
+
+Based on the current backend scaffold:
+
+- the route exists at `PUT /v1/devices/{chip_id}/batches/{client_batch_id}`
+- the route currently returns `201 Created` for accepted mock requests
+- the current success response is intentionally minimal
+- auth and persistence are not implemented yet
+- the mock implementation currently checks:
+  - `device.chip_id` matches the path `chip_id` when provided
+  - `batch.sample_count == batch.samples.length`
+  - every sample contains `sample_time_unix_ms`
+  - every `sample.sensor_type` is one of the supported Air360 sensor types
+  - every `values[].kind` is one of the supported Air360 measurement keys
 
 ## Goal
 
@@ -20,12 +36,12 @@ Provide one native ingest endpoint that:
 ## Endpoint
 
 - Method: `PUT`
-- Path: `/api/v1/devices/{chip_id}/batches/{client_batch_id}`
+- Path: `/v1/devices/{chip_id}/batches/{client_batch_id}`
 - Content-Type: `application/json`
 
 Example:
 
-- `PUT /api/v1/devices/163455989411504/batches/1743465600000`
+- `PUT /v1/devices/163455989411504/batches/1743465600000`
 
 ## Authentication
 
@@ -46,10 +62,10 @@ This keeps the first version simple:
 
 The payload is batch-oriented.
 
-- One request contains one device block.
-- One request contains one batch.
-- One batch contains many samples.
-- One batch may contain many samples for the same `sensor_type` at different timestamps.
+- one request contains one device block
+- one request contains one batch
+- one batch contains many samples
+- one batch may contain many samples for the same `sensor_type` at different timestamps
 
 There is no `sensor_id` field in the contract.
 
@@ -106,7 +122,7 @@ The device identifier is the `chip_id` from the request path.
         "sensor_type": "ens160",
         "sample_time_unix_ms": 1743465600000,
         "values": [
-          { "kind": "aqi_index", "value": 1 },
+          { "kind": "aqi", "value": 1 },
           { "kind": "tvoc_ppb", "value": 27 },
           { "kind": "eco2_ppm", "value": 406 }
         ]
@@ -190,7 +206,7 @@ The device identifier is the `chip_id` from the request path.
 - `sensor_type`
   - string
   - required
-  - examples: `bme280`, `bme680`, `ens160`, `sps30`, `gps_nmea`, `dht22`
+  - must be one of the supported Air360 sensor types
 
 - `sample_time_unix_ms`
   - integer
@@ -207,53 +223,96 @@ The device identifier is the `chip_id` from the request path.
 - `kind`
   - string
   - required
-  - uses Air360 internal measurement keys
+  - must be one of the supported Air360 measurement keys
 
 - `value`
   - number
   - required
 
+## Supported Sensor Types
+
+The current backend scaffold recognizes these sensor types:
+
+- `bme280`
+- `gps_nmea`
+- `dht11`
+- `dht22`
+- `bme680`
+- `sps30`
+- `ens160`
+- `me3_no2`
+
+Implementation should be verified against `/backend/src/contracts/sensor-type.ts`.
+
+## Supported Measurement Keys
+
+The current backend scaffold recognizes these Air360 measurement keys:
+
+- `temperature_c`
+- `humidity_percent`
+- `pressure_hpa`
+- `latitude_deg`
+- `longitude_deg`
+- `altitude_m`
+- `satellites`
+- `speed_knots`
+- `gas_resistance_ohms`
+- `pm1_0_ug_m3`
+- `pm2_5_ug_m3`
+- `pm4_0_ug_m3`
+- `pm10_0_ug_m3`
+- `nc0_5_per_cm3`
+- `nc1_0_per_cm3`
+- `nc2_5_per_cm3`
+- `nc4_0_per_cm3`
+- `nc10_0_per_cm3`
+- `typical_particle_size_um`
+- `aqi`
+- `tvoc_ppb`
+- `eco2_ppm`
+- `adc_raw`
+- `voltage_mv`
+
+Implementation should be verified against `/backend/src/contracts/measurement-kind.ts`.
+
 ## Semantics
 
-- A batch may contain multiple samples for the same `sensor_type`.
-- Samples are ordered by device collection order.
-- The backend must not assume one sample per sensor type per request.
-- The backend should treat `(chip_id, sensor_type)` as the logical measurement stream.
-- The backend should preserve `sample_time_unix_ms` from the payload.
+- a batch may contain multiple samples for the same `sensor_type`
+- samples are ordered by device collection order
+- the backend must not assume one sample per sensor type per request
+- the backend should treat `(chip_id, sensor_type)` as the logical measurement stream
+- the backend should preserve `sample_time_unix_ms` from the payload
 
 ## Idempotency
 
 The endpoint is idempotent by resource path:
 
-- `PUT /api/v1/devices/{chip_id}/batches/{client_batch_id}`
+- `PUT /v1/devices/{chip_id}/batches/{client_batch_id}`
 
 Recommended backend behavior:
 
 - if a batch with the same `client_batch_id` was already accepted, return success again
 - do not duplicate stored samples
 
-## Success Response
+## Minimal Success Response
 
 ```json
 {
   "accepted": true,
-  "client_batch_id": "air360-3108528-1743465600000",
-  "accepted_samples": 4,
-  "server_time_unix_ms": 1743465605301
+  "client_batch_id": "1743465600000",
+  "accepted_samples": 4
 }
 ```
 
-## Error Response
+## Example Error Response
 
 ```json
 {
   "accepted": false,
   "error": {
     "code": "invalid_payload",
-    "message": "sample_count does not match samples length",
-    "retryable": false
-  },
-  "server_time_unix_ms": 1743465605301
+    "message": "batch.sample_count must equal batch.samples.length"
+  }
 }
 ```
 
@@ -282,8 +341,8 @@ This means:
 - each device is identified by its `chip_id`
 - device ownership is enforced server-side
 
-## Notes for Firmware Implementation
+## Notes For Firmware Implementation
 
-- The firmware may accumulate many samples before one upload cycle.
-- The `Sensor.Community` compatibility backend may still serialize only the latest compatible values.
-- The native Air360 backend should upload the accumulated batch as-is.
+- the firmware may accumulate many samples before one upload cycle
+- the `Sensor.Community` compatibility backend may still serialize only the latest compatible values
+- the native Air360 backend should upload the accumulated batch as-is

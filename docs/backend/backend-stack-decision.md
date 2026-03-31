@@ -2,17 +2,17 @@
 
 ## Status
 
-Accepted working direction for the first backend and user UI implementation.
+Accepted working direction for the first native Air360 API backend.
 
-## Selected Stack
+This document covers the backend service only.
+The user-facing frontend is expected to live as a separate application and is out of scope here.
 
-- `Next.js`
-  - user-facing web UI
-  - server-rendered pages
-  - ordinary application API routes
+## Selected Backend Stack
+
 - `Fastify`
   - device ingest API
   - upload-oriented HTTP endpoints
+  - versioned backend routes such as `/v1/...`
 - `PostgreSQL`
   - users
   - devices
@@ -22,37 +22,47 @@ Accepted working direction for the first backend and user UI implementation.
 - `TimescaleDB`
   - time-series sensor measurements
   - public device history
-  - chart/query backend for historical data
-- `shadcn/ui` + `Recharts`
-  - user UI components
-  - dashboard and history charts
+  - historical query backend
 
-## Why This Split
+## Why This Backend Shape
 
-- `Next.js` is a better fit for the user portal, account pages, dashboards, and normal application flows than a firmware-style ingest service.
-- `Fastify` is a better fit for device upload traffic than putting the ingest path inside the UI app.
+- `Fastify` is a good fit for a small, explicit HTTP API that is focused on device upload traffic.
+- Separating the backend from the frontend keeps the ingest path independent from UI concerns.
 - `PostgreSQL` remains the source of truth for user and device authorization state.
-- `TimescaleDB` is the primary store for sensor measurements and public time-series queries.
-- Sensor telemetry stays separate from user/account data even though authorization is checked against `PostgreSQL`.
+- `TimescaleDB` is the primary store for sensor measurements and historical queries.
+- Sensor telemetry stays separate from user and account data even though authorization is checked against `PostgreSQL`.
 
 ## Intended Request Flow
 
 1. Device sends an ingest request to the backend.
 2. The ingest service validates the device and bearer token against data stored in `PostgreSQL`.
 3. If authorization succeeds, the service writes normalized measurements to `TimescaleDB`.
-4. Public and user-facing charts read historical telemetry from `TimescaleDB`.
+4. Other services such as a frontend or public history API read historical telemetry from `TimescaleDB`.
+
+## Current Backend Skeleton
+
+Based on the current `/backend` implementation:
+
+- the backend is scaffolded as a standalone Fastify application
+- the current versioned route prefix is `/v1`
+- `GET /` and `GET /health` exist for basic service checks
+- `PUT /v1/devices/{chip_id}/batches/{client_batch_id}` exists as a mock ingest endpoint
+- persistence and auth are not implemented yet
+
+Implementation details should be verified against the `/backend` source tree rather than this design note.
 
 ## Notes
 
-- One user may own multiple devices.
-- Device measurements are intended to be publicly viewable.
-- `PostgreSQL` and `TimescaleDB` may be deployed together for the first version, but they serve different roles.
-- `Prometheus`-style storage is not the primary historical store for device telemetry in this architecture.
+- one user may own multiple devices
+- device measurements are intended to be publicly viewable
+- `PostgreSQL` and `TimescaleDB` may be deployed together for the first version, but they serve different roles
+- `Prometheus`-style storage is not the primary historical store for device telemetry in this architecture
 
 ## Out of Scope For This Decision
 
-- Exact monorepo structure
-- Exact auth provider
-- Deployment topology
-- Background job/queue system
-- Air360 portal visual design
+- frontend framework choice
+- exact frontend deployment topology
+- exact auth provider
+- background job or queue system
+- database schema details
+- long-term monorepo structure

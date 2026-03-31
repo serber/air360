@@ -121,6 +121,12 @@ Clone the backend repository as the service user:
 sudo -u air360 git clone <your-repo-url> /opt/air360/backend
 ```
 
+If the repository was cloned or unpacked as `root`, fix ownership before installing dependencies:
+
+```bash
+sudo chown -R air360:air360 /opt/air360/backend
+```
+
 Install dependencies and build:
 
 ```bash
