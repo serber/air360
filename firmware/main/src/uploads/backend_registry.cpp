@@ -3,6 +3,7 @@
 #include <cstring>
 #include <string>
 
+#include "air360/uploads/adapters/air360_api_uploader.hpp"
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
 
 namespace air360 {
@@ -39,6 +40,11 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
+    if (record.enabled == 0U) {
+        error.clear();
+        return true;
+    }
+
     if (record.endpoint_url[0] == '\0') {
         error = "Sensor.Community endpoint URL must not be empty.";
         return false;
@@ -48,7 +54,26 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
 }
 
 bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
-    return validateCommonRecord(record, error);
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.enabled == 0U) {
+        error.clear();
+        return true;
+    }
+
+    if (record.endpoint_url[0] == '\0') {
+        error = "Air360 API base URL must not be empty.";
+        return false;
+    }
+
+    if (record.bearer_token[0] == '\0') {
+        error = "Air360 API bearer token must not be empty.";
+        return false;
+    }
+
+    return true;
 }
 
 constexpr BackendDescriptor kDescriptors[] = {
@@ -66,11 +91,11 @@ constexpr BackendDescriptor kDescriptors[] = {
         BackendType::kAir360Api,
         "air360_api",
         "Air360 API",
-        false,
+        true,
         false,
         true,
         &validateAir360ApiRecord,
-        nullptr,
+        &createAir360ApiUploader,
     },
 };
 

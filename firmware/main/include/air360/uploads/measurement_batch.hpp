@@ -30,6 +30,7 @@ struct MeasurementBatch {
     std::uint64_t created_uptime_ms = 0U;
     std::int64_t created_unix_ms = 0;
     std::string device_name;
+    std::string board_name;
     std::string project_version;
     std::string chip_id;
     std::string short_chip_id;

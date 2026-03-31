@@ -62,7 +62,7 @@ void assignDefaultBackendConfigList(BackendConfigList& config) {
         2U,
         BackendType::kAir360Api,
         "Air360 API",
-        "");
+        "https://api.air360.ru");
 }
 
 }  // namespace
@@ -79,8 +79,8 @@ bool BackendConfigRepository::isValid(const BackendConfigList& config) const {
         config.record_size != static_cast<std::uint16_t>(sizeof(BackendRecord)) ||
         config.backend_count > kMaxConfiguredBackends ||
         config.next_backend_id == 0U ||
-        config.upload_interval_ms < 1000U ||
-        config.upload_interval_ms > 3600000U) {
+        config.upload_interval_ms < 10000U ||
+        config.upload_interval_ms > 300000U) {
         return false;
     }
 

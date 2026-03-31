@@ -566,6 +566,32 @@ std::string renderBackendsPage(
         }
         html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
 
+        if (record != nullptr) {
+            html += "<label for='endpoint_";
+            html += htmlEscape(descriptor.backend_key);
+            html += "'>Endpoint URL</label>";
+            html += "<input id='endpoint_";
+            html += htmlEscape(descriptor.backend_key);
+            html += "' name='endpoint_";
+            html += htmlEscape(descriptor.backend_key);
+            html += "' value='";
+            html += htmlEscape(record->endpoint_url);
+            html += "' style='width:100%;max-width:42rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
+
+            if (descriptor.type == BackendType::kAir360Api) {
+                html += "<label for='token_";
+                html += htmlEscape(descriptor.backend_key);
+                html += "'>Bearer token</label>";
+                html += "<input id='token_";
+                html += htmlEscape(descriptor.backend_key);
+                html += "' name='token_";
+                html += htmlEscape(descriptor.backend_key);
+                html += "' value='";
+                html += htmlEscape(record->bearer_token);
+                html += "' style='width:100%;max-width:42rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
+            }
+        }
+
         if (status != nullptr) {
             html += "<p>Status: <code>";
             html += htmlEscape(backendRuntimeStateKey(status->state));
@@ -1328,6 +1354,20 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
 
         const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
         record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
+
+        const std::string endpoint_name = std::string("endpoint_") + descriptor.backend_key;
+        copyString(
+            record->endpoint_url,
+            sizeof(record->endpoint_url),
+            findFormValue(fields, endpoint_name.c_str()));
+
+        if (descriptor.type == BackendType::kAir360Api) {
+            const std::string token_name = std::string("token_") + descriptor.backend_key;
+            copyString(
+                record->bearer_token,
+                sizeof(record->bearer_token),
+                findFormValue(fields, token_name.c_str()));
+        }
     }
 
     const esp_err_t save_err = server->backend_config_repository_->save(updated);

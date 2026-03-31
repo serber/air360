@@ -15,6 +15,7 @@ namespace air360 {
 
 enum class UploadMethod : std::uint8_t {
     kPost = 1U,
+    kPut = 2U,
 };
 
 struct UploadRequestHeader {

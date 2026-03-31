@@ -153,6 +153,7 @@ MeasurementBatch UploadManager::buildMeasurementBatch(
     batch.batch_id = batch.created_unix_ms > 0 ? static_cast<std::uint64_t>(batch.created_unix_ms)
                                                : now_ms;
     batch.device_name = device_config_ != nullptr ? device_config_->device_name : "";
+    batch.board_name = build_info_.board_name;
     batch.project_version = build_info_.project_version;
     batch.chip_id = build_info_.chip_id;
     batch.short_chip_id = build_info_.short_chip_id;

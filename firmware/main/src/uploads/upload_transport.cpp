@@ -11,6 +11,8 @@ namespace {
 
 esp_http_client_method_t toEspMethod(UploadMethod method) {
     switch (method) {
+        case UploadMethod::kPut:
+            return HTTP_METHOD_PUT;
         case UploadMethod::kPost:
         default:
             return HTTP_METHOD_POST;

@@ -7,6 +7,7 @@ idf_component_register(
         "src/network_manager.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
+        "src/uploads/adapters/air360_api_uploader.cpp"
         "src/uploads/adapters/sensor_community_uploader.cpp"
         "src/uploads/measurement_store.cpp"
         "src/uploads/upload_manager.cpp"
