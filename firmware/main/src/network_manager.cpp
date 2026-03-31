@@ -3,11 +3,13 @@
 #include <cstdio>
 #include <cstring>
 
+#include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_netif_ip_addr.h"
+#include "esp_netif_sntp.h"
 #include "esp_wifi.h"
 #include "freertos/event_groups.h"
 #include "lwip/ip4_addr.h"
@@ -19,12 +21,14 @@ namespace {
 constexpr char kTag[] = "air360.net";
 constexpr EventBits_t kStationConnectedBit = BIT0;
 constexpr EventBits_t kStationFailedBit = BIT1;
+constexpr char kDefaultSntpServer[] = "pool.ntp.org";
 
 struct RuntimeContext {
     EventGroupHandle_t station_events = nullptr;
     esp_netif_t* ap_netif = nullptr;
     esp_netif_t* sta_netif = nullptr;
     bool wifi_initialized = false;
+    bool sntp_initialized = false;
 };
 
 RuntimeContext& runtimeContext() {
@@ -86,6 +90,61 @@ esp_err_t NetworkManager::ensureWifiInit() {
         return err;
     }
 
+    return ESP_OK;
+}
+
+esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
+    RuntimeContext& context = runtimeContext();
+
+    state_.time_sync_attempted = true;
+    state_.time_synchronized = false;
+    state_.time_sync_error.clear();
+    state_.last_time_sync_unix_ms = 0;
+
+    if (!state_.station_connected) {
+        state_.time_sync_error = "station is not connected";
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (hasValidUnixTime()) {
+        state_.time_synchronized = true;
+        state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+        ESP_LOGI(kTag, "System time already valid, skipping SNTP wait");
+        return ESP_OK;
+    }
+
+    esp_err_t err = ESP_OK;
+    if (!context.sntp_initialized) {
+        esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG(kDefaultSntpServer);
+        err = esp_netif_sntp_init(&sntp_config);
+        if (err == ESP_OK) {
+            context.sntp_initialized = true;
+        } else {
+            state_.time_sync_error = esp_err_to_name(err);
+            ESP_LOGW(kTag, "SNTP init failed: %s", esp_err_to_name(err));
+            return err;
+        }
+    } else {
+        err = esp_netif_sntp_start();
+        if (err != ESP_OK) {
+            state_.time_sync_error = esp_err_to_name(err);
+            ESP_LOGW(kTag, "SNTP start failed: %s", esp_err_to_name(err));
+            return err;
+        }
+    }
+
+    ESP_LOGI(kTag, "Waiting for SNTP time sync");
+    err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(timeout_ms));
+    if (err != ESP_OK || !hasValidUnixTime()) {
+        state_.time_sync_error = err == ESP_OK ? "time is still invalid after SNTP sync"
+                                               : esp_err_to_name(err);
+        ESP_LOGW(kTag, "SNTP sync failed: %s", state_.time_sync_error.c_str());
+        return err == ESP_OK ? ESP_FAIL : err;
+    }
+
+    state_.time_synchronized = true;
+    state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+    ESP_LOGI(kTag, "SNTP time synchronized");
     return ESP_OK;
 }
 
@@ -259,6 +318,10 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler);
 
     if ((bits & kStationConnectedBit) != 0U) {
+        const esp_err_t time_err = synchronizeTime();
+        if (time_err != ESP_OK) {
+            ESP_LOGW(kTag, "Time sync failed after station join: %s", esp_err_to_name(time_err));
+        }
         return ESP_OK;
     }
 
@@ -379,6 +442,14 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
 
 const NetworkState& NetworkManager::state() const {
     return state_;
+}
+
+bool NetworkManager::hasValidTime() const {
+    return hasValidUnixTime();
+}
+
+std::int64_t NetworkManager::currentUnixMilliseconds() const {
+    return air360::currentUnixMilliseconds();
 }
 
 }  // namespace air360

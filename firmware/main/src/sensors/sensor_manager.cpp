@@ -6,9 +6,9 @@
 #include <string>
 #include <utility>
 
+#include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 
 namespace air360 {
 
@@ -19,10 +19,6 @@ constexpr std::uint64_t kRetryDelayMs = 5000U;
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
 constexpr uint32_t kManagerTaskStackSize = 6144U;
 constexpr UBaseType_t kManagerTaskPriority = 5U;
-
-std::uint64_t uptimeMilliseconds() {
-    return static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-}
 
 SensorRuntimeState classifyFailureState(esp_err_t err) {
     if (err == ESP_ERR_NOT_FOUND ||
@@ -333,19 +329,22 @@ void SensorManager::taskMain() {
 
             const esp_err_t op_err =
                 needs_init ? driver->init(record, driver_context) : driver->poll();
-            const SensorMeasurement measurement =
+            SensorMeasurement measurement =
                 op_err == ESP_OK ? driver->latestMeasurement() : SensorMeasurement{};
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
 
             if (op_err == ESP_OK && !measurement.empty() && measurement_store_ != nullptr) {
-                measurement_store_->append(
-                    MeasurementSample{
-                        record.id,
-                        record.sensor_type,
-                        measurement.sample_time_ms,
-                        measurement,
-                    });
+                const std::int64_t sample_unix_ms = currentUnixMilliseconds();
+                if (sample_unix_ms > 0) {
+                    measurement_store_->append(
+                        MeasurementSample{
+                            record.id,
+                            record.sensor_type,
+                            static_cast<std::uint64_t>(sample_unix_ms),
+                            measurement,
+                        });
+                }
             }
 
             lock();

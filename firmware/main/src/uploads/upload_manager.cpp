@@ -2,13 +2,12 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <ctime>
 #include <string>
 #include <utility>
 
+#include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 
 namespace air360 {
 
@@ -18,19 +17,6 @@ constexpr char kTag[] = "air360.upload";
 constexpr TickType_t kUploadLoopDelay = pdMS_TO_TICKS(1000);
 constexpr std::uint32_t kUploadTaskStackSize = 7168U;
 constexpr UBaseType_t kUploadTaskPriority = 4U;
-
-std::uint64_t uptimeMilliseconds() {
-    return static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-}
-
-std::int64_t currentUnixMilliseconds() {
-    const std::time_t now = std::time(nullptr);
-    if (now < 1700000000) {
-        return 0;
-    }
-
-    return static_cast<std::int64_t>(now) * 1000LL;
-}
 
 std::string defaultDisplayName(
     const BackendDescriptor* descriptor,
@@ -162,9 +148,10 @@ MeasurementBatch UploadManager::buildMeasurementBatch(
     std::uint64_t now_ms,
     const std::vector<MeasurementSample>& samples) const {
     MeasurementBatch batch;
-    batch.batch_id = now_ms;
     batch.created_uptime_ms = now_ms;
     batch.created_unix_ms = currentUnixMilliseconds();
+    batch.batch_id = batch.created_unix_ms > 0 ? static_cast<std::uint64_t>(batch.created_unix_ms)
+                                               : now_ms;
     batch.device_name = device_config_ != nullptr ? device_config_->device_name : "";
     batch.project_version = build_info_.project_version;
     batch.chip_id = build_info_.chip_id;
@@ -200,7 +187,8 @@ bool UploadManager::hasNetworkForUpload() const {
     }
 
     const NetworkState& network = network_manager_->state();
-    return network.mode == NetworkMode::kStation && network.station_connected;
+    return network.mode == NetworkMode::kStation && network.station_connected &&
+           network_manager_->hasValidTime();
 }
 
 void UploadManager::stop() {
@@ -371,7 +359,7 @@ void UploadManager::taskMain() {
 
         std::vector<MeasurementSample> upload_samples;
         if (has_active_backend && measurement_store_ != nullptr) {
-            upload_samples = measurement_store_->beginUploadWindow(now_ms);
+            upload_samples = measurement_store_->beginUploadWindow();
         }
 
         MeasurementBatch batch{};

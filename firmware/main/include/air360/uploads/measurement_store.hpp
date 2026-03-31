@@ -13,7 +13,7 @@ namespace air360 {
 class MeasurementStore {
   public:
     void append(const MeasurementSample& sample);
-    std::vector<MeasurementSample> beginUploadWindow(std::uint64_t cutoff_time_ms);
+    std::vector<MeasurementSample> beginUploadWindow();
     void acknowledgeInflight();
     void restoreInflight();
 

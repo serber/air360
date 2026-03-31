@@ -20,11 +20,15 @@ struct NetworkState {
     bool station_config_present = false;
     bool station_connect_attempted = false;
     bool station_connected = false;
+    bool time_sync_attempted = false;
+    bool time_synchronized = false;
     bool lab_ap_active = false;
     std::string station_ssid;
     std::string lab_ap_ssid;
     std::string ip_address;
     std::string last_error;
+    std::string time_sync_error;
+    std::int64_t last_time_sync_unix_ms = 0;
 };
 
 class NetworkManager {
@@ -32,6 +36,8 @@ class NetworkManager {
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
     const NetworkState& state() const;
+    bool hasValidTime() const;
+    std::int64_t currentUnixMilliseconds() const;
 
   private:
     static void handleWifiEvent(
@@ -46,6 +52,7 @@ class NetworkManager {
         void* event_data);
 
     esp_err_t ensureWifiInit();
+    esp_err_t synchronizeTime(std::uint32_t timeout_ms = 15000U);
     void resetState();
 
     NetworkState state_{};

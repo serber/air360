@@ -26,7 +26,7 @@ void MeasurementStore::append(const MeasurementSample& sample) {
     unlock();
 }
 
-std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::uint64_t cutoff_time_ms) {
+std::vector<MeasurementSample> MeasurementStore::beginUploadWindow() {
     ensureMutex();
     lock();
 
@@ -36,14 +36,9 @@ std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::uint64_t
         return snapshot;
     }
 
-    std::size_t prefix_count = 0U;
-    while (prefix_count < pending_.size() && pending_[prefix_count].sample_time_ms <= cutoff_time_ms) {
-        ++prefix_count;
-    }
-
-    if (prefix_count > 0U) {
-        inflight_.assign(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(prefix_count));
-        pending_.erase(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(prefix_count));
+    if (!pending_.empty()) {
+        inflight_ = pending_;
+        pending_.clear();
     }
 
     const auto snapshot = inflight_;
