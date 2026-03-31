@@ -1,0 +1,19 @@
+[Unit]
+Description=Air360 API Backend
+After=network.target
+
+[Service]
+Type=simple
+User=air360
+Group=air360
+WorkingDirectory=/opt/air360/backend
+EnvironmentFile=/etc/air360-backend.env
+ExecStart=/usr/local/bin/node dist/server.js
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
