@@ -37,14 +37,13 @@ esp_err_t saveInternal(nvs_handle_t handle, const BackendConfigList& config) {
 BackendRecord makeDefaultRecord(
     std::uint32_t id,
     BackendType type,
-    const char* display_name,
-    const char* endpoint_url) {
+    const char* display_name) {
     BackendRecord record{};
     record.id = id;
     record.enabled = 0U;
     record.backend_type = type;
     copyString(record.display_name, sizeof(record.display_name), display_name);
-    copyString(record.endpoint_url, sizeof(record.endpoint_url), endpoint_url);
+    applyBackendStaticDefaults(record);
     return record;
 }
 
@@ -56,13 +55,11 @@ void assignDefaultBackendConfigList(BackendConfigList& config) {
     config.backends[0] = makeDefaultRecord(
         1U,
         BackendType::kSensorCommunity,
-        "Sensor.Community",
-        "http://api.sensor.community/v1/push-sensor-data/");
+        "Sensor.Community");
     config.backends[1] = makeDefaultRecord(
         2U,
         BackendType::kAir360Api,
-        "Air360 API",
-        "https://api.air360.ru");
+        "Air360 API");
 }
 
 }  // namespace

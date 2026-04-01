@@ -10,6 +10,7 @@
 #include "esp_netif.h"
 #include "esp_netif_ip_addr.h"
 #include "esp_netif_sntp.h"
+#include "esp_task_wdt.h"
 #include "esp_wifi.h"
 #include "freertos/event_groups.h"
 #include "lwip/ip4_addr.h"
@@ -22,6 +23,7 @@ constexpr char kTag[] = "air360.net";
 constexpr EventBits_t kStationConnectedBit = BIT0;
 constexpr EventBits_t kStationFailedBit = BIT1;
 constexpr char kDefaultSntpServer[] = "pool.ntp.org";
+constexpr std::uint32_t kSntpPollIntervalMs = 250U;
 
 struct RuntimeContext {
     EventGroupHandle_t station_events = nullptr;
@@ -134,12 +136,21 @@ esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
     }
 
     ESP_LOGI(kTag, "Waiting for SNTP time sync");
-    err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(timeout_ms));
-    if (err != ESP_OK || !hasValidUnixTime()) {
-        state_.time_sync_error = err == ESP_OK ? "time is still invalid after SNTP sync"
-                                               : esp_err_to_name(err);
+    const std::int64_t started_ms = uptimeMilliseconds();
+    bool synchronized = false;
+    while ((uptimeMilliseconds() - started_ms) < timeout_ms) {
+        if (hasValidUnixTime()) {
+            synchronized = true;
+            break;
+        }
+        esp_task_wdt_reset();
+        vTaskDelay(pdMS_TO_TICKS(kSntpPollIntervalMs));
+    }
+
+    if (!synchronized || !hasValidUnixTime()) {
+        state_.time_sync_error = "time is still invalid after SNTP sync";
         ESP_LOGW(kTag, "SNTP sync failed: %s", state_.time_sync_error.c_str());
-        return err == ESP_OK ? ESP_FAIL : err;
+        return ESP_ERR_TIMEOUT;
     }
 
     state_.time_synchronized = true;
@@ -297,6 +308,9 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     if (err == ESP_OK) {
         err = esp_wifi_start();
     }
+    if (err == ESP_OK) {
+        err = esp_wifi_set_ps(WIFI_PS_NONE);
+    }
 
     if (err != ESP_OK) {
         setStateError(state_, esp_err_to_name(err));
@@ -305,6 +319,7 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
         return err;
     }
 
+    ESP_LOGI(kTag, "Station Wi-Fi power save disabled for lower upload latency");
     ESP_LOGI(kTag, "Attempting station join: ssid=%s", config.wifi_sta_ssid);
 
     const EventBits_t bits = xEventGroupWaitBits(

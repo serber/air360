@@ -64,6 +64,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
+constexpr std::size_t kHttpServerStackSize = 10240U;
 
 void copyString(char* destination, std::size_t destination_size, const std::string& source) {
     if (destination_size == 0U) {
@@ -72,6 +73,19 @@ void copyString(char* destination, std::size_t destination_size, const std::stri
 
     std::strncpy(destination, source.c_str(), destination_size - 1U);
     destination[destination_size - 1U] = '\0';
+}
+
+std::string boundedCString(const char* value, std::size_t capacity) {
+    if (value == nullptr || capacity == 0U) {
+        return "";
+    }
+
+    std::size_t length = 0U;
+    while (length < capacity && value[length] != '\0') {
+        ++length;
+    }
+
+    return std::string(value, length);
 }
 
 std::string htmlEscape(const std::string& input) {
@@ -208,6 +222,22 @@ esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body) {
     }
 
     return ESP_OK;
+}
+
+esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html) {
+    constexpr std::size_t kChunkSize = 1024U;
+
+    for (std::size_t offset = 0; offset < html.size(); offset += kChunkSize) {
+        const std::size_t remaining = html.size() - offset;
+        const std::size_t chunk_size = remaining < kChunkSize ? remaining : kChunkSize;
+        const esp_err_t err =
+            httpd_resp_send_chunk(request, html.data() + offset, chunk_size);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    return httpd_resp_send_chunk(request, nullptr, 0);
 }
 
 const char* networkModeLabel(NetworkMode mode) {
@@ -487,24 +517,12 @@ const BackendRecord* findBackendRecordForDescriptor(
     return findBackendRecordByType(config, descriptor.type);
 }
 
-const BackendStatusSnapshot* findBackendStatusForDescriptor(
-    const std::vector<BackendStatusSnapshot>& statuses,
-    const BackendDescriptor& descriptor) {
-    for (const auto& status : statuses) {
-        if (status.backend_type == descriptor.type) {
-            return &status;
-        }
-    }
-    return nullptr;
-}
-
 std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const std::string& notice,
     bool error_notice) {
     BackendRegistry registry;
-    const std::vector<BackendStatusSnapshot> backend_statuses = upload_manager.backends();
 
     std::string html;
     html.reserve(10000);
@@ -545,8 +563,10 @@ std::string renderBackendsPage(
         const BackendDescriptor& descriptor = registry.descriptors()[index];
         const BackendRecord* record =
             findBackendRecordForDescriptor(backend_config_list, descriptor);
+        BackendStatusSnapshot status_storage{};
         const BackendStatusSnapshot* status =
-            findBackendStatusForDescriptor(backend_statuses, descriptor);
+            upload_manager.backendStatus(descriptor.type, status_storage) ? &status_storage
+                                                                          : nullptr;
         const bool enabled = record != nullptr && record->enabled != 0U;
 
         html += "<div class='card'>";
@@ -567,16 +587,9 @@ std::string renderBackendsPage(
         html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
 
         if (record != nullptr) {
-            html += "<label for='endpoint_";
-            html += htmlEscape(descriptor.backend_key);
-            html += "'>Endpoint URL</label>";
-            html += "<input id='endpoint_";
-            html += htmlEscape(descriptor.backend_key);
-            html += "' name='endpoint_";
-            html += htmlEscape(descriptor.backend_key);
-            html += "' value='";
-            html += htmlEscape(record->endpoint_url);
-            html += "' style='width:100%;max-width:42rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
+            html += "<p>Endpoint: <code>";
+            html += htmlEscape(backendDefaultEndpointUrl(descriptor.type));
+            html += "</code></p>";
 
             if (descriptor.type == BackendType::kAir360Api) {
                 html += "<label for='token_";
@@ -587,7 +600,10 @@ std::string renderBackendsPage(
                 html += "' name='token_";
                 html += htmlEscape(descriptor.backend_key);
                 html += "' value='";
-                html += htmlEscape(record->bearer_token);
+                html += htmlEscape(
+                    boundedCString(
+                        record->bearer_token,
+                        sizeof(record->bearer_token)));
                 html += "' style='width:100%;max-width:42rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
             }
         }
@@ -958,6 +974,7 @@ esp_err_t WebServer::start(
 
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();
     config_httpd.server_port = port;
+    config_httpd.stack_size = kHttpServerStackSize;
 
     esp_err_t err = httpd_start(&handle_, &config_httpd);
     if (err != ESP_OK) {
@@ -1309,7 +1326,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->upload_manager_,
             "",
             false);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     std::string body;
@@ -1319,7 +1336,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->upload_manager_,
             "Failed to read form body.",
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     const FormFields fields = parseFormBody(body);
@@ -1336,7 +1353,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->upload_manager_,
             "Upload interval must be between 10000 ms and 300000 ms.",
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
     updated.upload_interval_ms = static_cast<std::uint32_t>(upload_interval_ms);
 
@@ -1349,17 +1366,12 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 *server->upload_manager_,
                 "Backend configuration is incomplete.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
 
         const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
         record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
-
-        const std::string endpoint_name = std::string("endpoint_") + descriptor.backend_key;
-        copyString(
-            record->endpoint_url,
-            sizeof(record->endpoint_url),
-            findFormValue(fields, endpoint_name.c_str()));
+        applyBackendStaticDefaults(*record);
 
         if (descriptor.type == BackendType::kAir360Api) {
             const std::string token_name = std::string("token_") + descriptor.backend_key;
@@ -1377,7 +1389,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->upload_manager_,
             std::string("Failed to save backend configuration: ") + esp_err_to_name(save_err),
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     *server->backend_config_list_ = updated;
@@ -1389,7 +1401,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         *server->upload_manager_,
         "Backend selection saved.",
         false);
-    return httpd_resp_send(request, html.c_str(), html.size());
+    return sendHtmlResponse(request, html);
 }
 
 void WebServer::stop() {

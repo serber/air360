@@ -10,6 +10,13 @@ namespace air360 {
 
 namespace {
 
+bool isNullTerminated(const char* value, std::size_t capacity) {
+    if (value == nullptr || capacity == 0U) {
+        return false;
+    }
+    return value[capacity - 1U] == '\0';
+}
+
 bool validateCommonRecord(const BackendRecord& record, std::string& error) {
     if (record.id == 0U) {
         error = "Backend id must not be zero.";
@@ -40,6 +47,11 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
+    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
+        error = "Sensor.Community endpoint URL is not null-terminated.";
+        return false;
+    }
+
     if (record.enabled == 0U) {
         error.clear();
         return true;
@@ -55,6 +67,16 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
 
 bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
+        error = "Air360 API base URL is not null-terminated.";
+        return false;
+    }
+
+    if (!isNullTerminated(record.bearer_token, kBackendTokenCapacity)) {
+        error = "Air360 API bearer token is not null-terminated.";
         return false;
     }
 

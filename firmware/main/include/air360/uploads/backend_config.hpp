@@ -12,6 +12,18 @@ constexpr std::uint32_t kBackendConfigMagic = 0x41333632U;
 constexpr std::uint16_t kBackendConfigSchemaVersion = 2U;
 constexpr std::uint32_t kDefaultUploadIntervalMs = 145000U;
 
+inline const char* backendDefaultEndpointUrl(BackendType type) {
+    switch (type) {
+        case BackendType::kSensorCommunity:
+            return "http://api.sensor.community/v1/push-sensor-data/";
+        case BackendType::kAir360Api:
+            return "https://api.air360.ru";
+        case BackendType::kUnknown:
+        default:
+            return "";
+    }
+}
+
 struct BackendRecord {
     std::uint32_t id = 0U;
     std::uint8_t enabled = 0U;
@@ -35,6 +47,18 @@ struct BackendConfigList {
 };
 
 BackendConfigList makeDefaultBackendConfigList();
+
+inline void applyBackendStaticDefaults(BackendRecord& record) {
+    const char* endpoint = backendDefaultEndpointUrl(record.backend_type);
+    std::size_t index = 0U;
+    for (; index + 1U < kBackendUrlCapacity && endpoint[index] != '\0'; ++index) {
+        record.endpoint_url[index] = endpoint[index];
+    }
+    record.endpoint_url[index] = '\0';
+    for (++index; index < kBackendUrlCapacity; ++index) {
+        record.endpoint_url[index] = '\0';
+    }
+}
 
 inline BackendRecord* findBackendRecordByType(BackendConfigList& config, BackendType type) {
     for (std::size_t index = 0; index < config.backend_count; ++index) {

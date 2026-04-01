@@ -53,6 +53,7 @@ idf_component_register(
         esp_driver_i2c
         esp_driver_uart
         esp_adc
+        mbedtls
         esp_netif
         esp_system
         esp_timer

@@ -104,7 +104,7 @@ SampleGroup* findGroup(
 }
 
 std::string buildUrl(const BackendRecord& record, const MeasurementBatch& batch) {
-    const std::string base = trimTrailingSlash(record.endpoint_url);
+    const std::string base = trimTrailingSlash(backendDefaultEndpointUrl(record.backend_type));
     const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
     return base + "/v1/devices/" + chip_id + "/batches/" + std::to_string(batch.batch_id);
 }
@@ -113,6 +113,7 @@ std::string buildBody(
     const MeasurementBatch& batch,
     const std::vector<SampleGroup>& groups) {
     std::string body;
+    body.reserve(512U + groups.size() * 192U);
     body += "{\"schema_version\":1";
     body += ",\"sent_at_unix_ms\":";
     body += std::to_string(batch.created_unix_ms);
@@ -174,7 +175,7 @@ const char* Air360ApiUploader::backendKey() const {
 bool Air360ApiUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    if (record.endpoint_url[0] == '\0') {
+    if (backendDefaultEndpointUrl(record.backend_type)[0] == '\0') {
         error = "Air360 API base URL is empty.";
         return false;
     }
@@ -194,6 +195,7 @@ bool Air360ApiUploader::buildRequests(
     std::vector<UploadRequestSpec>& out_requests,
     std::string& error) const {
     out_requests.clear();
+    out_requests.reserve(1U);
 
     if (!validateConfig(record, error)) {
         return false;
@@ -210,6 +212,7 @@ bool Air360ApiUploader::buildRequests(
     }
 
     std::vector<SampleGroup> groups;
+    groups.reserve(batch.points.size());
     for (const auto& point : batch.points) {
         SampleGroup* group = findGroup(groups, point.sensor_type, point.sample_time_ms);
         if (group == nullptr) {

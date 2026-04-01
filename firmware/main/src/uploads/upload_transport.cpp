@@ -2,12 +2,16 @@
 
 #include <algorithm>
 
+#include "esp_crt_bundle.h"
 #include "esp_http_client.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
+
+constexpr char kTag[] = "air360.http";
 
 esp_http_client_method_t toEspMethod(UploadMethod method) {
     switch (method) {
@@ -33,6 +37,15 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
     config.buffer_size = 512;
     config.buffer_size_tx = 512;
     config.keep_alive_enable = false;
+    config.addr_type = HTTP_ADDR_TYPE_INET;
+    config.crt_bundle_attach = esp_crt_bundle_attach;
+
+    ESP_LOGI(
+        kTag,
+        "HTTP request: method=%s url=%s body_len=%u",
+        request.method == UploadMethod::kPut ? "PUT" : "POST",
+        request.url.c_str(),
+        static_cast<unsigned>(request.body.size()));
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == nullptr) {

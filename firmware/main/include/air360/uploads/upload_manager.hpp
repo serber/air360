@@ -54,6 +54,7 @@ class UploadManager {
     void stop();
 
     std::vector<BackendStatusSnapshot> backends() const;
+    bool backendStatus(BackendType type, BackendStatusSnapshot& out_status) const;
     std::size_t enabledCount() const;
     std::size_t degradedCount() const;
     std::uint32_t uploadIntervalMs() const;

@@ -229,6 +229,21 @@ std::vector<BackendStatusSnapshot> UploadManager::backends() const {
     return snapshot;
 }
 
+bool UploadManager::backendStatus(BackendType type, BackendStatusSnapshot& out_status) const {
+    ensureMutex();
+    lock();
+    for (const auto& backend : backends_) {
+        if (backend.snapshot.backend_type == type) {
+            out_status = backend.snapshot;
+            unlock();
+            return true;
+        }
+    }
+    unlock();
+    out_status = BackendStatusSnapshot{};
+    return false;
+}
+
 std::size_t UploadManager::enabledCount() const {
     ensureMutex();
     lock();
