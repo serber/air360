@@ -296,7 +296,7 @@ Currently implemented backends are:
 - `Sensor.Community`
   Fixed endpoint `http://api.sensor.community/v1/push-sensor-data/`
 - `Air360 API`
-  Fixed base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
+  Fixed base endpoint `http://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
 
 Backend selection and upload interval are configured through `/backends`. Endpoint URLs are static in firmware and are not edited through the UI. The Air360 backend accepts a bearer token through the local `/backends` form.
 
@@ -352,9 +352,8 @@ The current runtime depends on NVS, not on SPIFFS.
 - If the build cannot find `xtensa-esp32s3-elf-gcc`, the ESP-IDF toolchain is not on `PATH`, which also points to a missing or incomplete ESP-IDF environment setup.
 - For VS Code, open `firmware/` as the project root. Opening the repository root can cause non-ESP-IDF tooling to treat this as a plain CMake project instead.
 - `build/compile_commands.json` is generated after a successful configure/build and is useful for editor integration.
-- Upload timing diagnostics are logged under the `air360.http` tag and currently include `connect_ms`, `send_ms`, `first_byte_ms`, and `total_ms`.
 - UTC timestamps depend on SNTP. The firmware waits for valid system time after successful station join before starting normal upload traffic.
-- HTTPS backend validation uses the ESP-IDF certificate bundle rather than a firmware-pinned Air360 leaf certificate.
+- If Air360 HTTPS is re-enabled later, backend validation should continue to use the ESP-IDF certificate bundle rather than a firmware-pinned Air360 leaf certificate.
 
 ## Known Limitations
 
@@ -366,4 +365,4 @@ Current limitations confirmed by the source tree:
 - the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the local UI is still assembled directly in C++ strings
-- backend HTTP clients are reused per origin for lower latency, but uploads still depend on the remote server allowing persistent connections
+- `Air360 API` currently defaults to plain HTTP because HTTPS from the ESP32-S3 shows unresolved connection-latency issues; TLS tuning and session-resumption work should be revisited later before switching the default back to HTTPS
