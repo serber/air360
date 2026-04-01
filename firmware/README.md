@@ -142,7 +142,7 @@ This file provides repository defaults for a fresh configuration:
 - custom partition table enabled via `partitions.csv`
 - C++ exceptions disabled
 - C++ RTTI disabled
-- main task stack size increased to `6144`
+- main task stack size increased to `8192`
 - project defaults for the Air360 Kconfig options
 
 This is the file to update when the project-wide default target or default runtime settings need to change.
@@ -288,7 +288,7 @@ The firmware also has a separate upload pipeline:
 - `SensorManager` appends measurement samples into `MeasurementStore`
 - `MeasurementStore` maintains `pending` and `inflight` queues so uploads can be acknowledged or restored
 - `UploadManager` drains a measurement batch on each cycle and fans it out to enabled backend adapters
-- `UploadTransport` executes HTTP requests and records phase timing for connect, send, first-byte, and total request duration
+- `UploadTransport` executes HTTP requests and returns transport status, HTTP status, response size, and total request duration
 - backend-specific adapters translate the generic measurement batch into backend payloads
 
 Currently implemented backends are:

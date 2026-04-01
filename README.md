@@ -1,132 +1,143 @@
 # Air360
 
-Air360 is a repository for a modern replacement firmware effort around the `sensor.community` device model.
+Air360 is a multi-part repository around an ESP32-S3 air-quality device, its native backend API, and a separate web portal.
 
-The project combines two things:
+The repository intentionally separates:
 
-- repository-level design and compatibility context in `docs/`
-- the actual ESP-IDF firmware implementation in `firmware/`
+- `docs/` for architecture, planning, deployment notes, and implementation-oriented navigation
+- `firmware/` for the actual ESP-IDF device firmware
+- `backend/` for the native Air360 API backend
+- `portal/` for the user-facing web application
 
-The key distinction is important: `docs/` describes architecture, planning, and compatibility goals, while `firmware/` shows what is implemented today.
+When documentation and code disagree, treat the relevant implementation directory as the source of truth for current behavior.
 
-## Project Purpose
+## Overview
 
-Based on the current repository contents, the goal is to build a new ESP32-first firmware in C++17 on ESP-IDF 6.x that can eventually replace the legacy `airrohr-firmware` while preserving the compatibility-critical parts of its behavior.
+Based on the current tree, the repository now contains more than the original firmware replacement effort:
 
-The replacement effort is not framed as a line-by-line port. The documents in `docs/` describe a cleaner architecture with explicit module boundaries, staged delivery, and adapter-based handling of legacy behavior.
+- an ESP-IDF firmware runtime for `esp32s3`
+- a Fastify-based Air360 backend scaffold with a mock ingest route
+- a Next.js portal scaffold
+- design and deployment documentation that connects those pieces
 
-The current implementation in `firmware/` is an early Phase 1 foundation. It already boots as an ESP-IDF project, persists a small device config in NVS, can start a lab-only SoftAP, and exposes a minimal local web interface.
+The older planning documents in `docs/` still matter, but they should be read as design context unless the implementation confirms them.
 
 ## Repository Layout
 
 ```text
 .
+├── backend/
 ├── docs/
 ├── firmware/
+├── portal/
 ├── AGENTS.md
 ├── LICENSE
 └── README.md
 ```
 
 - `docs/`
-  Architecture notes, compatibility analysis, planning, and hardware bring-up context for the replacement firmware.
+  Project context, architecture notes, compatibility analysis, firmware docs, backend docs, and portal deployment notes.
 - `firmware/`
-  The buildable ESP-IDF application. This is the source of truth for current behavior.
+  ESP-IDF firmware project for the device. This is the source of truth for implemented device behavior.
+- `backend/`
+  Native Air360 API backend in TypeScript/Fastify.
+- `portal/`
+  Next.js portal application.
 - `AGENTS.md`
-  Project-wide guidance for documentation and automation. It explicitly separates design context from implementation truth.
+  Repository-level guidance. In particular, it separates design context in `docs/` from implementation truth in `firmware/`.
 
-## Role of `docs/`
+## Documentation Map
 
-The `docs/` folder captures the reasoning around the project:
+Start here depending on what you need.
 
-- `docs/modern-replacement-firmware-architecture.md`
-  Describes the intended long-term architecture, platform choices, and design principles.
-- `docs/firmware-iterative-implementation-plan.md`
-  Breaks the work into delivery phases and clarifies what should be built first.
-- `docs/phase-1-hardware-boot-notes.md`
-  Documents the current bring-up assumptions and what the first Phase 1 runtime is expected to do on hardware.
-- `docs/airrohr-firmware-server-contract.md`
-  Analyzes the legacy firmware's server communication so compatibility can be preserved intentionally.
-- `docs/airrohr-firmware-ui-analysis.md`
-  Analyzes the legacy onboarding and local UI behavior that informs migration and compatibility decisions.
+- Repository and architecture context:
+  [docs/modern-replacement-firmware-architecture.md](docs/modern-replacement-firmware-architecture.md)
+- Firmware implementation plan and phase history:
+  [docs/firmware-iterative-implementation-plan.md](docs/firmware-iterative-implementation-plan.md)
+- Hardware bring-up notes:
+  [docs/phase-1-hardware-boot-notes.md](docs/phase-1-hardware-boot-notes.md)
+  and [docs/phase-2-onboarding-hardware-notes.md](docs/phase-2-onboarding-hardware-notes.md)
+- Legacy compatibility context:
+  [docs/airrohr-firmware-server-contract.md](docs/airrohr-firmware-server-contract.md)
+  and [docs/airrohr-firmware-ui-analysis.md](docs/airrohr-firmware-ui-analysis.md)
+- Firmware documentation map:
+  [docs/firmware/README.md](docs/firmware/README.md)
+- Backend documentation map:
+  [docs/backend/README.md](docs/backend/README.md)
+- Portal documentation map:
+  [docs/portal/README.md](docs/portal/README.md)
 
-Use `docs/` to understand intent, constraints, and roadmap. Do not treat it as proof that the new firmware already implements every planned behavior.
+## Components
 
-## Role of `firmware/`
+### Firmware
 
-The `firmware/` directory contains the actual ESP-IDF firmware project.
+The buildable device application lives in [firmware/README.md](firmware/README.md).
 
-This is where to look for:
+Current firmware implementation includes:
 
-- the project root `CMakeLists.txt`
-- the app component under `firmware/main/`
-- project configuration in `sdkconfig`, `sdkconfig.defaults`, and `main/Kconfig.projbuild`
-- flash layout in `partitions.csv`
-- the current VS Code entry point in `firmware/firmware.code-workspace`
+- ESP-IDF 6.x application for `esp32s3`
+- persisted device, sensor, and backend configuration in NVS
+- station-mode join with SNTP time sync and setup AP fallback
+- local web UI at `/`, `/status`, `/config`, `/sensors`, and `/backends`
+- sensor polling and measurement queueing
+- backend upload support for `Sensor.Community` and `Air360 API`
 
-Based on the current source tree, the firmware currently includes:
+### Backend
 
-- an `app_main` entry point and C++17 application structure
-- NVS-backed config creation and loading
-- a boot counter
-- a lab-only SoftAP bring-up hook
-- a minimal local HTTP server with `/` and `/status`
+The native API backend lives in [backend/README.md](backend/README.md).
 
-When documentation and code disagree, prefer `firmware/`.
+Current backend implementation is still early:
 
-## How a New Contributor Should Navigate the Repository
+- Fastify scaffold in TypeScript
+- `GET /` and `GET /health`
+- `PUT /v1/devices/:chip_id/batches/:client_batch_id` as a mock ingest endpoint with basic payload validation
 
-The easiest way to approach the repository is to choose a track.
+### Portal
 
-If you need architecture and project context:
+The web portal lives in [portal/README.md](portal/README.md).
 
-1. Read this `README.md`
-2. Read `docs/modern-replacement-firmware-architecture.md`
-3. Read `docs/firmware-iterative-implementation-plan.md`
+Current portal implementation is also early:
 
-If you need to understand what is already implemented:
+- Next.js 16 / React 19 / TypeScript scaffold
+- single landing page in `src/app/page.tsx`
+- deployment notes under `docs/portal/`
 
-1. Go to `firmware/`
-2. Inspect `firmware/main/src/app.cpp`
-3. Inspect `firmware/main/src/config_repository.cpp`
-4. Inspect `firmware/main/src/network_manager.cpp`
-5. Inspect `firmware/main/src/web_server.cpp`
+## Getting Started
 
-If you need hardware bring-up context:
+If you need to work on device behavior:
 
-1. Read `docs/phase-1-hardware-boot-notes.md`
-2. Cross-check the notes against the code in `firmware/`
+1. Read [firmware/README.md](firmware/README.md)
+2. Then use [docs/firmware/README.md](docs/firmware/README.md) as the firmware documentation map
 
-If you need compatibility context from the legacy firmware:
+If you need repository context first:
 
-1. Read `docs/airrohr-firmware-server-contract.md`
-2. Read `docs/airrohr-firmware-ui-analysis.md`
-3. Treat those as constraints for future implementation work, not as current implementation proof
+1. Read this file
+2. Read [docs/modern-replacement-firmware-architecture.md](docs/modern-replacement-firmware-architecture.md)
+3. Read [docs/firmware-iterative-implementation-plan.md](docs/firmware-iterative-implementation-plan.md)
 
-For day-to-day firmware work in VS Code, open `firmware/` directly or open `firmware/firmware.code-workspace`.
+If you need backend work:
+
+1. Read [backend/README.md](backend/README.md)
+2. Read [docs/backend/README.md](docs/backend/README.md)
+
+If you need portal work:
+
+1. Read [portal/README.md](portal/README.md)
+2. Read [docs/portal/README.md](docs/portal/README.md)
 
 ## Current Status
 
-Based on the current structure, the repository contains a real firmware foundation and a larger body of design and planning work around it.
+Current implementation status appears to be:
 
-Implemented now in `firmware/`:
-
-- ESP-IDF CMake project for `esp32s3`
-- C++17 application structure with explicit modules
-- NVS-backed default device config and boot counter
-- minimal status-oriented local web server
-- lab AP bring-up path for early validation
-
-Still primarily represented as design or planned work in `docs/`:
-
-- fuller onboarding flow centered on `/config`
-- broader sensor support
-- backend upload compatibility slices
-- later transport and expansion work
+- `firmware/` is the most substantial implemented part of the repository
+- `backend/` is a minimal but real API scaffold with a mock ingest path
+- `portal/` is a minimal frontend scaffold
+- many documents in `docs/` still describe intended direction, rollout phases, and compatibility constraints rather than completed work
 
 ## Development Notes
 
-- Keep repository-level documentation focused on project navigation and context.
-- Keep firmware implementation details and operational instructions scoped to `firmware/`.
-- Avoid treating generated files under `firmware/build/` as maintained source.
-- Preserve the distinction between architectural intent in `docs/` and current implementation in `firmware/`.
+- Keep repository-level docs focused on project navigation and boundaries between subsystems.
+- Keep firmware implementation details in `firmware/README.md` and `docs/firmware/`.
+- Keep backend and portal operational details in their own directories and docs.
+- Do not treat generated files under `firmware/build/` as maintained source.
+- Preserve the distinction between planned behavior in `docs/` and implemented behavior in `firmware/`, `backend/`, and `portal/`.

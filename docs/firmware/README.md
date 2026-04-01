@@ -6,7 +6,15 @@ These documents are written from the current `firmware/` source tree. They are m
 
 ## What Is In Scope
 
-The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local configuration runtime, persists device and sensor configuration in NVS, brings up either Wi-Fi station mode or setup AP mode, exposes a local web UI at `/`, `/status`, `/config`, and `/sensors`, and runs a background sensor manager for supported sensor drivers.
+The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
+
+- boots a C++17 runtime around `air360::App`
+- persists device, sensor, and backend configuration in NVS
+- brings up either Wi-Fi station mode or setup AP mode
+- synchronizes UTC time through SNTP when station uplink is available
+- exposes a local web UI at `/`, `/status`, `/config`, `/sensors`, and `/backends`
+- runs a background sensor manager for supported drivers
+- runs a background upload manager for supported remote backends
 
 ## Document Map
 
@@ -20,10 +28,13 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that boots a local 
   Sensor subsystem architecture, registry/runtime model, supported drivers, generic measurements, transports, and current board wiring assumptions.
 - [`planned-device-support.md`](planned-device-support.md)
   Forward-looking inventory of planned sensors, peripherals, and connectivity modules. This file is planning-oriented, not a record of what is already implemented.
+- [`../../firmware/README.md`](../../firmware/README.md)
+  Operational firmware README with build, flash, monitor, startup, upload, and known-limitation details.
 
 ## How To Use These Docs
 
 - Start with [`project-structure.md`](project-structure.md) if you are new to the firmware tree.
+- Read [`../../firmware/README.md`](../../firmware/README.md) first if you need the practical build and runtime overview.
 - Read [`architecture.md`](architecture.md) to understand boot flow and service ownership.
 - Use [`configuration.md`](configuration.md) when changing defaults, `sdkconfig`, or partitions.
 - Use [`sensors.md`](sensors.md) before adding a new driver or changing sensor setup behavior.
