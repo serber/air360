@@ -17,7 +17,7 @@ inline const char* backendDefaultEndpointUrl(BackendType type) {
         case BackendType::kSensorCommunity:
             return "http://api.sensor.community/v1/push-sensor-data/";
         case BackendType::kAir360Api:
-            return "https://api.air360.ru";
+            return "http://api.air360.ru";
         case BackendType::kUnknown:
         default:
             return "";

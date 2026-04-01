@@ -2,7 +2,7 @@
 
 This directory contains the ESP-IDF firmware project for Air360.
 
-The current implementation is a Phase 3.2 runtime for `esp32s3` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device and sensor configuration, resolves whether the device should run in station mode or setup AP mode, exposes local HTTP endpoints at `/`, `/status`, `/config`, and `/sensors`, and runs a background sensor manager for supported sensor drivers.
+The current implementation is a Phase 3.2 runtime for `esp32s3` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device, sensor, and backend configuration, resolves whether the device should run in station mode or setup AP mode, synchronizes UTC time through SNTP when station uplink is available, exposes local HTTP endpoints at `/`, `/status`, `/config`, `/sensors`, and `/backends`, runs a background sensor manager for supported sensor drivers, and runs a background upload manager for supported remote backends.
 
 Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/).
 
@@ -50,9 +50,11 @@ Public component headers for the current runtime:
 - `status_service.hpp`
   Declares the service that renders the root HTML page and `/status` JSON.
 - `web_server.hpp`
-  Declares the wrapper around `esp_http_server`, including config and sensor routes.
+  Declares the wrapper around `esp_http_server`, including config, sensor, and backend routes.
 - `sensors/`
   Declares the sensor runtime types, registry, transport bindings, config model, and driver interfaces.
+- `uploads/`
+  Declares backend config persistence, upload transport, measurement queueing, backend registry, and uploader interfaces for remote integrations.
 
 ### `main/src/`
 
@@ -67,13 +69,15 @@ Current implementation files:
 - `config_repository.cpp`
   Stores and validates the `DeviceConfig` blob and boot counter in NVS.
 - `network_manager.cpp`
-  Attempts Wi-Fi station join from saved credentials and falls back to setup AP mode at `192.168.4.1`.
+  Attempts Wi-Fi station join from saved credentials, synchronizes SNTP time with `pool.ntp.org` when station uplink is available, and falls back to setup AP mode at `192.168.4.1`.
 - `status_service.cpp`
-  Produces the runtime HTML and JSON payloads, including build, config, network, and sensor summaries.
+  Produces the runtime HTML and JSON payloads, including build, config, network, sensor, and upload summaries.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, and `/sensors` handlers, and stages sensor edits in memory until the user explicitly applies them and reboots.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, and `/backends` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection and Air360 bearer token changes immediately.
 - `sensors/`
   Contains sensor persistence, registry, transport helpers, background orchestration, and concrete drivers.
+- `uploads/`
+  Contains backend persistence, runtime backend registry, in-memory measurement queueing, upload scheduling, HTTP transport, and concrete backend adapters for Sensor.Community and Air360 API.
 
 ## Requirements
 
@@ -156,12 +160,14 @@ Treat `sdkconfig` as the current effective build config, not as a concise source
 
 ### Persisted runtime configuration
 
-The runtime stores two separate NVS-backed models:
+The runtime stores three separate NVS-backed models:
 
 - `DeviceConfig`
   Device name, HTTP port, station credentials, setup AP credentials, and local auth placeholder flag.
 - `SensorConfigList`
   The configured sensor inventory, including type, inferred transport, poll interval, display name, and transport-specific fields.
+- `BackendConfigList`
+  Enabled backend set, upload interval, backend display names, static endpoint defaults, and backend-specific credentials such as the Air360 bearer token.
 
 ## Build
 
@@ -245,6 +251,7 @@ After boot, the runtime exposes one of two local access paths:
   - `http://192.168.4.1/`
   - `http://192.168.4.1/config`
   - `http://192.168.4.1/sensors`
+  - `http://192.168.4.1/backends`
   - `http://192.168.4.1/status`
 - in station mode:
   - the same routes are served on the DHCP address obtained by the device on the configured Wi-Fi network
@@ -262,9 +269,12 @@ The current startup flow is:
 7. `SensorConfigRepository` loads or creates a `SensorConfigList`
 8. `SensorManager` builds the managed sensor set and starts the `air360_sensor` FreeRTOS polling task when needed
 9. `StatusService` is populated with build, config, network, and sensor runtime state
-10. `NetworkManager` attempts station join when Wi-Fi credentials are present
-11. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
-12. `WebServer` starts `esp_http_server` on the configured HTTP port
+10. `BackendConfigRepository` loads or creates a `BackendConfigList`
+11. `NetworkManager` attempts station join when Wi-Fi credentials are present
+12. when station uplink is available, `NetworkManager` starts SNTP and waits for valid UTC system time
+13. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
+14. `UploadManager` starts, snapshots measurements from `MeasurementStore`, and schedules backend uploads
+15. `WebServer` starts `esp_http_server` on the configured HTTP port
 
 The firmware now has a clear central sensor orchestration model:
 
@@ -272,6 +282,23 @@ The firmware now has a clear central sensor orchestration model:
 - one background polling task
 - one runtime snapshot consumed by `/` and `/status`
 - one generic measurement model used by all drivers through typed value channels rather than sensor-specific top-level structs
+
+The firmware also has a separate upload pipeline:
+
+- `SensorManager` appends measurement samples into `MeasurementStore`
+- `MeasurementStore` maintains `pending` and `inflight` queues so uploads can be acknowledged or restored
+- `UploadManager` drains a measurement batch on each cycle and fans it out to enabled backend adapters
+- `UploadTransport` executes HTTP requests and records phase timing for connect, send, first-byte, and total request duration
+- backend-specific adapters translate the generic measurement batch into backend payloads
+
+Currently implemented backends are:
+
+- `Sensor.Community`
+  Fixed endpoint `http://api.sensor.community/v1/push-sensor-data/`
+- `Air360 API`
+  Fixed base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
+
+Backend selection and upload interval are configured through `/backends`. Endpoint URLs are static in firmware and are not edited through the UI. The Air360 backend accepts a bearer token through the local `/backends` form.
 
 Supported drivers confirmed by the current registry:
 
@@ -307,7 +334,7 @@ The `/sensors` page no longer asks the user to choose an arbitrary transport. Tr
 The project uses a custom partition table in `partitions.csv`:
 
 - `nvs`
-  Used now for the persisted device config blob, sensor config blob, and boot counter.
+  Used now for the persisted device config blob, sensor config blob, backend config blob, and boot counter.
 - `otadata`
   Present for OTA metadata, but the current firmware does not implement OTA update logic yet.
 - `phy_init`
@@ -325,15 +352,18 @@ The current runtime depends on NVS, not on SPIFFS.
 - If the build cannot find `xtensa-esp32s3-elf-gcc`, the ESP-IDF toolchain is not on `PATH`, which also points to a missing or incomplete ESP-IDF environment setup.
 - For VS Code, open `firmware/` as the project root. Opening the repository root can cause non-ESP-IDF tooling to treat this as a plain CMake project instead.
 - `build/compile_commands.json` is generated after a successful configure/build and is useful for editor integration.
+- Upload timing diagnostics are logged under the `air360.http` tag and currently include `connect_ms`, `send_ms`, `first_byte_ms`, and `total_ms`.
+- UTC timestamps depend on SNTP. The firmware waits for valid system time after successful station join before starting normal upload traffic.
+- HTTPS backend validation uses the ESP-IDF certificate bundle rather than a firmware-pinned Air360 leaf certificate.
 
 ## Known Limitations
 
 Current limitations confirmed by the source tree:
 
-- no backend upload logic is implemented yet
 - no captive-portal DNS or wildcard DNS flow is implemented yet
 - config changes are applied by reboot rather than live reconfiguration
 - sensor changes are not applied live; they are staged in memory and only persisted when the user explicitly applies them and reboots
 - the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the local UI is still assembled directly in C++ strings
+- backend HTTP clients are reused per origin for lower latency, but uploads still depend on the remote server allowing persistent connections

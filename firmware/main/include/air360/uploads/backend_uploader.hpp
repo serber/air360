@@ -37,6 +37,9 @@ struct UploadTransportResponse {
     int http_status = 0;
     int response_size = 0;
     std::uint32_t response_time_ms = 0U;
+    std::uint32_t connect_time_ms = 0U;
+    std::uint32_t request_send_time_ms = 0U;
+    std::uint32_t first_response_time_ms = 0U;
     std::string body_snippet;
 };
 
