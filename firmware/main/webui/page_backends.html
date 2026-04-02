@@ -5,8 +5,8 @@
     <div class='stat'><div class='stat__label'>Configured Backends</div><div class='stat__value'>{{CONFIGURED_BACKENDS_COUNT}}</div></div>
 </section>
 {{NOTICE}}
-<form class='stack' method='POST' action='/backends' data-dirty-track='backends'>
-    <div class='panel stack'>
+<form class='stack stack--scene' method='POST' action='/backends' data-dirty-track='backends'>
+    <div class='panel panel--policy stack'>
         <h2>Upload Policy</h2>
         <p class='muted'>Backends stay device-local here: selection, token storage, and retry state are all managed by firmware.</p>
         <div class='field'>

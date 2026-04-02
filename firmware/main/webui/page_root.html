@@ -6,26 +6,26 @@
     <div class='stat'><div class='stat__label'>Upload Interval</div><div class='stat__value'>{{UPLOAD_INTERVAL}} ms</div></div>
 </section>
 
-<section class='panel stack'>
+<section class='panel panel--identity stack'>
     <h2>Identity</h2>
     <p>Board: <code>{{BOARD_NAME}}</code> · Chip: <code>{{CHIP_NAME}}</code> · revision <code>{{CHIP_REVISION}}</code></p>
     <p>Chip ID: <code>{{CHIP_ID}}</code> · Short ID: <code>{{SHORT_CHIP_ID}}</code> · MAC ID: <code>{{ESP_MAC_ID}}</code></p>
     <p>IP address: <code>{{IP_ADDRESS}}</code>{{NETWORK_ERROR}}</p>
 </section>
 
-<section class='panel stack'>
+<section class='panel panel--overview stack'>
     <h2>Backends</h2>
     <p class='muted'>Enabled <code>{{BACKEND_COUNT}}</code> · degraded <code>{{DEGRADED_BACKEND_COUNT}}</code></p>
     {{BACKEND_BLOCK}}
 </section>
 
-<section class='panel stack'>
+<section class='panel panel--overview stack'>
     <h2>Sensors</h2>
     <p class='muted'>Configured sensors: <code>{{SENSOR_COUNT}}</code></p>
     {{SENSOR_BLOCK}}
 </section>
 
-<section class='panel runtime-dump'>
+<section class='panel panel--runtime runtime-dump'>
     <h2>Runtime Snapshot</h2>
     <pre>{{RUNTIME_SNAPSHOT}}</pre>
 </section>
