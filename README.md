@@ -79,6 +79,7 @@ Current firmware implementation includes:
 - persisted device, sensor, and backend configuration in NVS
 - station-mode join with SNTP time sync and setup AP fallback
 - local web UI at `/`, `/status`, `/config`, `/sensors`, and `/backends`
+- embedded frontend assets under `firmware/main/webui/`, served by the firmware at `/assets/*`
 - sensor polling and measurement queueing
 - backend upload support for `Sensor.Community` and `Air360 API`
 

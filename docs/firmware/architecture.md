@@ -135,7 +135,7 @@ This is the current answer to the orchestration question: the firmware uses a si
 
 ## HTTP And Local Control Surface
 
-The runtime exposes four local routes:
+The runtime exposes local routes for overview, JSON status, device config, sensors, backends, and shared assets:
 
 - `/`
   HTML status overview and links to config pages.
@@ -145,8 +145,18 @@ The runtime exposes four local routes:
   Device and Wi-Fi configuration form.
 - `/sensors`
   Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them.
+- `/backends`
+  Backend enablement, upload interval, and Air360 bearer token configuration.
+- `/assets/*`
+  Shared embedded CSS and JavaScript used by the local web UI shell.
 
-The HTML pages are still assembled directly in C++ strings. The repository has a separate planning note for later migration to embedded web assets, but that is not implemented yet.
+The local UI now uses a mixed model:
+
+- page-specific data is still rendered server-side in C++
+- shared CSS, JavaScript, and page templates live as standalone files under `firmware/main/webui/`
+- those assets are embedded into the firmware image and served through `/assets/*`
+
+The repository still keeps a separate planning note for the longer-term migration toward richer frontend assets and API-driven pages.
 
 ## Error Handling Model
 

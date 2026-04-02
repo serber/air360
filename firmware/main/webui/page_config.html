@@ -1,0 +1,53 @@
+<section class='stats'>
+    <div class='stat'><div class='stat__label'>Network Mode</div><div class='stat__value'><code>{{NETWORK_MODE}}</code></div></div>
+    <div class='stat'><div class='stat__label'>IP Address</div><div class='stat__value'><code>{{IP_ADDRESS}}</code></div></div>
+    <div class='stat'><div class='stat__label'>Device Name</div><div class='stat__value'><code>{{DEVICE_NAME}}</code></div></div>
+    <div class='stat'><div class='stat__label'>Local Auth</div><div class='stat__value'>{{LOCAL_AUTH_STATE}}</div></div>
+</section>
+{{NOTICE}}
+<section class='stack'>
+    <div class='panel stack'>
+        <h2>Network and Device Settings</h2>
+        <p class='muted'>This form stores local device identity, station credentials, and setup AP fallback. Saving applies the new configuration and schedules a reboot.</p>
+        {{NETWORK_ERROR}}
+        <form class='stack' method='POST' action='/config' data-dirty-track='config' data-confirm='Save configuration and reboot the device?'>
+            <div class='field'>
+                <label for='device_name'>Device name</label>
+                <input class='input' id='device_name' name='device_name' maxlength='31' value='{{DEVICE_NAME_VALUE}}'>
+            </div>
+            <div class='field'>
+                <label for='wifi_ssid'>Wi-Fi SSID</label>
+                <input class='input' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='{{WIFI_SSID_VALUE}}' data-wifi-ssid-input>
+            </div>
+            <div class='field' data-wifi-password-field>
+                <label for='wifi_password'>Wi-Fi password</label>
+                <div class='secret-row'>
+                    <input class='input' id='wifi_password' name='wifi_password' type='password' maxlength='63' value='{{WIFI_PASSWORD_VALUE}}'>
+                    <button class='button button--ghost' type='button' data-secret-toggle='wifi_password'>Show</button>
+                </div>
+                <p class='hint' data-wifi-password-hint>Leave Wi-Fi SSID empty to reboot back into setup AP mode.</p>
+            </div>
+            <div class='field'>
+                <label for='ap_ssid'>Setup AP name</label>
+                <input class='input' id='ap_ssid' name='ap_ssid' maxlength='32' value='{{AP_SSID_VALUE}}'>
+            </div>
+            <div class='field'>
+                <label for='ap_password'>Setup AP password</label>
+                <div class='secret-row'>
+                    <input class='input' id='ap_password' name='ap_password' type='password' maxlength='63' value='{{AP_PASSWORD_VALUE}}'>
+                    <button class='button button--ghost' type='button' data-secret-toggle='ap_password'>Show</button>
+                </div>
+            </div>
+            <label class='checkbox'>
+                <input name='local_auth_enabled' type='checkbox' {{LOCAL_AUTH_CHECKED}}>
+                <span>
+                    <span class='checkbox__label'>Local auth placeholder</span><br>
+                    <span class='hint'>Stored in config only for now. Access control is not enforced yet.</span>
+                </span>
+            </label>
+            <div class='split-actions'>
+                <button class='button' type='submit'>Save and reboot</button>
+            </div>
+        </form>
+    </div>
+</section>

@@ -7,38 +7,12 @@
 #include <utility>
 
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/web_ui.hpp"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
-
-std::string htmlEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '&':
-                escaped += "&amp;";
-                break;
-            case '<':
-                escaped += "&lt;";
-                break;
-            case '>':
-                escaped += "&gt;";
-                break;
-            case '"':
-                escaped += "&quot;";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
-}
 
 std::string jsonEscape(const std::string& input) {
     std::string escaped;
@@ -168,6 +142,194 @@ std::string formatTimeForDisplay(std::int64_t unix_ms, std::uint64_t uptime_ms) 
     return "never";
 }
 
+struct RuntimeOverviewViewModel {
+    std::string network_mode;
+    std::string device_name;
+    std::size_t sensor_count = 0U;
+    std::size_t backend_count = 0U;
+    std::uint32_t upload_interval_ms = 0U;
+    std::string board_name;
+    std::string chip_name;
+    std::string chip_revision;
+    std::string chip_id;
+    std::string short_chip_id;
+    std::string esp_mac_id;
+    std::string ip_address;
+    std::string network_error_html;
+    std::size_t degraded_backend_count = 0U;
+    std::string backend_block_html;
+    std::string sensor_block_html;
+    std::string runtime_snapshot_html;
+};
+
+std::string renderBackendOverviewBlock(const std::vector<BackendStatusSnapshot>& backends) {
+    std::string html;
+    if (backends.empty()) {
+        return "<p class='muted'>No backends configured yet.</p>";
+    }
+
+    html += "<div class='list'>";
+    for (const auto& backend : backends) {
+        std::string http_status_pill;
+        if (backend.last_http_status > 0) {
+            http_status_pill += "<span class='pill'>HTTP ";
+            http_status_pill += std::to_string(backend.last_http_status);
+            http_status_pill += "</span>";
+        }
+
+        std::string response_time_pill;
+        if (backend.last_response_time_ms > 0U) {
+            response_time_pill += "<span class='pill'>";
+            response_time_pill += std::to_string(backend.last_response_time_ms);
+            response_time_pill += " ms</span>";
+        }
+
+        std::string last_error_block;
+        if (!backend.last_error.empty()) {
+            last_error_block += "<p class='muted'>";
+            last_error_block += htmlEscape(backend.last_error);
+            last_error_block += "</p>";
+        }
+
+        html += renderTemplate(
+            WebTemplateKey::kOverviewBackendItem,
+            WebTemplateBindings{
+                {"DISPLAY_NAME", htmlEscape(backend.display_name)},
+                {"STATE_KEY", htmlEscape(backendRuntimeStateKey(backend.state))},
+                {"RESULT_KEY", htmlEscape(uploadResultClassKey(backend.last_result))},
+                {"LAST_ATTEMPT", htmlEscape(
+                    formatTimeForDisplay(
+                        backend.last_attempt_unix_ms,
+                        backend.last_attempt_uptime_ms))},
+                {"HTTP_STATUS_PILL", http_status_pill},
+                {"RESPONSE_TIME_PILL", response_time_pill},
+                {"LAST_ERROR_BLOCK", last_error_block},
+            });
+    }
+    html += "</div>";
+    return html;
+}
+
+std::string renderSensorOverviewBlock(const std::vector<SensorRuntimeInfo>& sensors) {
+    std::string html;
+    if (sensors.empty()) {
+        return "<p class='muted'>No sensors configured yet.</p>";
+    }
+
+    html += "<div class='list'>";
+    for (const auto& sensor : sensors) {
+        std::string readings_block;
+        const std::string readings = measurementSummary(sensor.measurement);
+        if (!readings.empty()) {
+            readings_block += "<p>";
+            readings_block += htmlEscape(readings);
+            readings_block += "</p>";
+        }
+
+        std::string last_error_block;
+        if (!sensor.last_error.empty()) {
+            last_error_block += "<p class='muted'>";
+            last_error_block += htmlEscape(sensor.last_error);
+            last_error_block += "</p>";
+        }
+
+        html += renderTemplate(
+            WebTemplateKey::kOverviewSensorItem,
+            WebTemplateBindings{
+                {"DISPLAY_NAME", htmlEscape(sensor.display_name)},
+                {"TYPE_KEY", htmlEscape(sensor.type_key)},
+                {"BINDING_SUMMARY", htmlEscape(sensor.binding_summary)},
+                {"STATE_KEY", htmlEscape(sensorRuntimeStateKey(sensor.state))},
+                {"READINGS_BLOCK", readings_block},
+                {"LAST_ERROR_BLOCK", last_error_block},
+            });
+    }
+    html += "</div>";
+    return html;
+}
+
+RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
+    const BuildInfo& build_info,
+    const DeviceConfig& config,
+    const NetworkState& network_state,
+    std::uint32_t boot_count,
+    bool config_loaded_from_storage,
+    const std::vector<SensorRuntimeInfo>& sensors,
+    const std::vector<BackendStatusSnapshot>& backends,
+    const UploadManager* upload_manager) {
+    RuntimeOverviewViewModel model;
+    model.network_mode = networkModeString(network_state.mode);
+    model.device_name = config.device_name;
+    model.sensor_count = sensors.size();
+    model.backend_count = upload_manager != nullptr ? upload_manager->enabledCount() : 0U;
+    model.upload_interval_ms = upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U;
+    model.board_name = build_info.board_name;
+    model.chip_name = build_info.chip_name;
+    model.chip_revision = build_info.chip_revision;
+    model.chip_id = build_info.chip_id.empty() ? "unavailable" : build_info.chip_id;
+    model.short_chip_id =
+        build_info.short_chip_id.empty() ? "unavailable" : build_info.short_chip_id;
+    model.esp_mac_id = build_info.esp_mac_id.empty() ? "unavailable" : build_info.esp_mac_id;
+    model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
+    model.degraded_backend_count = upload_manager != nullptr ? upload_manager->degradedCount() : 0U;
+    model.backend_block_html = renderBackendOverviewBlock(backends);
+    model.sensor_block_html = renderSensorOverviewBlock(sensors);
+
+    if (!network_state.last_error.empty()) {
+        model.network_error_html += " · Last network error: <code>";
+        model.network_error_html += htmlEscape(network_state.last_error);
+        model.network_error_html += "</code>";
+    }
+
+    model.runtime_snapshot_html.reserve(1024);
+    model.runtime_snapshot_html += "project: " + htmlEscape(build_info.project_name) + "\n";
+    model.runtime_snapshot_html += "version: " + htmlEscape(build_info.project_version) + "\n";
+    model.runtime_snapshot_html += "idf: " + htmlEscape(build_info.idf_version) + "\n";
+    model.runtime_snapshot_html += "chip_name: " + htmlEscape(build_info.chip_name) + "\n";
+    model.runtime_snapshot_html += "chip_revision: " + htmlEscape(build_info.chip_revision) + "\n";
+    model.runtime_snapshot_html += "chip_id: " + htmlEscape(build_info.chip_id) + "\n";
+    model.runtime_snapshot_html += "short_chip_id: " + htmlEscape(build_info.short_chip_id) + "\n";
+    model.runtime_snapshot_html += "esp_mac_id: " + htmlEscape(build_info.esp_mac_id) + "\n";
+    model.runtime_snapshot_html += "boot_count: " + std::to_string(boot_count) + "\n";
+    model.runtime_snapshot_html += "config_source: ";
+    model.runtime_snapshot_html += (config_loaded_from_storage ? "stored" : "defaults");
+    model.runtime_snapshot_html += "\nlab_ap_active: ";
+    model.runtime_snapshot_html += (network_state.lab_ap_active ? "true" : "false");
+    model.runtime_snapshot_html += "\nstation_ssid: ";
+    model.runtime_snapshot_html += htmlEscape(network_state.station_ssid);
+    model.runtime_snapshot_html += "\nstation_connected: ";
+    model.runtime_snapshot_html += (network_state.station_connected ? "true" : "false");
+    model.runtime_snapshot_html += "\ntime_sync_attempted: ";
+    model.runtime_snapshot_html += (network_state.time_sync_attempted ? "true" : "false");
+    model.runtime_snapshot_html += "\ntime_synchronized: ";
+    model.runtime_snapshot_html += (network_state.time_synchronized ? "true" : "false");
+    model.runtime_snapshot_html += "\nsetup_ap_ssid: ";
+    model.runtime_snapshot_html += htmlEscape(network_state.lab_ap_ssid);
+    model.runtime_snapshot_html += "\nlab_ap_ip: ";
+    model.runtime_snapshot_html += htmlEscape(network_state.ip_address);
+    model.runtime_snapshot_html += "\nlast_error: ";
+    model.runtime_snapshot_html += htmlEscape(network_state.last_error);
+    model.runtime_snapshot_html += "\ntime_sync_error: ";
+    model.runtime_snapshot_html += htmlEscape(network_state.time_sync_error);
+    model.runtime_snapshot_html += "\nlast_time_sync_unix_ms: ";
+    model.runtime_snapshot_html += std::to_string(network_state.last_time_sync_unix_ms);
+    model.runtime_snapshot_html += "\nconfig_http_port: ";
+    model.runtime_snapshot_html += std::to_string(config.http_port);
+    model.runtime_snapshot_html += "\nwifi_configured: ";
+    model.runtime_snapshot_html += (config.wifi_sta_ssid[0] != '\0' ? "true" : "false");
+    model.runtime_snapshot_html += "\nconfigured_sensors: ";
+    model.runtime_snapshot_html += std::to_string(sensors.size());
+    model.runtime_snapshot_html += "\nenabled_backends: ";
+    model.runtime_snapshot_html += std::to_string(upload_manager != nullptr ? upload_manager->enabledCount() : 0U);
+    model.runtime_snapshot_html += "\ndegraded_backends: ";
+    model.runtime_snapshot_html += std::to_string(upload_manager != nullptr ? upload_manager->degradedCount() : 0U);
+    model.runtime_snapshot_html += "\nupload_interval_ms: ";
+    model.runtime_snapshot_html += std::to_string(upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U);
+    model.runtime_snapshot_html += "\n";
+
+    return model;
+}
+
 }  // namespace
 
 StatusService::StatusService(BuildInfo build_info) : build_info_(std::move(build_info)) {}
@@ -215,159 +377,45 @@ std::string StatusService::renderRootHtml() const {
     const std::vector<BackendStatusSnapshot> backends =
         upload_manager_ != nullptr ? upload_manager_->backends()
                                    : std::vector<BackendStatusSnapshot>{};
+    const RuntimeOverviewViewModel model = buildRuntimeOverviewViewModel(
+        build_info_,
+        config_,
+        network_state_,
+        boot_count_,
+        config_loaded_from_storage_,
+        sensors,
+        backends,
+        upload_manager_);
 
-    std::string html;
-    html.reserve(5500);
-    html += "<!doctype html><html><head><meta charset='utf-8'>";
-    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>air360 runtime</title>";
-    html += "<style>body{font-family:system-ui,sans-serif;margin:2rem;max-width:52rem;line-height:1.5}";
-    html += "code{background:#f3f4f6;padding:.1rem .35rem;border-radius:.25rem}";
-    html += "pre{background:#111827;color:#f9fafb;padding:1rem;border-radius:.5rem;overflow:auto}";
-    html += "label{display:block;margin-top:1rem;font-weight:600}";
-    html += "input{width:100%;max-width:28rem;padding:.55rem;border:1px solid #d1d5db;border-radius:.35rem}";
-    html += "a{color:#0f766e}</style></head><body>";
-    html += "<h1>air360 Runtime</h1>";
-    html += "<p>Board: <code>" + htmlEscape(build_info_.board_name) + "</code></p>";
-    html += "<p>Chip: <code>" + htmlEscape(build_info_.chip_name) + "</code> · revision <code>";
-    html += htmlEscape(build_info_.chip_revision);
-    html += "</code></p>";
-    html += "<p>Device: <code>" + htmlEscape(config_.device_name) + "</code></p>";
-    html += "<p>Chip ID: <code>";
-    html += htmlEscape(build_info_.chip_id.empty() ? "unavailable" : build_info_.chip_id);
-    html += "</code></p>";
-    html += "<p>Short Chip ID: <code>";
-    html += htmlEscape(
-        build_info_.short_chip_id.empty() ? "unavailable" : build_info_.short_chip_id);
-    html += "</code></p>";
-    html += "<p>MAC ID: <code>";
-    html += htmlEscape(build_info_.esp_mac_id.empty() ? "unavailable" : build_info_.esp_mac_id);
-    html += "</code></p>";
-    html += "<p>Mode: <code>";
-    html += networkModeString(network_state_.mode);
-    html += "</code></p>";
-    html += "<p>Local UI: <a href='/config'>/config</a> · Sensors: <a href='/sensors'>/sensors</a> · Backends: <a href='/backends'>/backends</a> · JSON status: <a href='/status'>/status</a></p>";
-    html += "<h2>Backends</h2>";
-    html += "<p>Enabled backends: <code>";
-    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);
-    html += "</code> · degraded: <code>";
-    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->degradedCount() : 0U);
-    html += "</code> · interval <code>";
-    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->uploadIntervalMs() : 0U);
-    html += " ms</code></p>";
-    if (backends.empty()) {
-        html += "<p>No backends configured yet.</p>";
-    } else {
-        html += "<ul>";
-        for (const auto& backend : backends) {
-            html += "<li><strong>";
-            html += htmlEscape(backend.display_name);
-            html += "</strong> · <code>";
-            html += htmlEscape(backendRuntimeStateKey(backend.state));
-            html += "</code> · result <code>";
-            html += htmlEscape(uploadResultClassKey(backend.last_result));
-            html += "</code> · last attempt <code>";
-            html += htmlEscape(
-                formatTimeForDisplay(
-                    backend.last_attempt_unix_ms,
-                    backend.last_attempt_uptime_ms));
-            html += "</code>";
-            if (backend.last_http_status > 0) {
-                html += " · HTTP <code>";
-                html += std::to_string(backend.last_http_status);
-                html += "</code>";
-            }
-            if (backend.last_response_time_ms > 0U) {
-                html += " · ";
-                html += std::to_string(backend.last_response_time_ms);
-                html += " ms";
-            }
-            if (!backend.last_error.empty()) {
-                html += " · ";
-                html += htmlEscape(backend.last_error);
-            }
-            html += "</li>";
-        }
-        html += "</ul>";
-    }
-    html += "<h2>Sensors</h2>";
-    html += "<p>Configured sensors: <code>";
-    html += std::to_string(sensors.size());
-    html += "</code></p>";
-    if (sensors.empty()) {
-        html += "<p>No sensors configured yet.</p>";
-    } else {
-        html += "<ul>";
-        for (const auto& sensor : sensors) {
-            html += "<li><strong>";
-            html += htmlEscape(sensor.display_name);
-            html += "</strong> · <code>";
-            html += htmlEscape(sensor.type_key);
-            html += "</code> · <code>";
-            html += htmlEscape(sensor.binding_summary);
-            html += "</code> · state <code>";
-            html += htmlEscape(sensorRuntimeStateKey(sensor.state));
-            html += "</code>";
-            if (!sensor.last_error.empty()) {
-                html += " · ";
-                html += htmlEscape(sensor.last_error);
-            }
-            const std::string readings = measurementSummary(sensor.measurement);
-            if (!readings.empty()) {
-                html += " · ";
-                html += htmlEscape(readings);
-            }
-            html += "</li>";
-        }
-        html += "</ul>";
-    }
-    html += "<pre>";
-    html += "project: " + htmlEscape(build_info_.project_name) + "\n";
-    html += "version: " + htmlEscape(build_info_.project_version) + "\n";
-    html += "idf: " + htmlEscape(build_info_.idf_version) + "\n";
-    html += "chip_name: " + htmlEscape(build_info_.chip_name) + "\n";
-    html += "chip_revision: " + htmlEscape(build_info_.chip_revision) + "\n";
-    html += "chip_id: " + htmlEscape(build_info_.chip_id) + "\n";
-    html += "short_chip_id: " + htmlEscape(build_info_.short_chip_id) + "\n";
-    html += "esp_mac_id: " + htmlEscape(build_info_.esp_mac_id) + "\n";
-    html += "boot_count: " + std::to_string(boot_count_) + "\n";
-    html += "config_source: ";
-    html += (config_loaded_from_storage_ ? "stored" : "defaults");
-    html += "\nlab_ap_active: ";
-    html += (network_state_.lab_ap_active ? "true" : "false");
-    html += "\nstation_ssid: ";
-    html += htmlEscape(network_state_.station_ssid);
-    html += "\nstation_connected: ";
-    html += (network_state_.station_connected ? "true" : "false");
-    html += "\ntime_sync_attempted: ";
-    html += (network_state_.time_sync_attempted ? "true" : "false");
-    html += "\ntime_synchronized: ";
-    html += (network_state_.time_synchronized ? "true" : "false");
-    html += "\nsetup_ap_ssid: ";
-    html += htmlEscape(network_state_.lab_ap_ssid);
-    html += "\nlab_ap_ip: ";
-    html += htmlEscape(network_state_.ip_address);
-    html += "\nlast_error: ";
-    html += htmlEscape(network_state_.last_error);
-    html += "\ntime_sync_error: ";
-    html += htmlEscape(network_state_.time_sync_error);
-    html += "\nlast_time_sync_unix_ms: ";
-    html += std::to_string(network_state_.last_time_sync_unix_ms);
-    html += "\nconfig_http_port: ";
-    html += std::to_string(config_.http_port);
-    html += "\nwifi_configured: ";
-    html += (config_.wifi_sta_ssid[0] != '\0' ? "true" : "false");
-    html += "\nconfigured_sensors: ";
-    html += std::to_string(sensors.size());
-    html += "\nenabled_backends: ";
-    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);
-    html += "\ndegraded_backends: ";
-    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->degradedCount() : 0U);
-    html += "\nupload_interval_ms: ";
-    html += std::to_string(upload_manager_ != nullptr ? upload_manager_->uploadIntervalMs() : 0U);
-    html += "\n";
-    html += "</pre></body></html>";
-    return html;
+    const std::string body = renderPageTemplate(
+        WebTemplateKey::kHome,
+        WebTemplateBindings{
+            {"NETWORK_MODE", htmlEscape(model.network_mode)},
+            {"DEVICE_NAME", htmlEscape(model.device_name)},
+            {"SENSOR_COUNT", std::to_string(model.sensor_count)},
+            {"BACKEND_COUNT", std::to_string(model.backend_count)},
+            {"UPLOAD_INTERVAL", std::to_string(model.upload_interval_ms)},
+            {"BOARD_NAME", htmlEscape(model.board_name)},
+            {"CHIP_NAME", htmlEscape(model.chip_name)},
+            {"CHIP_REVISION", htmlEscape(model.chip_revision)},
+            {"CHIP_ID", htmlEscape(model.chip_id)},
+            {"SHORT_CHIP_ID", htmlEscape(model.short_chip_id)},
+            {"ESP_MAC_ID", htmlEscape(model.esp_mac_id)},
+            {"IP_ADDRESS", htmlEscape(model.ip_address)},
+            {"NETWORK_ERROR", model.network_error_html},
+            {"DEGRADED_BACKEND_COUNT", std::to_string(model.degraded_backend_count)},
+            {"BACKEND_BLOCK", model.backend_block_html},
+            {"SENSOR_BLOCK", model.sensor_block_html},
+            {"RUNTIME_SNAPSHOT", model.runtime_snapshot_html},
+        });
+
+    return renderPageDocument(
+        WebPageKey::kHome,
+        "air360 runtime",
+        "Air360 Runtime",
+        "Live device overview, sensor state, upload state, and runtime metadata.",
+        body,
+        true);
 }
 
 std::string StatusService::renderStatusJson() const {

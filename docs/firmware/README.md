@@ -13,6 +13,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
 - brings up either Wi-Fi station mode or setup AP mode
 - synchronizes UTC time through SNTP when station uplink is available
 - exposes a local web UI at `/`, `/status`, `/config`, `/sensors`, and `/backends`
+- serves shared CSS, JavaScript, and page templates from embedded files under `firmware/main/webui/`
 - runs a background sensor manager for supported drivers
 - runs a background upload manager for supported remote backends
 

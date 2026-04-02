@@ -5,6 +5,8 @@ idf_component_register(
         "src/build_info.cpp"
         "src/config_repository.cpp"
         "src/network_manager.cpp"
+        "src/web_assets.cpp"
+        "src/web_ui.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
         "src/uploads/adapters/air360_api_uploader.cpp"
@@ -60,6 +62,17 @@ idf_component_register(
         esp_wifi
         freertos
         nvs_flash
+    EMBED_TXTFILES
+        "webui/air360.css"
+        "webui/air360.js"
+        "webui/page_root.html"
+        "webui/page_config.html"
+        "webui/page_sensors.html"
+        "webui/page_backends.html"
+        "webui/card_backend.html"
+        "webui/card_sensor.html"
+        "webui/item_overview_backend.html"
+        "webui/item_overview_sensor.html"
 )
 
 target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_17)

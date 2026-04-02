@@ -16,6 +16,8 @@
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/uploads/backend_registry.hpp"
 #include "air360/uploads/upload_manager.hpp"
+#include "air360/web_assets.hpp"
+#include "air360/web_ui.hpp"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -65,6 +67,7 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 12U;
 
 void copyString(char* destination, std::size_t destination_size, const std::string& source) {
     if (destination_size == 0U) {
@@ -86,33 +89,6 @@ std::string boundedCString(const char* value, std::size_t capacity) {
     }
 
     return std::string(value, length);
-}
-
-std::string htmlEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '&':
-                escaped += "&amp;";
-                break;
-            case '<':
-                escaped += "&lt;";
-                break;
-            case '>':
-                escaped += "&gt;";
-                break;
-            case '"':
-                escaped += "&quot;";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
 }
 
 int decodeHex(char value) {
@@ -240,6 +216,37 @@ esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html) {
     return httpd_resp_send_chunk(request, nullptr, 0);
 }
 
+std::string_view assetPathFromUri(const char* uri) {
+    if (uri == nullptr) {
+        return {};
+    }
+
+    std::string_view path(uri);
+    constexpr std::string_view kPrefix = "/assets/";
+    if (path.size() < kPrefix.size() || path.substr(0, kPrefix.size()) != kPrefix) {
+        return {};
+    }
+
+    path.remove_prefix(kPrefix.size());
+    const std::size_t query = path.find('?');
+    if (query != std::string_view::npos) {
+        path = path.substr(0, query);
+    }
+    return path;
+}
+
+esp_err_t sendAssetResponse(httpd_req_t* request, std::string_view asset_path) {
+    const WebAssetView* asset = findEmbeddedWebAsset(asset_path);
+    if (asset == nullptr || asset->data == nullptr) {
+        httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Asset not found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    httpd_resp_set_type(request, asset->content_type);
+    httpd_resp_set_hdr(request, "Cache-Control", "public, max-age=604800, immutable");
+    return httpd_resp_send(request, asset->data, asset->size);
+}
+
 const char* networkModeLabel(NetworkMode mode) {
     switch (mode) {
         case NetworkMode::kSetupAp:
@@ -252,86 +259,130 @@ const char* networkModeLabel(NetworkMode mode) {
     }
 }
 
+struct ConfigPageViewModel {
+    std::string network_mode;
+    std::string ip_address;
+    std::string device_name;
+    std::string local_auth_state;
+    std::string notice_html;
+    std::string network_error_html;
+    std::string wifi_ssid_value;
+    std::string wifi_password_value;
+    std::string ap_ssid_value;
+    std::string ap_password_value;
+    bool local_auth_checked = false;
+};
+
+struct BackendCardViewModel {
+    std::string display_name;
+    std::string backend_key;
+    bool implemented = false;
+    bool enabled = false;
+    std::string endpoint;
+    bool show_bearer_token = false;
+    std::string bearer_token;
+    bool has_status = false;
+    std::string state_key;
+    std::string result_key;
+    std::uint32_t retry_count = 0U;
+    std::string last_attempt;
+    std::string last_success;
+    int last_http_status = 0;
+    std::uint32_t last_response_time_ms = 0U;
+    std::string last_error;
+};
+
+struct BackendsPageViewModel {
+    std::size_t enabled_count = 0U;
+    std::size_t degraded_count = 0U;
+    std::uint32_t upload_interval_ms = 0U;
+    std::size_t configured_backends_count = 0U;
+    std::string notice_html;
+    std::vector<BackendCardViewModel> cards;
+};
+
+struct SensorCardViewModel {
+    std::uint32_t id = 0U;
+    std::string display_name;
+    std::string runtime_state_key;
+    std::string transport_summary;
+    std::uint32_t poll_interval_ms = 0U;
+    std::string runtime_error;
+    std::string latest_reading;
+    std::string sensor_type_options_html;
+    std::string defaults_hint;
+    bool show_gpio_pin_select = false;
+    std::string gpio_options_html;
+    bool enabled = false;
+};
+
+struct SensorsPageViewModel {
+    std::size_t configured_count = 0U;
+    std::size_t max_sensors = 0U;
+    bool has_pending_changes = false;
+    std::size_t runtime_sensor_count = 0U;
+    std::size_t free_slots = 0U;
+    std::string notice_html;
+    std::vector<SensorCardViewModel> cards;
+    std::string sensor_type_options_html;
+    std::string selected_sensor_defaults;
+    std::string sensor_defaults_list_html;
+    std::string gpio_options_html;
+};
+
+ConfigPageViewModel buildConfigPageViewModel(
+    const DeviceConfig& config,
+    const NetworkState& network_state,
+    const std::string& notice,
+    bool error_notice);
+std::string renderBackendCard(const BackendCardViewModel& card);
+BackendsPageViewModel buildBackendsPageViewModel(
+    const BackendConfigList& backend_config_list,
+    const UploadManager& upload_manager,
+    const std::string& notice,
+    bool error_notice);
+std::string renderSensorCard(const SensorCardViewModel& card);
+SensorsPageViewModel buildSensorsPageViewModel(
+    const SensorConfigList& sensor_config_list,
+    const SensorManager& sensor_manager,
+    bool has_pending_changes,
+    const std::string& notice,
+    bool error_notice);
+const BackendRecord* findBackendRecordForDescriptor(
+    const BackendConfigList& config,
+    const BackendDescriptor& descriptor);
+
 std::string renderConfigPage(
     const DeviceConfig& config,
     const NetworkState& network_state,
     const std::string& notice,
     bool error_notice) {
-    std::string html;
-    html.reserve(5000);
-    html += "<!doctype html><html><head><meta charset='utf-8'>";
-    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>air360 config</title>";
-    html += "<style>";
-    html += "body{font-family:system-ui,sans-serif;margin:2rem;max-width:56rem;line-height:1.5}";
-    html += "label{display:block;margin-top:1rem;font-weight:600}";
-    html += "input{width:100%;max-width:30rem;padding:.6rem;border:1px solid #cbd5e1;border-radius:.4rem}";
-    html += "button{margin-top:1.5rem;padding:.7rem 1.2rem;border:0;border-radius:.5rem;background:#0f766e;color:white;font-weight:700}";
-    html += ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem 1.25rem}";
-    html += ".notice{margin:1rem 0;padding:.8rem 1rem;border-radius:.5rem}";
-    html += ".ok{background:#ecfdf5;color:#166534}.err{background:#fef2f2;color:#991b1b}";
-    html += "code{background:#f1f5f9;padding:.1rem .35rem;border-radius:.25rem}";
-    html += "</style></head><body>";
-    html += "<h1>air360 Configuration</h1>";
-    html += "<p>Mode: <code>";
-    html += networkModeLabel(network_state.mode);
-    html += "</code> · IP: <code>";
-    html += htmlEscape(network_state.ip_address.empty() ? "unavailable" : network_state.ip_address);
-    html += "</code></p>";
-    if (!network_state.last_error.empty()) {
-        html += "<p>Last network error: <code>";
-        html += htmlEscape(network_state.last_error);
-        html += "</code></p>";
-    }
+    const ConfigPageViewModel model =
+        buildConfigPageViewModel(config, network_state, notice, error_notice);
+    const std::string body = renderPageTemplate(
+        WebTemplateKey::kConfig,
+        WebTemplateBindings{
+            {"NETWORK_MODE", htmlEscape(model.network_mode)},
+            {"IP_ADDRESS", htmlEscape(model.ip_address)},
+            {"DEVICE_NAME", htmlEscape(model.device_name)},
+            {"LOCAL_AUTH_STATE", model.local_auth_state},
+            {"NOTICE", model.notice_html},
+            {"NETWORK_ERROR", model.network_error_html},
+            {"DEVICE_NAME_VALUE", htmlEscape(model.device_name)},
+            {"WIFI_SSID_VALUE", htmlEscape(model.wifi_ssid_value)},
+            {"WIFI_PASSWORD_VALUE", htmlEscape(model.wifi_password_value)},
+            {"AP_SSID_VALUE", htmlEscape(model.ap_ssid_value)},
+            {"AP_PASSWORD_VALUE", htmlEscape(model.ap_password_value)},
+            {"LOCAL_AUTH_CHECKED", model.local_auth_checked ? "checked" : ""},
+        });
 
-    if (!notice.empty()) {
-        html += "<div class='notice ";
-        html += error_notice ? "err" : "ok";
-        html += "'>";
-        html += htmlEscape(notice);
-        html += "</div>";
-    }
-
-    html += "<div class='card'>";
-    html += "<p>This Phase 2 form stores Wi-Fi credentials and basic local device settings. ";
-    html += "After save, the firmware reboots and either joins Wi-Fi in station mode or falls back to setup AP mode.</p>";
-    html += "<form method='POST' action='/config'>";
-    html += "<label for='device_name'>Device name</label>";
-    html += "<input id='device_name' name='device_name' maxlength='31' value='";
-    html += htmlEscape(config.device_name);
-    html += "'>";
-
-    html += "<label for='wifi_ssid'>Wi-Fi SSID</label>";
-    html += "<input id='wifi_ssid' name='wifi_ssid' maxlength='32' value='";
-    html += htmlEscape(config.wifi_sta_ssid);
-    html += "'>";
-
-    html += "<label for='wifi_password'>Wi-Fi password</label>";
-    html += "<input id='wifi_password' name='wifi_password' type='password' maxlength='63' value='";
-    html += htmlEscape(config.wifi_sta_password);
-    html += "'>";
-    html += "<p>If Wi-Fi SSID is left empty, the device will reboot back into setup AP mode.</p>";
-
-    html += "<label for='ap_ssid'>Setup AP name</label>";
-    html += "<input id='ap_ssid' name='ap_ssid' maxlength='32' value='";
-    html += htmlEscape(config.lab_ap_ssid);
-    html += "'>";
-
-    html += "<label for='ap_password'>Setup AP password</label>";
-    html += "<input id='ap_password' name='ap_password' type='password' maxlength='63' value='";
-    html += htmlEscape(config.lab_ap_password);
-    html += "'>";
-
-    html += "<label><input name='local_auth_enabled' type='checkbox' ";
-    if (config.local_auth_enabled != 0U) {
-        html += "checked ";
-    }
-    html += "style='width:auto;max-width:none;margin-right:.5rem'>Local auth placeholder (stored only, not enforced yet)</label>";
-    html += "<button type='submit'>Save and reboot</button>";
-    html += "</form></div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/sensors'>Sensors</a> · <a href='/backends'>Backends</a> · <a href='/status'>JSON status</a></p>";
-    html += "</body></html>";
-    return html;
+    return renderPageDocument(
+        WebPageKey::kConfig,
+        "air360 device configuration",
+        "Device Configuration",
+        "Manage station Wi-Fi, setup AP fallback, and local device identity without leaving the firmware UI.",
+        body,
+        false);
 }
 
 bool parseUnsignedLong(
@@ -493,6 +544,24 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
     }
 }
 
+std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool selected) {
+    std::string html;
+    html += "<option value='";
+    html += htmlEscape(descriptor.type_key);
+    html += "'";
+    if (selected) {
+        html += " selected";
+    }
+    html += " data-requires-pin='";
+    html += (descriptor.supports_gpio || descriptor.supports_analog) ? "true" : "false";
+    html += "' data-defaults-hint='";
+    html += htmlEscape(sensorDefaultsHint(descriptor));
+    html += "'>";
+    html += htmlEscape(descriptor.display_name);
+    html += "</option>";
+    return html;
+}
+
 std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
     if (unix_ms > 0) {
         const std::time_t seconds = static_cast<std::time_t>(unix_ms / 1000LL);
@@ -511,6 +580,294 @@ std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
     return "never";
 }
 
+ConfigPageViewModel buildConfigPageViewModel(
+    const DeviceConfig& config,
+    const NetworkState& network_state,
+    const std::string& notice,
+    bool error_notice) {
+    ConfigPageViewModel model;
+    model.network_mode = networkModeLabel(network_state.mode);
+    model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
+    model.device_name = config.device_name;
+    model.local_auth_state = config.local_auth_enabled != 0U ? "Stored" : "Disabled";
+    model.notice_html = renderNotice(notice, error_notice);
+    model.wifi_ssid_value = config.wifi_sta_ssid;
+    model.wifi_password_value = config.wifi_sta_password;
+    model.ap_ssid_value = config.lab_ap_ssid;
+    model.ap_password_value = config.lab_ap_password;
+    model.local_auth_checked = config.local_auth_enabled != 0U;
+
+    if (!network_state.last_error.empty()) {
+        model.network_error_html += "<p>Last network error: <code>";
+        model.network_error_html += htmlEscape(network_state.last_error);
+        model.network_error_html += "</code></p>";
+    }
+
+    return model;
+}
+
+std::string renderBackendCard(const BackendCardViewModel& card) {
+    std::string endpoint_block;
+    if (!card.endpoint.empty()) {
+        endpoint_block += "<p>Endpoint: <code>";
+        endpoint_block += htmlEscape(card.endpoint);
+        endpoint_block += "</code></p>";
+    }
+
+    std::string bearer_token_block;
+    if (card.show_bearer_token) {
+        bearer_token_block += "<div class='field'><label for='token_";
+        bearer_token_block += htmlEscape(card.backend_key);
+        bearer_token_block += "'>Bearer token</label>";
+        bearer_token_block += "<div class='secret-row'><input class='input' id='token_";
+        bearer_token_block += htmlEscape(card.backend_key);
+        bearer_token_block += "' name='token_";
+        bearer_token_block += htmlEscape(card.backend_key);
+        bearer_token_block += "' type='password' value='";
+        bearer_token_block += htmlEscape(card.bearer_token);
+        bearer_token_block += "'><button class='button button--ghost' type='button' data-secret-toggle='token_";
+        bearer_token_block += htmlEscape(card.backend_key);
+        bearer_token_block += "'>Show</button></div></div>";
+    }
+
+    std::string status_block;
+    if (card.has_status) {
+        status_block += "<div class='meta'><span class='pill'>State <code>";
+        status_block += htmlEscape(card.state_key);
+        status_block += "</code></span><span class='pill'>Result <code>";
+        status_block += htmlEscape(card.result_key);
+        status_block += "</code></span><span class='pill'>Retry ";
+        status_block += std::to_string(card.retry_count);
+        status_block += "</span></div>";
+        status_block += "<p>Last attempt: <code>";
+        status_block += htmlEscape(card.last_attempt);
+        status_block += "</code></p>";
+        status_block += "<p>Last success: <code>";
+        status_block += htmlEscape(card.last_success);
+        status_block += "</code></p>";
+        status_block += "<p>HTTP code: <code>";
+        status_block += card.last_http_status > 0 ? std::to_string(card.last_http_status)
+                                                  : std::string("n/a");
+        status_block += "</code> · Response time: <code>";
+        status_block += card.last_response_time_ms > 0
+                            ? std::to_string(card.last_response_time_ms) + " ms"
+                            : std::string("n/a");
+        status_block += "</code></p>";
+        if (!card.last_error.empty()) {
+            status_block += "<p>Last error: <code>";
+            status_block += htmlEscape(card.last_error);
+            status_block += "</code></p>";
+        }
+    } else {
+        status_block = "<p>Status: <code>unavailable</code></p>";
+    }
+
+    return renderTemplate(
+        WebTemplateKey::kBackendCard,
+        WebTemplateBindings{
+            {"DISPLAY_NAME", htmlEscape(card.display_name)},
+            {"BACKEND_KEY", htmlEscape(card.backend_key)},
+            {"BACKEND_KEY_ATTR", htmlEscape(card.backend_key)},
+            {"IMPLEMENTED", card.implemented ? "true" : "false"},
+            {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
+            {"ENDPOINT_BLOCK", endpoint_block},
+            {"BEARER_TOKEN_BLOCK", bearer_token_block},
+            {"STATUS_BLOCK", status_block},
+        });
+}
+
+BackendsPageViewModel buildBackendsPageViewModel(
+    const BackendConfigList& backend_config_list,
+    const UploadManager& upload_manager,
+    const std::string& notice,
+    bool error_notice) {
+    BackendsPageViewModel model;
+    BackendRegistry registry;
+
+    model.enabled_count = upload_manager.enabledCount();
+    model.degraded_count = upload_manager.degradedCount();
+    model.upload_interval_ms = backend_config_list.upload_interval_ms;
+    model.configured_backends_count = registry.descriptorCount();
+    model.notice_html = renderNotice(notice, error_notice);
+    model.cards.reserve(registry.descriptorCount());
+
+    for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
+        const BackendDescriptor& descriptor = registry.descriptors()[index];
+        const BackendRecord* record =
+            findBackendRecordForDescriptor(backend_config_list, descriptor);
+        BackendStatusSnapshot status_storage{};
+        const BackendStatusSnapshot* status =
+            upload_manager.backendStatus(descriptor.type, status_storage) ? &status_storage
+                                                                          : nullptr;
+
+        BackendCardViewModel card;
+        card.display_name = descriptor.display_name;
+        card.backend_key = descriptor.backend_key;
+        card.implemented = descriptor.implemented;
+        card.enabled = record != nullptr && record->enabled != 0U;
+        if (record != nullptr) {
+            card.endpoint = backendDefaultEndpointUrl(descriptor.type);
+            card.show_bearer_token = descriptor.type == BackendType::kAir360Api;
+            if (card.show_bearer_token) {
+                card.bearer_token =
+                    boundedCString(record->bearer_token, sizeof(record->bearer_token));
+            }
+        }
+
+        if (status != nullptr) {
+            card.has_status = true;
+            card.state_key = backendRuntimeStateKey(status->state);
+            card.result_key = uploadResultClassKey(status->last_result);
+            card.retry_count = status->retry_count;
+            card.last_attempt = formatStatusTime(
+                status->last_attempt_unix_ms,
+                status->last_attempt_uptime_ms);
+            card.last_success = formatStatusTime(
+                status->last_success_unix_ms,
+                status->last_success_uptime_ms);
+            card.last_http_status = status->last_http_status;
+            card.last_response_time_ms = status->last_response_time_ms;
+            card.last_error = status->last_error;
+        }
+
+        model.cards.push_back(std::move(card));
+    }
+
+    return model;
+}
+
+std::string renderSensorCard(const SensorCardViewModel& card) {
+    std::string runtime_error_block;
+    if (!card.runtime_error.empty()) {
+        runtime_error_block += "<p>Runtime error: <code>";
+        runtime_error_block += htmlEscape(card.runtime_error);
+        runtime_error_block += "</code></p>";
+    }
+
+    std::string latest_reading_block;
+    if (!card.latest_reading.empty()) {
+        latest_reading_block += "<p>Latest reading: <code>";
+        latest_reading_block += htmlEscape(card.latest_reading);
+        latest_reading_block += "</code></p>";
+    }
+
+    std::string gpio_field_block;
+    if (card.show_gpio_pin_select) {
+        gpio_field_block += "<div class='field' data-sensor-pin-field><label for='analog_gpio_pin_";
+        gpio_field_block += std::to_string(card.id);
+        gpio_field_block += "'>Sensor pin</label>";
+        gpio_field_block += "<select class='select' id='analog_gpio_pin_";
+        gpio_field_block += std::to_string(card.id);
+        gpio_field_block += "' name='analog_gpio_pin'>";
+        gpio_field_block += card.gpio_options_html;
+        gpio_field_block += "</select></div>";
+    }
+
+    return renderTemplate(
+        WebTemplateKey::kSensorCard,
+        WebTemplateBindings{
+            {"DISPLAY_NAME", htmlEscape(card.display_name.empty() ? "Sensor" : card.display_name)},
+            {"DISPLAY_NAME_VALUE", htmlEscape(card.display_name)},
+            {"RUNTIME_STATE", htmlEscape(card.runtime_state_key)},
+            {"TRANSPORT_SUMMARY", htmlEscape(card.transport_summary)},
+            {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
+            {"RUNTIME_ERROR_BLOCK", runtime_error_block},
+            {"LATEST_READING_BLOCK", latest_reading_block},
+            {"SENSOR_ID", std::to_string(card.id)},
+            {"SENSOR_TYPE_OPTIONS", card.sensor_type_options_html},
+            {"DEFAULTS_HINT_TEXT", htmlEscape(card.defaults_hint)},
+            {"DEFAULTS_HINT_HIDDEN", card.defaults_hint.empty() ? "hidden" : ""},
+            {"GPIO_FIELD_BLOCK", gpio_field_block},
+            {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
+        });
+}
+
+SensorsPageViewModel buildSensorsPageViewModel(
+    const SensorConfigList& sensor_config_list,
+    const SensorManager& sensor_manager,
+    bool has_pending_changes,
+    const std::string& notice,
+    bool error_notice) {
+    SensorsPageViewModel model;
+    SensorRegistry registry;
+    const auto runtime_sensors = sensor_manager.sensors();
+
+    model.configured_count = sensor_config_list.sensor_count;
+    model.max_sensors = kMaxConfiguredSensors;
+    model.has_pending_changes = has_pending_changes;
+    model.runtime_sensor_count = runtime_sensors.size();
+    model.free_slots = kMaxConfiguredSensors - sensor_config_list.sensor_count;
+    model.notice_html = renderNotice(notice, error_notice);
+    model.cards.reserve(sensor_config_list.sensor_count);
+
+    for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
+         ++descriptor_index) {
+        const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
+        model.sensor_type_options_html += sensorTypeOptionHtml(descriptor, descriptor_index == 0U);
+        const std::string hint = sensorDefaultsHint(descriptor);
+        if (descriptor_index == 0U) {
+            model.selected_sensor_defaults = hint;
+        }
+        if (!hint.empty()) {
+            model.sensor_defaults_list_html += "<li><strong>";
+            model.sensor_defaults_list_html += htmlEscape(descriptor.display_name);
+            model.sensor_defaults_list_html += ":</strong> ";
+            model.sensor_defaults_list_html += htmlEscape(hint);
+            model.sensor_defaults_list_html += "</li>";
+        }
+    }
+
+    appendBoardGpioOptions(model.gpio_options_html, CONFIG_AIR360_GPIO_SENSOR_PIN_0);
+
+    for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
+        const SensorRecord& record = sensor_config_list.sensors[index];
+        const SensorDescriptor* descriptor = registry.findByType(record.sensor_type);
+        const SensorRuntimeInfo* runtime_info = nullptr;
+        for (const auto& sensor : runtime_sensors) {
+            if (sensor.id == record.id) {
+                runtime_info = &sensor;
+                break;
+            }
+        }
+
+        SensorCardViewModel card;
+        card.id = record.id;
+        card.display_name = record.display_name;
+        card.runtime_state_key =
+            runtime_info != nullptr ? sensorRuntimeStateKey(runtime_info->state) : "unknown";
+        card.transport_summary = transportSummaryForRecord(record);
+        card.poll_interval_ms = record.poll_interval_ms;
+        card.enabled = record.enabled != 0U;
+        if (runtime_info != nullptr) {
+            card.runtime_error = runtime_info->last_error;
+            if (!runtime_info->measurement.empty()) {
+                card.latest_reading = measurementSummary(runtime_info->measurement);
+            }
+        }
+
+        for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
+             ++descriptor_index) {
+            const SensorDescriptor& option_descriptor = registry.descriptors()[descriptor_index];
+            card.sensor_type_options_html +=
+                sensorTypeOptionHtml(option_descriptor, option_descriptor.type == record.sensor_type);
+        }
+
+        if (descriptor != nullptr) {
+            card.defaults_hint = sensorDefaultsHint(*descriptor);
+        }
+        card.show_gpio_pin_select =
+            record.transport_kind == TransportKind::kGpio ||
+            record.transport_kind == TransportKind::kAnalog;
+        if (card.show_gpio_pin_select) {
+            appendBoardGpioOptions(card.gpio_options_html, record.analog_gpio_pin);
+        }
+
+        model.cards.push_back(std::move(card));
+    }
+
+    return model;
+}
+
 const BackendRecord* findBackendRecordForDescriptor(
     const BackendConfigList& config,
     const BackendDescriptor& descriptor) {
@@ -522,136 +879,32 @@ std::string renderBackendsPage(
     const UploadManager& upload_manager,
     const std::string& notice,
     bool error_notice) {
-    BackendRegistry registry;
+    const BackendsPageViewModel model =
+        buildBackendsPageViewModel(backend_config_list, upload_manager, notice, error_notice);
 
-    std::string html;
-    html.reserve(10000);
-    html += "<!doctype html><html><head><meta charset='utf-8'>";
-    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>air360 backends</title>";
-    html += "<style>";
-    html += "body{font-family:system-ui,sans-serif;margin:2rem;max-width:70rem;line-height:1.5}";
-    html += "label{display:block;margin-top:.75rem;font-weight:600}";
-    html += "button{margin-top:1rem;padding:.65rem 1rem;border:0;border-radius:.45rem;background:#0f766e;color:white;font-weight:700}";
-    html += ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem 1.25rem;margin:1rem 0}";
-    html += ".notice{margin:1rem 0;padding:.8rem 1rem;border-radius:.5rem}";
-    html += ".ok{background:#ecfdf5;color:#166534}.err{background:#fef2f2;color:#991b1b}";
-    html += "code{background:#f1f5f9;padding:.1rem .35rem;border-radius:.25rem}";
-    html += "</style></head><body>";
-    html += "<h1>air360 Backends</h1>";
-    html += "<p>Enabled backends: <code>";
-    html += std::to_string(upload_manager.enabledCount());
-    html += "</code> · degraded: <code>";
-    html += std::to_string(upload_manager.degradedCount());
-    html += "</code></p>";
-
-    if (!notice.empty()) {
-        html += "<div class='notice ";
-        html += error_notice ? "err" : "ok";
-        html += "'>";
-        html += htmlEscape(notice);
-        html += "</div>";
+    std::string backend_cards;
+    backend_cards.reserve(model.cards.size() * 1400U);
+    for (const auto& card : model.cards) {
+        backend_cards += renderBackendCard(card);
     }
 
-    html += "<form method='POST' action='/backends'>";
-    html += "<label for='upload_interval_ms'>Upload interval (ms)</label>";
-    html += "<input id='upload_interval_ms' name='upload_interval_ms' inputmode='numeric' value='";
-    html += std::to_string(backend_config_list.upload_interval_ms);
-    html += "' style='width:100%;max-width:18rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
-    html += "<p>Allowed range: <code>10000</code> to <code>300000</code> ms.</p>";
-    for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
-        const BackendDescriptor& descriptor = registry.descriptors()[index];
-        const BackendRecord* record =
-            findBackendRecordForDescriptor(backend_config_list, descriptor);
-        BackendStatusSnapshot status_storage{};
-        const BackendStatusSnapshot* status =
-            upload_manager.backendStatus(descriptor.type, status_storage) ? &status_storage
-                                                                          : nullptr;
-        const bool enabled = record != nullptr && record->enabled != 0U;
-
-        html += "<div class='card'>";
-        html += "<h2>";
-        html += htmlEscape(descriptor.display_name);
-        html += "</h2>";
-        html += "<p>Key: <code>";
-        html += htmlEscape(descriptor.backend_key);
-        html += "</code> · implemented: <code>";
-        html += descriptor.implemented ? "true" : "false";
-        html += "</code></p>";
-        html += "<label><input type='checkbox' name='enabled_";
-        html += htmlEscape(descriptor.backend_key);
-        html += "' ";
-        if (enabled) {
-            html += "checked ";
-        }
-        html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
-
-        if (record != nullptr) {
-            html += "<p>Endpoint: <code>";
-            html += htmlEscape(backendDefaultEndpointUrl(descriptor.type));
-            html += "</code></p>";
-
-            if (descriptor.type == BackendType::kAir360Api) {
-                html += "<label for='token_";
-                html += htmlEscape(descriptor.backend_key);
-                html += "'>Bearer token</label>";
-                html += "<input id='token_";
-                html += htmlEscape(descriptor.backend_key);
-                html += "' name='token_";
-                html += htmlEscape(descriptor.backend_key);
-                html += "' value='";
-                html += htmlEscape(
-                    boundedCString(
-                        record->bearer_token,
-                        sizeof(record->bearer_token)));
-                html += "' style='width:100%;max-width:42rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem'>";
-            }
-        }
-
-        if (status != nullptr) {
-            html += "<p>Status: <code>";
-            html += htmlEscape(backendRuntimeStateKey(status->state));
-            html += "</code> · Result: <code>";
-            html += htmlEscape(uploadResultClassKey(status->last_result));
-            html += "</code></p>";
-            html += "<p>Last attempt: <code>";
-            html += htmlEscape(
-                formatStatusTime(
-                    status->last_attempt_unix_ms,
-                    status->last_attempt_uptime_ms));
-            html += "</code></p>";
-            html += "<p>Last success: <code>";
-            html += htmlEscape(
-                formatStatusTime(
-                    status->last_success_unix_ms,
-                    status->last_success_uptime_ms));
-            html += "</code></p>";
-            html += "<p>HTTP code: <code>";
-            html += status->last_http_status > 0 ? std::to_string(status->last_http_status)
-                                                 : std::string("n/a");
-            html += "</code> · Response time: <code>";
-            html += status->last_response_time_ms > 0
-                        ? std::to_string(status->last_response_time_ms) + " ms"
-                        : std::string("n/a");
-            html += "</code> · Retry count: <code>";
-            html += std::to_string(status->retry_count);
-            html += "</code></p>";
-            if (!status->last_error.empty()) {
-                html += "<p>Last error: <code>";
-                html += htmlEscape(status->last_error);
-                html += "</code></p>";
-            }
-        } else {
-            html += "<p>Status: <code>unavailable</code></p>";
-        }
-
-        html += "</div>";
-    }
-    html += "<button type='submit'>Save backend selection</button>";
-    html += "</form>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/sensors'>Sensors</a> · <a href='/status'>JSON status</a></p>";
-    html += "</body></html>";
-    return html;
+    const std::string body = renderPageTemplate(
+        WebTemplateKey::kBackends,
+        WebTemplateBindings{
+            {"ENABLED_COUNT", std::to_string(model.enabled_count)},
+            {"DEGRADED_COUNT", std::to_string(model.degraded_count)},
+            {"UPLOAD_INTERVAL", std::to_string(model.upload_interval_ms)},
+            {"CONFIGURED_BACKENDS_COUNT", std::to_string(model.configured_backends_count)},
+            {"NOTICE", model.notice_html},
+            {"UPLOAD_INTERVAL_VALUE", std::to_string(model.upload_interval_ms)},
+            {"BACKEND_CARDS", backend_cards},
+        });
+    return renderPageDocument(
+        WebPageKey::kBackends,
+        "air360 upload backends",
+        "Upload Backends",
+        "Tune upload cadence, enable or disable integrations, and inspect backend runtime state directly on the device.",
+        body);
 }
 
 std::string renderSensorsPage(
@@ -660,217 +913,46 @@ std::string renderSensorsPage(
     bool has_pending_changes,
     const std::string& notice,
     bool error_notice) {
-    SensorRegistry registry;
+    const SensorsPageViewModel model =
+        buildSensorsPageViewModel(
+            sensor_config_list,
+            sensor_manager,
+            has_pending_changes,
+            notice,
+            error_notice);
 
-    std::string html;
-    html.reserve(12000);
-    html += "<!doctype html><html><head><meta charset='utf-8'>";
-    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>air360 sensors</title>";
-    html += "<style>";
-    html += "body{font-family:system-ui,sans-serif;margin:2rem;max-width:70rem;line-height:1.5}";
-    html += "label{display:block;margin-top:.75rem;font-weight:600}";
-    html += "input,select{width:100%;max-width:28rem;padding:.55rem;border:1px solid #cbd5e1;border-radius:.35rem}";
-    html += "button{margin-top:1rem;padding:.65rem 1rem;border:0;border-radius:.45rem;background:#0f766e;color:white;font-weight:700}";
-    html += ".secondary{background:#334155}.danger{background:#b91c1c}";
-    html += ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem 1.25rem;margin:1rem 0}";
-    html += ".notice{margin:1rem 0;padding:.8rem 1rem;border-radius:.5rem}";
-    html += ".ok{background:#ecfdf5;color:#166534}.err{background:#fef2f2;color:#991b1b}";
-    html += "code{background:#f1f5f9;padding:.1rem .35rem;border-radius:.25rem}";
-    html += "</style></head><body>";
-    html += "<h1>air360 Sensors</h1>";
-    html += "<p>Configured sensors: <code>";
-    html += std::to_string(sensor_config_list.sensor_count);
-    html += "</code> / <code>";
-    html += std::to_string(kMaxConfiguredSensors);
-    html += "</code></p>";
-    html += "<p>Sensor edits are staged in memory only. Use <code>Apply and reboot</code> to persist them.</p>";
+    std::string configured_sensors_block;
+    configured_sensors_block.reserve(model.cards.size() * 2600U);
 
-    if (!notice.empty()) {
-        html += "<div class='notice ";
-        html += error_notice ? "err" : "ok";
-        html += "'>";
-        html += htmlEscape(notice);
-        html += "</div>";
-    }
-
-    html += "<div class='card'>";
-    html += "<h2>Pending sensor changes</h2>";
-    html += "<p>Status: <code>";
-    html += has_pending_changes ? "pending" : "clean";
-    html += "</code></p>";
-    html += "<form method='POST' action='/sensors'>";
-    html += "<input type='hidden' name='action' value='apply'>";
-    html += "<button type='submit'>Apply and reboot</button>";
-    html += "</form>";
-    html += "<form method='POST' action='/sensors'>";
-    html += "<input type='hidden' name='action' value='discard'>";
-    html += "<button class='secondary' type='submit'>Discard pending changes</button>";
-    html += "</form>";
-    html += "</div>";
-
-    const auto runtime_sensors = sensor_manager.sensors();
-    if (sensor_config_list.sensor_count == 0U) {
-        html += "<p>No sensors configured yet.</p>";
+    if (model.cards.empty()) {
+        configured_sensors_block += "<div class='panel'><h2>Configured Sensors</h2><p class='muted'>No sensors configured yet.</p></div>";
     } else {
-        for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
-            const SensorRecord& record = sensor_config_list.sensors[index];
-            const SensorDescriptor* descriptor = registry.findByType(record.sensor_type);
-            const SensorRuntimeInfo* runtime_info = nullptr;
-            for (const auto& sensor : runtime_sensors) {
-                if (sensor.id == record.id) {
-                    runtime_info = &sensor;
-                    break;
-                }
-            }
-
-            html += "<div class='card'>";
-            html += "<h2>";
-            html += htmlEscape(record.display_name[0] != '\0' ? record.display_name : "Sensor");
-            html += "</h2>";
-            html += "<p>Runtime state: <code>";
-            html += htmlEscape(
-                runtime_info != nullptr ? sensorRuntimeStateKey(runtime_info->state)
-                                        : "unknown");
-            html += "</code>";
-            if (runtime_info != nullptr && !runtime_info->last_error.empty()) {
-                html += " · ";
-                html += htmlEscape(runtime_info->last_error);
-            }
-            html += "</p>";
-            if (runtime_info != nullptr && !runtime_info->measurement.empty()) {
-                html += "<p>Latest reading: <code>";
-                html += htmlEscape(measurementSummary(runtime_info->measurement));
-                html += "</code></p>";
-            }
-            html += "<form method='POST' action='/sensors'>";
-            html += "<input type='hidden' name='action' value='update'>";
-            html += "<input type='hidden' name='sensor_id' value='";
-            html += std::to_string(record.id);
-            html += "'>";
-            html += "<label for='display_name_";
-            html += std::to_string(record.id);
-            html += "'>Display name</label>";
-            html += "<input id='display_name_";
-            html += std::to_string(record.id);
-            html += "' name='display_name' maxlength='31' value='";
-            html += htmlEscape(record.display_name);
-            html += "'>";
-            html += "<label for='sensor_type_";
-            html += std::to_string(record.id);
-            html += "'>Sensor type</label>";
-            html += "<select id='sensor_type_";
-            html += std::to_string(record.id);
-            html += "' name='sensor_type'>";
-            for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
-                 ++descriptor_index) {
-                const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
-                html += "<option value='";
-                html += htmlEscape(descriptor.type_key);
-                html += "'";
-                if (descriptor.type == record.sensor_type) {
-                    html += " selected";
-                }
-                html += ">";
-                html += htmlEscape(descriptor.display_name);
-                html += "</option>";
-            }
-            html += "</select>";
-            html += "<p>Transport: <code>";
-            html += htmlEscape(transportSummaryForRecord(record));
-            html += "</code></p>";
-            if (descriptor != nullptr) {
-                const std::string hint = sensorDefaultsHint(*descriptor);
-                if (!hint.empty()) {
-                    html += "<p>";
-                    html += htmlEscape(hint);
-                    html += "</p>";
-                }
-            }
-            html += "<label for='poll_interval_ms_";
-            html += std::to_string(record.id);
-            html += "'>Poll interval (ms)</label>";
-            html += "<input id='poll_interval_ms_";
-            html += std::to_string(record.id);
-            html += "' name='poll_interval_ms' inputmode='numeric' value='";
-            html += std::to_string(record.poll_interval_ms);
-            html += "'>";
-            if (record.transport_kind == TransportKind::kGpio ||
-                record.transport_kind == TransportKind::kAnalog) {
-                html += "<label for='analog_gpio_pin_";
-                html += std::to_string(record.id);
-                html += "'>Sensor pin</label>";
-                html += "<select id='analog_gpio_pin_";
-                html += std::to_string(record.id);
-                html += "' name='analog_gpio_pin'>";
-                appendBoardGpioOptions(html, record.analog_gpio_pin);
-                html += "</select>";
-            }
-            html += "<label><input name='enabled' type='checkbox' ";
-            if (record.enabled != 0U) {
-                html += "checked ";
-            }
-            html += "style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
-            html += "<button type='submit'>Stage sensor changes</button>";
-            html += "</form>";
-            html += "<form method='POST' action='/sensors'>";
-            html += "<input type='hidden' name='action' value='delete'>";
-            html += "<input type='hidden' name='sensor_id' value='";
-            html += std::to_string(record.id);
-            html += "'>";
-            html += "<button class='danger' type='submit'>Stage sensor deletion</button>";
-            html += "</form>";
-            html += "</div>";
+        for (const auto& card : model.cards) {
+            configured_sensors_block += renderSensorCard(card);
         }
     }
-
-    html += "<div class='card'>";
-    html += "<h2>Add sensor</h2>";
-    html += "<form method='POST' action='/sensors'>";
-    html += "<input type='hidden' name='action' value='add'>";
-    html += "<label for='sensor_type_add'>Sensor type</label>";
-    html += "<select id='sensor_type_add' name='sensor_type'>";
-    for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
-         ++descriptor_index) {
-        const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
-        html += "<option value='";
-        html += htmlEscape(descriptor.type_key);
-        html += "'>";
-        html += htmlEscape(descriptor.display_name);
-        html += "</option>";
-    }
-    html += "</select>";
-    html += "<label for='display_name_add'>Display name</label>";
-    html += "<input id='display_name_add' name='display_name' maxlength='31' value=''>";
-    html += "<p>Transport is inferred from sensor type.</p>";
-    html += "<p>Type defaults:</p><ul>";
-    for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
-         ++descriptor_index) {
-        const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
-        const std::string hint = sensorDefaultsHint(descriptor);
-        if (hint.empty()) {
-            continue;
-        }
-        html += "<li><strong>";
-        html += htmlEscape(descriptor.display_name);
-        html += ":</strong> ";
-        html += htmlEscape(hint);
-        html += "</li>";
-    }
-    html += "</ul>";
-    html += "<label for='poll_interval_ms_add'>Poll interval (ms)</label>";
-    html += "<input id='poll_interval_ms_add' name='poll_interval_ms' inputmode='numeric' value='10000'>";
-    html += "<label for='analog_gpio_pin_add'>Sensor pin (GPIO 4, 5, or 6)</label>";
-    html += "<select id='analog_gpio_pin_add' name='analog_gpio_pin'>";
-    appendBoardGpioOptions(html, CONFIG_AIR360_GPIO_SENSOR_PIN_0);
-    html += "</select>";
-    html += "<label><input name='enabled' type='checkbox' checked style='width:auto;max-width:none;margin-right:.5rem'>Enabled</label>";
-    html += "<button type='submit'>Stage new sensor</button>";
-    html += "</form>";
-    html += "</div>";
-    html += "<p><a href='/'>Back to root</a> · <a href='/config'>Device config</a> · <a href='/backends'>Backends</a> · <a href='/status'>JSON status</a></p>";
-    html += "</body></html>";
-    return html;
+    const std::string body = renderPageTemplate(
+        WebTemplateKey::kSensors,
+        WebTemplateBindings{
+            {"CONFIGURED_COUNT", std::to_string(model.configured_count)},
+            {"MAX_SENSORS", std::to_string(model.max_sensors)},
+            {"PENDING_STATUS", model.has_pending_changes ? "Pending" : "Clean"},
+            {"PENDING_STATUS_LOWER", model.has_pending_changes ? "pending" : "clean"},
+            {"RUNTIME_SENSOR_COUNT", std::to_string(model.runtime_sensor_count)},
+            {"FREE_SLOTS", std::to_string(model.free_slots)},
+            {"NOTICE", model.notice_html},
+            {"CONFIGURED_SENSORS_BLOCK", configured_sensors_block},
+            {"SENSOR_TYPE_OPTIONS", model.sensor_type_options_html},
+            {"SELECTED_SENSOR_DEFAULTS", htmlEscape(model.selected_sensor_defaults)},
+            {"SENSOR_DEFAULTS_LIST", model.sensor_defaults_list_html},
+            {"GPIO_OPTIONS", model.gpio_options_html},
+        });
+    return renderPageDocument(
+        WebPageKey::kSensors,
+        "air360 sensors",
+        "Sensor Configuration",
+        "Stage sensor changes locally, inspect live runtime state, then apply the final set with a reboot when you are ready.",
+        body);
 }
 
 bool validateConfigForm(
@@ -975,6 +1057,8 @@ esp_err_t WebServer::start(
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();
     config_httpd.server_port = port;
     config_httpd.stack_size = kHttpServerStackSize;
+    config_httpd.max_uri_handlers = kHttpServerMaxUriHandlers;
+    config_httpd.uri_match_fn = httpd_uri_match_wildcard;
 
     esp_err_t err = httpd_start(&handle_, &config_httpd);
     if (err != ESP_OK) {
@@ -987,6 +1071,17 @@ esp_err_t WebServer::start(
     root_uri.handler = &WebServer::handleRoot;
     root_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &root_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t asset_uri{};
+    asset_uri.uri = "/assets/*";
+    asset_uri.method = HTTP_GET;
+    asset_uri.handler = &WebServer::handleAsset;
+    asset_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &asset_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -1071,6 +1166,10 @@ esp_err_t WebServer::start(
 
     ESP_LOGI(kTag, "HTTP server listening on port %" PRIu16, port);
     return ESP_OK;
+}
+
+esp_err_t WebServer::handleAsset(httpd_req_t* request) {
+    return sendAssetResponse(request, assetPathFromUri(request->uri));
 }
 
 esp_err_t WebServer::handleSensors(httpd_req_t* request) {

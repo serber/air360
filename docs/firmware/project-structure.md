@@ -16,6 +16,7 @@ firmware/
 │   ├── Kconfig.projbuild
 │   ├── include/air360/
 │   ├── src/
+│   ├── webui/
 │   └── third_party/
 ├── partitions.csv
 ├── sdkconfig
@@ -29,7 +30,7 @@ firmware/
 - [`../../firmware/CMakeLists.txt`](../../firmware/CMakeLists.txt)
   ESP-IDF project root for `air360_firmware`.
 - [`../../firmware/main/CMakeLists.txt`](../../firmware/main/CMakeLists.txt)
-  Registers the `main` component, its C++ and vendor sources, and required ESP-IDF components.
+  Registers the `main` component, its C++ and vendor sources, embedded frontend assets, and required ESP-IDF components.
 - [`../../firmware/main/Kconfig.projbuild`](../../firmware/main/Kconfig.projbuild)
   Declares project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`.
 - [`../../firmware/sdkconfig.defaults`](../../firmware/sdkconfig.defaults)
@@ -53,8 +54,14 @@ firmware/
   Wi-Fi station connect and setup AP fallback.
 - [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp)
   HTML and JSON status rendering.
+- [`../../firmware/main/src/web_assets.cpp`](../../firmware/main/src/web_assets.cpp)
+  Embedded web asset lookup and content-type mapping for CSS and JavaScript served by the firmware.
+- [`../../firmware/main/src/web_ui.cpp`](../../firmware/main/src/web_ui.cpp)
+  Shared page shell, embedded HTML template expansion, navigation, notices, and HTML escaping for the local web UI.
 - [`../../firmware/main/src/web_server.cpp`](../../firmware/main/src/web_server.cpp)
-  `esp_http_server` wrapper for `/`, `/status`, `/config`, and `/sensors`.
+  `esp_http_server` wrapper for `/`, `/status`, `/config`, `/sensors`, `/backends`, and `/assets/*`.
+- [`../../firmware/main/webui/`](../../firmware/main/webui/)
+  Hand-authored frontend files embedded directly into the firmware image, including `air360.css`, `air360.js`, and page body templates.
 
 ### Public headers
 
@@ -66,7 +73,10 @@ Headers under [`../../firmware/main/include/air360/`](../../firmware/main/includ
 - `NetworkManager`
 - `StatusService`
 - `WebServer`
+- `web_assets.hpp`
+- `web_ui.hpp`
 - sensor subsystem interfaces under `sensors/`
+- upload subsystem interfaces under `uploads/`
 
 ### Sensor subsystem
 
@@ -117,7 +127,11 @@ These are compiled as part of the `main` component. Local wrapper classes keep t
 
 ## HTTP Surface
 
-The local web UI is currently generated in C++ rather than served from embedded static assets.
+The local web UI now uses a mixed model:
+
+- page data is still rendered server-side in C++
+- shared CSS, JavaScript, and page templates are embedded from `main/webui/`
+- assets are served through a generic `/assets/*` route
 
 Confirmed routes:
 
@@ -129,6 +143,10 @@ Confirmed routes:
   Device and Wi-Fi configuration form.
 - `/sensors`
   Sensor configuration form for add, update, delete, staged apply/discard, and runtime inspection.
+- `/backends`
+  Backend configuration form for upload interval, enablement, and backend credentials such as the Air360 bearer token.
+- `/assets/*`
+  Embedded CSS and JavaScript assets used by the shared firmware UI shell.
 
 ## Build Workflow
 
@@ -150,6 +168,6 @@ idf.py -p /dev/tty.usbserial-0001 flash monitor
 ## How To Navigate As A Contributor
 
 - Start in [`../../firmware/main/src/app.cpp`](../../firmware/main/src/app.cpp) to understand the runtime boot order.
-- Then read [`../../firmware/main/src/web_server.cpp`](../../firmware/main/src/web_server.cpp) and [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp) for the local control surface.
+- Then read [`../../firmware/main/src/web_server.cpp`](../../firmware/main/src/web_server.cpp), [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp), and [`../../firmware/main/src/web_ui.cpp`](../../firmware/main/src/web_ui.cpp) for the local control surface.
 - For persistence, read [`../../firmware/main/src/config_repository.cpp`](../../firmware/main/src/config_repository.cpp) and [`../../firmware/main/src/sensors/sensor_config_repository.cpp`](../../firmware/main/src/sensors/sensor_config_repository.cpp).
 - For sensors, read [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp) before reading any concrete driver.

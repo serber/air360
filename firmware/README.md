@@ -17,9 +17,11 @@ Key files and directories:
 - `main/`
   The application component built into the firmware image.
 - `main/CMakeLists.txt`
-  Registers the `main` component sources and required ESP-IDF components.
+  Registers the `main` component sources, embedded frontend assets, and required ESP-IDF components.
 - `main/Kconfig.projbuild`
   Declares project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`.
+- `main/webui/`
+  Hand-authored frontend assets and HTML templates embedded into the firmware image and used by the local web server.
 - `sdkconfig.defaults`
   Repository defaults for important project settings.
 - `sdkconfig`
@@ -49,6 +51,10 @@ Public component headers for the current runtime:
   Declares the station join flow, setup AP fallback, and reported network state.
 - `status_service.hpp`
   Declares the service that renders the root HTML page and `/status` JSON.
+- `web_assets.hpp`
+  Declares embedded frontend asset lookup and stable asset href helpers for the firmware UI.
+- `web_ui.hpp`
+  Declares shared page-shell, notice, and HTML escaping helpers used by the server-rendered UI.
 - `web_server.hpp`
   Declares the wrapper around `esp_http_server`, including config, sensor, and backend routes.
 - `sensors/`
@@ -71,9 +77,15 @@ Current implementation files:
 - `network_manager.cpp`
   Attempts Wi-Fi station join from saved credentials, synchronizes SNTP time with `pool.ntp.org` when station uplink is available, and falls back to setup AP mode at `192.168.4.1`.
 - `status_service.cpp`
-  Produces the runtime HTML and JSON payloads, including build, config, network, sensor, and upload summaries.
+  Produces the runtime HTML and JSON payloads, including build, config, network, sensor, and upload summaries, using the shared firmware UI shell.
+- `web_assets.cpp`
+  Maps embedded CSS and JavaScript assets to `/assets/*` requests.
+- `web_ui.cpp`
+  Provides shared page-shell rendering, embedded HTML template expansion, navigation, notices, and HTML escaping for firmware pages.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, and `/backends` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection and Air360 bearer token changes immediately.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection and Air360 bearer token changes immediately.
+- `webui/`
+  Contains the embedded frontend files used by firmware, including shared CSS, progressive-enhancement JavaScript, and page body templates.
 - `sensors/`
   Contains sensor persistence, registry, transport helpers, background orchestration, and concrete drivers.
 - `uploads/`
@@ -256,6 +268,11 @@ After boot, the runtime exposes one of two local access paths:
 - in station mode:
   - the same routes are served on the DHCP address obtained by the device on the configured Wi-Fi network
 
+Shared UI assets are served from `/assets/*`, currently including:
+
+- `/assets/air360.css`
+- `/assets/air360.js`
+
 ## Architecture Overview
 
 The current startup flow is:
@@ -329,6 +346,14 @@ Current default I2C addresses from the registry are:
 
 The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, and GPS uses the fixed UART binding for the board. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
 
+The local web UI now uses a mixed frontend model:
+
+- shared CSS, JavaScript, and page body templates live as standalone files under `main/webui/`
+- those assets are embedded into the firmware image through `EMBED_TXTFILES`
+- `WebServer` serves them from `/assets/*`
+- page-specific data is still rendered server-side in C++, but the body markup now comes from embedded HTML templates
+- `web_ui.cpp` provides a shared shell and template expansion layer so visual changes no longer require editing large inline HTML strings in every handler
+
 ## Storage and Partitions
 
 The project uses a custom partition table in `partitions.csv`:
@@ -364,5 +389,5 @@ Current limitations confirmed by the source tree:
 - sensor changes are not applied live; they are staged in memory and only persisted when the user explicitly applies them and reboots
 - the local auth flag is stored but not enforced yet
 - the `storage` SPIFFS partition is reserved but not mounted or used
-- the local UI is still assembled directly in C++ strings
+- the firmware UI is still server-rendered and form-driven rather than fully API-driven
 - `Air360 API` currently defaults to plain HTTP because HTTPS from the ESP32-S3 shows unresolved connection-latency issues; TLS tuning and session-resumption work should be revisited later before switching the default back to HTTPS

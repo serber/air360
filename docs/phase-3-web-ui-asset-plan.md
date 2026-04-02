@@ -1,5 +1,23 @@
 # Phase 3 Web UI Asset Plan
 
+## Implementation Update
+
+The first slice of this plan is now partially implemented in `firmware/`:
+
+- shared CSS, JavaScript, and page templates live under [`../firmware/main/webui/`](../firmware/main/webui/)
+- those assets are embedded directly into the firmware image through ESP-IDF `EMBED_TXTFILES`
+- [`../firmware/main/src/web_assets.cpp`](../firmware/main/src/web_assets.cpp) serves them through `/assets/*`
+- [`../firmware/main/src/web_ui.cpp`](../firmware/main/src/web_ui.cpp) provides a shared shell and template expansion for server-rendered pages
+
+What is not implemented yet:
+
+- a separate frontend build pipeline
+- a `dist/` output directory
+- a pure app-shell or SPA model
+- `/api/...` routes for config and sensors
+
+This document remains a planning note for the longer migration, but the repository has already moved away from repeated inline `<style>` blocks and toward embedded standalone assets.
+
 ## Purpose
 
 This document proposes how to move the Air360 web UI out of C++ string literals and into standalone frontend assets that are easier to edit, style, and extend.
@@ -53,7 +71,7 @@ The firmware backend should remain responsible for:
 
 ### Frontend
 
-The frontend should become a separate buildable unit under `firmware/webui/`.
+The frontend should become a separate buildable unit under `firmware/main/webui/`.
 
 That frontend should be responsible for:
 
@@ -68,7 +86,7 @@ That frontend should be responsible for:
 
 The preferred model for Air360 is:
 
-1. Build frontend assets locally into `dist/`
+1. Keep shared frontend assets as standalone files under `firmware/main/webui/`
 2. Embed those assets into the firmware binary at build time
 3. Serve the embedded files from `WebServer`
 
@@ -115,29 +133,22 @@ Because of that, the recommendation for now is:
 
 Recommended structure:
 
-- `firmware/webui/`
-- `firmware/webui/src/`
-- `firmware/webui/public/`
-- `firmware/webui/dist/`
+- `firmware/main/webui/`
 - `firmware/main/src/web_server.cpp`
 - `firmware/main/src/web_assets.cpp`
+- `firmware/main/src/web_ui.cpp`
 - `firmware/main/include/air360/web_assets.hpp`
+- `firmware/main/include/air360/web_ui.hpp`
 
 Suggested purpose of each area:
 
-- `firmware/webui/src/`
-  - application source files
-  - page logic
-  - client-side modules
-- `firmware/webui/public/`
-  - static assets copied as-is
-  - icons
-  - manifest-like files if needed later
-- `firmware/webui/dist/`
-  - generated build output
-  - final `index.html`, JavaScript, CSS, and asset files
+- `firmware/main/webui/`
+  - hand-authored shared frontend files embedded as-is
+  - currently CSS, progressive-enhancement JavaScript, and page body templates
 - `firmware/main/src/web_assets.cpp`
   - embedded asset lookup and content-type mapping
+- `firmware/main/src/web_ui.cpp`
+  - shared page shell, embedded HTML template expansion, navigation, and notice rendering used by server-rendered routes
 - `firmware/main/src/web_server.cpp`
   - HTTP routes for API and static asset delivery
 
@@ -160,12 +171,12 @@ For this firmware, a small and disciplined setup is preferable:
 
 ## Recommended Build Approach
 
-The cleanest path is:
+The cleanest current path is:
 
-1. Develop the UI inside `firmware/webui/`
-2. Produce static build output in `firmware/webui/dist/`
-3. Reference the files from ESP-IDF CMake using embedded asset support
-4. Serve the embedded files through generic asset routes
+1. Keep shared UI assets inside `firmware/main/webui/`
+2. Reference those files from ESP-IDF CMake using embedded asset support
+3. Serve the embedded files through generic asset routes
+4. Add a richer build step only when the UI actually outgrows hand-authored assets
 
 ### CMake Integration
 
@@ -211,14 +222,13 @@ Cons:
 
 ### Recommendation
 
-For this repository, the recommended first step is:
+For this repository, the recommended current step is:
 
-- keep frontend source under `firmware/webui/`
-- generate `dist/`
-- embed `dist/`
-- decide later whether `dist/` should be committed or built on demand
+- keep frontend source under `firmware/main/webui/`
+- embed those source assets directly
+- avoid a generated `dist/` until a real bundling need appears
 
-If contributor simplicity is the priority, committing `dist/` is acceptable at first.
+If the UI later grows into modules, templating, or vendor libraries, revisit a generated `dist/` then.
 
 ## Serving Model
 
@@ -327,8 +337,8 @@ For a local device UI, caching should stay conservative at first.
 
 Recommended initial policy:
 
-- `index.html`: `Cache-Control: no-store`
-- JS/CSS assets: `Cache-Control: no-store` during development
+- page routes such as `/`, `/config`, `/sensors`, and `/backends`: `Cache-Control: no-store`
+- shared JS/CSS assets: longer cache headers are acceptable once filenames are stable
 
 Later, if asset filenames become content-hashed, JS and CSS can move to stronger caching.
 
@@ -369,7 +379,7 @@ The firmware UI is not a general-purpose web app. The frontend stack should rema
 
 - keep current backend routes working
 - add embedded static asset support
-- serve a simple `index.html` from embedded files
+- add a shared shell for server-rendered pages
 
 ### Stage 2
 
@@ -390,11 +400,11 @@ The firmware UI is not a general-purpose web app. The frontend stack should rema
 
 The first implementation slice should do only the following:
 
-1. Create `firmware/webui/` and a minimal frontend build output.
-2. Add CMake support to embed the generated files.
+1. Create `firmware/main/webui/` for shared CSS, JavaScript, and HTML templates.
+2. Add CMake support to embed those assets directly.
 3. Introduce a generic static asset serving layer.
-4. Serve a basic `index.html` from embedded assets.
-5. Keep existing `/config`, `/sensors`, and `/status` routes working for now.
+4. Move the repeated page shell out of per-route inline styling.
+5. Keep existing `/config`, `/sensors`, `/backends`, and `/status` routes working for now.
 
 That keeps risk low while creating the foundation for a full UI migration.
 
