@@ -130,13 +130,13 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
 - `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE`
   Default GPS baud rate.
 - `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT`
-  Fixed UART port used by the SDS011 path.
+  Fixed UART port used by the SDS011 path. The repository defaults currently match the GPS UART binding.
 - `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO`
-  Board-level SDS011 RX pin.
+  Board-level SDS011 RX pin. The repository defaults currently match the GPS UART binding.
 - `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO`
-  Board-level SDS011 TX pin.
+  Board-level SDS011 TX pin. The repository defaults currently match the GPS UART binding.
 - `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE`
-  Default SDS011 baud rate.
+  Default SDS011 baud rate. The repository defaults currently match the GPS UART binding.
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_0`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_1`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_2`
@@ -354,6 +354,8 @@ Current default I2C addresses from the registry are:
 - `ENS160`: `0x52`
 
 The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, and UART sensors use the fixed bindings from the registry defaults. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
+
+`GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array. `SDS011` reports PM2.5 and PM10.
 
 The local web UI now uses a mixed frontend model:
 

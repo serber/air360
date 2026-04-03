@@ -48,7 +48,8 @@ Examples:
 - `BME280` publishes temperature, humidity, pressure
 - `BME680` publishes temperature, humidity, pressure, and gas resistance
 - `ENS160` publishes AQI, TVOC, and eCO2
-- `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, and speed
+- `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, speed, course, and HDOP
+- `SDS011` publishes PM2.5 and PM10
 - `DHT11` and `DHT22` publish temperature and humidity
 - `ME3-NO2` publishes raw ADC and calibrated millivolt readings for a custom analog AFE path
 - `SPS30` publishes PM mass, number concentration, and particle size channels
@@ -59,11 +60,12 @@ The current registry defines these implemented sensor types. The authoritative l
 
 | Type Key | Display Name | Transport | Reported Values | Default Binding |
 | --- | --- | --- | --- | --- |
-| `bme280` | `BME280` | `i2c` | `temperature`, `humidity`, `pressure` | bus 0, address `0x77` |
+| `bme280` | `BME280` | `i2c` | `temperature`, `humidity`, `pressure` | bus 0, address `0x76` |
 | `bme680` | `BME680` | `i2c` | `temperature`, `humidity`, `pressure`, `gas_resistance` | bus 0, address `0x77` |
 | `sps30` | `SPS30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
 | `ens160` | `ENS160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
-| `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
+| `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed`, `course`, `hdop` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
+| `sds011` | `SDS011` | `uart` | `pm2_5`, `pm10_0` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
 | `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
 | `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
 | `me3_no2` | `ME3-NO2` | `analog` | `adc_raw`, `voltage_mv` | one of GPIO4, GPIO5, GPIO6; default poll `5000 ms` |
@@ -79,16 +81,16 @@ The current board defaults for I2C bus 0 come from `Kconfig`:
 
 The current registry validates only bus 0 for I2C sensors, matching the only board wiring path implemented by the firmware.
 
-### UART / GPS
+### UART / GPS and SDS011
 
-The GPS path is intentionally fixed to board wiring:
+The current UART sensor paths are intentionally fixed to board wiring:
 
 - UART port `1`
 - RX GPIO44
 - TX GPIO43
 - default baud `9600`
 
-The registry validates that GPS records match this fixed binding.
+The registry validates that both GPS and SDS011 records match this fixed binding.
 
 ### Shared sensor pins
 
@@ -124,6 +126,8 @@ Current patterns:
 - TinyGPSPlus-backed wrapper
   - `gps_nmea_sensor.cpp`
   - vendored parser under `third_party/tinygpsplus/`
+- local UART frame parser
+  - `sds011_sensor.cpp`
 
 Vendor source snapshots are compiled from [`../../firmware/main/third_party/`](../../firmware/main/third_party/).
 
@@ -142,7 +146,7 @@ Current behavior:
 - infer the transport from the selected sensor type
 - show transport as derived board wiring rather than an editable free-form choice
 - expose only valid board pin options for GPIO-backed and analog-backed sensors
-- apply fixed board UART wiring for GPS
+- apply fixed board UART wiring for GPS and SDS011
 - keep edits in a staged in-memory `SensorConfigList`
 - persist staged changes only when the user explicitly applies them and reboots
 - allow discarding the staged list without touching persisted NVS state
@@ -177,5 +181,5 @@ This lets the UI distinguish between:
 
 - Sensor config still stores several transport-specific fields directly in `SensorRecord`.
 - The HTML UI is still server-rendered in C++.
-- There is no dedicated upload pipeline yet; measurements are only exposed locally through the runtime pages and `/status`.
+- The sensor docs here focus on the local sensor/runtime path. Upload behavior is implemented separately through the measurement store and backend adapters.
 - Only I2C bus 0 is currently supported by the board wiring and runtime validation path.

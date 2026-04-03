@@ -35,14 +35,18 @@ These become build-time defaults for `DeviceConfig` and AP behavior.
 
 These define the board-level mapping for I2C bus 0. The current defaults are GPIO8 for SDA and GPIO9 for SCL.
 
-### Board GPS UART defaults
+### Board UART defaults for GPS and SDS011
 
 - `CONFIG_AIR360_GPS_DEFAULT_UART_PORT`
 - `CONFIG_AIR360_GPS_DEFAULT_RX_GPIO`
 - `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO`
 - `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE`
+- `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT`
+- `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO`
+- `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO`
+- `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE`
 
-These define the fixed board wiring assumed for the GPS/NMEA sensor path. The current defaults are UART1, RX GPIO44, TX GPIO43, baud 9600.
+These define the fixed board wiring assumed for the two UART sensor paths. The current repository defaults are UART1, RX GPIO44, TX GPIO43, baud 9600 for both `GPS (NMEA)` and `SDS011`.
 
 ### Board GPIO sensor slots
 
@@ -121,7 +125,7 @@ Important current behavior:
 
 - the persisted schema still stores transport-specific fields directly in `SensorRecord`
 - the `/sensors` UI infers transport from sensor type rather than letting the user choose arbitrary transport combinations
-- GPS records are validated against fixed board UART wiring
+- GPS and SDS011 records are validated against fixed board UART wiring from the registry defaults
 - GPIO-backed and analog-backed sensors are constrained to the configured board sensor pins
 - sensor edits in `/sensors` are staged in memory and only persisted when the user explicitly applies them and reboots
 - stored sensor config with an older or incompatible layout is currently replaced with defaults rather than migrated

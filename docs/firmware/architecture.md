@@ -89,7 +89,7 @@ Owns Wi-Fi startup decisions:
 
 [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp)
 
-Aggregates runtime state from build info, persisted config, network state, and sensor manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes both a generic `measurements` array and a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
+Aggregates runtime state from build info, persisted config, network state, and sensor manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes a generic `measurements` array for every sensor plus a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
 
 ### WebServer
 
