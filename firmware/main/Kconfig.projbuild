@@ -43,6 +43,26 @@ config AIR360_GPS_DEFAULT_BAUD_RATE
     range 1200 115200
     default 9600
 
+config AIR360_SDS011_DEFAULT_UART_PORT
+    int "SDS011 default UART port"
+    range 1 2
+    default AIR360_GPS_DEFAULT_UART_PORT
+
+config AIR360_SDS011_DEFAULT_RX_GPIO
+    int "SDS011 default RX GPIO"
+    range 0 48
+    default AIR360_GPS_DEFAULT_RX_GPIO
+
+config AIR360_SDS011_DEFAULT_TX_GPIO
+    int "SDS011 default TX GPIO"
+    range 0 48
+    default AIR360_GPS_DEFAULT_TX_GPIO
+
+config AIR360_SDS011_DEFAULT_BAUD_RATE
+    int "SDS011 default UART baud rate"
+    range 1200 115200
+    default AIR360_GPS_DEFAULT_BAUD_RATE
+
 config AIR360_GPIO_SENSOR_PIN_0
     int "GPIO sensor slot 0"
     range 0 48

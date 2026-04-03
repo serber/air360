@@ -25,6 +25,10 @@ struct SensorDescriptor {
     std::uint32_t default_poll_interval_ms;
     std::uint8_t default_i2c_bus_id;
     std::uint8_t default_i2c_address;
+    std::uint8_t default_uart_port_id;
+    std::int16_t default_uart_rx_gpio_pin;
+    std::int16_t default_uart_tx_gpio_pin;
+    std::uint32_t default_uart_baud_rate;
     SensorValidationFn validate;
     SensorDriverFactory create_driver;
 };

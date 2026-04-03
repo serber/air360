@@ -18,6 +18,7 @@ enum class SensorType : std::uint8_t {
     kSps30 = 6U,
     kEns160 = 7U,
     kMe3No2 = 8U,
+    kSds011 = 9U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -82,6 +83,8 @@ enum class SensorValueKind : std::uint8_t {
     kEco2Ppm = 22U,
     kAdcRaw = 23U,
     kVoltageMv = 24U,
+    kCourseDeg = 25U,
+    kHdop = 26U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -134,6 +137,10 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "adc_raw";
         case SensorValueKind::kVoltageMv:
             return "voltage_mv";
+        case SensorValueKind::kCourseDeg:
+            return "course_deg";
+        case SensorValueKind::kHdop:
+            return "hdop";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -190,6 +197,10 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "ADC raw";
         case SensorValueKind::kVoltageMv:
             return "Voltage";
+        case SensorValueKind::kCourseDeg:
+            return "Course";
+        case SensorValueKind::kHdop:
+            return "HDOP";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -213,6 +224,10 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "";
         case SensorValueKind::kSpeedKnots:
             return "kn";
+        case SensorValueKind::kCourseDeg:
+            return "deg";
+        case SensorValueKind::kHdop:
+            return "";
         case SensorValueKind::kGasResistanceOhms:
             return "Ohm";
         case SensorValueKind::kPm1_0UgM3:
@@ -251,6 +266,8 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kPressureHpa:
         case SensorValueKind::kAltitudeM:
         case SensorValueKind::kSpeedKnots:
+        case SensorValueKind::kCourseDeg:
+        case SensorValueKind::kHdop:
             return 1;
         case SensorValueKind::kGasResistanceOhms:
             return 0;

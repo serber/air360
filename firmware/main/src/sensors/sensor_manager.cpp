@@ -144,17 +144,17 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
             managed.runtime.last_error = "Unsupported transport for selected sensor";
         } else if (!descriptor->driver_implemented || descriptor->create_driver == nullptr) {
             managed.runtime.state = SensorRuntimeState::kConfigured;
-        } else {
-            managed.driver = descriptor->create_driver();
-            if (!managed.driver) {
-                managed.runtime.state = SensorRuntimeState::kError;
-                managed.runtime.last_error = "Failed to allocate sensor driver.";
             } else {
-                const esp_err_t init_err = managed.driver->init(record, driver_context);
-                if (init_err == ESP_OK) {
-                    managed.driver_ready = true;
-                    managed.runtime.state = SensorRuntimeState::kInitialized;
-                    managed.runtime.last_error.clear();
+                managed.driver = descriptor->create_driver();
+                if (!managed.driver) {
+                    managed.runtime.state = SensorRuntimeState::kError;
+                    managed.runtime.last_error = "Failed to allocate sensor driver.";
+                } else {
+                    const esp_err_t init_err = managed.driver->init(record, driver_context);
+                    if (init_err == ESP_OK) {
+                        managed.driver_ready = true;
+                        managed.runtime.state = SensorRuntimeState::kInitialized;
+                        managed.runtime.last_error.clear();
                     managed.runtime.measurement = managed.driver->latestMeasurement();
                     managed.runtime.last_sample_time_ms =
                         managed.runtime.measurement.sample_time_ms;
@@ -331,6 +331,8 @@ void SensorManager::taskMain() {
                 needs_init ? driver->init(record, driver_context) : driver->poll();
             SensorMeasurement measurement =
                 op_err == ESP_OK ? driver->latestMeasurement() : SensorMeasurement{};
+            const std::string driver_status =
+                op_err == ESP_OK ? driver->lastError() : std::string{};
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
 
@@ -365,7 +367,7 @@ void SensorManager::taskMain() {
                 sensor.runtime.last_sample_time_ms = measurement.sample_time_ms;
                 sensor.runtime.state = needs_init ? SensorRuntimeState::kInitialized
                                                   : SensorRuntimeState::kPolling;
-                sensor.runtime.last_error.clear();
+                sensor.runtime.last_error = driver_status;
                 sensor.next_action_time_ms =
                     now_ms + (needs_init ? 0U : sensor.record.poll_interval_ms);
             } else {

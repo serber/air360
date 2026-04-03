@@ -1,5 +1,6 @@
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -24,6 +25,8 @@ namespace {
 constexpr std::uint8_t kOversampling = BME280_OVERSAMPLING_1X;
 constexpr std::uint8_t kFilter = BME280_FILTER_COEFF_OFF;
 constexpr std::uint32_t kMeasurementSlackUs = 1000U;
+constexpr std::uint32_t kInitRetryDelayUs = 5000U;
+constexpr std::uint8_t kInitAttempts = 2U;
 
 esp_err_t mapResultToEspErr(int8_t result) {
     switch (result) {
@@ -63,6 +66,12 @@ std::string describeResult(int8_t result) {
         default:
             return "unknown bme280 error";
     }
+}
+
+std::string formatChipId(std::uint8_t chip_id) {
+    char buffer[8];
+    std::snprintf(buffer, sizeof(buffer), "0x%02x", static_cast<unsigned>(chip_id));
+    return buffer;
 }
 
 BME280_INTF_RET_TYPE readCallback(
@@ -122,12 +131,6 @@ esp_err_t Bme280Sensor::init(
         return ESP_ERR_INVALID_STATE;
     }
 
-    const esp_err_t probe_err = context.i2c_bus_manager->probe(record.i2c_bus_id, record.i2c_address);
-    if (probe_err != ESP_OK) {
-        setError("BME280 probe failed on the selected I2C bus and address.");
-        return probe_err;
-    }
-
     interface_context_.bus_manager = context.i2c_bus_manager;
     interface_context_.bus_id = record.i2c_bus_id;
     interface_context_.address = record.i2c_address;
@@ -143,7 +146,36 @@ esp_err_t Bme280Sensor::init(
     state_->device.write = &writeCallback;
     state_->device.delay_us = &delayUs;
 
-    const int8_t init_result = bme280_init(&state_->device);
+    std::uint8_t chip_id = 0U;
+    const esp_err_t chip_id_err =
+        boschI2cRead(interface_context_, BME280_REG_CHIP_ID, &chip_id, 1U);
+    if (chip_id_err != ESP_OK) {
+        setError("BME280 did not respond on the selected I2C bus and address.");
+        delete state_;
+        state_ = nullptr;
+        return chip_id_err == ESP_ERR_TIMEOUT ? ESP_ERR_NOT_FOUND : chip_id_err;
+    }
+
+    if (chip_id != BME280_CHIP_ID) {
+        setError(
+            std::string("Unexpected chip id for BME280: ") + formatChipId(chip_id) + ".");
+        delete state_;
+        state_ = nullptr;
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    int8_t init_result = BME280_E_COMM_FAIL;
+    for (std::uint8_t attempt = 0U; attempt < kInitAttempts; ++attempt) {
+        init_result = bme280_init(&state_->device);
+        if (init_result == BME280_OK) {
+            break;
+        }
+
+        if (attempt + 1U < kInitAttempts) {
+            boschDelayUs(kInitRetryDelayUs);
+        }
+    }
+
     if (init_result != BME280_OK) {
         setError(std::string("Failed to initialize BME280: ") + describeResult(init_result) + ".");
         delete state_;

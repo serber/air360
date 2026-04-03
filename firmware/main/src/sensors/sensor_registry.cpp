@@ -9,6 +9,7 @@
 #include "air360/sensors/drivers/ens160_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
+#include "air360/sensors/drivers/sds011_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "sdkconfig.h"
 
@@ -22,6 +23,26 @@
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
 #define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 43
+#endif
+
+#ifndef CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
+#define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_UART_PORT
+#define CONFIG_AIR360_SDS011_DEFAULT_UART_PORT CONFIG_AIR360_GPS_DEFAULT_UART_PORT
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE
+#define CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
 #endif
 
 #ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
@@ -187,6 +208,31 @@ bool validateGpsNmeaRecord(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateSds011Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "SDS011 currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_port_id != CONFIG_AIR360_SDS011_DEFAULT_UART_PORT ||
+        record.uart_rx_gpio_pin != CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO ||
+        record.uart_tx_gpio_pin != CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO) {
+        error = "SDS011 UART binding must match the fixed board wiring.";
+        return false;
+    }
+
+    if (record.uart_baud_rate < 1200U || record.uart_baud_rate > 115200U) {
+        error = "UART baud rate must be between 1200 and 115200.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateDhtRecord(const SensorRecord& record, std::string& error, std::uint32_t min_poll_interval_ms) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -252,7 +298,11 @@ constexpr SensorDescriptor kDescriptors[] = {
         true,
         10000U,
         0U,
-        0x77U,
+        0x76U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateBme280Record,
         &createBme280Sensor,
     },
@@ -268,6 +318,10 @@ constexpr SensorDescriptor kDescriptors[] = {
         10000U,
         0U,
         0x77U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateBme680Record,
         &createBme680Sensor,
     },
@@ -283,6 +337,10 @@ constexpr SensorDescriptor kDescriptors[] = {
         5000U,
         0U,
         0x69U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateSps30Record,
         &createSps30Sensor,
     },
@@ -298,6 +356,10 @@ constexpr SensorDescriptor kDescriptors[] = {
         1000U,
         0U,
         0x52U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateEns160Record,
         &createEns160Sensor,
     },
@@ -313,8 +375,31 @@ constexpr SensorDescriptor kDescriptors[] = {
         2000U,
         0U,
         0x00U,
+        CONFIG_AIR360_GPS_DEFAULT_UART_PORT,
+        CONFIG_AIR360_GPS_DEFAULT_RX_GPIO,
+        CONFIG_AIR360_GPS_DEFAULT_TX_GPIO,
+        CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE,
         &validateGpsNmeaRecord,
         &createGpsNmeaSensor,
+    },
+    {
+        SensorType::kSds011,
+        "sds011",
+        "SDS011",
+        false,
+        false,
+        true,
+        false,
+        true,
+        1000U,
+        0U,
+        0x00U,
+        CONFIG_AIR360_SDS011_DEFAULT_UART_PORT,
+        CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO,
+        CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO,
+        CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE,
+        &validateSds011Record,
+        &createSds011Sensor,
     },
     {
         SensorType::kDht11,
@@ -328,6 +413,10 @@ constexpr SensorDescriptor kDescriptors[] = {
         2000U,
         0U,
         0x00U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateDht11Record,
         &createDht11Sensor,
     },
@@ -343,6 +432,10 @@ constexpr SensorDescriptor kDescriptors[] = {
         2000U,
         0U,
         0x00U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateDht22Record,
         &createDht22Sensor,
     },
@@ -358,6 +451,10 @@ constexpr SensorDescriptor kDescriptors[] = {
         5000U,
         0U,
         0x00U,
+        0U,
+        -1,
+        -1,
+        0U,
         &validateMe3No2Record,
         &createMe3No2Sensor,
     },

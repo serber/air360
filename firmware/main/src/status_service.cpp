@@ -93,6 +93,21 @@ std::string measurementSummary(const SensorMeasurement& measurement) {
     return summary;
 }
 
+std::string measurementListHtml(const SensorMeasurement& measurement) {
+    if (measurement.empty()) {
+        return "";
+    }
+
+    std::string html = "<ul class='list'>";
+    for (std::size_t index = 0; index < measurement.value_count; ++index) {
+        html += "<li>";
+        html += htmlEscape(formatMeasurementValue(measurement.values[index]));
+        html += "</li>";
+    }
+    html += "</ul>";
+    return html;
+}
+
 std::string jsonNumberOrNull(const SensorMeasurement& measurement, SensorValueKind kind) {
     const SensorValue* value = measurement.findValue(kind);
     if (value == nullptr) {
@@ -218,13 +233,7 @@ std::string renderSensorOverviewBlock(const std::vector<SensorRuntimeInfo>& sens
 
     html += "<div class='list'>";
     for (const auto& sensor : sensors) {
-        std::string readings_block;
-        const std::string readings = measurementSummary(sensor.measurement);
-        if (!readings.empty()) {
-            readings_block += "<p>";
-            readings_block += htmlEscape(readings);
-            readings_block += "</p>";
-        }
+        const std::string readings_block = measurementListHtml(sensor.measurement);
 
         std::string last_error_block;
         if (!sensor.last_error.empty()) {

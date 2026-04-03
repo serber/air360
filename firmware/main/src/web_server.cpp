@@ -41,6 +41,22 @@
 #define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
 #endif
 
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_UART_PORT
+#define CONFIG_AIR360_SDS011_DEFAULT_UART_PORT CONFIG_AIR360_GPS_DEFAULT_UART_PORT
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE
+#define CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
+#endif
+
 #ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
 #define CONFIG_AIR360_GPIO_SENSOR_PIN_0 4
 #endif
@@ -514,7 +530,7 @@ std::int16_t defaultBoardGpioPin() {
 std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
     switch (descriptor.type) {
         case SensorType::kBme280:
-            return "Defaults: I2C bus 0 at address 0x77.";
+            return "Defaults: I2C bus 0 at address 0x76.";
         case SensorType::kBme680:
             return "Defaults: I2C bus 0 at address 0x77. Gas resistance is reported when the heater run is valid.";
         case SensorType::kSps30:
@@ -531,6 +547,18 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             hint += " @ ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE);
             hint += " baud.";
+            return hint;
+        }
+        case SensorType::kSds011: {
+            std::string hint = "Defaults: fixed UART ";
+            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_UART_PORT);
+            hint += " RX";
+            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO);
+            hint += " TX";
+            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO);
+            hint += " @ ";
+            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE);
+            hint += " baud. Reports PM2.5 and PM10 from validated SDS011 frames.";
             return hint;
         }
         case SensorType::kDht11:
@@ -1325,7 +1353,6 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             SensorRecord rebuilt{};
             rebuilt.id = preserved_id;
             rebuilt.enabled = preserved_enabled;
-            rebuilt.uart_baud_rate = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE;
             rebuilt.analog_gpio_pin = defaultBoardGpioPin();
             record = rebuilt;
         }
@@ -1347,11 +1374,11 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 }
                 break;
             case TransportKind::kUart:
-                record.uart_port_id = CONFIG_AIR360_GPS_DEFAULT_UART_PORT;
-                record.uart_rx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_RX_GPIO;
-                record.uart_tx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_TX_GPIO;
-                if (record.uart_baud_rate == 0U) {
-                    record.uart_baud_rate = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE;
+                record.uart_port_id = descriptor->default_uart_port_id;
+                record.uart_rx_gpio_pin = descriptor->default_uart_rx_gpio_pin;
+                record.uart_tx_gpio_pin = descriptor->default_uart_tx_gpio_pin;
+                if (type_changed || record.uart_baud_rate == 0U) {
+                    record.uart_baud_rate = descriptor->default_uart_baud_rate;
                 }
                 break;
             case TransportKind::kGpio:
