@@ -88,6 +88,30 @@ std::string bindingSummary(const SensorRecord& record) {
     }
 }
 
+struct ClaimedUartBinding {
+    std::uint8_t port_id = 0U;
+    std::int16_t rx_pin = -1;
+    std::int16_t tx_pin = -1;
+    std::uint32_t baud_rate = 0U;
+    std::uint32_t owner_id = 0U;
+    std::string owner_name;
+};
+
+const ClaimedUartBinding* findClaimedUartBinding(
+    const std::vector<ClaimedUartBinding>& claims,
+    const SensorRecord& record) {
+    for (const auto& claim : claims) {
+        if (claim.port_id == record.uart_port_id &&
+            claim.rx_pin == record.uart_rx_gpio_pin &&
+            claim.tx_pin == record.uart_tx_gpio_pin &&
+            claim.baud_rate == record.uart_baud_rate) {
+            return &claim;
+        }
+    }
+
+    return nullptr;
+}
+
 }  // namespace
 
 void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
@@ -112,7 +136,9 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
     const std::uint64_t now_ms = uptimeMilliseconds();
     std::vector<ManagedSensor> sensors;
+    std::vector<ClaimedUartBinding> claimed_uart_bindings;
     sensors.reserve(config.sensor_count);
+    claimed_uart_bindings.reserve(config.sensor_count);
 
     for (std::size_t index = 0; index < config.sensor_count; ++index) {
         const SensorRecord& record = config.sensors[index];
@@ -144,7 +170,24 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
             managed.runtime.last_error = "Unsupported transport for selected sensor";
         } else if (!descriptor->driver_implemented || descriptor->create_driver == nullptr) {
             managed.runtime.state = SensorRuntimeState::kConfigured;
+        } else if (record.transport_kind == TransportKind::kUart) {
+            const ClaimedUartBinding* claim =
+                findClaimedUartBinding(claimed_uart_bindings, record);
+            if (claim != nullptr) {
+                managed.runtime.state = SensorRuntimeState::kError;
+                managed.runtime.last_error =
+                    "UART binding conflicts with enabled sensor " + claim->owner_name +
+                    " (#" + std::to_string(claim->owner_id) + ").";
             } else {
+                claimed_uart_bindings.push_back(
+                    ClaimedUartBinding{
+                        record.uart_port_id,
+                        record.uart_rx_gpio_pin,
+                        record.uart_tx_gpio_pin,
+                        record.uart_baud_rate,
+                        record.id,
+                        managed.runtime.display_name,
+                    });
                 managed.driver = descriptor->create_driver();
                 if (!managed.driver) {
                     managed.runtime.state = SensorRuntimeState::kError;
@@ -155,6 +198,30 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                         managed.driver_ready = true;
                         managed.runtime.state = SensorRuntimeState::kInitialized;
                         managed.runtime.last_error.clear();
+                        managed.runtime.measurement = managed.driver->latestMeasurement();
+                        managed.runtime.last_sample_time_ms =
+                            managed.runtime.measurement.sample_time_ms;
+                        managed.next_action_time_ms = now_ms;
+                    } else {
+                        managed.driver_ready = false;
+                        managed.runtime.state = classifyFailureState(init_err);
+                        managed.runtime.last_error = errorText(*managed.driver, init_err);
+                        managed.next_action_time_ms =
+                            now_ms + std::min<std::uint32_t>(record.poll_interval_ms, kRetryDelayMs);
+                    }
+                }
+            }
+        } else {
+            managed.driver = descriptor->create_driver();
+            if (!managed.driver) {
+                managed.runtime.state = SensorRuntimeState::kError;
+                managed.runtime.last_error = "Failed to allocate sensor driver.";
+            } else {
+                const esp_err_t init_err = managed.driver->init(record, driver_context);
+                if (init_err == ESP_OK) {
+                    managed.driver_ready = true;
+                    managed.runtime.state = SensorRuntimeState::kInitialized;
+                    managed.runtime.last_error.clear();
                     managed.runtime.measurement = managed.driver->latestMeasurement();
                     managed.runtime.last_sample_time_ms =
                         managed.runtime.measurement.sample_time_ms;

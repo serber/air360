@@ -92,6 +92,8 @@ The current UART sensor paths are intentionally fixed to board wiring:
 
 The registry validates that both GPS and SDS011 records match this fixed binding.
 
+With the current repository defaults, both UART sensor types resolve to that same binding. `SensorManager` now detects that collision during startup and refuses to initialize the later enabled sensor on the same UART binding.
+
 ### Shared sensor pins
 
 Board sensor pins are constrained to three board-level pins:
@@ -147,6 +149,7 @@ Current behavior:
 - show transport as derived board wiring rather than an editable free-form choice
 - expose only valid board pin options for GPIO-backed and analog-backed sensors
 - apply fixed board UART wiring for GPS and SDS011
+- detect conflicting enabled sensors that resolve to the same UART binding and leave the later record in `error`
 - keep edits in a staged in-memory `SensorConfigList`
 - persist staged changes only when the user explicitly applies them and reboots
 - allow discarding the staged list without touching persisted NVS state
