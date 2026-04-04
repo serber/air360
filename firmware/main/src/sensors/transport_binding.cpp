@@ -355,8 +355,8 @@ esp_err_t UartPortManager::ensurePort(
 
 #if CONFIG_ESP_CONSOLE_UART && CONFIG_ESP_CONSOLE_UART_DEFAULT
     if (port_number != CONFIG_ESP_CONSOLE_UART_NUM &&
-        rx_pin == kDefaultConsoleRxPin &&
-        tx_pin == kDefaultConsoleTxPin) {
+        ((rx_pin == kDefaultConsoleRxPin && tx_pin == kDefaultConsoleTxPin) ||
+         (rx_pin == kDefaultConsoleTxPin && tx_pin == kDefaultConsoleRxPin))) {
         ESP_LOGW(
             kTag,
             "UART%u is being mapped to GPIO %d/%d, which overlap the default console pins; serial logs may disappear after sensor init",

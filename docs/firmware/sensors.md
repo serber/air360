@@ -49,7 +49,6 @@ Examples:
 - `BME680` publishes temperature, humidity, pressure, and gas resistance
 - `ENS160` publishes AQI, TVOC, and eCO2
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, speed, course, and HDOP
-- `SDS011` publishes PM2.5 and PM10
 - `DHT11` and `DHT22` publish temperature and humidity
 - `ME3-NO2` publishes raw ADC and calibrated millivolt readings for a custom analog AFE path
 - `SPS30` publishes PM mass, number concentration, and particle size channels
@@ -65,7 +64,6 @@ The current registry defines these implemented sensor types. The authoritative l
 | `sps30` | `SPS30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
 | `ens160` | `ENS160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
 | `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed`, `course`, `hdop` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
-| `sds011` | `SDS011` | `uart` | `pm2_5`, `pm10_0` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
 | `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
 | `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
 | `me3_no2` | `ME3-NO2` | `analog` | `adc_raw`, `voltage_mv` | one of GPIO4, GPIO5, GPIO6; default poll `5000 ms` |
@@ -81,18 +79,16 @@ The current board defaults for I2C bus 0 come from `Kconfig`:
 
 The current registry validates only bus 0 for I2C sensors, matching the only board wiring path implemented by the firmware.
 
-### UART / GPS and SDS011
+### UART / GPS
 
-The current UART sensor paths are intentionally fixed to board wiring:
+The GPS path is intentionally fixed to board wiring:
 
 - UART port `1`
 - RX GPIO44
 - TX GPIO43
 - default baud `9600`
 
-The registry validates that both GPS and SDS011 records match this fixed binding.
-
-With the current repository defaults, both UART sensor types resolve to that same binding. `SensorManager` now detects that collision during startup and refuses to initialize the later enabled sensor on the same UART binding.
+The registry validates that GPS records match this fixed binding.
 
 ### Shared sensor pins
 
@@ -128,8 +124,6 @@ Current patterns:
 - TinyGPSPlus-backed wrapper
   - `gps_nmea_sensor.cpp`
   - vendored parser under `third_party/tinygpsplus/`
-- local UART frame parser
-  - `sds011_sensor.cpp`
 
 Vendor source snapshots are compiled from [`../../firmware/main/third_party/`](../../firmware/main/third_party/).
 
@@ -148,8 +142,7 @@ Current behavior:
 - infer the transport from the selected sensor type
 - show transport as derived board wiring rather than an editable free-form choice
 - expose only valid board pin options for GPIO-backed and analog-backed sensors
-- apply fixed board UART wiring for GPS and SDS011
-- detect conflicting enabled sensors that resolve to the same UART binding and leave the later record in `error`
+- apply fixed board UART wiring for GPS
 - keep edits in a staged in-memory `SensorConfigList`
 - persist staged changes only when the user explicitly applies them and reboots
 - allow discarding the staged list without touching persisted NVS state

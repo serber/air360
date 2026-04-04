@@ -41,22 +41,6 @@
 #define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
 #endif
 
-#ifndef CONFIG_AIR360_SDS011_DEFAULT_UART_PORT
-#define CONFIG_AIR360_SDS011_DEFAULT_UART_PORT CONFIG_AIR360_GPS_DEFAULT_UART_PORT
-#endif
-
-#ifndef CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO
-#define CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
-#endif
-
-#ifndef CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO
-#define CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
-#endif
-
-#ifndef CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE
-#define CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
-#endif
-
 #ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
 #define CONFIG_AIR360_GPIO_SENSOR_PIN_0 4
 #endif
@@ -547,18 +531,6 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             hint += " @ ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE);
             hint += " baud.";
-            return hint;
-        }
-        case SensorType::kSds011: {
-            std::string hint = "Defaults: fixed UART ";
-            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_UART_PORT);
-            hint += " RX";
-            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO);
-            hint += " TX";
-            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO);
-            hint += " @ ";
-            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE);
-            hint += " baud. Reports PM2.5 and PM10 from validated SDS011 frames.";
             return hint;
         }
         case SensorType::kDht11:

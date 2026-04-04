@@ -129,14 +129,6 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
   Board-level GPS TX pin.
 - `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE`
   Default GPS baud rate.
-- `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT`
-  Fixed UART port used by the SDS011 path. The repository defaults currently match the GPS UART binding, so both sensors share the same UART defaults.
-- `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO`
-  Board-level SDS011 RX pin. The repository defaults currently match the GPS UART binding, so both sensors share the same UART defaults.
-- `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO`
-  Board-level SDS011 TX pin. The repository defaults currently match the GPS UART binding, so both sensors share the same UART defaults.
-- `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE`
-  Default SDS011 baud rate. The repository defaults currently match the GPS UART binding, so both sensors share the same UART defaults.
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_0`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_1`
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_2`
@@ -332,7 +324,6 @@ Supported drivers confirmed by the current registry:
 - `SPS30`
 - `ENS160`
 - `GPS (NMEA)`
-- `SDS011`
 - `DHT11`
 - `DHT22`
 - `ME3-NO2`
@@ -341,8 +332,8 @@ Current transport model by sensor type:
 
 - `BME280`, `BME680`, `SPS30`, `ENS160`
   I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
-- `GPS (NMEA)`, `SDS011`
-  UART sensors with fixed board wiring from `CONFIG_AIR360_*_DEFAULT_*`.
+- `GPS (NMEA)`
+  UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
 - `DHT11`, `DHT22`, `ME3-NO2`
   Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
 
@@ -355,9 +346,7 @@ Current default I2C addresses from the registry are:
 
 The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, and UART sensors use the fixed bindings from the registry defaults. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
 
-With the current repository defaults, `GPS (NMEA)` and `SDS011` resolve to the same UART binding. The runtime now treats that as a conflict: only one enabled sensor may claim that binding at a time, and the other record will enter `error` with an explicit conflict message.
-
-`GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array. `SDS011` reports PM2.5 and PM10.
+`GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 
 The local web UI now uses a mixed frontend model:
 
