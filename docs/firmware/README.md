@@ -33,6 +33,8 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
   Forward-looking inventory of planned sensors, peripherals, and connectivity modules. This file is planning-oriented, not a record of what is already implemented.
 - [`../../firmware/README.md`](../../firmware/README.md)
   Operational firmware README with build, flash, monitor, startup, upload, and known-limitation details.
+- [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/)
+  Repo-local skill for turning the current `firmware/build/` outputs into a GitHub-release-ready bundle with merged image, split images, zip archives, checksums, and release notes.
 
 ## How To Use These Docs
 
@@ -42,6 +44,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
 - Read [`architecture.md`](architecture.md) to understand boot flow and service ownership.
 - Use [`configuration.md`](configuration.md) when changing defaults, `sdkconfig`, or partitions.
 - Use [`sensors.md`](sensors.md) before adding a new driver or changing sensor setup behavior.
+- Use [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/) when preparing a beta or stable firmware release from an existing local build.
 - Use [`planned-device-support.md`](planned-device-support.md) when discussing future hardware support beyond what is already implemented.
 
 ## Scope Boundary

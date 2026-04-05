@@ -8,6 +8,8 @@ Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/)
 
 If you need an end-user walkthrough for setup AP onboarding and the station-mode web UI, start with [`../docs/firmware/user-guide.md`](../docs/firmware/user-guide.md).
 
+If you need to package a GitHub-release-ready firmware bundle from the current `build/` outputs, use the repo-local skill at [`../.agents/skills/air360-firmware-release-bundle/`](../.agents/skills/air360-firmware-release-bundle/).
+
 ## Project Structure
 
 The firmware project root is `firmware/`.
@@ -219,6 +221,26 @@ Generated artifacts are written under `build/`. For the current project that inc
 - `build/air360_firmware.elf`
 - `build/air360_firmware.map`
 - `build/compile_commands.json`
+
+## Release Packaging
+
+To package the current build for a GitHub beta or stable release, use the repo-local release skill script:
+
+```bash
+cd firmware
+python3 .agents/skills/air360-firmware-release-bundle/scripts/create_release_bundle.py v0.1-beta.1
+```
+
+The script reads the current `build/` outputs and creates a versioned bundle under `release/air360-v<commit>/` with:
+
+- `full/` merged image
+- `split/` flashable ESP-IDF binaries plus `flash-offsets.txt`
+- `air360-v<commit>-esp32s3-16mb-full.zip`
+- `air360-v<commit>-esp32s3-16mb-split.zip`
+- `release-notes.md`
+- `sha256sums.txt`
+
+The requested version string is used in `release-notes.md`. File and folder names are derived from the build's current commit-style project version from `build/project_description.json`.
 
 ## Flash
 
