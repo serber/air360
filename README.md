@@ -64,6 +64,8 @@ Start here depending on what you need.
   [docs/firmware/README.md](docs/firmware/README.md)
 - Firmware end-user manual:
   [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
+- Firmware release-packaging skill:
+  [.agents/skills/air360-firmware-release-bundle/](.agents/skills/air360-firmware-release-bundle/)
 - Backend documentation map:
   [docs/backend/README.md](docs/backend/README.md)
 - Portal documentation map:
@@ -112,6 +114,11 @@ If you need to work on device behavior:
 
 1. Read [firmware/README.md](firmware/README.md)
 2. Then use [docs/firmware/README.md](docs/firmware/README.md) as the firmware documentation map
+
+If you need to publish a firmware beta or stable build:
+
+1. Read [firmware/README.md](firmware/README.md) for the release packaging workflow
+2. Use [.agents/skills/air360-firmware-release-bundle/](.agents/skills/air360-firmware-release-bundle/) to generate the versioned release bundle from `firmware/build/`
 
 If you need to operate or provision a device rather than change firmware code:
 
