@@ -23,6 +23,8 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
   Startup flow, runtime model, module boundaries, and steady-state behavior.
 - [`configuration.md`](configuration.md)
   `Kconfig`, `sdkconfig.defaults`, runtime NVS config, partition layout, and board-level defaults.
+- [`user-guide.md`](user-guide.md)
+  End-user walkthrough for setup AP onboarding, station-mode usage, sensors, backends, and the local web UI.
 - [`project-structure.md`](project-structure.md)
   Source tree walkthrough, component layout, build inputs, and developer navigation.
 - [`sensors.md`](sensors.md)
@@ -36,6 +38,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
 
 - Start with [`project-structure.md`](project-structure.md) if you are new to the firmware tree.
 - Read [`../../firmware/README.md`](../../firmware/README.md) first if you need the practical build and runtime overview.
+- Use [`user-guide.md`](user-guide.md) when the audience is a device user rather than a firmware developer.
 - Read [`architecture.md`](architecture.md) to understand boot flow and service ownership.
 - Use [`configuration.md`](configuration.md) when changing defaults, `sdkconfig`, or partitions.
 - Use [`sensors.md`](sensors.md) before adding a new driver or changing sensor setup behavior.
