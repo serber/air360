@@ -391,8 +391,7 @@ std::string renderConfigPage(
         "air360 device configuration",
         "Device Configuration",
         "Manage station Wi-Fi and local device identity without leaving the firmware UI.",
-        body,
-        false);
+        body);
 }
 
 bool parseUnsignedLong(

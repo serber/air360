@@ -70,7 +70,7 @@ std::string firmwareVersionLabel() {
         return "version unavailable";
     }
 
-    return app->version;
+    return std::string("version ") + app->version;
 }
 
 const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
