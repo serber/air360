@@ -138,13 +138,13 @@ Confirmed routes:
 - `/`
   Runtime overview page. In setup AP mode the UI redirects this route to `/config`.
 - `/status`
-  JSON status payload with build, network, config, backend, and sensor state.
+  JSON status payload with build, network, config, backend, and sensor state, including `reset_reason_label` and per-sensor queue depth.
 - `/config`
   Device and Wi-Fi configuration form. In setup AP mode this page also consumes the scanned SSID list from `/wifi-scan`.
 - `/sensors`
-  Category-based sensor configuration page for add, update, delete, staged apply/discard, and runtime inspection.
+  Category-based sensor configuration page for add, update, delete, staged apply/discard, and runtime inspection. The runtime view now shows configured poll interval and queued sample count per sensor.
 - `/backends`
-  Backend configuration form for upload interval, enablement, and the current adapter-specific persisted fields exposed by the UI.
+  Backend configuration form for upload interval, enablement, and the current adapter-specific persisted fields exposed by the UI. The overview page also shows the configured global upload interval for all backend cards.
 - `/wifi-scan`
   JSON endpoint returning the cached setup-AP Wi-Fi scan list.
 - `/assets/*`
