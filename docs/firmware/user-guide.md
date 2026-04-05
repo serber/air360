@@ -6,6 +6,25 @@ This guide explains how to use the current Air360 firmware from the moment the d
 
 It is written for device users, not for firmware developers.
 
+## Flashing The Firmware
+
+If you are starting from a release package, the easiest flashing path is the merged `full.bin` image through:
+
+```text
+https://espflash.app/
+```
+
+Recommended flow:
+
+1. Download the current `full.bin` release asset for your build.
+2. Open `https://espflash.app/` in a desktop browser with Web Serial support.
+3. Connect the device by USB.
+4. Select the device port in the browser.
+5. Choose the Air360 `full.bin` file.
+6. Start flashing and wait for the device to reboot.
+
+After flashing, if the device has no saved station Wi-Fi credentials, it should boot into setup AP mode and expose `http://192.168.4.1/config`.
+
 ## Before You Start
 
 You need:
@@ -272,6 +291,31 @@ Current supported backends:
 - `Sensor.Community`
 - `Air360 API`
 
+### Sensor.Community Setup
+
+To use `Sensor.Community`:
+
+1. Open the device UI in station mode.
+2. Go to `Overview`.
+3. Note the current `Short ID`.
+4. Open:
+
+```text
+https://devices.sensor.community/
+```
+
+5. Register or configure the device on the Sensor.Community portal using that `Short ID`.
+6. Return to the firmware `Backends` page.
+7. Enable `Sensor.Community`.
+8. Leave the `Device ID override` at its default value unless you intentionally need a different id for debugging.
+9. Save the backend settings.
+
+Important rule:
+
+- the id configured on the Sensor.Community portal must match the id the firmware uses for upload
+- by default that is the runtime `Short ID`
+- if you manually change `Device ID override`, that override becomes the id used by the uploader and should match the portal-side configuration
+
 ### What Can Be Configured
 
 The page currently allows:
@@ -362,7 +406,7 @@ This means:
 1. Open `Backends`.
 2. Set the upload interval.
 3. Enable the backend you need.
-4. For `Sensor.Community`, override the device id only if you intentionally need to.
+4. For `Sensor.Community`, make sure the portal-side device registration uses the same `Short ID` or override value as the firmware.
 5. Save the page.
 6. Watch backend status on `Overview`.
 
