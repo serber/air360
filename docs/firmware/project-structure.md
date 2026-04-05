@@ -59,7 +59,7 @@ firmware/
 - [`../../firmware/main/src/web_ui.cpp`](../../firmware/main/src/web_ui.cpp)
   Shared page shell, embedded HTML template expansion, navigation, notices, and HTML escaping for the local web UI.
 - [`../../firmware/main/src/web_server.cpp`](../../firmware/main/src/web_server.cpp)
-  `esp_http_server` wrapper for `/`, `/status`, `/config`, `/sensors`, `/backends`, and `/assets/*`.
+  `esp_http_server` wrapper for `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*`.
 - [`../../firmware/main/webui/`](../../firmware/main/webui/)
   Hand-authored frontend files embedded directly into the firmware image, including `air360.css`, `air360.js`, and page body templates.
 

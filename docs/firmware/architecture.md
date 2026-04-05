@@ -4,13 +4,14 @@
 
 The current firmware is a local runtime for an ESP32-S3-based Air360 device.
 
-At the code level it currently does five main things:
+At the code level it currently does six main things:
 
 - boots as a native ESP-IDF C++17 application
 - initializes storage and networking
 - persists device and sensor configuration in NVS
-- exposes a local HTTP interface for device setup and sensor setup
+- exposes a local HTTP interface for device, sensor, and backend setup
 - starts a background sensor manager that initializes and polls configured drivers
+- starts a background upload manager that drains queued measurements to enabled remote backends
 
 The `docs/` folder contains broader project and compatibility planning, but this document describes only behavior confirmed by the `firmware/` source tree.
 
@@ -30,8 +31,9 @@ Confirmed order:
 8. `SensorConfigRepository` loads or creates `SensorConfigList`.
 9. `SensorManager::applyConfig()` builds the in-memory runtime for configured sensors and starts the background polling task when at least one pollable driver exists.
 10. `NetworkManager` attempts station mode when Wi-Fi credentials exist. Otherwise it starts setup AP mode.
-11. `WebServer` starts `esp_http_server` and registers `/`, `/status`, `/config`, and `/sensors`.
-12. On successful startup the green LED is turned on. On early fatal startup failure the red LED is turned on.
+11. `UploadManager` starts with the current backend config and waits until station uplink, valid Unix time, and queued measurements are available before attempting uploads.
+12. `WebServer` starts `esp_http_server` and registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*`.
+13. On successful startup the green LED is turned on. On early fatal startup failure the red LED is turned on.
 
 ## Runtime Model
 
@@ -44,14 +46,16 @@ Long-lived services:
 - `SensorConfigRepository`
 - `SensorManager`
 - `NetworkManager`
+- `UploadManager`
 - `WebServer`
 
 These are held in static storage inside `App::run()` rather than on the default ESP-IDF main task stack.
 
-There are two important execution modes:
+There are three important execution modes:
 
 - startup logic runs synchronously in the main task
 - sensor polling runs asynchronously in a dedicated FreeRTOS task created by `SensorManager`
+- backend uploads run asynchronously in a dedicated FreeRTOS task created by `UploadManager`
 
 The HTTP server task model is provided by `esp_http_server`, not by custom application task code.
 
@@ -83,19 +87,33 @@ Owns Wi-Fi startup decisions:
 
 - station connect from persisted credentials
 - setup AP fallback
+- setup-AP Wi-Fi scan caching for `/wifi-scan`
+- initial SNTP sync plus background station-mode retry until time becomes valid
 - tracking the active `NetworkState`
 
 ### StatusService
 
 [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp)
 
-Aggregates runtime state from build info, persisted config, network state, and sensor manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes a generic `measurements` array for every sensor plus a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
+Aggregates runtime state from build info, persisted config, network state, sensor manager snapshots, and upload manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes a generic `measurements` array for every sensor plus a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
 
 The current `/status` payload also includes:
 
 - `reset_reason` and `reset_reason_label`
 - per-sensor `poll_interval_ms`
 - per-sensor `queued_sample_count`
+
+### UploadManager
+
+[`../../firmware/main/src/uploads/upload_manager.cpp`](../../firmware/main/src/uploads/upload_manager.cpp)
+
+Owns backend upload scheduling and queue draining:
+
+- waits for active backend enablement, station uplink, and valid Unix time
+- reads bounded upload windows from `MeasurementStore`
+- skips empty-data cycles without treating them as backend errors
+- retries failed sends by restoring the inflight queue
+- drains backlog faster than the configured upload interval after successful sends when pending samples remain
 
 ### WebServer
 
@@ -107,6 +125,9 @@ Owns route registration and POST handling for:
 - `/status`
 - `/config`
 - `/sensors`
+- `/backends`
+- `/wifi-scan`
+- `/assets/*`
 
 It also saves configuration changes and triggers `esp_restart()` after a successful device config save. Sensor config changes are staged in memory inside `WebServer`; they are persisted only when the user explicitly applies them, and that action also reboots the device.
 
@@ -153,6 +174,8 @@ The runtime exposes local routes for overview, JSON status, device config, senso
   Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them. The runtime cards expose configured poll interval and queued sample count.
 - `/backends`
   Backend enablement, upload interval, and adapter-specific backend configuration exposed by the current UI. The overview page shows the configured global backend upload interval.
+- `/wifi-scan`
+  JSON endpoint exposing the cached setup-AP Wi-Fi scan list used by the `Device` page.
 - `/assets/*`
   Shared embedded CSS and JavaScript used by the local web UI shell.
 
@@ -191,11 +214,11 @@ Implemented in the current firmware:
 - a local ADC-backed `ME3-NO2` bring-up driver that currently reports raw ADC and calibrated millivolt readings for a custom analog AFE path
 - a generic measurement model that allows different drivers to publish different channel sets
 - local status reporting for live sensor state and measurements
+- backend upload scheduling with bounded queue windows and backlog draining for `Sensor.Community` and `Air360 API`
 
 Still clearly outside the current implementation:
 
 - OTA update logic
 - file-backed UI assets served from SPIFFS or embedded bundles
-- uploader/backend compatibility logic
 - authentication enforcement beyond the stored `local_auth_enabled` placeholder
 - a captive portal or full onboarding UX beyond the current forms

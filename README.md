@@ -62,6 +62,8 @@ Start here depending on what you need.
   and [docs/airrohr-firmware-ui-analysis.md](docs/airrohr-firmware-ui-analysis.md)
 - Firmware documentation map:
   [docs/firmware/README.md](docs/firmware/README.md)
+- Firmware end-user manual:
+  [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
 - Backend documentation map:
   [docs/backend/README.md](docs/backend/README.md)
 - Portal documentation map:
@@ -77,10 +79,11 @@ Current firmware implementation includes:
 
 - ESP-IDF 6.x application for `esp32s3`
 - persisted device, sensor, and backend configuration in NVS
-- station-mode join with SNTP time sync and setup AP fallback
+- station-mode join with SNTP time sync, background time-sync retry, and setup AP fallback
 - local web UI at `/`, `/status`, `/config`, `/sensors`, and `/backends`
+- setup AP onboarding at `/config` with scanned SSID list from `/wifi-scan`
 - embedded frontend assets under `firmware/main/webui/`, served by the firmware at `/assets/*`
-- sensor polling and measurement queueing
+- category-based sensor configuration, background polling, and bounded measurement queueing
 - backend upload support for `Sensor.Community` and `Air360 API`
 
 ### Backend
@@ -109,6 +112,11 @@ If you need to work on device behavior:
 
 1. Read [firmware/README.md](firmware/README.md)
 2. Then use [docs/firmware/README.md](docs/firmware/README.md) as the firmware documentation map
+
+If you need to operate or provision a device rather than change firmware code:
+
+1. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
+2. Then use [firmware/README.md](firmware/README.md) only for build, flash, and implementation details
 
 If you need repository context first:
 

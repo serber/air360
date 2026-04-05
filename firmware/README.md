@@ -6,6 +6,8 @@ The current implementation is a Phase 3.2 runtime for `esp32s3` on ESP-IDF 6.x. 
 
 Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/).
 
+If you need an end-user walkthrough for setup AP onboarding and the station-mode web UI, start with [`../docs/firmware/user-guide.md`](../docs/firmware/user-guide.md).
+
 ## Project Structure
 
 The firmware project root is `firmware/`.
@@ -150,7 +152,7 @@ These options are consumed by the firmware through generated `CONFIG_*` macros. 
 
 This file provides repository defaults for a fresh configuration:
 
-- flash size set to `4MB`
+- flash size set to `16MB`
 - custom partition table enabled via `partitions.csv`
 - C++ exceptions disabled
 - C++ RTTI disabled
