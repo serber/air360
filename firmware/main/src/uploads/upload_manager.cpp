@@ -17,6 +17,8 @@ constexpr char kTag[] = "air360.upload";
 constexpr TickType_t kUploadLoopDelay = pdMS_TO_TICKS(1000);
 constexpr std::uint32_t kUploadTaskStackSize = 7168U;
 constexpr UBaseType_t kUploadTaskPriority = 4U;
+constexpr std::size_t kMaxSamplesPerUploadWindow = 32U;
+constexpr std::uint32_t kBacklogDrainDelayMs = 5000U;
 
 std::string defaultDisplayName(
     const BackendDescriptor* descriptor,
@@ -407,7 +409,8 @@ void UploadManager::taskMain() {
             continue;
         }
 
-        std::vector<MeasurementSample> upload_samples = measurement_store_->beginUploadWindow();
+        std::vector<MeasurementSample> upload_samples =
+            measurement_store_->beginUploadWindow(kMaxSamplesPerUploadWindow);
         if (upload_samples.empty()) {
             lock();
             next_cycle_time_ms_ = now_ms + cycle_interval_ms_;
@@ -559,8 +562,15 @@ void UploadManager::taskMain() {
             }
         }
 
+        std::uint64_t next_cycle_delay_ms = cycle_interval_ms_;
+        if (all_uploads_succeeded &&
+            measurement_store_ != nullptr &&
+            measurement_store_->pendingCount() > 0U) {
+            next_cycle_delay_ms = std::min<std::uint64_t>(cycle_interval_ms_, kBacklogDrainDelayMs);
+        }
+
         lock();
-        next_cycle_time_ms_ = now_ms + cycle_interval_ms_;
+        next_cycle_time_ms_ = now_ms + next_cycle_delay_ms;
         unlock();
 
         vTaskDelay(kUploadLoopDelay);

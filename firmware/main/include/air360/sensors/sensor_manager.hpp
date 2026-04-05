@@ -25,9 +25,11 @@ struct SensorRuntimeInfo {
     std::string type_key;
     std::string type_name;
     std::string binding_summary;
+    std::uint32_t poll_interval_ms = 0U;
     SensorRuntimeState state = SensorRuntimeState::kUnsupported;
     SensorMeasurement measurement{};
     std::uint64_t last_sample_time_ms = 0U;
+    std::size_t queued_sample_count = 0U;
     std::string last_error;
 };
 

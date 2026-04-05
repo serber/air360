@@ -26,7 +26,7 @@ void MeasurementStore::append(const MeasurementSample& sample) {
     unlock();
 }
 
-std::vector<MeasurementSample> MeasurementStore::beginUploadWindow() {
+std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::size_t max_samples) {
     ensureMutex();
     lock();
 
@@ -37,8 +37,9 @@ std::vector<MeasurementSample> MeasurementStore::beginUploadWindow() {
     }
 
     if (!pending_.empty()) {
-        inflight_ = pending_;
-        pending_.clear();
+        const std::size_t batch_size = std::min(max_samples, pending_.size());
+        inflight_.assign(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(batch_size));
+        pending_.erase(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(batch_size));
     }
 
     const auto snapshot = inflight_;
@@ -66,6 +67,26 @@ void MeasurementStore::restoreInflight() {
         }
     }
     unlock();
+}
+
+std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id) const {
+    ensureMutex();
+    lock();
+
+    std::size_t count = 0U;
+    for (const auto& sample : pending_) {
+        if (sample.sensor_id == sensor_id) {
+            ++count;
+        }
+    }
+    for (const auto& sample : inflight_) {
+        if (sample.sensor_id == sensor_id) {
+            ++count;
+        }
+    }
+
+    unlock();
+    return count;
 }
 
 std::size_t MeasurementStore::pendingCount() const {

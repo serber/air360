@@ -220,7 +220,7 @@ Generated artifacts are written under `build/`. For the current project that inc
 
 ## Flash
 
-The current build artifacts show a 4 MB flash layout with:
+The current build artifacts target a 16 MB flash chip with the current partition table occupying the first part of flash:
 
 - bootloader at `0x0`
 - partition table at `0x8000`
@@ -289,9 +289,10 @@ The current startup flow is:
 10. `BackendConfigRepository` loads or creates a `BackendConfigList`
 11. `NetworkManager` attempts station join when Wi-Fi credentials are present
 12. when station uplink is available, `NetworkManager` starts SNTP and waits for valid UTC system time
-13. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
-14. `UploadManager` starts, snapshots measurements from `MeasurementStore`, and schedules backend uploads
-15. `WebServer` starts `esp_http_server` on the configured HTTP port
+13. after startup, the main runtime loop keeps retrying SNTP synchronization in station mode until valid Unix time is available
+14. if station config is missing or station join fails, `NetworkManager` starts setup AP mode at `192.168.4.1`
+15. `UploadManager` starts, snapshots measurements from `MeasurementStore`, and schedules backend uploads
+16. `WebServer` starts `esp_http_server` on the configured HTTP port
 
 The firmware now has a clear central sensor orchestration model:
 
@@ -304,7 +305,9 @@ The firmware also has a separate upload pipeline:
 
 - `SensorManager` appends measurement samples into `MeasurementStore`
 - `MeasurementStore` maintains `pending` and `inflight` queues so uploads can be acknowledged or restored
-- `UploadManager` drains a measurement batch on each cycle and fans it out to enabled backend adapters
+- `UploadManager` only attempts upload when station uplink and valid Unix time are available
+- `UploadManager` drains a bounded measurement window on each cycle rather than sending the whole queue at once
+- when backlog remains after a successful upload, `UploadManager` temporarily shortens the next cycle to drain the queue faster
 - `UploadTransport` executes HTTP requests and returns transport status, HTTP status, response size, and total request duration
 - backend-specific adapters translate the generic measurement batch into backend payloads
 
@@ -338,6 +341,14 @@ Current transport model by sensor type:
   I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
 - `GPS (NMEA)`
   UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
+
+Current UI/runtime notes confirmed by the implementation:
+
+- sensor poll interval minimum is `5000 ms`
+- the `Sensors` page and `Overview` show queued sample counts per sensor based on `MeasurementStore`
+- `Overview -> Sensors` shows the configured per-sensor poll interval
+- `Overview -> Backends` shows the configured global upload interval for all backends
+- `/status` includes both numeric `reset_reason` and string `reset_reason_label`
 - `DHT11`, `DHT22`, `ME3-NO2`
   Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
 

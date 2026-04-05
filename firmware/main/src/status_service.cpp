@@ -265,7 +265,9 @@ struct RuntimeOverviewViewModel {
     std::string sensor_block_html;
 };
 
-std::string renderBackendOverviewBlock(const std::vector<BackendStatusSnapshot>& backends) {
+std::string renderBackendOverviewBlock(
+    const std::vector<BackendStatusSnapshot>& backends,
+    std::uint32_t upload_interval_ms) {
     std::string html;
     if (backends.empty()) {
         return "<p class='muted'>No backends configured yet.</p>";
@@ -274,6 +276,9 @@ std::string renderBackendOverviewBlock(const std::vector<BackendStatusSnapshot>&
     html += "<div class='list'>";
     for (const auto& backend : backends) {
         std::string details_block;
+        details_block += "<span class='pill'>interval ";
+        details_block += std::to_string(upload_interval_ms);
+        details_block += " ms</span>";
         if (backend.enabled) {
             details_block += "<span class='pill'>last attempt ";
             details_block += htmlEscape(formatTimeForDisplay(
@@ -327,6 +332,8 @@ std::string renderSensorOverviewBlock(const std::vector<SensorRuntimeInfo>& sens
                 {"TYPE_KEY", htmlEscape(sensor.type_key)},
                 {"BINDING_SUMMARY", htmlEscape(sensor.binding_summary)},
                 {"STATE_KEY", htmlEscape(sensorRuntimeStateKey(sensor.state))},
+                {"POLL_INTERVAL_MS", std::to_string(sensor.poll_interval_ms)},
+                {"QUEUED_SAMPLE_COUNT", std::to_string(sensor.queued_sample_count)},
                 {"READINGS_BLOCK", readings_block},
                 {"LAST_ERROR_BLOCK", last_error_block},
             });
@@ -369,7 +376,9 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
         build_info.esp_mac_id.empty() ? "unavailable" : formatMacForDisplay(build_info.esp_mac_id);
     model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
     model.degraded_backend_count = upload_manager != nullptr ? upload_manager->degradedCount() : 0U;
-    model.backend_block_html = renderBackendOverviewBlock(backends);
+    model.backend_block_html = renderBackendOverviewBlock(
+        backends,
+        upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U);
     model.sensor_block_html = renderSensorOverviewBlock(sensors);
 
     if (!network_state.last_error.empty()) {
@@ -611,8 +620,10 @@ std::string StatusService::renderStatusJson() const {
         json += "\"sensor_name\":\"" + jsonEscape(sensor.type_name) + "\",";
         json += "\"transport_kind\":\"" + jsonEscape(transportKindKey(sensor.transport_kind)) + "\",";
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
+        json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
         json += "\"last_sample_time_ms\":" + std::to_string(sensor.last_sample_time_ms) + ",";
+        json += "\"queued_sample_count\":" + std::to_string(sensor.queued_sample_count) + ",";
         json += "\"measurements\":";
         json += measurementArrayJson(sensor.measurement);
         json += ",";

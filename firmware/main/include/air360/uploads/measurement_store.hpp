@@ -13,10 +13,11 @@ namespace air360 {
 class MeasurementStore {
   public:
     void append(const MeasurementSample& sample);
-    std::vector<MeasurementSample> beginUploadWindow();
+    std::vector<MeasurementSample> beginUploadWindow(std::size_t max_samples = SIZE_MAX);
     void acknowledgeInflight();
     void restoreInflight();
 
+    std::size_t queuedSampleCountForSensor(std::uint32_t sensor_id) const;
     std::size_t pendingCount() const;
     std::size_t inflightCount() const;
     std::uint32_t droppedSampleCount() const;

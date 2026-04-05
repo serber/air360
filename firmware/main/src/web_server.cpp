@@ -68,6 +68,7 @@ namespace {
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
 constexpr std::size_t kHttpServerMaxUriHandlers = 12U;
+constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 
 void copyString(char* destination, std::size_t destination_size, const std::string& source) {
     if (destination_size == 0U) {
@@ -351,6 +352,7 @@ struct SensorCardViewModel {
     std::string runtime_state_key;
     std::string transport_summary;
     std::uint32_t poll_interval_ms = 0U;
+    std::size_t queued_sample_count = 0U;
     std::string runtime_error;
     std::string latest_reading;
     std::string sensor_type_options_html;
@@ -542,6 +544,10 @@ std::string formatI2cAddress(std::uint8_t address) {
     char buffer[8];
     std::snprintf(buffer, sizeof(buffer), "0x%02X", static_cast<unsigned>(address));
     return buffer;
+}
+
+std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
+    return std::max<std::uint32_t>(value, kMinSensorPollIntervalMs);
 }
 
 constexpr SensorType kClimateSensorTypes[] = {
@@ -1062,6 +1068,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
             {"RUNTIME_STATE", htmlEscape(card.runtime_state_key)},
             {"TRANSPORT_SUMMARY", htmlEscape(card.transport_summary)},
             {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
+            {"QUEUED_SAMPLE_COUNT", std::to_string(card.queued_sample_count)},
             {"RUNTIME_ERROR_BLOCK", runtime_error_block},
             {"LATEST_READING_BLOCK", latest_reading_block},
             {"SENSOR_ID", std::to_string(card.id)},
@@ -1141,7 +1148,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
         add_form_block += htmlEscape(section.key);
         add_form_block += "'>Poll interval (ms)</label><input class='input' id='poll_interval_ms_add_";
         add_form_block += htmlEscape(section.key);
-        add_form_block += "' name='poll_interval_ms' inputmode='numeric' value='";
+        add_form_block += "' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='";
         add_form_block += std::to_string(section.add_poll_interval_ms);
         add_form_block += "'></div>";
         add_form_block += i2c_field_block;
@@ -1217,7 +1224,8 @@ SensorsPageViewModel buildSensorsPageViewModel(
                 firstSensorDescriptorForCategory(registry, category_descriptor);
             descriptor != nullptr) {
             section.add_defaults_hint = sensorDefaultsHint(*descriptor);
-            section.add_poll_interval_ms = descriptor->default_poll_interval_ms;
+            section.add_poll_interval_ms =
+                normalizeSensorPollInterval(descriptor->default_poll_interval_ms);
             section.add_show_i2c_address_input = descriptor->supports_i2c;
             section.add_i2c_address_value = formatI2cAddress(descriptor->default_i2c_address);
             section.add_show_gpio_pin_select =
@@ -1249,6 +1257,7 @@ SensorsPageViewModel buildSensorsPageViewModel(
         card.enabled = record.enabled != 0U;
         if (runtime_info != nullptr) {
             card.runtime_error = runtime_info->last_error;
+            card.queued_sample_count = runtime_info->queued_sample_count;
             if (!runtime_info->measurement.empty()) {
                 card.latest_reading = measurementSummary(runtime_info->measurement);
             }
@@ -1708,6 +1717,15 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 *server->sensor_manager_,
                 server->has_pending_sensor_changes_,
                 "Invalid numeric sensor fields.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+        if (poll_interval_ms < kMinSensorPollIntervalMs) {
+            const std::string html = renderSensorsPage(
+                server->staged_sensor_config_,
+                *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
+                "Poll interval must be at least 5000 ms.",
                 true);
             return httpd_resp_send(request, html.c_str(), html.size());
         }

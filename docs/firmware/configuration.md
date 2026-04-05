@@ -126,6 +126,7 @@ Important current behavior:
 - the `/sensors` UI is category-based rather than a flat list of driver types
 - all current categories except `Gas` allow only one configured sensor at a time
 - the `/sensors` UI infers transport from sensor type rather than letting the user choose arbitrary transport combinations
+- sensor poll interval is currently constrained to `5000..3600000 ms`
 - I2C-backed sensors expose an address override field in the current UI
 - GPS records are validated against fixed board UART wiring from the registry defaults
 - GPIO-backed and analog-backed sensors are constrained to the configured board sensor pins
@@ -152,6 +153,7 @@ Important current behavior:
 - `Sensor.Community` exposes a device id override field prefilled from the current `Short ID`
 - `Air360 API` currently uses the fixed base URL plus `/v1/devices/{chip_id}/batches/{batch_id}`
 - `Air360 API` no longer requires or sends a bearer token
+- upload interval is global for the enabled backend set and is shown in `Overview -> Backends`
 
 ## Partition Table
 

@@ -148,6 +148,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
         managed.runtime.type_name =
             descriptor != nullptr ? descriptor->display_name : std::string("Unknown sensor");
         managed.runtime.binding_summary = bindingSummary(record);
+        managed.runtime.poll_interval_ms = record.poll_interval_ms;
 
         if (!managed.runtime.enabled) {
             managed.runtime.state = SensorRuntimeState::kDisabled;
@@ -264,7 +265,12 @@ std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
     std::vector<SensorRuntimeInfo> snapshot;
     snapshot.reserve(sensors_.size());
     for (const auto& sensor : sensors_) {
-        snapshot.push_back(sensor.runtime);
+        SensorRuntimeInfo runtime = sensor.runtime;
+        if (measurement_store_ != nullptr) {
+            runtime.queued_sample_count =
+                measurement_store_->queuedSampleCountForSensor(runtime.id);
+        }
+        snapshot.push_back(std::move(runtime));
     }
     unlock();
     return snapshot;

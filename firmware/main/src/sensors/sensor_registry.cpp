@@ -49,8 +49,8 @@ bool validateCommonRecord(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.poll_interval_ms < 1000U || record.poll_interval_ms > 3600000U) {
-        error = "Poll interval must be between 1000 ms and 3600000 ms.";
+    if (record.poll_interval_ms < 5000U || record.poll_interval_ms > 3600000U) {
+        error = "Poll interval must be between 5000 ms and 3600000 ms.";
         return false;
     }
 
@@ -294,7 +294,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         false,
         false,
         true,
-        1000U,
+        5000U,
         0U,
         0x52U,
         0U,
@@ -313,7 +313,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         true,
         false,
         true,
-        2000U,
+        5000U,
         0U,
         0x00U,
         CONFIG_AIR360_GPS_DEFAULT_UART_PORT,
@@ -332,7 +332,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         false,
         true,
         true,
-        2000U,
+        5000U,
         0U,
         0x00U,
         0U,
@@ -351,7 +351,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         false,
         true,
         true,
-        2000U,
+        5000U,
         0U,
         0x00U,
         0U,
