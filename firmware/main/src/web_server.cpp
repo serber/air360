@@ -764,7 +764,6 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
         WebTemplateKey::kSensorCard,
         WebTemplateBindings{
             {"DISPLAY_NAME", htmlEscape(card.display_name.empty() ? "Sensor" : card.display_name)},
-            {"DISPLAY_NAME_VALUE", htmlEscape(card.display_name)},
             {"RUNTIME_STATE", htmlEscape(card.runtime_state_key)},
             {"TRANSPORT_SUMMARY", htmlEscape(card.transport_summary)},
             {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
@@ -829,7 +828,7 @@ SensorsPageViewModel buildSensorsPageViewModel(
 
         SensorCardViewModel card;
         card.id = record.id;
-        card.display_name = record.display_name;
+        card.display_name = descriptor != nullptr ? descriptor->display_name : std::string("Sensor");
         card.runtime_state_key =
             runtime_info != nullptr ? sensorRuntimeStateKey(runtime_info->state) : "unknown";
         card.transport_summary = transportSummaryForRecord(record);
@@ -1316,10 +1315,6 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         record.enabled = formHasKey(fields, "enabled") ? 1U : 0U;
         record.sensor_type = descriptor->type;
         record.poll_interval_ms = static_cast<std::uint32_t>(poll_interval_ms);
-        copyString(
-            record.display_name,
-            sizeof(record.display_name),
-            findFormValue(fields, "display_name"));
 
         record.transport_kind = inferredTransportKind(*descriptor);
         switch (record.transport_kind) {

@@ -24,7 +24,6 @@ struct SensorRuntimeInfo {
     TransportKind transport_kind = TransportKind::kUnknown;
     std::string type_key;
     std::string type_name;
-    std::string display_name;
     std::string binding_summary;
     SensorRuntimeState state = SensorRuntimeState::kUnsupported;
     SensorMeasurement measurement{};

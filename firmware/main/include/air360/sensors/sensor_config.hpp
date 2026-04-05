@@ -8,7 +8,7 @@
 namespace air360 {
 
 constexpr std::uint32_t kSensorConfigMagic = 0x41333631U;
-constexpr std::uint16_t kSensorConfigSchemaVersion = 2U;
+constexpr std::uint16_t kSensorConfigSchemaVersion = 3U;
 
 struct SensorRecord {
     std::uint32_t id = 0U;
@@ -16,7 +16,6 @@ struct SensorRecord {
     SensorType sensor_type = SensorType::kUnknown;
     TransportKind transport_kind = TransportKind::kUnknown;
     std::uint32_t poll_interval_ms = 10000U;
-    char display_name[kSensorDisplayNameCapacity]{};
     std::uint8_t i2c_bus_id = 0U;
     std::uint8_t i2c_address = 0x77U;
     std::uint8_t uart_port_id = 1U;
@@ -25,7 +24,7 @@ struct SensorRecord {
     std::int16_t uart_rx_gpio_pin = -1;
     std::int16_t uart_tx_gpio_pin = -1;
     std::uint32_t uart_baud_rate = 9600U;
-    std::uint8_t reserved1[4]{};
+    std::uint8_t reserved1[12]{};
 };
 
 struct SensorConfigList {

@@ -125,10 +125,18 @@ pre {
 .brand__eyebrow,
 .eyebrow {
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
+}
+
+.brand__version {
+    margin-top: 0.22rem;
+    color: var(--muted);
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
 }
 
 .brand__title {

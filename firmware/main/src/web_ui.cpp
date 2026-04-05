@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "air360/web_assets.hpp"
+#include "esp_app_desc.h"
 
 namespace air360 {
 
@@ -61,6 +62,15 @@ EmbeddedTemplateView makeTemplateView(const std::uint8_t* start, const std::uint
         reinterpret_cast<const char*>(start),
         embeddedTextSize(start, end),
     };
+}
+
+std::string firmwareVersionLabel() {
+    const esp_app_desc_t* app = esp_app_get_description();
+    if (app == nullptr || app->version[0] == '\0') {
+        return "version unavailable";
+    }
+
+    return app->version;
 }
 
 const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
@@ -215,7 +225,9 @@ std::string renderPageDocument(
         html += " shell--narrow";
     }
     html += "'><div class='chrome'><header class='topbar'>";
-    html += "<div class='brand'><div class='brand__eyebrow'>Air360 Firmware</div></div><nav class='nav'>";
+    html += "<div class='brand'><div class='brand__eyebrow'>Air360 Firmware</div><div class='brand__version'>";
+    html += htmlEscape(firmwareVersionLabel());
+    html += "</div></div><nav class='nav'>";
 
     for (const auto& item : kNavItems) {
         html += "<a class='nav__link";

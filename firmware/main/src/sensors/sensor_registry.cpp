@@ -1,6 +1,5 @@
 #include "air360/sensors/sensor_registry.hpp"
 
-#include <cstring>
 #include <string>
 
 #include "air360/sensors/drivers/bme280_sensor.hpp"
@@ -47,22 +46,6 @@ namespace {
 bool validateCommonRecord(const SensorRecord& record, std::string& error) {
     if (record.id == 0U) {
         error = "Sensor id must not be zero.";
-        return false;
-    }
-
-    if (record.display_name[0] == '\0') {
-        error = "Sensor display name must not be empty.";
-        return false;
-    }
-
-    if (record.display_name[kSensorDisplayNameCapacity - 1U] != '\0') {
-        error = "Sensor display name is not null-terminated.";
-        return false;
-    }
-
-    const std::size_t display_name_length = std::strlen(record.display_name);
-    if (display_name_length == 0U || display_name_length >= kSensorDisplayNameCapacity) {
-        error = "Sensor display name is invalid.";
         return false;
     }
 

@@ -39,14 +39,6 @@ std::string errorText(const SensorDriver& driver, esp_err_t err) {
     return esp_err_to_name(err);
 }
 
-std::string defaultDisplayName(const SensorDescriptor* descriptor, std::uint32_t id) {
-    if (descriptor != nullptr && descriptor->display_name != nullptr) {
-        return std::string(descriptor->display_name) + " #" + std::to_string(id);
-    }
-
-    return std::string("Sensor #") + std::to_string(id);
-}
-
 std::string bindingSummary(const SensorRecord& record) {
     char buffer[64];
     switch (record.transport_kind) {
@@ -155,9 +147,6 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
             descriptor != nullptr ? descriptor->type_key : std::string("unknown");
         managed.runtime.type_name =
             descriptor != nullptr ? descriptor->display_name : std::string("Unknown sensor");
-        managed.runtime.display_name =
-            record.display_name[0] != '\0' ? std::string(record.display_name)
-                                           : defaultDisplayName(descriptor, record.id);
         managed.runtime.binding_summary = bindingSummary(record);
 
         if (!managed.runtime.enabled) {
@@ -186,7 +175,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                         record.uart_tx_gpio_pin,
                         record.uart_baud_rate,
                         record.id,
-                        managed.runtime.display_name,
+                        managed.runtime.type_name,
                     });
                 managed.driver = descriptor->create_driver();
                 if (!managed.driver) {

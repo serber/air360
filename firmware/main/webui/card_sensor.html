@@ -11,10 +11,6 @@
         <input type='hidden' name='action' value='update'>
         <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
         <div class='field'>
-            <label for='display_name_{{SENSOR_ID}}'>Display name</label>
-            <input class='input' id='display_name_{{SENSOR_ID}}' name='display_name' maxlength='31' value='{{DISPLAY_NAME_VALUE}}'>
-        </div>
-        <div class='field'>
             <label for='sensor_type_{{SENSOR_ID}}'>Sensor type</label>
             <select class='select' id='sensor_type_{{SENSOR_ID}}' name='sensor_type' data-sensor-type-select>
                 {{SENSOR_TYPE_OPTIONS}}

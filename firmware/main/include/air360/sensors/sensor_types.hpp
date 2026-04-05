@@ -6,7 +6,6 @@
 namespace air360 {
 
 constexpr std::size_t kMaxConfiguredSensors = 8U;
-constexpr std::size_t kSensorDisplayNameCapacity = 32U;
 
 enum class SensorType : std::uint8_t {
     kUnknown = 0U,
