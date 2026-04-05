@@ -1,6 +1,9 @@
 #include "air360/web_assets.hpp"
 
 #include <cstdint>
+#include <string>
+
+#include "esp_app_desc.h"
 
 namespace air360 {
 
@@ -35,6 +38,19 @@ const WebAssetView kScriptAsset{
     "application/javascript; charset=utf-8",
 };
 
+std::string versionedAssetHref(const char* asset_name) {
+    const esp_app_desc_t* app = esp_app_get_description();
+    std::string href = "/assets/";
+    href += asset_name;
+
+    if (app != nullptr && app->version[0] != '\0') {
+        href += "?v=";
+        href += app->version;
+    }
+
+    return href;
+}
+
 }  // namespace
 
 const WebAssetView* findEmbeddedWebAsset(std::string_view asset_path) {
@@ -47,12 +63,12 @@ const WebAssetView* findEmbeddedWebAsset(std::string_view asset_path) {
     return nullptr;
 }
 
-const char* webUiStylesHref() {
-    return "/assets/air360.css";
+std::string webUiStylesHref() {
+    return versionedAssetHref("air360.css");
 }
 
-const char* webUiScriptHref() {
-    return "/assets/air360.js";
+std::string webUiScriptHref() {
+    return versionedAssetHref("air360.js");
 }
 
 }  // namespace air360

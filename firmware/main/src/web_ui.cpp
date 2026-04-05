@@ -205,7 +205,8 @@ std::string renderPageDocument(
     std::string_view heading,
     std::string_view lead_html,
     std::string_view body_html,
-    bool wide_layout) {
+    bool wide_layout,
+    bool device_only_navigation) {
     std::string html;
     html.reserve(body_html.size() + 1200U);
 
@@ -230,6 +231,9 @@ std::string renderPageDocument(
     html += "</div></div><nav class='nav'>";
 
     for (const auto& item : kNavItems) {
+        if (device_only_navigation && item.page != WebPageKey::kConfig) {
+            continue;
+        }
         html += "<a class='nav__link";
         if (item.page == active_page) {
             html += " nav__link--active";
@@ -241,7 +245,9 @@ std::string renderPageDocument(
         html += "</a>";
     }
 
-    html += "<a class='nav__link nav__link--muted' href='/status'>Status JSON</a>";
+    if (!device_only_navigation) {
+        html += "<a class='nav__link nav__link--muted' href='/status'>Status JSON</a>";
+    }
     html += "</nav></header><main class='page'><section class='pagehead'>";
     html += "<h1>";
     html += htmlEscape(heading);

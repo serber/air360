@@ -55,6 +55,9 @@ idf_component_register(
         esp_driver_i2c
         esp_driver_uart
         esp_adc
+        efuse
+        esp_psram
+        esp_rom
         mbedtls
         esp_netif
         esp_system

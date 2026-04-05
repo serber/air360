@@ -37,6 +37,7 @@ std::string renderPageDocument(
     std::string_view heading,
     std::string_view lead_html,
     std::string_view body_html,
-    bool wide_layout = true);
+    bool wide_layout = true,
+    bool device_only_navigation = false);
 
 }  // namespace air360

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <string_view>
 
 namespace air360 {
@@ -12,7 +13,7 @@ struct WebAssetView {
 };
 
 const WebAssetView* findEmbeddedWebAsset(std::string_view asset_path);
-const char* webUiStylesHref();
-const char* webUiScriptHref();
+std::string webUiStylesHref();
+std::string webUiScriptHref();
 
 }  // namespace air360

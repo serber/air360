@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "air360/config_repository.hpp"
+#include "air360/network_manager.hpp"
 #include "air360/status_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
@@ -17,6 +18,7 @@ class WebServer {
   public:
     esp_err_t start(
         StatusService& status_service,
+        NetworkManager& network_manager,
         ConfigRepository& config_repository,
         DeviceConfig& config,
         SensorConfigRepository& sensor_config_repository,
@@ -32,12 +34,14 @@ class WebServer {
     static esp_err_t handleAsset(httpd_req_t* request);
     static esp_err_t handleRoot(httpd_req_t* request);
     static esp_err_t handleStatus(httpd_req_t* request);
+    static esp_err_t handleWifiScan(httpd_req_t* request);
     static esp_err_t handleConfig(httpd_req_t* request);
     static esp_err_t handleSensors(httpd_req_t* request);
     static esp_err_t handleBackends(httpd_req_t* request);
 
     httpd_handle_t handle_ = nullptr;
     StatusService* status_service_ = nullptr;
+    NetworkManager* network_manager_ = nullptr;
     ConfigRepository* config_repository_ = nullptr;
     DeviceConfig* config_ = nullptr;
     SensorConfigRepository* sensor_config_repository_ = nullptr;

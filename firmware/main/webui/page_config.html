@@ -9,14 +9,22 @@
         <h2>Network and Device Settings</h2>
         <p class='muted'>This form stores local device identity and station credentials. Saving applies the new configuration and schedules a reboot.</p>
         {{NETWORK_ERROR}}
-        <form class='stack' method='POST' action='/config' data-dirty-track='config' data-confirm='Save configuration and reboot the device?'>
+        <form class='stack' method='POST' action='/config' data-dirty-track='config' data-confirm='Save configuration and reboot the device?' data-network-mode='{{NETWORK_MODE}}'>
             <div class='field'>
                 <label for='device_name'>Device name</label>
                 <input class='input' id='device_name' name='device_name' maxlength='31' value='{{DEVICE_NAME_VALUE}}'>
             </div>
             <div class='field'>
                 <label for='wifi_ssid'>Wi-Fi SSID</label>
-                <input class='input' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='{{WIFI_SSID_VALUE}}' data-wifi-ssid-input>
+                <input class='input' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='{{WIFI_SSID_VALUE}}' autocomplete='off' data-wifi-ssid-input>
+                <div class='field stack' data-wifi-ssid-select-row {{WIFI_SSID_SELECT_HIDDEN}}>
+                    <label for='wifi_ssid_select'>Available networks</label>
+                    <select class='select' id='wifi_ssid_select' data-wifi-ssid-select>
+                        <option value=''>Select network...</option>
+                        {{WIFI_SSID_OPTIONS}}
+                    </select>
+                </div>
+                <p class='hint' data-wifi-ssid-scan-status hidden></p>
             </div>
             <div class='field' data-wifi-password-field>
                 <label for='wifi_password'>Wi-Fi password</label>

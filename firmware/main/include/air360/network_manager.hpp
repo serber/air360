@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "air360/config_repository.hpp"
 #include "esp_err.h"
 #include "esp_event_base.h"
+#include "esp_wifi_types_generic.h"
 
 namespace air360 {
 
@@ -31,11 +33,21 @@ struct NetworkState {
     std::int64_t last_time_sync_unix_ms = 0;
 };
 
+struct WifiNetworkRecord {
+    std::string ssid;
+    int rssi = 0;
+    wifi_auth_mode_t auth_mode = WIFI_AUTH_OPEN;
+};
+
 class NetworkManager {
   public:
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
+    esp_err_t scanAvailableNetworks();
     const NetworkState& state() const;
+    const std::vector<WifiNetworkRecord>& availableNetworks() const;
+    const std::string& lastScanError() const;
+    std::uint64_t lastScanUptimeMs() const;
     bool hasValidTime() const;
     std::int64_t currentUnixMilliseconds() const;
 
@@ -56,6 +68,9 @@ class NetworkManager {
     void resetState();
 
     NetworkState state_{};
+    std::vector<WifiNetworkRecord> available_networks_{};
+    std::string last_scan_error_{};
+    std::uint64_t last_scan_uptime_ms_ = 0U;
 };
 
 }  // namespace air360

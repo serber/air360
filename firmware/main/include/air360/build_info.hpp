@@ -13,6 +13,9 @@ struct BuildInfo {
     std::string board_name;
     std::string chip_name;
     std::string chip_revision;
+    std::string chip_type;
+    std::string chip_features;
+    std::string crystal_frequency;
     std::string chip_id;
     std::string short_chip_id;
     std::string esp_mac_id;

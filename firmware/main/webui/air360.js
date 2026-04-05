@@ -82,6 +82,85 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function loadWifiNetworks(form) {
+    const networkMode = form.dataset.networkMode ?? "";
+    if (networkMode !== "setup_ap") {
+      return;
+    }
+
+    const selectRow = form.querySelector("[data-wifi-ssid-select-row]");
+    const select = form.querySelector("[data-wifi-ssid-select]");
+    const statusNode = form.querySelector("[data-wifi-ssid-scan-status]");
+    const ssidInput = form.querySelector("[data-wifi-ssid-input]");
+    if (!(selectRow instanceof HTMLElement) || !(select instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    selectRow.hidden = false;
+
+    if (ssidInput instanceof HTMLInputElement) {
+      select.addEventListener("change", () => {
+        if (select.value.length === 0) {
+          return;
+        }
+        ssidInput.value = select.value;
+        syncConfigForm(form);
+        ssidInput.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }
+
+    if (statusNode instanceof HTMLElement) {
+      statusNode.hidden = false;
+      statusNode.textContent = "Loading available Wi-Fi networks...";
+    }
+
+    try {
+      const response = await fetch("/wifi-scan", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const networks = Array.isArray(payload?.networks) ? payload.networks : [];
+
+      select.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select network...";
+      select.appendChild(placeholder);
+
+      for (const network of networks) {
+        if (!network || typeof network.ssid !== "string" || network.ssid.length === 0) {
+          continue;
+        }
+
+        const option = document.createElement("option");
+        option.value = network.ssid;
+        option.textContent =
+          typeof network.rssi === "number"
+            ? `${network.ssid} (${network.rssi} dBm)`
+            : network.ssid;
+        select.appendChild(option);
+      }
+
+      if (statusNode instanceof HTMLElement) {
+        if (typeof payload?.last_scan_error === "string" && payload.last_scan_error.length > 0) {
+          statusNode.textContent = `Wi-Fi scan error: ${payload.last_scan_error}`;
+        } else if (networks.length > 0) {
+          statusNode.textContent =
+            `Available networks: ${networks.length}. You can also enter SSID manually.`;
+        } else {
+          statusNode.textContent = "No Wi-Fi networks found. You can enter SSID manually.";
+        }
+      }
+    } catch (error) {
+      if (statusNode instanceof HTMLElement) {
+        statusNode.textContent =
+          "Failed to load available Wi-Fi networks. You can enter SSID manually.";
+      }
+    }
+  }
+
   function syncBackendCard(panel) {
     const checkbox = panel.querySelector("[data-backend-enabled-toggle]");
     if (!(checkbox instanceof HTMLInputElement)) {
@@ -162,6 +241,8 @@ document.addEventListener("DOMContentLoaded", () => {
         syncConfigForm(form);
       });
     }
+
+    loadWifiNetworks(form);
   }
 
   for (const panel of document.querySelectorAll("[data-backend-card]")) {

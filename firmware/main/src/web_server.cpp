@@ -91,6 +91,36 @@ std::string boundedCString(const char* value, std::size_t capacity) {
     return std::string(value, length);
 }
 
+std::string jsonEscape(const std::string& input) {
+    std::string escaped;
+    escaped.reserve(input.size());
+
+    for (const char ch : input) {
+        switch (ch) {
+            case '\\':
+                escaped += "\\\\";
+                break;
+            case '"':
+                escaped += "\\\"";
+                break;
+            case '\n':
+                escaped += "\\n";
+                break;
+            case '\r':
+                escaped += "\\r";
+                break;
+            case '\t':
+                escaped += "\\t";
+                break;
+            default:
+                escaped.push_back(ch);
+                break;
+        }
+    }
+
+    return escaped;
+}
+
 int decodeHex(char value) {
     if (value >= '0' && value <= '9') {
         return value - '0';
@@ -285,6 +315,8 @@ struct ConfigPageViewModel {
     std::string network_error_html;
     std::string wifi_ssid_value;
     std::string wifi_password_value;
+    std::string wifi_ssid_options_html;
+    std::string wifi_ssid_select_hidden_attr;
 };
 
 struct BackendCardViewModel {
@@ -345,6 +377,7 @@ struct SensorsPageViewModel {
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
     const NetworkState& network_state,
+    const NetworkManager& network_manager,
     const std::string& notice,
     bool error_notice);
 std::string renderBackendCard(const BackendCardViewModel& card);
@@ -368,10 +401,11 @@ const BackendRecord* findBackendRecordForDescriptor(
 std::string renderConfigPage(
     const DeviceConfig& config,
     const NetworkState& network_state,
+    const NetworkManager& network_manager,
     const std::string& notice,
     bool error_notice) {
     const ConfigPageViewModel model =
-        buildConfigPageViewModel(config, network_state, notice, error_notice);
+        buildConfigPageViewModel(config, network_state, network_manager, notice, error_notice);
 
     const std::string body = renderPageTemplate(
         WebTemplateKey::kConfig,
@@ -384,6 +418,8 @@ std::string renderConfigPage(
             {"DEVICE_NAME_VALUE", htmlEscape(model.device_name)},
             {"WIFI_SSID_VALUE", htmlEscape(model.wifi_ssid_value)},
             {"WIFI_PASSWORD_VALUE", htmlEscape(model.wifi_password_value)},
+            {"WIFI_SSID_OPTIONS", model.wifi_ssid_options_html},
+            {"WIFI_SSID_SELECT_HIDDEN", model.wifi_ssid_select_hidden_attr},
         });
 
     return renderPageDocument(
@@ -391,7 +427,9 @@ std::string renderConfigPage(
         "air360 device configuration",
         "Device Configuration",
         "Manage station Wi-Fi and local device identity without leaving the firmware UI.",
-        body);
+        body,
+        true,
+        network_state.mode == NetworkMode::kSetupAp);
 }
 
 bool parseUnsignedLong(
@@ -592,6 +630,7 @@ std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
     const NetworkState& network_state,
+    const NetworkManager& network_manager,
     const std::string& notice,
     bool error_notice) {
     ConfigPageViewModel model;
@@ -601,6 +640,20 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.notice_html = renderNotice(notice, error_notice);
     model.wifi_ssid_value = config.wifi_sta_ssid;
     model.wifi_password_value = config.wifi_sta_password;
+    model.wifi_ssid_select_hidden_attr = "hidden";
+
+    if (network_state.mode == NetworkMode::kSetupAp) {
+        model.wifi_ssid_select_hidden_attr.clear();
+        for (const auto& network : network_manager.availableNetworks()) {
+            model.wifi_ssid_options_html += "<option value='";
+            model.wifi_ssid_options_html += htmlEscape(network.ssid);
+            model.wifi_ssid_options_html += "'>";
+            model.wifi_ssid_options_html += htmlEscape(network.ssid);
+            model.wifi_ssid_options_html += " (";
+            model.wifi_ssid_options_html += std::to_string(network.rssi);
+            model.wifi_ssid_options_html += " dBm)</option>";
+        }
+    }
 
     if (!network_state.last_error.empty()) {
         model.network_error_html += "<p>Last network error: <code>";
@@ -1011,6 +1064,7 @@ void scheduleRestart() {
 
 esp_err_t WebServer::start(
     StatusService& status_service,
+    NetworkManager& network_manager,
     ConfigRepository& config_repository,
     DeviceConfig& config,
     SensorConfigRepository& sensor_config_repository,
@@ -1025,6 +1079,7 @@ esp_err_t WebServer::start(
     }
 
     status_service_ = &status_service;
+    network_manager_ = &network_manager;
     config_repository_ = &config_repository;
     config_ = &config;
     sensor_config_repository_ = &sensor_config_repository;
@@ -1075,6 +1130,17 @@ esp_err_t WebServer::start(
     status_uri.handler = &WebServer::handleStatus;
     status_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &status_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t wifi_scan_uri{};
+    wifi_scan_uri.uri = "/wifi-scan";
+    wifi_scan_uri.method = HTTP_GET;
+    wifi_scan_uri.handler = &WebServer::handleWifiScan;
+    wifi_scan_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &wifi_scan_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -1156,6 +1222,12 @@ esp_err_t WebServer::handleAsset(httpd_req_t* request) {
 
 esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
+    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
+        httpd_resp_set_status(request, "302 Found");
+        httpd_resp_set_hdr(request, "Location", "/config");
+        return httpd_resp_send(request, nullptr, 0);
+    }
+
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
 
@@ -1393,6 +1465,12 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
 
 esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
+    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
+        httpd_resp_set_status(request, "302 Found");
+        httpd_resp_set_hdr(request, "Location", "/config");
+        return httpd_resp_send(request, nullptr, 0);
+    }
+
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
 
@@ -1516,6 +1594,41 @@ esp_err_t WebServer::handleStatus(httpd_req_t* request) {
     return httpd_resp_send(request, json.c_str(), json.size());
 }
 
+esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "application/json");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+
+    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp &&
+        server->network_manager_->lastScanUptimeMs() == 0U) {
+        server->network_manager_->scanAvailableNetworks();
+    }
+
+    std::string json;
+    json.reserve(1024U);
+    json += "{";
+    json += "\"networks\":[";
+    const auto& networks = server->network_manager_->availableNetworks();
+    for (std::size_t index = 0; index < networks.size(); ++index) {
+        if (index > 0U) {
+            json += ",";
+        }
+
+        json += "{";
+        json += "\"ssid\":\"";
+        json += jsonEscape(networks[index].ssid);
+        json += "\",\"rssi\":";
+        json += std::to_string(networks[index].rssi);
+        json += "}";
+    }
+    json += "],\"last_scan_uptime_ms\":";
+    json += std::to_string(server->network_manager_->lastScanUptimeMs());
+    json += ",\"last_scan_error\":\"";
+    json += jsonEscape(server->network_manager_->lastScanError());
+    json += "\"}";
+    return httpd_resp_send(request, json.c_str(), json.size());
+}
+
 esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
     httpd_resp_set_type(request, "text/html; charset=utf-8");
@@ -1525,6 +1638,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         const std::string html = renderConfigPage(
             *server->config_,
             server->status_service_->networkState(),
+            *server->network_manager_,
             "",
             false);
         return httpd_resp_send(request, html.c_str(), html.size());
@@ -1535,6 +1649,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         const std::string html = renderConfigPage(
             *server->config_,
             server->status_service_->networkState(),
+            *server->network_manager_,
             "Failed to read form body.",
             true);
         return httpd_resp_send(request, html.c_str(), html.size());
@@ -1559,6 +1674,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         const std::string html = renderConfigPage(
             preview,
             server->status_service_->networkState(),
+            *server->network_manager_,
             validation_error,
             true);
         return httpd_resp_send(request, html.c_str(), html.size());
@@ -1577,6 +1693,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         const std::string html = renderConfigPage(
             updated,
             server->status_service_->networkState(),
+            *server->network_manager_,
             std::string("Failed to save configuration: ") + esp_err_to_name(save_err),
             true);
         return httpd_resp_send(request, html.c_str(), html.size());
@@ -1587,6 +1704,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string html = renderConfigPage(
         updated,
         server->status_service_->networkState(),
+        *server->network_manager_,
         "Configuration saved. Device is rebooting now.",
         false);
     esp_err_t response_err = httpd_resp_send(request, html.c_str(), html.size());

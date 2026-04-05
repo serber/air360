@@ -4,11 +4,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 
 #include "esp_app_desc.h"
 #include "esp_chip_info.h"
+#include "esp_efuse.h"
 #include "esp_idf_version.h"
 #include "esp_mac.h"
+#include "esp_psram.h"
+#include "esp_rom_sys.h"
+#include "rom/ets_sys.h"
+#include "soc/efuse_defs.h"
+#include "soc/soc_caps.h"
 
 namespace air360 {
 
@@ -60,6 +67,136 @@ const char* chipModelName(esp_chip_model_t model) {
         default:
             return "Unknown";
     }
+}
+
+std::string chipRevisionLabel(std::uint16_t revision) {
+    const unsigned int major = revision / 100U;
+    const unsigned int minor = revision % 100U;
+
+    char buffer[16];
+    std::snprintf(buffer, sizeof(buffer), "v%u.%u", major, minor);
+    return buffer;
+}
+
+std::string chipPackageName(esp_chip_model_t model) {
+    switch (model) {
+#if CONFIG_IDF_TARGET_ESP32S3
+        case CHIP_ESP32S3: {
+            switch (esp_efuse_get_pkg_ver()) {
+                case EFUSE_PKG_VERSION_ESP32S3:
+                    return "QFN56";
+                case EFUSE_PKG_VERSION_ESP32S3PICO:
+                    return "LGA56";
+                default:
+                    return "";
+            }
+        }
+#endif
+        default:
+            return "";
+    }
+}
+
+void appendFeature(std::string& features, const std::string& feature) {
+    if (feature.empty()) {
+        return;
+    }
+    if (!features.empty()) {
+        features += ", ";
+    }
+    features += feature;
+}
+
+std::string formatMemorySizeLabel(std::size_t bytes) {
+    if (bytes == 0U) {
+        return "";
+    }
+    if ((bytes % (1024U * 1024U)) == 0U) {
+        return std::to_string(bytes / (1024U * 1024U)) + "MB";
+    }
+    if ((bytes % 1024U) == 0U) {
+        return std::to_string(bytes / 1024U) + "KB";
+    }
+    return std::to_string(bytes) + "B";
+}
+
+std::string chipTypeLabel(const esp_chip_info_t& chip_info) {
+    std::string label = chipModelName(chip_info.model);
+    const std::string package_name = chipPackageName(chip_info.model);
+    if (!package_name.empty()) {
+        label += " (";
+        label += package_name;
+        label += ")";
+    }
+    label += " (revision ";
+    label += chipRevisionLabel(chip_info.revision);
+    label += ")";
+    return label;
+}
+
+std::string chipFeaturesLabel(const esp_chip_info_t& chip_info) {
+    std::string features;
+
+    if ((chip_info.features & CHIP_FEATURE_WIFI_BGN) != 0U) {
+        appendFeature(features, "Wi-Fi");
+    }
+
+    const bool has_ble = (chip_info.features & CHIP_FEATURE_BLE) != 0U;
+    const bool has_bt_classic = (chip_info.features & CHIP_FEATURE_BT) != 0U;
+    if (has_ble && has_bt_classic) {
+        appendFeature(features, "BT Classic + LE");
+    } else if (has_ble) {
+        appendFeature(features, "BT LE");
+    } else if (has_bt_classic) {
+        appendFeature(features, "BT Classic");
+    }
+
+    if (chip_info.cores == 2U) {
+        appendFeature(features, "Dual Core");
+    } else if (chip_info.cores == 1U) {
+        appendFeature(features, "Single Core");
+    } else if (chip_info.cores > 0U) {
+        appendFeature(features, std::to_string(chip_info.cores) + " cores");
+    }
+
+#if SOC_LP_CORE_SUPPORTED
+    appendFeature(features, "LP Core");
+#elif SOC_RISCV_COPROC_SUPPORTED
+    appendFeature(features, "ULP RISC-V");
+#elif SOC_ULP_SUPPORTED
+    appendFeature(features, "ULP");
+#endif
+
+    const std::uint32_t cpu_mhz = esp_rom_get_cpu_ticks_per_us();
+    if (cpu_mhz > 0U) {
+        appendFeature(features, std::to_string(cpu_mhz) + "MHz");
+    }
+
+    #if CONFIG_SPIRAM
+    if (esp_psram_is_initialized()) {
+        const std::string psram_size = formatMemorySizeLabel(esp_psram_get_size());
+        if (!psram_size.empty()) {
+            appendFeature(features, "PSRAM " + psram_size);
+        }
+    } else
+    #endif
+    if ((chip_info.features & CHIP_FEATURE_EMB_PSRAM) != 0U) {
+        appendFeature(features, "Embedded PSRAM");
+    }
+
+    if ((chip_info.features & CHIP_FEATURE_EMB_FLASH) != 0U) {
+        appendFeature(features, "Embedded Flash");
+    }
+
+    return features;
+}
+
+std::string crystalFrequencyLabel() {
+    const std::uint32_t xtal_mhz = ets_get_xtal_freq();
+    if (xtal_mhz == 0U) {
+        return "";
+    }
+    return std::to_string(xtal_mhz) + "MHz";
 }
 
 std::string formatDecimalChipId(const std::uint8_t* bytes, std::size_t size) {
@@ -130,6 +267,9 @@ BuildInfo getBuildInfo() {
     build_info.board_name = CONFIG_AIR360_BOARD_NAME;
     build_info.chip_name = chipModelName(chip_info.model);
     build_info.chip_revision = std::to_string(chip_info.revision);
+    build_info.chip_type = chipTypeLabel(chip_info);
+    build_info.chip_features = chipFeaturesLabel(chip_info);
+    build_info.crystal_frequency = crystalFrequencyLabel();
     build_info.chip_id = readChipId();
     build_info.short_chip_id = readShortChipId();
     build_info.esp_mac_id = readStationMacId();

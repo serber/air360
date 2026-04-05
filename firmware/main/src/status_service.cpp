@@ -120,17 +120,6 @@ std::string formatMeasurementValue(const SensorValue& value) {
     return text;
 }
 
-std::string measurementSummary(const SensorMeasurement& measurement) {
-    std::string summary;
-    for (std::size_t index = 0; index < measurement.value_count; ++index) {
-        if (!summary.empty()) {
-            summary += " · ";
-        }
-        summary += formatMeasurementValue(measurement.values[index]);
-    }
-    return summary;
-}
-
 std::string measurementListHtml(const SensorMeasurement& measurement) {
     if (measurement.empty()) {
         return "";
@@ -204,6 +193,9 @@ struct RuntimeOverviewViewModel {
     std::string board_name;
     std::string chip_name;
     std::string chip_revision;
+    std::string chip_type;
+    std::string chip_features;
+    std::string crystal_frequency;
     std::string chip_id;
     std::string short_chip_id;
     std::string esp_mac_id;
@@ -302,6 +294,11 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.board_name = build_info.board_name;
     model.chip_name = build_info.chip_name;
     model.chip_revision = build_info.chip_revision;
+    model.chip_type = build_info.chip_type.empty() ? "unavailable" : build_info.chip_type;
+    model.chip_features =
+        build_info.chip_features.empty() ? "unavailable" : build_info.chip_features;
+    model.crystal_frequency =
+        build_info.crystal_frequency.empty() ? "unavailable" : build_info.crystal_frequency;
     model.chip_id = build_info.chip_id.empty() ? "unavailable" : build_info.chip_id;
     model.short_chip_id =
         build_info.short_chip_id.empty() ? "unavailable" : build_info.short_chip_id;
@@ -389,6 +386,9 @@ std::string StatusService::renderRootHtml() const {
             {"BOARD_NAME", htmlEscape(model.board_name)},
             {"CHIP_NAME", htmlEscape(model.chip_name)},
             {"CHIP_REVISION", htmlEscape(model.chip_revision)},
+            {"CHIP_TYPE", htmlEscape(model.chip_type)},
+            {"CHIP_FEATURES", htmlEscape(model.chip_features)},
+            {"CRYSTAL_FREQUENCY", htmlEscape(model.crystal_frequency)},
             {"CHIP_ID", htmlEscape(model.chip_id)},
             {"SHORT_CHIP_ID", htmlEscape(model.short_chip_id)},
             {"ESP_MAC_ID", htmlEscape(model.esp_mac_id)},
@@ -424,6 +424,9 @@ std::string StatusService::renderStatusJson() const {
     json += "\"board_name\":\"" + jsonEscape(build_info_.board_name) + "\",";
     json += "\"chip_name\":\"" + jsonEscape(build_info_.chip_name) + "\",";
     json += "\"chip_revision\":\"" + jsonEscape(build_info_.chip_revision) + "\",";
+    json += "\"chip_type\":\"" + jsonEscape(build_info_.chip_type) + "\",";
+    json += "\"chip_features\":\"" + jsonEscape(build_info_.chip_features) + "\",";
+    json += "\"crystal_frequency\":\"" + jsonEscape(build_info_.crystal_frequency) + "\",";
     json += "\"compile_date\":\"" + jsonEscape(build_info_.compile_date) + "\",";
     json += "\"compile_time\":\"" + jsonEscape(build_info_.compile_time) + "\",";
     json += "\"chip_id\":\"" + jsonEscape(build_info_.chip_id) + "\",";

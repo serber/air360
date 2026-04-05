@@ -252,6 +252,7 @@ void App::run() {
     const esp_err_t web_err =
         web_server.start(
             status_service,
+            network_manager,
             config_repository,
             config,
             sensor_config_repository,

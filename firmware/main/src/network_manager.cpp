@@ -3,6 +3,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #include "air360/time_utils.hpp"
 #include "esp_err.h"
@@ -420,12 +421,20 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
         }
     }
 
+    if (context.sta_netif == nullptr) {
+        context.sta_netif = esp_netif_create_default_wifi_sta();
+        if (context.sta_netif == nullptr) {
+            setStateError(state_, "failed to create station netif for scanning");
+            return ESP_FAIL;
+        }
+    }
+
     err = esp_wifi_stop();
     if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
         ESP_LOGW(kTag, "esp_wifi_stop before AP start failed: %s", esp_err_to_name(err));
     }
 
-    err = esp_wifi_set_mode(WIFI_MODE_AP);
+    err = esp_wifi_set_mode(WIFI_MODE_APSTA);
     if (err != ESP_OK) {
         setStateError(state_, esp_err_to_name(err));
         return err;
@@ -497,11 +506,104 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
         config.lab_ap_ssid,
         state_.ip_address.c_str());
 
+    const esp_err_t scan_err = scanAvailableNetworks();
+    if (scan_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Initial Wi-Fi scan in setup AP mode failed: %s",
+            esp_err_to_name(scan_err));
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t NetworkManager::scanAvailableNetworks() {
+    const auto fail = [this](esp_err_t err, const char* message = nullptr) -> esp_err_t {
+        available_networks_.clear();
+        last_scan_uptime_ms_ = 0U;
+        last_scan_error_ = message != nullptr ? std::string(message) : std::string(esp_err_to_name(err));
+        return err;
+    };
+
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    esp_err_t err = esp_wifi_get_mode(&mode);
+    if (err != ESP_OK) {
+        return fail(err);
+    }
+
+    if (mode != WIFI_MODE_STA && mode != WIFI_MODE_APSTA) {
+        return fail(ESP_ERR_WIFI_MODE, "Wi-Fi scan requires STA or APSTA mode");
+    }
+
+    err = esp_wifi_scan_start(nullptr, true);
+    if (err != ESP_OK) {
+        return fail(err);
+    }
+
+    std::uint16_t ap_count = 0U;
+    err = esp_wifi_scan_get_ap_num(&ap_count);
+    if (err != ESP_OK) {
+        return fail(err);
+    }
+
+    std::vector<WifiNetworkRecord> networks;
+    if (ap_count > 0U) {
+        std::vector<wifi_ap_record_t> records(ap_count);
+        std::uint16_t records_to_fetch = ap_count;
+        err = esp_wifi_scan_get_ap_records(&records_to_fetch, records.data());
+        if (err != ESP_OK) {
+            return fail(err);
+        }
+
+        networks.reserve(records_to_fetch);
+        for (std::uint16_t index = 0; index < records_to_fetch; ++index) {
+            const wifi_ap_record_t& record = records[index];
+            if (record.ssid[0] == '\0') {
+                continue;
+            }
+
+            const std::string ssid(reinterpret_cast<const char*>(record.ssid));
+            bool duplicate = false;
+            for (const auto& existing : networks) {
+                if (existing.ssid == ssid) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) {
+                continue;
+            }
+
+            WifiNetworkRecord network;
+            network.ssid = ssid;
+            network.rssi = record.rssi;
+            network.auth_mode = record.authmode;
+            networks.push_back(std::move(network));
+        }
+    } else {
+        esp_wifi_clear_ap_list();
+    }
+
+    available_networks_ = std::move(networks);
+    last_scan_error_.clear();
+    last_scan_uptime_ms_ = air360::uptimeMilliseconds();
     return ESP_OK;
 }
 
 const NetworkState& NetworkManager::state() const {
     return state_;
+}
+
+const std::vector<WifiNetworkRecord>& NetworkManager::availableNetworks() const {
+    return available_networks_;
+}
+
+const std::string& NetworkManager::lastScanError() const {
+    return last_scan_error_;
+}
+
+std::uint64_t NetworkManager::lastScanUptimeMs() const {
+    return last_scan_uptime_ms_;
 }
 
 bool NetworkManager::hasValidTime() const {
