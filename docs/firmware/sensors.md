@@ -57,16 +57,18 @@ Examples:
 
 The current registry defines these implemented sensor types. The authoritative list lives in [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp).
 
-| Type Key | Display Name | Transport | Reported Values | Default Binding |
+The table below uses the same category semantics and ordering as the current `/sensors` UI.
+
+| Category | Type Key | Transport | Reported Values | Default Binding |
 | --- | --- | --- | --- | --- |
-| `bme280` | `BME280` | `i2c` | `temperature`, `humidity`, `pressure` | bus 0, address `0x76` |
-| `bme680` | `BME680` | `i2c` | `temperature`, `humidity`, `pressure`, `gas_resistance` | bus 0, address `0x77` |
-| `sps30` | `SPS30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
-| `ens160` | `ENS160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
-| `gps_nmea` | `GPS (NMEA)` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed`, `course`, `hdop` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
-| `dht11` | `DHT11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
-| `dht22` | `DHT22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `2000 ms` |
-| `me3_no2` | `ME3-NO2` | `analog` | `adc_raw`, `voltage_mv` | one of GPIO4, GPIO5, GPIO6; default poll `5000 ms` |
+| `Climate` | `bme280` | `i2c` | `temperature`, `humidity`, `pressure` | bus 0, address `0x76` |
+| `Climate` | `bme680` | `i2c` | `temperature`, `humidity`, `pressure`, `gas_resistance` | bus 0, address `0x77` |
+| `Temperature / Humidity` | `dht11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
+| `Temperature / Humidity` | `dht22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
+| `Air Quality` | `ens160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
+| `Particulate Matter` | `sps30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
+| `Location` | `gps_nmea` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed`, `course`, `hdop` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
+| `Gas` | `me3_no2` | `analog` | `adc_raw`, `voltage_mv` | one of GPIO4, GPIO5, GPIO6; default poll `5000 ms` |
 
 ## Board-Level Wiring Assumptions
 
@@ -192,6 +194,11 @@ This lets the UI distinguish between:
 - a driver that initialized successfully
 - a sensor that is being polled normally
 - a device that is physically absent or currently failing
+
+The runtime snapshot exposed through `Overview`, `/sensors`, and `/status` also includes:
+
+- configured `poll_interval_ms`
+- `queued_sample_count` derived from `MeasurementStore`
 
 ## Current Limitations
 

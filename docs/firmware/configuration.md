@@ -56,11 +56,11 @@ These define the shared board sensor pins used by GPIO-backed and analog-backed 
 
 [`../../firmware/sdkconfig.defaults`](../../firmware/sdkconfig.defaults) currently fixes these important defaults:
 
-- flash size `4MB`
+- flash size `16MB`
 - custom partition table `partitions.csv`
 - C++ exceptions disabled
 - C++ RTTI disabled
-- main task stack size `6144`
+- main task stack size `8192`
 - board and sensor wiring defaults listed above
 
 The main task stack override matters because the runtime holds several long-lived service objects during startup.
