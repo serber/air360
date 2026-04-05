@@ -388,14 +388,42 @@ void UploadManager::taskMain() {
             continue;
         }
 
-        std::vector<MeasurementSample> upload_samples;
-        if (has_active_backend && measurement_store_ != nullptr) {
-            upload_samples = measurement_store_->beginUploadWindow();
+        if (!has_active_backend || measurement_store_ == nullptr || network_manager_ == nullptr) {
+            lock();
+            next_cycle_time_ms_ = now_ms + static_cast<std::uint64_t>(pdTICKS_TO_MS(kUploadLoopDelay));
+            unlock();
+            vTaskDelay(kUploadLoopDelay);
+            continue;
         }
 
-        MeasurementBatch batch{};
-        if (!upload_samples.empty()) {
-            batch = buildMeasurementBatch(now_ms, upload_samples);
+        const NetworkState& network = network_manager_->state();
+        if (network.mode != NetworkMode::kStation ||
+            !network.station_connected ||
+            !network_manager_->hasValidTime()) {
+            lock();
+            next_cycle_time_ms_ = now_ms + static_cast<std::uint64_t>(pdTICKS_TO_MS(kUploadLoopDelay));
+            unlock();
+            vTaskDelay(kUploadLoopDelay);
+            continue;
+        }
+
+        std::vector<MeasurementSample> upload_samples = measurement_store_->beginUploadWindow();
+        if (upload_samples.empty()) {
+            lock();
+            next_cycle_time_ms_ = now_ms + cycle_interval_ms_;
+            unlock();
+            vTaskDelay(kUploadLoopDelay);
+            continue;
+        }
+
+        MeasurementBatch batch = buildMeasurementBatch(now_ms, upload_samples);
+        if (batch.empty()) {
+            measurement_store_->restoreInflight();
+            lock();
+            next_cycle_time_ms_ = now_ms + cycle_interval_ms_;
+            unlock();
+            vTaskDelay(kUploadLoopDelay);
+            continue;
         }
 
         bool had_active_backend = false;
@@ -454,7 +482,7 @@ void UploadManager::taskMain() {
                 } else if (requests.empty()) {
                     aggregate_result = UploadResultClass::kNoData;
                     next_state = BackendRuntimeState::kIdle;
-                    last_error = "No uploadable measurements available.";
+                    last_error.clear();
                 } else {
                     aggregate_result = UploadResultClass::kSuccess;
                     next_state = BackendRuntimeState::kOk;

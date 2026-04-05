@@ -201,6 +201,45 @@ std::string currentUtcDateTimeLabel() {
     return buffer;
 }
 
+const char* resetReasonLabel(esp_reset_reason_t reason) {
+    switch (reason) {
+        case ESP_RST_UNKNOWN:
+            return "unknown";
+        case ESP_RST_POWERON:
+            return "poweron";
+        case ESP_RST_EXT:
+            return "ext";
+        case ESP_RST_SW:
+            return "sw";
+        case ESP_RST_PANIC:
+            return "panic";
+        case ESP_RST_INT_WDT:
+            return "int_wdt";
+        case ESP_RST_TASK_WDT:
+            return "task_wdt";
+        case ESP_RST_WDT:
+            return "wdt";
+        case ESP_RST_DEEPSLEEP:
+            return "deepsleep";
+        case ESP_RST_BROWNOUT:
+            return "brownout";
+        case ESP_RST_SDIO:
+            return "sdio";
+        case ESP_RST_USB:
+            return "usb";
+        case ESP_RST_JTAG:
+            return "jtag";
+        case ESP_RST_EFUSE:
+            return "efuse";
+        case ESP_RST_PWR_GLITCH:
+            return "power_glitch";
+        case ESP_RST_CPU_LOCKUP:
+            return "cpu_lockup";
+        default:
+            return "unknown";
+    }
+}
+
 struct RuntimeOverviewViewModel {
     std::string network_mode;
     std::string device_name;
@@ -215,6 +254,7 @@ struct RuntimeOverviewViewModel {
     std::string chip_features;
     std::string crystal_frequency;
     std::string current_datetime;
+    std::string reset_reason_label;
     std::string chip_id;
     std::string short_chip_id;
     std::string esp_mac_id;
@@ -300,6 +340,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     const DeviceConfig& config,
     const NetworkState& network_state,
     std::uint32_t boot_count,
+    esp_reset_reason_t reset_reason,
     bool config_loaded_from_storage,
     const std::vector<SensorRuntimeInfo>& sensors,
     const std::vector<BackendStatusSnapshot>& backends,
@@ -320,6 +361,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.crystal_frequency =
         build_info.crystal_frequency.empty() ? "unavailable" : build_info.crystal_frequency;
     model.current_datetime = currentUtcDateTimeLabel();
+    model.reset_reason_label = resetReasonLabel(reset_reason);
     model.chip_id = build_info.chip_id.empty() ? "unavailable" : build_info.chip_id;
     model.short_chip_id =
         build_info.short_chip_id.empty() ? "unavailable" : build_info.short_chip_id;
@@ -391,6 +433,7 @@ std::string StatusService::renderRootHtml() const {
         config_,
         network_state_,
         boot_count_,
+        reset_reason_,
         config_loaded_from_storage_,
         sensors,
         backends,
@@ -412,6 +455,7 @@ std::string StatusService::renderRootHtml() const {
             {"CHIP_FEATURES", htmlEscape(model.chip_features)},
             {"CRYSTAL_FREQUENCY", htmlEscape(model.crystal_frequency)},
             {"CURRENT_DATETIME", htmlEscape(model.current_datetime)},
+            {"RESET_REASON_LABEL", htmlEscape(model.reset_reason_label)},
             {"CHIP_ID", htmlEscape(model.chip_id)},
             {"SHORT_CHIP_ID", htmlEscape(model.short_chip_id)},
             {"ESP_MAC_ID", htmlEscape(model.esp_mac_id)},
@@ -462,6 +506,7 @@ std::string StatusService::renderStatusJson() const {
     json += "\"boot_count\":" + std::to_string(boot_count_) + ",";
     json += "\"uptime_ms\":" + std::to_string(uptimeMilliseconds()) + ",";
     json += "\"reset_reason\":" + std::to_string(static_cast<int>(reset_reason_)) + ",";
+    json += "\"reset_reason_label\":\"" + jsonEscape(resetReasonLabel(reset_reason_)) + "\",";
     json += "\"nvs_ready\":";
     json += boolString(nvs_ready_);
     json += ",\"watchdog_armed\":";
