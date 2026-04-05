@@ -64,6 +64,8 @@ Start here depending on what you need.
   [docs/firmware/sensors.md](docs/firmware/sensors.md)
 - Planned future device support:
   [docs/firmware/planned-device-support.md](docs/firmware/planned-device-support.md)
+- Mobile uplink ADR:
+  [docs/sim7600e-mobile-uplink-adr.md](docs/sim7600e-mobile-uplink-adr.md)
 - Firmware documentation map:
   [docs/firmware/README.md](docs/firmware/README.md)
 - Firmware end-user manual:
