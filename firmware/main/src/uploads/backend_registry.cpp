@@ -47,6 +47,11 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
+    if (!isNullTerminated(record.device_id_override, kBackendIdentifierCapacity)) {
+        error = "Sensor.Community device id override is not null-terminated.";
+        return false;
+    }
+
     if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
         error = "Sensor.Community endpoint URL is not null-terminated.";
         return false;

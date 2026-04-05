@@ -317,6 +317,8 @@ Currently implemented backends are:
 
 Backend selection and upload interval are configured through `/backends`. Endpoint URLs are static in firmware and are not edited through the UI. The Air360 backend accepts a bearer token through the local `/backends` form.
 
+For `Sensor.Community`, the `/backends` form also exposes a device id field prefilled from the runtime `Short ID`. You can change it for debugging; the saved value is then used for `X-Sensor` and related legacy id fields.
+
 Supported drivers confirmed by the current registry:
 
 - `BME280`

@@ -584,4 +584,8 @@ const NetworkState& StatusService::networkState() const {
     return network_state_;
 }
 
+const BuildInfo& StatusService::buildInfo() const {
+    return build_info_;
+}
+
 }  // namespace air360

@@ -279,6 +279,8 @@ struct BackendCardViewModel {
     bool implemented = false;
     bool enabled = false;
     std::string endpoint;
+    bool show_device_id_override = false;
+    std::string device_id_override;
     bool show_bearer_token = false;
     std::string bearer_token;
     bool has_status = false;
@@ -339,6 +341,7 @@ std::string renderBackendCard(const BackendCardViewModel& card);
 BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
+    const BuildInfo& build_info,
     const std::string& notice,
     bool error_notice);
 std::string renderSensorCard(const SensorCardViewModel& card);
@@ -614,6 +617,23 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         endpoint_block += "</code></p>";
     }
 
+    std::string device_id_override_block;
+    if (card.show_device_id_override) {
+        device_id_override_block += "<div class='field'><label for='device_id_";
+        device_id_override_block += htmlEscape(card.backend_key);
+        device_id_override_block += "'>Device ID override</label>";
+        device_id_override_block += "<input class='input' id='device_id_";
+        device_id_override_block += htmlEscape(card.backend_key);
+        device_id_override_block += "' name='device_id_";
+        device_id_override_block += htmlEscape(card.backend_key);
+        device_id_override_block += "' maxlength='";
+        device_id_override_block += std::to_string(kBackendIdentifierCapacity - 1U);
+        device_id_override_block += "' value='";
+        device_id_override_block += htmlEscape(card.device_id_override);
+        device_id_override_block += "'>";
+        device_id_override_block += "<p class='hint'>Prefilled from Short ID. Change it only for debugging.</p></div>";
+    }
+
     std::string bearer_token_block;
     if (card.show_bearer_token) {
         bearer_token_block += "<div class='field'><label for='token_";
@@ -671,6 +691,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             {"IMPLEMENTED", card.implemented ? "true" : "false"},
             {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
             {"ENDPOINT_BLOCK", endpoint_block},
+            {"DEVICE_ID_OVERRIDE_BLOCK", device_id_override_block},
             {"BEARER_TOKEN_BLOCK", bearer_token_block},
             {"STATUS_BLOCK", status_block},
         });
@@ -679,6 +700,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
 BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
+    const BuildInfo& build_info,
     const std::string& notice,
     bool error_notice) {
     BackendsPageViewModel model;
@@ -707,6 +729,14 @@ BackendsPageViewModel buildBackendsPageViewModel(
         card.enabled = record != nullptr && record->enabled != 0U;
         if (record != nullptr) {
             card.endpoint = backendDefaultEndpointUrl(descriptor.type);
+            card.show_device_id_override = descriptor.type == BackendType::kSensorCommunity;
+            if (card.show_device_id_override) {
+                card.device_id_override =
+                    boundedCString(record->device_id_override, sizeof(record->device_id_override));
+                if (card.device_id_override.empty()) {
+                    card.device_id_override = build_info.short_chip_id;
+                }
+            }
             card.show_bearer_token = descriptor.type == BackendType::kAir360Api;
             if (card.show_bearer_token) {
                 card.bearer_token =
@@ -877,10 +907,16 @@ const BackendRecord* findBackendRecordForDescriptor(
 std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
+    const BuildInfo& build_info,
     const std::string& notice,
     bool error_notice) {
     const BackendsPageViewModel model =
-        buildBackendsPageViewModel(backend_config_list, upload_manager, notice, error_notice);
+        buildBackendsPageViewModel(
+            backend_config_list,
+            upload_manager,
+            build_info,
+            notice,
+            error_notice);
 
     std::string backend_cards;
     backend_cards.reserve(model.cards.size() * 1400U);
@@ -1422,6 +1458,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
+            server->status_service_->buildInfo(),
             "",
             false);
         return sendHtmlResponse(request, html);
@@ -1432,6 +1469,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
+            server->status_service_->buildInfo(),
             "Failed to read form body.",
             true);
         return sendHtmlResponse(request, html);
@@ -1449,6 +1487,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
+            server->status_service_->buildInfo(),
             "Upload interval must be between 10000 ms and 300000 ms.",
             true);
         return sendHtmlResponse(request, html);
@@ -1462,6 +1501,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             const std::string html = renderBackendsPage(
                 *server->backend_config_list_,
                 *server->upload_manager_,
+                server->status_service_->buildInfo(),
                 "Backend configuration is incomplete.",
                 true);
             return sendHtmlResponse(request, html);
@@ -1470,6 +1510,14 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
         record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
         applyBackendStaticDefaults(*record);
+
+        if (descriptor.type == BackendType::kSensorCommunity) {
+            const std::string device_id_name = std::string("device_id_") + descriptor.backend_key;
+            copyString(
+                record->device_id_override,
+                sizeof(record->device_id_override),
+                findFormValue(fields, device_id_name.c_str()));
+        }
 
         if (descriptor.type == BackendType::kAir360Api) {
             const std::string token_name = std::string("token_") + descriptor.backend_key;
@@ -1485,6 +1533,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
+            server->status_service_->buildInfo(),
             std::string("Failed to save backend configuration: ") + esp_err_to_name(save_err),
             true);
         return sendHtmlResponse(request, html);
@@ -1497,6 +1546,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     const std::string html = renderBackendsPage(
         *server->backend_config_list_,
         *server->upload_manager_,
+        server->status_service_->buildInfo(),
         "Backend selection saved.",
         false);
     return sendHtmlResponse(request, html);

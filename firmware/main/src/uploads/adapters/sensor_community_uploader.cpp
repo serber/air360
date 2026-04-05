@@ -62,6 +62,19 @@ std::string legacyChipId(const MeasurementBatch& batch) {
     return batch.chip_id;
 }
 
+std::string overrideChipId(const BackendRecord& record) {
+    const char* raw = record.device_id_override;
+    if (raw == nullptr || raw[0] == '\0') {
+        return "";
+    }
+
+    std::size_t length = 0U;
+    while (length < kBackendIdentifierCapacity && raw[length] != '\0') {
+        ++length;
+    }
+    return std::string(raw, length);
+}
+
 bool mapMeasurement(
     const MeasurementPoint& point,
     std::uint8_t& out_pin,
@@ -262,7 +275,8 @@ bool SensorCommunityUploader::buildRequests(
         upsertLatestValue(*group, value_type, point.value_kind, point.value);
     }
 
-    const std::string chip_id = legacyChipId(batch);
+    const std::string chip_id_override = overrideChipId(record);
+    const std::string chip_id = chip_id_override.empty() ? legacyChipId(batch) : chip_id_override;
     const std::string x_sensor = std::string(kLegacyPrefix) + chip_id;
     const std::string x_mac = std::string(kLegacyPrefix) + batch.esp_mac_id;
     const std::string user_agent =

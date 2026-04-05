@@ -31,6 +31,7 @@ class StatusService {
     std::string renderRootHtml() const;
     std::string renderStatusJson() const;
     const NetworkState& networkState() const;
+    const BuildInfo& buildInfo() const;
 
   private:
     BuildInfo build_info_;

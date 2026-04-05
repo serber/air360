@@ -9,7 +9,7 @@
 namespace air360 {
 
 constexpr std::uint32_t kBackendConfigMagic = 0x41333632U;
-constexpr std::uint16_t kBackendConfigSchemaVersion = 2U;
+constexpr std::uint16_t kBackendConfigSchemaVersion = 3U;
 constexpr std::uint32_t kDefaultUploadIntervalMs = 145000U;
 
 inline const char* backendDefaultEndpointUrl(BackendType type) {
@@ -30,9 +30,10 @@ struct BackendRecord {
     BackendType backend_type = BackendType::kUnknown;
     std::uint16_t reserved0 = 0U;
     char display_name[kBackendDisplayNameCapacity]{};
+    char device_id_override[kBackendIdentifierCapacity]{};
     char endpoint_url[kBackendUrlCapacity]{};
     char bearer_token[kBackendTokenCapacity]{};
-    std::uint8_t reserved1[12]{};
+    std::uint8_t reserved1[8]{};
 };
 
 struct BackendConfigList {
