@@ -55,16 +55,15 @@ The older planning documents in `docs/` still matter, but they should be read as
 
 Start here depending on what you need.
 
-- Repository and architecture context:
-  [docs/modern-replacement-firmware-architecture.md](docs/modern-replacement-firmware-architecture.md)
-- Firmware implementation plan and phase history:
-  [docs/firmware-iterative-implementation-plan.md](docs/firmware-iterative-implementation-plan.md)
-- Hardware bring-up notes:
-  [docs/phase-1-hardware-boot-notes.md](docs/phase-1-hardware-boot-notes.md)
-  and [docs/phase-2-onboarding-hardware-notes.md](docs/phase-2-onboarding-hardware-notes.md)
-- Legacy compatibility context:
-  [docs/airrohr-firmware-server-contract.md](docs/airrohr-firmware-server-contract.md)
-  and [docs/airrohr-firmware-ui-analysis.md](docs/airrohr-firmware-ui-analysis.md)
+- Firmware architecture:
+  [docs/firmware/architecture.md](docs/firmware/architecture.md)
+- Firmware configuration and source layout:
+  [docs/firmware/configuration.md](docs/firmware/configuration.md)
+  and [docs/firmware/project-structure.md](docs/firmware/project-structure.md)
+- Firmware sensor subsystem:
+  [docs/firmware/sensors.md](docs/firmware/sensors.md)
+- Planned future device support:
+  [docs/firmware/planned-device-support.md](docs/firmware/planned-device-support.md)
 - Firmware documentation map:
   [docs/firmware/README.md](docs/firmware/README.md)
 - Firmware end-user manual:
@@ -140,8 +139,8 @@ If you need to understand the Sensor.Community overlap specifically:
 If you need repository context first:
 
 1. Read this file
-2. Read [docs/modern-replacement-firmware-architecture.md](docs/modern-replacement-firmware-architecture.md)
-3. Read [docs/firmware-iterative-implementation-plan.md](docs/firmware-iterative-implementation-plan.md)
+2. Read [docs/firmware/README.md](docs/firmware/README.md)
+3. Read [docs/firmware/architecture.md](docs/firmware/architecture.md)
 
 If you need backend work:
 
