@@ -180,11 +180,6 @@ bool Air360ApiUploader::validateConfig(
         return false;
     }
 
-    if (record.bearer_token[0] == '\0') {
-        error = "Air360 API bearer token is empty.";
-        return false;
-    }
-
     error.clear();
     return true;
 }
@@ -233,7 +228,6 @@ bool Air360ApiUploader::buildRequests(
     request.url = buildUrl(record, batch);
     request.timeout_ms = 15000;
     request.headers.push_back({"Content-Type", "application/json"});
-    request.headers.push_back({"Authorization", std::string("Bearer ") + record.bearer_token});
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
     request.body = buildBody(batch, groups);
     out_requests.push_back(std::move(request));

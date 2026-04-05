@@ -80,11 +80,6 @@ bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
         return false;
     }
 
-    if (!isNullTerminated(record.bearer_token, kBackendTokenCapacity)) {
-        error = "Air360 API bearer token is not null-terminated.";
-        return false;
-    }
-
     if (record.enabled == 0U) {
         error.clear();
         return true;
@@ -92,11 +87,6 @@ bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
 
     if (record.endpoint_url[0] == '\0') {
         error = "Air360 API base URL must not be empty.";
-        return false;
-    }
-
-    if (record.bearer_token[0] == '\0') {
-        error = "Air360 API bearer token must not be empty.";
         return false;
     }
 
