@@ -1,0 +1,4 @@
+interface:
+  display_name: "Air360 Release Bundle"
+  short_description: "Package firmware releases for GitHub"
+  default_prompt: "Use $air360-firmware-release-bundle to create a release bundle for this firmware version."
