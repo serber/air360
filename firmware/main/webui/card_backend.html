@@ -1,0 +1,10 @@
+<div class='panel panel--backend stack' data-backend-card>
+    <h2>{{DISPLAY_NAME}}</h2>
+    <label class='checkbox'>
+        <input type='checkbox' name='enabled_{{BACKEND_KEY_ATTR}}' {{ENABLED_CHECKED}} data-backend-enabled-toggle>
+        <span class='checkbox__label'>Enabled</span>
+    </label>
+    {{ENDPOINT_BLOCK}}
+    {{DEVICE_ID_OVERRIDE_BLOCK}}
+    {{STATUS_BLOCK}}
+</div>

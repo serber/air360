@@ -1,0 +1,21 @@
+<div class='stack stack--scene'>
+    {{NOTICE}}
+    <section class='stack'>
+        <div class='panel panel--staging stack'>
+            <h2>Pending Sensor Changes</h2>
+            <p class='muted'>Sensor edits are staged in memory only. Use <code>Apply and reboot</code> to persist them, or discard them to return to the last stored config.</p>
+            <div class='meta'><span class='pill'>Status {{PENDING_STATUS_LOWER}}</span></div>
+            <div class='split-actions'>
+                <form method='POST' action='/sensors' data-confirm='Apply staged sensor changes and reboot the device?'>
+                    <input type='hidden' name='action' value='apply'>
+                    <button class='button' type='submit'>Apply and reboot</button>
+                </form>
+                <form method='POST' action='/sensors' data-confirm='Discard all staged sensor changes?'>
+                    <input type='hidden' name='action' value='discard'>
+                    <button class='button button--secondary' type='submit'>Discard pending changes</button>
+                </form>
+            </div>
+        </div>
+        {{CATEGORY_SECTIONS}}
+    </section>
+</div>

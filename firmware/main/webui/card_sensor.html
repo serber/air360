@@ -1,0 +1,40 @@
+<div class='panel panel--sensor stack'>
+    <h2>{{DISPLAY_NAME}}</h2>
+    <div class='meta'>
+        <span class='pill'>Runtime <code>{{RUNTIME_STATE}}</code></span>
+        <span class='pill'>Transport {{TRANSPORT_SUMMARY}}</span>
+        <span class='pill'>Poll {{POLL_INTERVAL_MS}} ms</span>
+        <span class='pill'>Queued {{QUEUED_SAMPLE_COUNT}}</span>
+    </div>
+    {{RUNTIME_ERROR_BLOCK}}
+    {{LATEST_READING_BLOCK}}
+    <form class='stack' method='POST' action='/sensors' data-dirty-track='sensor-{{SENSOR_ID}}' data-sensor-form>
+        <input type='hidden' name='action' value='update'>
+        <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
+        <div class='field'>
+            <label for='sensor_type_{{SENSOR_ID}}'>Model</label>
+            <select class='select' id='sensor_type_{{SENSOR_ID}}' name='sensor_type' data-sensor-type-select>
+                {{SENSOR_TYPE_OPTIONS}}
+            </select>
+        </div>
+        <p class='hint' data-sensor-defaults {{DEFAULTS_HINT_HIDDEN}}>{{DEFAULTS_HINT_TEXT}}</p>
+        <div class='field'>
+            <label for='poll_interval_ms_{{SENSOR_ID}}'>Poll interval (ms)</label>
+            <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='{{POLL_INTERVAL_MS}}'>
+        </div>
+        {{I2C_FIELD_BLOCK}}
+        {{GPIO_FIELD_BLOCK}}
+        <label class='checkbox'>
+            <input name='enabled' type='checkbox' {{ENABLED_CHECKED}}>
+            <span class='checkbox__label'>Enabled</span>
+        </label>
+        <div class='split-actions'>
+            <button class='button' type='submit'>Stage sensor changes</button>
+        </div>
+    </form>
+    <form method='POST' action='/sensors' data-confirm='Stage deletion for this sensor?'>
+        <input type='hidden' name='action' value='delete'>
+        <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
+        <button class='button button--danger' type='submit'>Stage sensor deletion</button>
+    </form>
+</div>

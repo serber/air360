@@ -1,0 +1,4 @@
+interface:
+  display_name: "Air360 Firmware Docs"
+  short_description: "Write implementation-focused ESP-IDF firmware docs"
+  default_prompt: "Use $air360-firmware-docs to create or update implementation-focused documentation for the firmware project in this repository."

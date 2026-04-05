@@ -1,0 +1,4 @@
+interface:
+  display_name: "Air360 Repo Docs"
+  short_description: "Write top-level repository docs for Air360"
+  default_prompt: "Use $air360-docs to create or update repository-level documentation for this Air360 repository."

@@ -1,0 +1,44 @@
+<div class='stack stack--scene'>
+    <section class='stats'>
+        <div class='stat'><div class='stat__label'>Network Mode</div><div class='stat__value'><code>{{NETWORK_MODE}}</code></div></div>
+        <div class='stat'><div class='stat__label'>IP Address</div><div class='stat__value'><code>{{IP_ADDRESS}}</code></div></div>
+        <div class='stat'><div class='stat__label'>Device Name</div><div class='stat__value'><code>{{DEVICE_NAME}}</code></div></div>
+    </section>
+    {{NOTICE}}
+    <section class='stack'>
+        <div class='panel panel--form stack'>
+            <h2>Network and Device Settings</h2>
+            <p class='muted'>This form stores local device identity and station credentials. Saving applies the new configuration and schedules a reboot.</p>
+            {{NETWORK_ERROR}}
+            <form class='stack' method='POST' action='/config' data-dirty-track='config' data-confirm='Save configuration and reboot the device?' data-network-mode='{{NETWORK_MODE}}'>
+                <div class='field'>
+                    <label for='device_name'>Device name</label>
+                    <input class='input' id='device_name' name='device_name' maxlength='31' value='{{DEVICE_NAME_VALUE}}'>
+                </div>
+                <div class='field'>
+                    <label for='wifi_ssid'>Wi-Fi SSID</label>
+                    <input class='input' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='{{WIFI_SSID_VALUE}}' autocomplete='off' data-wifi-ssid-input>
+                    <div class='field stack' data-wifi-ssid-select-row {{WIFI_SSID_SELECT_HIDDEN}}>
+                        <label for='wifi_ssid_select'>Available networks</label>
+                        <select class='select' id='wifi_ssid_select' data-wifi-ssid-select>
+                            <option value=''>Select network...</option>
+                            {{WIFI_SSID_OPTIONS}}
+                        </select>
+                    </div>
+                    <p class='hint' data-wifi-ssid-scan-status hidden></p>
+                </div>
+                <div class='field' data-wifi-password-field>
+                    <label for='wifi_password'>Wi-Fi password</label>
+                    <div class='secret-row'>
+                        <input class='input' id='wifi_password' name='wifi_password' type='password' maxlength='63' value='{{WIFI_PASSWORD_VALUE}}'>
+                        <button class='button button--ghost' type='button' data-secret-toggle='wifi_password'>Show</button>
+                    </div>
+                    <p class='hint' data-wifi-password-hint>Leave Wi-Fi SSID empty to reboot into setup AP mode.</p>
+                </div>
+                <div class='split-actions'>
+                    <button class='button' type='submit'>Save and reboot</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>

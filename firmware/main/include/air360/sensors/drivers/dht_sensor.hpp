@@ -1,0 +1,44 @@
+#pragma once
+
+#include <memory>
+#include <string>
+
+#include "air360/sensors/sensor_driver.hpp"
+
+class DHT;
+
+namespace air360 {
+
+enum class DhtModel : std::uint8_t {
+    kDht11 = 0U,
+    kDht22 = 1U,
+};
+
+class DhtSensor final : public SensorDriver {
+  public:
+    explicit DhtSensor(DhtModel model);
+    ~DhtSensor() override;
+
+    SensorType type() const override;
+    esp_err_t init(
+        const SensorRecord& record,
+        const SensorDriverContext& context) override;
+    esp_err_t poll() override;
+    SensorMeasurement latestMeasurement() const override;
+    std::string lastError() const override;
+
+  private:
+    void setError(const std::string& message);
+
+    DhtModel model_;
+    SensorRecord record_{};
+    std::unique_ptr<DHT> sensor_;
+    SensorMeasurement measurement_{};
+    std::string last_error_;
+    bool initialized_ = false;
+};
+
+std::unique_ptr<SensorDriver> createDht11Sensor();
+std::unique_ptr<SensorDriver> createDht22Sensor();
+
+}  // namespace air360
