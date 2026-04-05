@@ -7,7 +7,7 @@ The firmware uses four distinct configuration layers:
 - compile-time project options in [`../../firmware/main/Kconfig.projbuild`](../../firmware/main/Kconfig.projbuild)
 - repository defaults in [`../../firmware/sdkconfig.defaults`](../../firmware/sdkconfig.defaults)
 - the generated effective build config in [`../../firmware/sdkconfig`](../../firmware/sdkconfig)
-- persisted runtime state in NVS through `DeviceConfig` and `SensorConfigList`
+- persisted runtime state in NVS through `DeviceConfig`, `SensorConfigList`, and `BackendConfigList`
 
 The important distinction is that `sdkconfig` controls how the firmware image is built, while NVS controls what a device remembers across reboots.
 
@@ -91,6 +91,10 @@ Important behavior:
 - defaults come from compile-time `CONFIG_AIR360_*`
 - once written, device config becomes runtime state in NVS
 - changing `sdkconfig.defaults` does not retroactively rewrite an already provisioned device
+- the current `/config` UI edits only `device_name`, `wifi_sta_ssid`, and `wifi_sta_password`
+- setup AP credentials remain persisted in `DeviceConfig`, but they are not editable in the current UI
+- when the device is currently in setup AP mode, `/config` also exposes a scanned SSID list through `/wifi-scan`
+- setup AP mode intentionally restricts the UI navigation to the `Device` page
 
 ## Runtime Sensor Configuration
 
@@ -103,7 +107,6 @@ Stored fields per sensor record include:
 - sensor type
 - transport kind
 - poll interval
-- display name
 - I2C bus and address
 - GPIO pin
 - UART port, RX/TX pins, and baud rate
@@ -115,16 +118,40 @@ Storage details:
 
 Current schema version:
 
-- `SensorConfigList`: v2
+- `SensorConfigList`: v3
 
 Important current behavior:
 
 - the persisted schema still stores transport-specific fields directly in `SensorRecord`
+- the `/sensors` UI is category-based rather than a flat list of driver types
+- all current categories except `Gas` allow only one configured sensor at a time
 - the `/sensors` UI infers transport from sensor type rather than letting the user choose arbitrary transport combinations
+- I2C-backed sensors expose an address override field in the current UI
 - GPS records are validated against fixed board UART wiring from the registry defaults
 - GPIO-backed and analog-backed sensors are constrained to the configured board sensor pins
 - sensor edits in `/sensors` are staged in memory and only persisted when the user explicitly applies them and reboots
 - stored sensor config with an older or incompatible layout is currently replaced with defaults rather than migrated
+
+## Runtime Backend Configuration
+
+The backend inventory lives in [`BackendConfigList`](../../firmware/main/include/air360/uploads/backend_config.hpp).
+
+Stored fields per backend record include:
+
+- logical id
+- enable flag
+- backend type
+- display name
+- static endpoint URL
+- `device_id_override` for `Sensor.Community`
+- legacy bearer token storage field, which is no longer used by the current `Air360 API` implementation
+
+Important current behavior:
+
+- `/backends` persists changes immediately; there is no staged apply step
+- `Sensor.Community` exposes a device id override field prefilled from the current `Short ID`
+- `Air360 API` currently uses the fixed base URL plus `/v1/devices/{chip_id}/batches/{batch_id}`
+- `Air360 API` no longer requires or sends a bearer token
 
 ## Partition Table
 

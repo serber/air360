@@ -135,17 +135,37 @@ The `/sensors` page is implemented in [`../../firmware/main/src/web_server.cpp`]
 
 Current behavior:
 
-- list configured sensors
-- add a new sensor from the registry
+- organize sensors by category instead of showing one flat driver list
+- categories are currently `Climate`, `Temperature / Humidity`, `Air Quality`, `Particulate Matter`, `Location`, and `Gas`
+- treat every category except `Gas` as a single-sensor slot
+- add a new sensor from the models allowed in that category
 - edit an existing sensor
 - delete a sensor
 - infer the transport from the selected sensor type
 - show transport as derived board wiring rather than an editable free-form choice
+- expose an I2C address override field for I2C-backed sensors
 - expose only valid board pin options for GPIO-backed and analog-backed sensors
 - apply fixed board UART wiring for GPS
 - keep edits in a staged in-memory `SensorConfigList`
 - persist staged changes only when the user explicitly applies them and reboots
 - allow discarding the staged list without touching persisted NVS state
+
+The current category-to-model mapping is:
+
+- `Climate`
+  - `BME280`
+  - `BME680`
+- `Temperature / Humidity`
+  - `DHT11`
+  - `DHT22`
+- `Air Quality`
+  - `ENS160`
+- `Particulate Matter`
+  - `SPS30`
+- `Location`
+  - `GPS (NMEA)`
+- `Gas`
+  - `ME3-NO2`
 
 After `Apply and reboot`:
 

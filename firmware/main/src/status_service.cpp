@@ -190,6 +190,7 @@ struct RuntimeOverviewViewModel {
     std::size_t sensor_count = 0U;
     std::size_t backend_count = 0U;
     std::string uptime;
+    std::uint32_t boot_count = 0U;
     std::string board_name;
     std::string chip_name;
     std::string chip_revision;
@@ -291,6 +292,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.sensor_count = sensors.size();
     model.backend_count = upload_manager != nullptr ? upload_manager->enabledCount() : 0U;
     model.uptime = formatUptimeCompact(uptimeMilliseconds());
+    model.boot_count = boot_count;
     model.board_name = build_info.board_name;
     model.chip_name = build_info.chip_name;
     model.chip_revision = build_info.chip_revision;
@@ -383,6 +385,7 @@ std::string StatusService::renderRootHtml() const {
             {"SENSOR_COUNT", std::to_string(model.sensor_count)},
             {"BACKEND_COUNT", std::to_string(model.backend_count)},
             {"UPTIME", htmlEscape(model.uptime)},
+            {"BOOT_COUNT", std::to_string(model.boot_count)},
             {"BOARD_NAME", htmlEscape(model.board_name)},
             {"CHIP_NAME", htmlEscape(model.chip_name)},
             {"CHIP_REVISION", htmlEscape(model.chip_revision)},

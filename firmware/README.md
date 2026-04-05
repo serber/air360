@@ -83,7 +83,7 @@ Current implementation files:
 - `web_ui.cpp`
   Provides shared page-shell rendering, embedded HTML template expansion, navigation, notices, and HTML escaping for firmware pages.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection changes immediately.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection changes immediately.
 - `webui/`
   Contains the embedded frontend files used by firmware, including shared CSS, progressive-enhancement JavaScript, and page body templates.
 - `sensors/`
@@ -175,9 +175,9 @@ Treat `sdkconfig` as the current effective build config, not as a concise source
 The runtime stores three separate NVS-backed models:
 
 - `DeviceConfig`
-  Device name, HTTP port, station credentials, setup AP credentials, and local auth placeholder flag.
+  Device name, HTTP port, station credentials, setup AP credentials, and a stored local-auth flag that is not currently exposed in the UI.
 - `SensorConfigList`
-  The configured sensor inventory, including type, inferred transport, poll interval, display name, and transport-specific fields.
+  The configured sensor inventory, including type, inferred transport, poll interval, and transport-specific fields.
 - `BackendConfigList`
   Enabled backend set, upload interval, backend display names, static endpoint defaults, and backend-specific persisted fields used by individual upload adapters.
 
@@ -262,9 +262,9 @@ After boot, the runtime exposes one of two local access paths:
 - in setup AP mode:
   - `http://192.168.4.1/`
   - `http://192.168.4.1/config`
-  - `http://192.168.4.1/sensors`
-  - `http://192.168.4.1/backends`
-  - `http://192.168.4.1/status`
+  - the UI intentionally redirects `/`, `/sensors`, and `/backends` to `/config`
+  - `/wifi-scan` returns the scanned station SSID list used by the setup form
+  - `/status` still exists as a JSON endpoint, but it is not linked from the AP-mode navigation
 - in station mode:
   - the same routes are served on the DHCP address obtained by the device on the configured Wi-Fi network
 
@@ -319,6 +319,8 @@ Backend selection and upload interval are configured through `/backends`. Endpoi
 
 For `Sensor.Community`, the `/backends` form also exposes a device id field prefilled from the runtime `Short ID`. You can change it for debugging; the saved value is then used for `X-Sensor` and related legacy id fields.
 
+`Air360 API` no longer uses a bearer token in the current implementation. The backend UI only exposes enablement and the fixed endpoint description, and the uploader sends JSON without an `Authorization` header.
+
 Supported drivers confirmed by the current registry:
 
 - `BME280`
@@ -346,7 +348,7 @@ Current default I2C addresses from the registry are:
 - `SPS30`: `0x69`
 - `ENS160`: `0x52`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Transport is inferred from sensor type, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, and UART sensors use the fixed bindings from the registry defaults. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 
@@ -357,6 +359,13 @@ The local web UI now uses a mixed frontend model:
 - `WebServer` serves them from `/assets/*`
 - page-specific data is still rendered server-side in C++, but the body markup now comes from embedded HTML templates
 - `web_ui.cpp` provides a shared shell and template expansion layer so visual changes no longer require editing large inline HTML strings in every handler
+
+Current UI behavior of note:
+
+- `/config` only edits device name and station Wi-Fi credentials
+- in setup AP mode the config page also shows a scanned SSID dropdown backed by `/wifi-scan`
+- setup AP mode intentionally restricts the navigation to the `Device` section
+- the runtime overview page surfaces device identity, enabled backend summary, sensor summary, uptime, and boot count
 
 ## Storage and Partitions
 
@@ -391,7 +400,7 @@ Current limitations confirmed by the source tree:
 - no captive-portal DNS or wildcard DNS flow is implemented yet
 - config changes are applied by reboot rather than live reconfiguration
 - sensor changes are not applied live; they are staged in memory and only persisted when the user explicitly applies them and reboots
-- the local auth flag is stored but not enforced yet
+- the local auth flag is stored but not enforced yet and is not currently exposed in the firmware UI
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the firmware UI is still server-rendered and form-driven rather than fully API-driven
 - `Air360 API` currently defaults to plain HTTP because HTTPS from the ESP32-S3 shows unresolved connection-latency issues; TLS tuning and session-resumption work should be revisited later before switching the default back to HTTPS

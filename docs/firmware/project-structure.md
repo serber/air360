@@ -136,15 +136,17 @@ The local web UI now uses a mixed model:
 Confirmed routes:
 
 - `/`
-  Runtime overview page.
+  Runtime overview page. In setup AP mode the UI redirects this route to `/config`.
 - `/status`
-  JSON status payload with build, network, config, and sensor state.
+  JSON status payload with build, network, config, backend, and sensor state.
 - `/config`
-  Device and Wi-Fi configuration form.
+  Device and Wi-Fi configuration form. In setup AP mode this page also consumes the scanned SSID list from `/wifi-scan`.
 - `/sensors`
-  Sensor configuration form for add, update, delete, staged apply/discard, and runtime inspection.
+  Category-based sensor configuration page for add, update, delete, staged apply/discard, and runtime inspection.
 - `/backends`
-  Backend configuration form for upload interval, enablement, and adapter-specific persisted fields exposed by the current UI.
+  Backend configuration form for upload interval, enablement, and the current adapter-specific persisted fields exposed by the UI.
+- `/wifi-scan`
+  JSON endpoint returning the cached setup-AP Wi-Fi scan list.
 - `/assets/*`
   Embedded CSS and JavaScript assets used by the shared firmware UI shell.
 
