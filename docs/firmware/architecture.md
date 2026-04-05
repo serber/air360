@@ -91,6 +91,12 @@ Owns Wi-Fi startup decisions:
 
 Aggregates runtime state from build info, persisted config, network state, and sensor manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes a generic `measurements` array for every sensor plus a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
 
+The current `/status` payload also includes:
+
+- `reset_reason` and `reset_reason_label`
+- per-sensor `poll_interval_ms`
+- per-sensor `queued_sample_count`
+
 ### WebServer
 
 [`../../firmware/main/src/web_server.cpp`](../../firmware/main/src/web_server.cpp)
@@ -129,7 +135,7 @@ Responsibilities:
 - owns the background task `air360_sensor`
 - schedules iterative polling
 - stores runtime state and latest measurements
-- exposes snapshots for the UI and `/status`
+- exposes snapshots for the UI and `/status`, including queued sample depth derived from `MeasurementStore`
 
 This is the current answer to the orchestration question: the firmware uses a single central manager with one background polling task rather than one task per sensor.
 
@@ -140,13 +146,13 @@ The runtime exposes local routes for overview, JSON status, device config, senso
 - `/`
   HTML status overview and links to config pages.
 - `/status`
-  JSON status payload with network, boot, config, and sensor runtime data.
+  JSON status payload with network, boot, config, and sensor runtime data, including a human-readable reset reason.
 - `/config`
   Device and Wi-Fi configuration form.
 - `/sensors`
-  Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them.
+  Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them. The runtime cards expose configured poll interval and queued sample count.
 - `/backends`
-  Backend enablement, upload interval, and adapter-specific backend configuration exposed by the current UI.
+  Backend enablement, upload interval, and adapter-specific backend configuration exposed by the current UI. The overview page shows the configured global backend upload interval.
 - `/assets/*`
   Shared embedded CSS and JavaScript used by the local web UI shell.
 
