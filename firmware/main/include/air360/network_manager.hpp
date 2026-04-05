@@ -44,6 +44,7 @@ class NetworkManager {
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
     esp_err_t scanAvailableNetworks();
+    esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
     const NetworkState& state() const;
     const std::vector<WifiNetworkRecord>& availableNetworks() const;
     const std::string& lastScanError() const;

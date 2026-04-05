@@ -30,6 +30,7 @@ namespace {
 constexpr char kTag[] = "air360.app";
 constexpr gpio_num_t kGreenLedGpio = GPIO_NUM_11;
 constexpr gpio_num_t kRedLedGpio = GPIO_NUM_10;
+constexpr TickType_t kRuntimeMaintenanceDelay = pdMS_TO_TICKS(10000);
 
 void setBootLedState(bool green_on, bool red_on) {
     gpio_set_level(kGreenLedGpio, green_on ? 1 : 0);
@@ -60,18 +61,25 @@ bool hasStationConfig(const DeviceConfig& config) {
 }
 
 esp_err_t initWatchdog() {
+    // ESP-IDF may pre-initialize TWDT from sdkconfig before app_main().
+    esp_err_t err = esp_task_wdt_add(nullptr);
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        return ESP_OK;
+    }
+
     esp_task_wdt_config_t config{};
     config.timeout_ms = 10000;
     config.idle_core_mask = (1U << portNUM_PROCESSORS) - 1U;
     config.trigger_panic = false;
 
-    esp_err_t err = esp_task_wdt_init(&config);
-    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+    err = esp_task_wdt_init(&config);
+    if (err == ESP_OK) {
         err = esp_task_wdt_add(nullptr);
         if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
             return ESP_OK;
         }
     }
+
     return err;
 }
 
@@ -278,7 +286,20 @@ void App::run() {
     esp_task_wdt_delete(nullptr);
 
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(60000));
+        if (network_manager.state().mode == NetworkMode::kStation &&
+            network_manager.state().station_connected &&
+            !network_manager.hasValidTime()) {
+            const esp_err_t time_err = network_manager.ensureStationTime(10000U);
+            if (time_err != ESP_OK) {
+                ESP_LOGW(
+                    kTag,
+                    "Background time sync retry failed: %s",
+                    esp_err_to_name(time_err));
+            }
+        }
+
+        status_service.setNetworkState(network_manager.state());
+        vTaskDelay(kRuntimeMaintenanceDelay);
     }
 }
 

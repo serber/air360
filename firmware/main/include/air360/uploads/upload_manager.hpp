@@ -77,7 +77,7 @@ class UploadManager {
     MeasurementBatch buildMeasurementBatch(
         std::uint64_t now_ms,
         const std::vector<MeasurementSample>& samples) const;
-    bool hasNetworkForUpload() const;
+    bool hasNetworkForUpload(std::string& last_error) const;
     void startLocked();
     static void taskEntry(void* arg);
     void taskMain();

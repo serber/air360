@@ -184,6 +184,23 @@ std::string formatTimeForDisplay(std::int64_t unix_ms, std::uint64_t uptime_ms) 
     return "never";
 }
 
+std::string currentUtcDateTimeLabel() {
+    const std::time_t now = std::time(nullptr);
+    if (now <= 0) {
+        return "unavailable";
+    }
+
+    std::tm utc{};
+    gmtime_r(&now, &utc);
+
+    char buffer[64];
+    if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S UTC", &utc) == 0U) {
+        return "unavailable";
+    }
+
+    return buffer;
+}
+
 struct RuntimeOverviewViewModel {
     std::string network_mode;
     std::string device_name;
@@ -197,6 +214,7 @@ struct RuntimeOverviewViewModel {
     std::string chip_type;
     std::string chip_features;
     std::string crystal_frequency;
+    std::string current_datetime;
     std::string chip_id;
     std::string short_chip_id;
     std::string esp_mac_id;
@@ -301,6 +319,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
         build_info.chip_features.empty() ? "unavailable" : build_info.chip_features;
     model.crystal_frequency =
         build_info.crystal_frequency.empty() ? "unavailable" : build_info.crystal_frequency;
+    model.current_datetime = currentUtcDateTimeLabel();
     model.chip_id = build_info.chip_id.empty() ? "unavailable" : build_info.chip_id;
     model.short_chip_id =
         build_info.short_chip_id.empty() ? "unavailable" : build_info.short_chip_id;
@@ -392,6 +411,7 @@ std::string StatusService::renderRootHtml() const {
             {"CHIP_TYPE", htmlEscape(model.chip_type)},
             {"CHIP_FEATURES", htmlEscape(model.chip_features)},
             {"CRYSTAL_FREQUENCY", htmlEscape(model.crystal_frequency)},
+            {"CURRENT_DATETIME", htmlEscape(model.current_datetime)},
             {"CHIP_ID", htmlEscape(model.chip_id)},
             {"SHORT_CHIP_ID", htmlEscape(model.short_chip_id)},
             {"ESP_MAC_ID", htmlEscape(model.esp_mac_id)},
@@ -430,6 +450,7 @@ std::string StatusService::renderStatusJson() const {
     json += "\"chip_type\":\"" + jsonEscape(build_info_.chip_type) + "\",";
     json += "\"chip_features\":\"" + jsonEscape(build_info_.chip_features) + "\",";
     json += "\"crystal_frequency\":\"" + jsonEscape(build_info_.crystal_frequency) + "\",";
+    json += "\"current_datetime\":\"" + jsonEscape(currentUtcDateTimeLabel()) + "\",";
     json += "\"compile_date\":\"" + jsonEscape(build_info_.compile_date) + "\",";
     json += "\"compile_time\":\"" + jsonEscape(build_info_.compile_time) + "\",";
     json += "\"chip_id\":\"" + jsonEscape(build_info_.chip_id) + "\",";

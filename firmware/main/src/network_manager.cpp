@@ -590,6 +590,23 @@ esp_err_t NetworkManager::scanAvailableNetworks() {
     return ESP_OK;
 }
 
+esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
+    if (state_.mode != NetworkMode::kStation || !state_.station_connected) {
+        state_.time_sync_error = "station is not connected";
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (hasValidUnixTime()) {
+        state_.time_sync_attempted = true;
+        state_.time_synchronized = true;
+        state_.time_sync_error.clear();
+        state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+        return ESP_OK;
+    }
+
+    return synchronizeTime(timeout_ms);
+}
+
 const NetworkState& NetworkManager::state() const {
     return state_;
 }

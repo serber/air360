@@ -182,14 +182,29 @@ MeasurementBatch UploadManager::buildMeasurementBatch(
     return batch;
 }
 
-bool UploadManager::hasNetworkForUpload() const {
+bool UploadManager::hasNetworkForUpload(std::string& last_error) const {
     if (network_manager_ == nullptr) {
+        last_error = "Network manager is not available.";
         return false;
     }
 
     const NetworkState& network = network_manager_->state();
-    return network.mode == NetworkMode::kStation && network.station_connected &&
-           network_manager_->hasValidTime();
+    if (network.mode != NetworkMode::kStation || !network.station_connected) {
+        last_error = "Station uplink is not connected.";
+        return false;
+    }
+
+    if (network_manager_->hasValidTime()) {
+        last_error.clear();
+        return true;
+    }
+
+    if (!network.time_sync_error.empty()) {
+        last_error = "Unix time is not valid yet: " + network.time_sync_error;
+    } else {
+        last_error = "Unix time is not valid yet.";
+    }
+    return false;
 }
 
 void UploadManager::stop() {
@@ -422,10 +437,11 @@ void UploadManager::taskMain() {
             last_overall_attempt_unix_ms_ = unix_ms;
             unlock();
 
-            if (!hasNetworkForUpload()) {
+            std::string network_error;
+            if (!hasNetworkForUpload(network_error)) {
                 aggregate_result = UploadResultClass::kNoNetwork;
                 next_state = BackendRuntimeState::kError;
-                last_error = "Station uplink is not connected.";
+                last_error = std::move(network_error);
                 ++next_retry_count;
                 all_uploads_succeeded = false;
             } else {
