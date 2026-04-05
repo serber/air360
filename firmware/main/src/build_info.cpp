@@ -107,19 +107,6 @@ void appendFeature(std::string& features, const std::string& feature) {
     features += feature;
 }
 
-std::string formatMemorySizeLabel(std::size_t bytes) {
-    if (bytes == 0U) {
-        return "";
-    }
-    if ((bytes % (1024U * 1024U)) == 0U) {
-        return std::to_string(bytes / (1024U * 1024U)) + "MB";
-    }
-    if ((bytes % 1024U) == 0U) {
-        return std::to_string(bytes / 1024U) + "KB";
-    }
-    return std::to_string(bytes) + "B";
-}
-
 std::string chipTypeLabel(const esp_chip_info_t& chip_info) {
     std::string label = chipModelName(chip_info.model);
     const std::string package_name = chipPackageName(chip_info.model);
@@ -192,10 +179,18 @@ std::string chipFeaturesLabel(const esp_chip_info_t& chip_info) {
 }
 
 std::string crystalFrequencyLabel() {
-    const std::uint32_t xtal_mhz = ets_get_xtal_freq();
-    if (xtal_mhz == 0U) {
+    const std::uint32_t xtal_frequency = ets_get_xtal_freq();
+    if (xtal_frequency == 0U) {
         return "";
     }
+
+    std::uint32_t xtal_mhz = xtal_frequency;
+    if (xtal_mhz >= 1000000U) {
+        xtal_mhz /= 1000000U;
+    } else if (xtal_mhz >= 1000U) {
+        xtal_mhz /= 1000U;
+    }
+
     return std::to_string(xtal_mhz) + "MHz";
 }
 

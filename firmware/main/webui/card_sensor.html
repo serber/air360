@@ -11,7 +11,7 @@
         <input type='hidden' name='action' value='update'>
         <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
         <div class='field'>
-            <label for='sensor_type_{{SENSOR_ID}}'>Sensor type</label>
+            <label for='sensor_type_{{SENSOR_ID}}'>Model</label>
             <select class='select' id='sensor_type_{{SENSOR_ID}}' name='sensor_type' data-sensor-type-select>
                 {{SENSOR_TYPE_OPTIONS}}
             </select>
@@ -21,6 +21,7 @@
             <label for='poll_interval_ms_{{SENSOR_ID}}'>Poll interval (ms)</label>
             <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' value='{{POLL_INTERVAL_MS}}'>
         </div>
+        {{I2C_FIELD_BLOCK}}
         {{GPIO_FIELD_BLOCK}}
         <label class='checkbox'>
             <input name='enabled' type='checkbox' {{ENABLED_CHECKED}}>

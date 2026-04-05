@@ -1,9 +1,3 @@
-<section class='stats'>
-    <div class='stat'><div class='stat__label'>Configured</div><div class='stat__value'>{{CONFIGURED_COUNT}} / {{MAX_SENSORS}}</div></div>
-    <div class='stat'><div class='stat__label'>Pending Changes</div><div class='stat__value'>{{PENDING_STATUS}}</div></div>
-    <div class='stat'><div class='stat__label'>Runtime Sensors</div><div class='stat__value'>{{RUNTIME_SENSOR_COUNT}}</div></div>
-    <div class='stat'><div class='stat__label'>Free Slots</div><div class='stat__value'>{{FREE_SLOTS}}</div></div>
-</section>
 {{NOTICE}}
 <section class='stack'>
     <div class='panel panel--staging stack'>
@@ -21,40 +15,5 @@
             </form>
         </div>
     </div>
-    {{CONFIGURED_SENSORS_BLOCK}}
-    <div class='panel panel--form stack'>
-        <h2>Add Sensor</h2>
-        <form class='stack' method='POST' action='/sensors' data-dirty-track='sensors-add' data-sensor-form>
-            <input type='hidden' name='action' value='add'>
-            <div class='field'>
-                <label for='sensor_type_add'>Sensor type</label>
-                <select class='select' id='sensor_type_add' name='sensor_type' data-sensor-type-select>
-                    {{SENSOR_TYPE_OPTIONS}}
-                </select>
-            </div>
-            <p class='hint'>Transport is inferred from sensor type.</p>
-            <p class='hint' data-sensor-defaults>{{SELECTED_SENSOR_DEFAULTS}}</p>
-            <p>Type defaults:</p>
-            <ul class='bullet-list'>
-                {{SENSOR_DEFAULTS_LIST}}
-            </ul>
-            <div class='field'>
-                <label for='poll_interval_ms_add'>Poll interval (ms)</label>
-                <input class='input' id='poll_interval_ms_add' name='poll_interval_ms' inputmode='numeric' value='10000'>
-            </div>
-            <div class='field' data-sensor-pin-field>
-                <label for='analog_gpio_pin_add'>Sensor pin (GPIO 4, 5, or 6)</label>
-                <select class='select' id='analog_gpio_pin_add' name='analog_gpio_pin'>
-                    {{GPIO_OPTIONS}}
-                </select>
-            </div>
-            <label class='checkbox'>
-                <input name='enabled' type='checkbox' checked>
-                <span class='checkbox__label'>Enabled</span>
-            </label>
-            <div class='split-actions'>
-                <button class='button' type='submit'>Stage new sensor</button>
-            </div>
-        </form>
-    </div>
+    {{CATEGORY_SECTIONS}}
 </section>

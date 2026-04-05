@@ -273,7 +273,7 @@ esp_err_t sendAssetResponse(httpd_req_t* request, std::string_view asset_path) {
     }
 
     httpd_resp_set_type(request, asset->content_type);
-    httpd_resp_set_hdr(request, "Cache-Control", "public, max-age=604800, immutable");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-cache");
     return httpd_resp_send(request, asset->data, asset->size);
 }
 
@@ -355,9 +355,51 @@ struct SensorCardViewModel {
     std::string latest_reading;
     std::string sensor_type_options_html;
     std::string defaults_hint;
+    bool show_i2c_address_input = false;
+    std::string i2c_address_value;
     bool show_gpio_pin_select = false;
     std::string gpio_options_html;
     bool enabled = false;
+};
+
+enum class SensorCategory : std::uint8_t {
+    kClimate = 1U,
+    kTemperatureHumidity = 2U,
+    kAirQuality = 3U,
+    kParticulateMatter = 4U,
+    kLocation = 5U,
+    kGas = 6U,
+};
+
+struct SensorCategoryDescriptor {
+    SensorCategory category;
+    const char* key;
+    const char* title;
+    const char* description;
+    bool allow_multiple;
+    const SensorType* sensor_types;
+    std::size_t sensor_type_count;
+};
+
+struct SensorCategorySectionViewModel {
+    SensorCategory category = SensorCategory::kClimate;
+    std::string key;
+    std::string title;
+    std::string description;
+    bool allow_multiple = false;
+    std::size_t configured_count = 0U;
+    std::string supported_models_html;
+    std::string notice_html;
+    std::vector<SensorCardViewModel> cards;
+    std::string add_sensor_type_options_html;
+    std::string add_defaults_hint;
+    bool add_show_i2c_address_input = false;
+    std::string add_i2c_address_value;
+    std::string add_gpio_options_html;
+    std::uint32_t add_poll_interval_ms = 10000U;
+    bool add_show_gpio_pin_select = false;
+    bool show_add_form = false;
+    std::string add_button_label;
 };
 
 struct SensorsPageViewModel {
@@ -367,11 +409,7 @@ struct SensorsPageViewModel {
     std::size_t runtime_sensor_count = 0U;
     std::size_t free_slots = 0U;
     std::string notice_html;
-    std::vector<SensorCardViewModel> cards;
-    std::string sensor_type_options_html;
-    std::string selected_sensor_defaults;
-    std::string sensor_defaults_list_html;
-    std::string gpio_options_html;
+    std::vector<SensorCategorySectionViewModel> sections;
 };
 
 ConfigPageViewModel buildConfigPageViewModel(
@@ -388,6 +426,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
     const std::string& notice,
     bool error_notice);
 std::string renderSensorCard(const SensorCardViewModel& card);
+std::string renderSensorCategorySection(const SensorCategorySectionViewModel& section);
 SensorsPageViewModel buildSensorsPageViewModel(
     const SensorConfigList& sensor_config_list,
     const SensorManager& sensor_manager,
@@ -455,6 +494,21 @@ bool parseSignedLong(const std::string& input, long& value) {
     return end != nullptr && *end == '\0';
 }
 
+bool parseI2cAddress(const std::string& input, std::uint8_t& value) {
+    if (input.empty()) {
+        return false;
+    }
+
+    char* end = nullptr;
+    const unsigned long parsed = std::strtoul(input.c_str(), &end, 0);
+    if (end == nullptr || *end != '\0' || parsed > 0x7FU) {
+        return false;
+    }
+
+    value = static_cast<std::uint8_t>(parsed);
+    return true;
+}
+
 std::string formatMeasurementValue(const SensorValue& value) {
     char buffer[48];
     std::snprintf(
@@ -482,6 +536,178 @@ std::string measurementSummary(const SensorMeasurement& measurement) {
         summary += formatMeasurementValue(measurement.values[index]);
     }
     return summary;
+}
+
+std::string formatI2cAddress(std::uint8_t address) {
+    char buffer[8];
+    std::snprintf(buffer, sizeof(buffer), "0x%02X", static_cast<unsigned>(address));
+    return buffer;
+}
+
+constexpr SensorType kClimateSensorTypes[] = {
+    SensorType::kBme280,
+    SensorType::kBme680,
+};
+
+constexpr SensorType kTemperatureHumiditySensorTypes[] = {
+    SensorType::kDht11,
+    SensorType::kDht22,
+};
+
+constexpr SensorType kAirQualitySensorTypes[] = {
+    SensorType::kEns160,
+};
+
+constexpr SensorType kParticulateMatterSensorTypes[] = {
+    SensorType::kSps30,
+};
+
+constexpr SensorType kLocationSensorTypes[] = {
+    SensorType::kGpsNmea,
+};
+
+constexpr SensorType kGasSensorTypes[] = {
+    SensorType::kMe3No2,
+};
+
+constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
+    {
+        SensorCategory::kClimate,
+        "climate",
+        "Climate",
+        "Temperature, humidity, pressure, and optional gas resistance.",
+        false,
+        kClimateSensorTypes,
+        sizeof(kClimateSensorTypes) / sizeof(kClimateSensorTypes[0]),
+    },
+    {
+        SensorCategory::kTemperatureHumidity,
+        "temperature-humidity",
+        "Temperature / Humidity",
+        "Single-wire digital temperature and humidity sensors.",
+        false,
+        kTemperatureHumiditySensorTypes,
+        sizeof(kTemperatureHumiditySensorTypes) / sizeof(kTemperatureHumiditySensorTypes[0]),
+    },
+    {
+        SensorCategory::kAirQuality,
+        "air-quality",
+        "Air Quality",
+        "VOC and eCO2 sensing.",
+        false,
+        kAirQualitySensorTypes,
+        sizeof(kAirQualitySensorTypes) / sizeof(kAirQualitySensorTypes[0]),
+    },
+    {
+        SensorCategory::kParticulateMatter,
+        "particulate-matter",
+        "Particulate Matter",
+        "Fine dust concentration and particle size metrics.",
+        false,
+        kParticulateMatterSensorTypes,
+        sizeof(kParticulateMatterSensorTypes) / sizeof(kParticulateMatterSensorTypes[0]),
+    },
+    {
+        SensorCategory::kLocation,
+        "location",
+        "Location",
+        "GPS coordinates, altitude, movement, and fix state.",
+        false,
+        kLocationSensorTypes,
+        sizeof(kLocationSensorTypes) / sizeof(kLocationSensorTypes[0]),
+    },
+    {
+        SensorCategory::kGas,
+        "gas",
+        "Gas",
+        "Electrochemical gas sensors. Multiple gas sensors are allowed.",
+        true,
+        kGasSensorTypes,
+        sizeof(kGasSensorTypes) / sizeof(kGasSensorTypes[0]),
+    },
+};
+
+SensorCategory sensorCategoryForType(SensorType type) {
+    switch (type) {
+        case SensorType::kBme280:
+        case SensorType::kBme680:
+            return SensorCategory::kClimate;
+        case SensorType::kDht11:
+        case SensorType::kDht22:
+            return SensorCategory::kTemperatureHumidity;
+        case SensorType::kEns160:
+            return SensorCategory::kAirQuality;
+        case SensorType::kSps30:
+            return SensorCategory::kParticulateMatter;
+        case SensorType::kGpsNmea:
+            return SensorCategory::kLocation;
+        case SensorType::kMe3No2:
+        case SensorType::kUnknown:
+        default:
+            return SensorCategory::kGas;
+    }
+}
+
+const SensorCategoryDescriptor* findSensorCategoryDescriptor(SensorCategory category) {
+    for (const auto& descriptor : kSensorCategoryDescriptors) {
+        if (descriptor.category == category) {
+            return &descriptor;
+        }
+    }
+
+    return nullptr;
+}
+
+const SensorDescriptor* firstSensorDescriptorForCategory(
+    const SensorRegistry& registry,
+    const SensorCategoryDescriptor& category_descriptor) {
+    for (std::size_t index = 0; index < category_descriptor.sensor_type_count; ++index) {
+        const SensorDescriptor* descriptor =
+            registry.findByType(category_descriptor.sensor_types[index]);
+        if (descriptor != nullptr) {
+            return descriptor;
+        }
+    }
+
+    return nullptr;
+}
+
+std::size_t countOtherSensorsInCategory(
+    const SensorConfigList& sensor_config_list,
+    SensorCategory category,
+    std::uint32_t ignored_id) {
+    std::size_t count = 0U;
+    for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
+        const SensorRecord& record = sensor_config_list.sensors[index];
+        if (record.id == ignored_id) {
+            continue;
+        }
+        if (sensorCategoryForType(record.sensor_type) == category) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+bool validateSensorCategorySelection(
+    const SensorConfigList& sensor_config_list,
+    const SensorRecord& record,
+    std::string& error) {
+    const SensorCategory category = sensorCategoryForType(record.sensor_type);
+    const SensorCategoryDescriptor* category_descriptor =
+        findSensorCategoryDescriptor(category);
+    if (category_descriptor == nullptr || category_descriptor->allow_multiple) {
+        return true;
+    }
+
+    if (countOtherSensorsInCategory(sensor_config_list, category, record.id) > 0U) {
+        error = std::string(category_descriptor->title) +
+                " already has a configured sensor. Edit the existing sensor or remove it first.";
+        return false;
+    }
+
+    return true;
 }
 
 TransportKind inferredTransportKind(const SensorDescriptor& descriptor) {
@@ -601,8 +827,13 @@ std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool select
     }
     html += " data-requires-pin='";
     html += (descriptor.supports_gpio || descriptor.supports_analog) ? "true" : "false";
+    html += "' data-requires-i2c='";
+    html += descriptor.supports_i2c ? "true" : "false";
     html += "' data-defaults-hint='";
     html += htmlEscape(sensorDefaultsHint(descriptor));
+    html += "' data-default-i2c-address='";
+    html += descriptor.supports_i2c ? htmlEscape(formatI2cAddress(descriptor.default_i2c_address))
+                                    : "";
     html += "'>";
     html += htmlEscape(descriptor.display_name);
     html += "</option>";
@@ -800,11 +1031,23 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
         latest_reading_block += "</code></p>";
     }
 
+    std::string i2c_field_block;
+    if (card.show_i2c_address_input) {
+        i2c_field_block += "<div class='field' data-sensor-i2c-field><label for='i2c_address_";
+        i2c_field_block += std::to_string(card.id);
+        i2c_field_block += "'>I2C address</label>";
+        i2c_field_block += "<input class='input' id='i2c_address_";
+        i2c_field_block += std::to_string(card.id);
+        i2c_field_block += "' name='i2c_address' value='";
+        i2c_field_block += htmlEscape(card.i2c_address_value);
+        i2c_field_block += "' placeholder='0x76' spellcheck='false' autocapitalize='off'></div>";
+    }
+
     std::string gpio_field_block;
     if (card.show_gpio_pin_select) {
         gpio_field_block += "<div class='field' data-sensor-pin-field><label for='analog_gpio_pin_";
         gpio_field_block += std::to_string(card.id);
-        gpio_field_block += "'>Sensor pin</label>";
+        gpio_field_block += "'>GPIO pin</label>";
         gpio_field_block += "<select class='select' id='analog_gpio_pin_";
         gpio_field_block += std::to_string(card.id);
         gpio_field_block += "' name='analog_gpio_pin'>";
@@ -825,9 +1068,106 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
             {"SENSOR_TYPE_OPTIONS", card.sensor_type_options_html},
             {"DEFAULTS_HINT_TEXT", htmlEscape(card.defaults_hint)},
             {"DEFAULTS_HINT_HIDDEN", card.defaults_hint.empty() ? "hidden" : ""},
+            {"I2C_FIELD_BLOCK", i2c_field_block},
             {"GPIO_FIELD_BLOCK", gpio_field_block},
             {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
         });
+}
+
+std::string renderSensorCategorySection(const SensorCategorySectionViewModel& section) {
+    std::string cards_html;
+    cards_html.reserve(section.cards.size() * 2200U);
+    for (const auto& card : section.cards) {
+        cards_html += renderSensorCard(card);
+    }
+
+    if (cards_html.empty()) {
+        cards_html = "<p class='muted'>No sensors configured in this category yet.</p>";
+    }
+
+    std::string add_form_block;
+    if (section.show_add_form) {
+        std::string i2c_field_block;
+        i2c_field_block += "<div class='field' data-sensor-i2c-field";
+        if (!section.add_show_i2c_address_input) {
+            i2c_field_block += " hidden";
+        }
+        i2c_field_block += "><label for='i2c_address_add_";
+        i2c_field_block += htmlEscape(section.key);
+        i2c_field_block += "'>I2C address</label><input class='input' id='i2c_address_add_";
+        i2c_field_block += htmlEscape(section.key);
+        i2c_field_block += "' name='i2c_address' value='";
+        i2c_field_block += htmlEscape(section.add_i2c_address_value);
+        i2c_field_block += "' placeholder='0x76' spellcheck='false' autocapitalize='off'";
+        if (!section.add_show_i2c_address_input) {
+            i2c_field_block += " disabled";
+        }
+        i2c_field_block += "></div>";
+
+        std::string gpio_field_block;
+        gpio_field_block += "<div class='field' data-sensor-pin-field";
+        if (!section.add_show_gpio_pin_select) {
+            gpio_field_block += " hidden";
+        }
+        gpio_field_block += "><label for='analog_gpio_pin_add_";
+        gpio_field_block += htmlEscape(section.key);
+        gpio_field_block += "'>GPIO pin (4, 5, or 6)</label><select class='select' id='analog_gpio_pin_add_";
+        gpio_field_block += htmlEscape(section.key);
+        gpio_field_block += "' name='analog_gpio_pin'";
+        if (!section.add_show_gpio_pin_select) {
+            gpio_field_block += " disabled";
+        }
+        gpio_field_block += ">";
+        gpio_field_block += section.add_gpio_options_html;
+        gpio_field_block += "</select></div>";
+
+        add_form_block += "<div class='list-card stack'><h3 class='list-card__title'>";
+        add_form_block += section.allow_multiple ? "Add Gas Sensor" : "Add Sensor";
+        add_form_block += "</h3><form class='stack' method='POST' action='/sensors' data-dirty-track='sensor-add-";
+        add_form_block += htmlEscape(section.key);
+        add_form_block += "' data-sensor-form><input type='hidden' name='action' value='add'><div class='field'><label for='sensor_type_add_";
+        add_form_block += htmlEscape(section.key);
+        add_form_block += "'>Model</label><select class='select' id='sensor_type_add_";
+        add_form_block += htmlEscape(section.key);
+        add_form_block += "' name='sensor_type' data-sensor-type-select>";
+        add_form_block += section.add_sensor_type_options_html;
+        add_form_block += "</select></div><p class='hint' data-sensor-defaults";
+        if (section.add_defaults_hint.empty()) {
+            add_form_block += " hidden";
+        }
+        add_form_block += ">";
+        add_form_block += htmlEscape(section.add_defaults_hint);
+        add_form_block += "</p><div class='field'><label for='poll_interval_ms_add_";
+        add_form_block += htmlEscape(section.key);
+        add_form_block += "'>Poll interval (ms)</label><input class='input' id='poll_interval_ms_add_";
+        add_form_block += htmlEscape(section.key);
+        add_form_block += "' name='poll_interval_ms' inputmode='numeric' value='";
+        add_form_block += std::to_string(section.add_poll_interval_ms);
+        add_form_block += "'></div>";
+        add_form_block += i2c_field_block;
+        add_form_block += gpio_field_block;
+        add_form_block += "<label class='checkbox'><input name='enabled' type='checkbox'><span class='checkbox__label'>Enabled</span></label><div class='split-actions'><button class='button' type='submit'>";
+        add_form_block += htmlEscape(section.add_button_label);
+        add_form_block += "</button></div></form></div>";
+    }
+
+    std::string section_html;
+    section_html += "<section class='panel stack'><div><h2>";
+    section_html += htmlEscape(section.title);
+    section_html += "</h2><p class='muted'>";
+    section_html += htmlEscape(section.description);
+    section_html += "</p><div class='meta'><span class='pill'>";
+    section_html += section.allow_multiple ? "Multiple sensors allowed" : "Single sensor category";
+    section_html += "</span><span class='pill'>Configured ";
+    section_html += std::to_string(section.configured_count);
+    section_html += "</span>";
+    section_html += section.supported_models_html;
+    section_html += "</div></div>";
+    section_html += section.notice_html;
+    section_html += cards_html;
+    section_html += add_form_block;
+    section_html += "</section>";
+    return section_html;
 }
 
 SensorsPageViewModel buildSensorsPageViewModel(
@@ -846,30 +1186,51 @@ SensorsPageViewModel buildSensorsPageViewModel(
     model.runtime_sensor_count = runtime_sensors.size();
     model.free_slots = kMaxConfiguredSensors - sensor_config_list.sensor_count;
     model.notice_html = renderNotice(notice, error_notice);
-    model.cards.reserve(sensor_config_list.sensor_count);
+    model.sections.reserve(
+        sizeof(kSensorCategoryDescriptors) / sizeof(kSensorCategoryDescriptors[0]));
 
-    for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
-         ++descriptor_index) {
-        const SensorDescriptor& descriptor = registry.descriptors()[descriptor_index];
-        model.sensor_type_options_html += sensorTypeOptionHtml(descriptor, descriptor_index == 0U);
-        const std::string hint = sensorDefaultsHint(descriptor);
-        if (descriptor_index == 0U) {
-            model.selected_sensor_defaults = hint;
+    for (const auto& category_descriptor : kSensorCategoryDescriptors) {
+        SensorCategorySectionViewModel section;
+        section.category = category_descriptor.category;
+        section.key = category_descriptor.key;
+        section.title = category_descriptor.title;
+        section.description = category_descriptor.description;
+        section.allow_multiple = category_descriptor.allow_multiple;
+        section.add_button_label =
+            category_descriptor.allow_multiple ? "Stage gas sensor" : "Stage sensor";
+
+        for (std::size_t index = 0; index < category_descriptor.sensor_type_count; ++index) {
+            const SensorDescriptor* descriptor =
+                registry.findByType(category_descriptor.sensor_types[index]);
+            if (descriptor == nullptr) {
+                continue;
+            }
+
+            section.add_sensor_type_options_html +=
+                sensorTypeOptionHtml(*descriptor, index == 0U);
+            section.supported_models_html += "<span class='pill'>";
+            section.supported_models_html += htmlEscape(descriptor->display_name);
+            section.supported_models_html += "</span>";
         }
-        if (!hint.empty()) {
-            model.sensor_defaults_list_html += "<li><strong>";
-            model.sensor_defaults_list_html += htmlEscape(descriptor.display_name);
-            model.sensor_defaults_list_html += ":</strong> ";
-            model.sensor_defaults_list_html += htmlEscape(hint);
-            model.sensor_defaults_list_html += "</li>";
+
+        if (const SensorDescriptor* descriptor =
+                firstSensorDescriptorForCategory(registry, category_descriptor);
+            descriptor != nullptr) {
+            section.add_defaults_hint = sensorDefaultsHint(*descriptor);
+            section.add_poll_interval_ms = descriptor->default_poll_interval_ms;
+            section.add_show_i2c_address_input = descriptor->supports_i2c;
+            section.add_i2c_address_value = formatI2cAddress(descriptor->default_i2c_address);
+            section.add_show_gpio_pin_select =
+                descriptor->supports_gpio || descriptor->supports_analog;
         }
+        appendBoardGpioOptions(section.add_gpio_options_html, defaultBoardGpioPin());
+        model.sections.push_back(std::move(section));
     }
-
-    appendBoardGpioOptions(model.gpio_options_html, CONFIG_AIR360_GPIO_SENSOR_PIN_0);
 
     for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
         const SensorRecord& record = sensor_config_list.sensors[index];
         const SensorDescriptor* descriptor = registry.findByType(record.sensor_type);
+        const SensorCategory category = sensorCategoryForType(record.sensor_type);
         const SensorRuntimeInfo* runtime_info = nullptr;
         for (const auto& sensor : runtime_sensors) {
             if (sensor.id == record.id) {
@@ -893,15 +1254,30 @@ SensorsPageViewModel buildSensorsPageViewModel(
             }
         }
 
-        for (std::size_t descriptor_index = 0; descriptor_index < registry.descriptorCount();
-             ++descriptor_index) {
-            const SensorDescriptor& option_descriptor = registry.descriptors()[descriptor_index];
-            card.sensor_type_options_html +=
-                sensorTypeOptionHtml(option_descriptor, option_descriptor.type == record.sensor_type);
+        const SensorCategoryDescriptor* category_descriptor =
+            findSensorCategoryDescriptor(category);
+        if (category_descriptor != nullptr) {
+            for (std::size_t descriptor_index = 0;
+                 descriptor_index < category_descriptor->sensor_type_count;
+                 ++descriptor_index) {
+                const SensorDescriptor* option_descriptor =
+                    registry.findByType(category_descriptor->sensor_types[descriptor_index]);
+                if (option_descriptor == nullptr) {
+                    continue;
+                }
+
+                card.sensor_type_options_html += sensorTypeOptionHtml(
+                    *option_descriptor,
+                    option_descriptor->type == record.sensor_type);
+            }
         }
 
         if (descriptor != nullptr) {
             card.defaults_hint = sensorDefaultsHint(*descriptor);
+            card.show_i2c_address_input = descriptor->supports_i2c;
+        }
+        if (card.show_i2c_address_input) {
+            card.i2c_address_value = formatI2cAddress(record.i2c_address);
         }
         card.show_gpio_pin_select =
             record.transport_kind == TransportKind::kGpio ||
@@ -910,7 +1286,23 @@ SensorsPageViewModel buildSensorsPageViewModel(
             appendBoardGpioOptions(card.gpio_options_html, record.analog_gpio_pin);
         }
 
-        model.cards.push_back(std::move(card));
+        for (auto& section : model.sections) {
+            if (section.category == category) {
+                section.cards.push_back(std::move(card));
+                break;
+            }
+        }
+    }
+
+    for (auto& section : model.sections) {
+        section.configured_count = section.cards.size();
+        section.show_add_form =
+            model.free_slots > 0U && (section.allow_multiple || section.cards.empty());
+        if (!section.allow_multiple && section.cards.size() > 1U) {
+            section.notice_html = renderNotice(
+                "This category should contain only one sensor. Remove the extra sensor entries.",
+                true);
+        }
     }
 
     return model;
@@ -975,16 +1367,12 @@ std::string renderSensorsPage(
             notice,
             error_notice);
 
-    std::string configured_sensors_block;
-    configured_sensors_block.reserve(model.cards.size() * 2600U);
-
-    if (model.cards.empty()) {
-        configured_sensors_block += "<div class='panel'><h2>Configured Sensors</h2><p class='muted'>No sensors configured yet.</p></div>";
-    } else {
-        for (const auto& card : model.cards) {
-            configured_sensors_block += renderSensorCard(card);
-        }
+    std::string category_sections_html;
+    category_sections_html.reserve(model.sections.size() * 3200U);
+    for (const auto& section : model.sections) {
+        category_sections_html += renderSensorCategorySection(section);
     }
+
     const std::string body = renderPageTemplate(
         WebTemplateKey::kSensors,
         WebTemplateBindings{
@@ -995,17 +1383,13 @@ std::string renderSensorsPage(
             {"RUNTIME_SENSOR_COUNT", std::to_string(model.runtime_sensor_count)},
             {"FREE_SLOTS", std::to_string(model.free_slots)},
             {"NOTICE", model.notice_html},
-            {"CONFIGURED_SENSORS_BLOCK", configured_sensors_block},
-            {"SENSOR_TYPE_OPTIONS", model.sensor_type_options_html},
-            {"SELECTED_SENSOR_DEFAULTS", htmlEscape(model.selected_sensor_defaults)},
-            {"SENSOR_DEFAULTS_LIST", model.sensor_defaults_list_html},
-            {"GPIO_OPTIONS", model.gpio_options_html},
+            {"CATEGORY_SECTIONS", category_sections_html},
         });
     return renderPageDocument(
         WebPageKey::kSensors,
         "air360 sensors",
         "Sensor Configuration",
-        "Stage sensor changes locally, inspect live runtime state, then apply the final set with a reboot when you are ready.",
+        "Configure sensors by category, keep one device per category where it makes sense, and stage the final sensor set before applying it with a reboot.",
         body);
 }
 
@@ -1343,6 +1727,19 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         }
         analog_pin = static_cast<std::int16_t>(parsed_signed);
 
+        const std::string i2c_address_value = findFormValue(fields, "i2c_address");
+        std::uint8_t parsed_i2c_address = 0U;
+        if (!i2c_address_value.empty() &&
+            !parseI2cAddress(i2c_address_value, parsed_i2c_address)) {
+            const std::string html = renderSensorsPage(
+                server->staged_sensor_config_,
+                *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
+                "I2C address must be a valid value like 0x76.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
         SensorRecord record{};
         const SensorRecord* existing = nullptr;
         if (action == "update") {
@@ -1394,6 +1791,9 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                     record.i2c_bus_id = descriptor->default_i2c_bus_id;
                     record.i2c_address = descriptor->default_i2c_address;
                 }
+                if (!i2c_address_value.empty()) {
+                    record.i2c_address = parsed_i2c_address;
+                }
                 break;
             case TransportKind::kUart:
                 record.uart_port_id = descriptor->default_uart_port_id;
@@ -1434,6 +1834,16 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
 
         std::string validation_error;
         if (!registry.validateRecord(record, validation_error)) {
+            const std::string html = renderSensorsPage(
+                server->staged_sensor_config_,
+                *server->sensor_manager_,
+                server->has_pending_sensor_changes_,
+                validation_error,
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
+
+        if (!validateSensorCategorySelection(updated, record, validation_error)) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,

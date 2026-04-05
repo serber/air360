@@ -27,7 +27,31 @@ document.addEventListener("DOMContentLoaded", () => {
         ? sensorTypeSelect.selectedOptions[0]
         : null;
     const requiresPin = selectedOption?.dataset.requiresPin === "true";
+    const requiresI2c = selectedOption?.dataset.requiresI2c === "true";
     const defaultsHint = selectedOption?.dataset.defaultsHint ?? "";
+    const defaultI2cAddress = selectedOption?.dataset.defaultI2cAddress ?? "";
+
+    const i2cField = form.querySelector("[data-sensor-i2c-field]");
+    if (i2cField instanceof HTMLElement) {
+      i2cField.hidden = !requiresI2c;
+      for (const control of i2cField.querySelectorAll("input, select, textarea")) {
+        if (
+          control instanceof HTMLInputElement ||
+          control instanceof HTMLSelectElement ||
+          control instanceof HTMLTextAreaElement
+        ) {
+          control.disabled = !requiresI2c;
+          if (
+            requiresI2c &&
+            control instanceof HTMLInputElement &&
+            control.name === "i2c_address" &&
+            defaultI2cAddress.length > 0
+          ) {
+            control.value = defaultI2cAddress;
+          }
+        }
+      }
+    }
 
     const pinField = form.querySelector("[data-sensor-pin-field]");
     if (pinField instanceof HTMLElement) {

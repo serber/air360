@@ -43,9 +43,25 @@ std::string versionedAssetHref(const char* asset_name) {
     std::string href = "/assets/";
     href += asset_name;
 
-    if (app != nullptr && app->version[0] != '\0') {
+    if (app != nullptr) {
         href += "?v=";
-        href += app->version;
+        href += app->version[0] != '\0' ? app->version : "unknown";
+
+        if (app->date[0] != '\0') {
+            href += "-";
+            for (const char* cursor = app->date; *cursor != '\0'; ++cursor) {
+                const char ch = *cursor;
+                href.push_back(ch == ' ' ? '_' : ch);
+            }
+        }
+
+        if (app->time[0] != '\0') {
+            href += "-";
+            for (const char* cursor = app->time; *cursor != '\0'; ++cursor) {
+                const char ch = *cursor;
+                href.push_back(ch == ':' ? '-' : ch);
+            }
+        }
     }
 
     return href;
