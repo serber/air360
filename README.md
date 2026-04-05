@@ -1,6 +1,10 @@
 # Air360
 
-Air360 is a multi-part repository around an ESP32-S3 air-quality device, its native backend API, and a separate web portal.
+Air360 is a multi-part repository around an ESP32-S3 air-quality device, a modern ESP-IDF firmware for that device, a native Air360 backend API, and a separate web portal.
+
+At the device level, the project is centered on a local-first firmware runtime with setup AP onboarding, station-mode web UI, configurable sensor support, and backend uploads. The repository also contains the beginning of the Air360 backend and portal that are intended to grow around that device runtime.
+
+Air360 is not a replacement for the Sensor.Community ecosystem in the sense of breaking compatibility with it. The current firmware keeps explicit compatibility with the Sensor.Community upload flow, so an Air360 device can still be registered on `devices.sensor.community` and upload measurements to the Sensor.Community endpoint while also supporting the native `Air360 API` backend.
 
 The repository intentionally separates:
 
@@ -16,6 +20,7 @@ When documentation and code disagree, treat the relevant implementation director
 Based on the current tree, the repository now contains more than the original firmware replacement effort:
 
 - an ESP-IDF firmware runtime for `esp32s3`
+- compatibility with the Sensor.Community upload endpoint and registration flow
 - a Fastify-based Air360 backend scaffold with a mock ingest route
 - a Next.js portal scaffold
 - design and deployment documentation that connects those pieces
@@ -87,6 +92,7 @@ Current firmware implementation includes:
 - embedded frontend assets under `firmware/main/webui/`, served by the firmware at `/assets/*`
 - category-based sensor configuration, background polling, and bounded measurement queueing
 - backend upload support for `Sensor.Community` and `Air360 API`
+- `Sensor.Community` compatibility through the same device identity model exposed in the firmware UI as `Short ID`
 
 ### Backend
 
@@ -123,7 +129,13 @@ If you need to publish a firmware beta or stable build:
 If you need to operate or provision a device rather than change firmware code:
 
 1. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
-2. Then use [firmware/README.md](firmware/README.md) only for build, flash, and implementation details
+2. For release binaries, flash the merged `full.bin` through `https://espflash.app/`
+3. Then use [firmware/README.md](firmware/README.md) only for build, flash, and implementation details
+
+If you need to understand the Sensor.Community overlap specifically:
+
+1. Read this file for the project-level compatibility statement
+2. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md) for the actual registration and backend setup flow
 
 If you need repository context first:
 
