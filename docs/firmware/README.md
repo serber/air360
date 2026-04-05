@@ -31,6 +31,8 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
   Sensor subsystem architecture, registry/runtime model, supported drivers, generic measurements, transports, and current board wiring assumptions.
 - [`planned-device-support.md`](planned-device-support.md)
   Forward-looking inventory of planned sensors, peripherals, and connectivity modules. This file is planning-oriented, not a record of what is already implemented.
+- [`platform-selection.md`](platform-selection.md)
+  Engineering notes for choosing a hardware baseline for the current firmware, including why the present implementation fits ESP32-S3 best and how ESP32-C3, ESP32-C6, and ESP8266 compare as future alternatives.
 - [`../../firmware/README.md`](../../firmware/README.md)
   Operational firmware README with build, flash, monitor, startup, upload, and known-limitation details.
 - [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/)
@@ -46,6 +48,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
 - Use [`sensors.md`](sensors.md) before adding a new driver or changing sensor setup behavior.
 - Use [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/) when preparing a beta or stable firmware release from an existing local build.
 - Use [`planned-device-support.md`](planned-device-support.md) when discussing future hardware support beyond what is already implemented.
+- Use [`platform-selection.md`](platform-selection.md) when discussing whether Air360 should stay on ESP32-S3, move to ESP32-C3 or ESP32-C6, or attempt an ESP8266 port.
 
 ## Scope Boundary
 
@@ -53,4 +56,4 @@ This directory mostly documents the current firmware implementation.
 
 Planning and compatibility notes for the wider replacement effort still live in the parent [`../`](../) directory. Those files are useful design context, but they should not be treated as proof that a feature already exists in `firmware/`.
 
-One exception in this directory is [`planned-device-support.md`](planned-device-support.md), which is intentionally forward-looking and should also be treated as planning context rather than implemented behavior.
+Exceptions in this directory are [`planned-device-support.md`](planned-device-support.md) and [`platform-selection.md`](platform-selection.md), which are intentionally more decision-oriented and forward-looking than the implementation walkthroughs. They should be treated as planning and compatibility context rather than proof that a feature or target already exists in `firmware/`.
