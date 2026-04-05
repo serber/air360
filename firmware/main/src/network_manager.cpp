@@ -1,5 +1,6 @@
 #include "air360/network_manager.hpp"
 
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -49,6 +50,42 @@ void copyString(char* destination, std::size_t destination_size, const char* sou
 
 bool hasStationConfig(const DeviceConfig& config) {
     return config.wifi_sta_ssid[0] != '\0';
+}
+
+std::string stationHostname(const DeviceConfig& config) {
+    std::string hostname;
+    hostname.reserve(sizeof(config.device_name));
+
+    for (std::size_t index = 0; index < sizeof(config.device_name); ++index) {
+        const unsigned char raw = static_cast<unsigned char>(config.device_name[index]);
+        if (raw == '\0') {
+            break;
+        }
+
+        if (std::isalnum(raw)) {
+            hostname.push_back(static_cast<char>(std::tolower(raw)));
+            continue;
+        }
+
+        if (raw == '-' || raw == '_') {
+            hostname.push_back(static_cast<char>(raw));
+            continue;
+        }
+
+        if (!hostname.empty() && hostname.back() != '-') {
+            hostname.push_back('-');
+        }
+    }
+
+    while (!hostname.empty() && hostname.back() == '-') {
+        hostname.pop_back();
+    }
+
+    if (hostname.empty()) {
+        hostname = "air360";
+    }
+
+    return hostname;
 }
 
 void setStateError(NetworkState& state, const char* error) {
@@ -256,6 +293,13 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
         }
     }
 
+    const std::string hostname = stationHostname(config);
+    err = esp_netif_set_hostname(context.sta_netif, hostname.c_str());
+    if (err != ESP_OK) {
+        setStateError(state_, esp_err_to_name(err));
+        return err;
+    }
+
     xEventGroupClearBits(context.station_events, kStationConnectedBit | kStationFailedBit);
 
     esp_event_handler_instance_t wifi_handler = nullptr;
@@ -320,6 +364,7 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     }
 
     ESP_LOGI(kTag, "Station Wi-Fi power save disabled for lower upload latency");
+    ESP_LOGI(kTag, "Station hostname: %s", hostname.c_str());
     ESP_LOGI(kTag, "Attempting station join: ssid=%s", config.wifi_sta_ssid);
 
     const EventBits_t bits = xEventGroupWaitBits(

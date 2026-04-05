@@ -1,5 +1,6 @@
 #include "air360/status_service.hpp"
 
+#include <cctype>
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
@@ -64,10 +65,47 @@ std::uint64_t uptimeMilliseconds() {
     return static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
 }
 
+std::string formatUptimeCompact(std::uint64_t uptime_ms) {
+    const std::uint64_t total_seconds = uptime_ms / 1000ULL;
+    const std::uint64_t days = total_seconds / 86400ULL;
+    const std::uint64_t hours = (total_seconds % 86400ULL) / 3600ULL;
+    const std::uint64_t minutes = (total_seconds % 3600ULL) / 60ULL;
+    const std::uint64_t seconds = total_seconds % 60ULL;
+
+    if (days > 0U) {
+        return std::to_string(days) + "d " + std::to_string(hours) + "h";
+    }
+    if (hours > 0U) {
+        return std::to_string(hours) + "h " + std::to_string(minutes) + "m";
+    }
+    if (minutes > 0U) {
+        return std::to_string(minutes) + "m " + std::to_string(seconds) + "s";
+    }
+    return std::to_string(seconds) + "s";
+}
+
 std::string formatFloat(float value, int precision) {
     char buffer[32];
     std::snprintf(buffer, sizeof(buffer), "%.*f", precision, static_cast<double>(value));
     return buffer;
+}
+
+std::string formatMacForDisplay(std::string_view mac) {
+    if (mac.size() != 12U) {
+        return std::string(mac);
+    }
+
+    std::string formatted;
+    formatted.reserve(17U);
+    for (std::size_t index = 0; index < mac.size(); ++index) {
+        const unsigned char ch = static_cast<unsigned char>(mac[index]);
+        formatted.push_back(static_cast<char>(std::toupper(ch)));
+        if ((index % 2U) == 1U && (index + 1U) < mac.size()) {
+            formatted.push_back('-');
+        }
+    }
+
+    return formatted;
 }
 
 std::string formatMeasurementValue(const SensorValue& value) {
@@ -162,7 +200,7 @@ struct RuntimeOverviewViewModel {
     std::string device_name;
     std::size_t sensor_count = 0U;
     std::size_t backend_count = 0U;
-    std::uint32_t upload_interval_ms = 0U;
+    std::string uptime;
     std::string board_name;
     std::string chip_name;
     std::string chip_revision;
@@ -185,40 +223,30 @@ std::string renderBackendOverviewBlock(const std::vector<BackendStatusSnapshot>&
 
     html += "<div class='list'>";
     for (const auto& backend : backends) {
-        std::string http_status_pill;
-        if (backend.last_http_status > 0) {
-            http_status_pill += "<span class='pill'>HTTP ";
-            http_status_pill += std::to_string(backend.last_http_status);
-            http_status_pill += "</span>";
-        }
-
-        std::string response_time_pill;
-        if (backend.last_response_time_ms > 0U) {
-            response_time_pill += "<span class='pill'>";
-            response_time_pill += std::to_string(backend.last_response_time_ms);
-            response_time_pill += " ms</span>";
-        }
-
-        std::string last_error_block;
-        if (!backend.last_error.empty()) {
-            last_error_block += "<p class='muted'>";
-            last_error_block += htmlEscape(backend.last_error);
-            last_error_block += "</p>";
+        std::string details_block;
+        if (backend.enabled) {
+            details_block += "<span class='pill'>last attempt ";
+            details_block += htmlEscape(formatTimeForDisplay(
+                backend.last_attempt_unix_ms,
+                backend.last_attempt_uptime_ms));
+            details_block += "</span>";
+            details_block += "<span class='pill'>HTTP ";
+            details_block += backend.last_http_status > 0 ? std::to_string(backend.last_http_status)
+                                                          : std::string("n/a");
+            details_block += "</span>";
+            details_block += "<span class='pill'>response ";
+            details_block += backend.last_response_time_ms > 0
+                                 ? std::to_string(backend.last_response_time_ms) + " ms"
+                                 : std::string("n/a");
+            details_block += "</span>";
         }
 
         html += renderTemplate(
             WebTemplateKey::kOverviewBackendItem,
             WebTemplateBindings{
                 {"DISPLAY_NAME", htmlEscape(backend.display_name)},
-                {"STATE_KEY", htmlEscape(backendRuntimeStateKey(backend.state))},
-                {"RESULT_KEY", htmlEscape(uploadResultClassKey(backend.last_result))},
-                {"LAST_ATTEMPT", htmlEscape(
-                    formatTimeForDisplay(
-                        backend.last_attempt_unix_ms,
-                        backend.last_attempt_uptime_ms))},
-                {"HTTP_STATUS_PILL", http_status_pill},
-                {"RESPONSE_TIME_PILL", response_time_pill},
-                {"LAST_ERROR_BLOCK", last_error_block},
+                {"STATUS_KEY", backend.enabled ? "enabled" : "disabled"},
+                {"DETAILS_BLOCK", details_block},
             });
     }
     html += "</div>";
@@ -271,14 +299,15 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.device_name = config.device_name;
     model.sensor_count = sensors.size();
     model.backend_count = upload_manager != nullptr ? upload_manager->enabledCount() : 0U;
-    model.upload_interval_ms = upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U;
+    model.uptime = formatUptimeCompact(uptimeMilliseconds());
     model.board_name = build_info.board_name;
     model.chip_name = build_info.chip_name;
     model.chip_revision = build_info.chip_revision;
     model.chip_id = build_info.chip_id.empty() ? "unavailable" : build_info.chip_id;
     model.short_chip_id =
         build_info.short_chip_id.empty() ? "unavailable" : build_info.short_chip_id;
-    model.esp_mac_id = build_info.esp_mac_id.empty() ? "unavailable" : build_info.esp_mac_id;
+    model.esp_mac_id =
+        build_info.esp_mac_id.empty() ? "unavailable" : formatMacForDisplay(build_info.esp_mac_id);
     model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
     model.degraded_backend_count = upload_manager != nullptr ? upload_manager->degradedCount() : 0U;
     model.backend_block_html = renderBackendOverviewBlock(backends);
@@ -298,7 +327,8 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.runtime_snapshot_html += "chip_revision: " + htmlEscape(build_info.chip_revision) + "\n";
     model.runtime_snapshot_html += "chip_id: " + htmlEscape(build_info.chip_id) + "\n";
     model.runtime_snapshot_html += "short_chip_id: " + htmlEscape(build_info.short_chip_id) + "\n";
-    model.runtime_snapshot_html += "esp_mac_id: " + htmlEscape(build_info.esp_mac_id) + "\n";
+    model.runtime_snapshot_html +=
+        "esp_mac_id: " + htmlEscape(formatMacForDisplay(build_info.esp_mac_id)) + "\n";
     model.runtime_snapshot_html += "boot_count: " + std::to_string(boot_count) + "\n";
     model.runtime_snapshot_html += "config_source: ";
     model.runtime_snapshot_html += (config_loaded_from_storage ? "stored" : "defaults");
@@ -403,7 +433,7 @@ std::string StatusService::renderRootHtml() const {
             {"DEVICE_NAME", htmlEscape(model.device_name)},
             {"SENSOR_COUNT", std::to_string(model.sensor_count)},
             {"BACKEND_COUNT", std::to_string(model.backend_count)},
-            {"UPLOAD_INTERVAL", std::to_string(model.upload_interval_ms)},
+            {"UPTIME", htmlEscape(model.uptime)},
             {"BOARD_NAME", htmlEscape(model.board_name)},
             {"CHIP_NAME", htmlEscape(model.chip_name)},
             {"CHIP_REVISION", htmlEscape(model.chip_revision)},

@@ -1,14 +1,7 @@
-<section class='stats'>
-    <div class='stat'><div class='stat__label'>Enabled</div><div class='stat__value'>{{ENABLED_COUNT}}</div></div>
-    <div class='stat'><div class='stat__label'>Degraded</div><div class='stat__value'>{{DEGRADED_COUNT}}</div></div>
-    <div class='stat'><div class='stat__label'>Upload Interval</div><div class='stat__value'>{{UPLOAD_INTERVAL}} ms</div></div>
-    <div class='stat'><div class='stat__label'>Configured Backends</div><div class='stat__value'>{{CONFIGURED_BACKENDS_COUNT}}</div></div>
-</section>
 {{NOTICE}}
 <form class='stack stack--scene' method='POST' action='/backends' data-dirty-track='backends'>
     <div class='panel panel--policy stack'>
-        <h2>Upload Policy</h2>
-        <p class='muted'>Backends stay device-local here: selection, token storage, and retry state are all managed by firmware.</p>
+        <h2>Upload settings</h2>
         <div class='field'>
             <label for='upload_interval_ms'>Upload interval (ms)</label>
             <input class='input' id='upload_interval_ms' name='upload_interval_ms' inputmode='numeric' value='{{UPLOAD_INTERVAL_VALUE}}'>
@@ -17,6 +10,6 @@
     </div>
     {{BACKEND_CARDS}}
     <div class='split-actions'>
-        <button class='button' type='submit'>Save backend selection</button>
+        <button class='button' type='submit'>Save</button>
     </div>
 </form>

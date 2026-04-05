@@ -259,36 +259,46 @@ const char* networkModeLabel(NetworkMode mode) {
     }
 }
 
+std::string backendDisplayEndpoint(BackendType type) {
+    if (type == BackendType::kSensorCommunity) {
+        const char* base = backendDefaultEndpointUrl(type);
+        return base != nullptr ? std::string(base) : std::string();
+    }
+
+    if (type == BackendType::kAir360Api) {
+        std::string endpoint = backendDefaultEndpointUrl(type);
+        while (!endpoint.empty() && endpoint.back() == '/') {
+            endpoint.pop_back();
+        }
+        endpoint += "/v1/devices/{chip_id}/batches/{batch_id}";
+        return endpoint;
+    }
+
+    return "";
+}
+
 struct ConfigPageViewModel {
     std::string network_mode;
     std::string ip_address;
     std::string device_name;
-    std::string local_auth_state;
     std::string notice_html;
     std::string network_error_html;
     std::string wifi_ssid_value;
     std::string wifi_password_value;
-    std::string ap_ssid_value;
-    std::string ap_password_value;
-    bool local_auth_checked = false;
 };
 
 struct BackendCardViewModel {
     std::string display_name;
     std::string backend_key;
-    bool implemented = false;
     bool enabled = false;
     std::string endpoint;
     bool show_device_id_override = false;
     std::string device_id_override;
-    bool show_bearer_token = false;
-    std::string bearer_token;
     bool has_status = false;
     std::string state_key;
     std::string result_key;
     std::uint32_t retry_count = 0U;
     std::string last_attempt;
-    std::string last_success;
     int last_http_status = 0;
     std::uint32_t last_response_time_ms = 0U;
     std::string last_error;
@@ -362,28 +372,25 @@ std::string renderConfigPage(
     bool error_notice) {
     const ConfigPageViewModel model =
         buildConfigPageViewModel(config, network_state, notice, error_notice);
+
     const std::string body = renderPageTemplate(
         WebTemplateKey::kConfig,
         WebTemplateBindings{
             {"NETWORK_MODE", htmlEscape(model.network_mode)},
             {"IP_ADDRESS", htmlEscape(model.ip_address)},
             {"DEVICE_NAME", htmlEscape(model.device_name)},
-            {"LOCAL_AUTH_STATE", model.local_auth_state},
             {"NOTICE", model.notice_html},
             {"NETWORK_ERROR", model.network_error_html},
             {"DEVICE_NAME_VALUE", htmlEscape(model.device_name)},
             {"WIFI_SSID_VALUE", htmlEscape(model.wifi_ssid_value)},
             {"WIFI_PASSWORD_VALUE", htmlEscape(model.wifi_password_value)},
-            {"AP_SSID_VALUE", htmlEscape(model.ap_ssid_value)},
-            {"AP_PASSWORD_VALUE", htmlEscape(model.ap_password_value)},
-            {"LOCAL_AUTH_CHECKED", model.local_auth_checked ? "checked" : ""},
         });
 
     return renderPageDocument(
         WebPageKey::kConfig,
         "air360 device configuration",
         "Device Configuration",
-        "Manage station Wi-Fi, setup AP fallback, and local device identity without leaving the firmware UI.",
+        "Manage station Wi-Fi and local device identity without leaving the firmware UI.",
         body,
         false);
 }
@@ -592,13 +599,9 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.network_mode = networkModeLabel(network_state.mode);
     model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
     model.device_name = config.device_name;
-    model.local_auth_state = config.local_auth_enabled != 0U ? "Stored" : "Disabled";
     model.notice_html = renderNotice(notice, error_notice);
     model.wifi_ssid_value = config.wifi_sta_ssid;
     model.wifi_password_value = config.wifi_sta_password;
-    model.ap_ssid_value = config.lab_ap_ssid;
-    model.ap_password_value = config.lab_ap_password;
-    model.local_auth_checked = config.local_auth_enabled != 0U;
 
     if (!network_state.last_error.empty()) {
         model.network_error_html += "<p>Last network error: <code>";
@@ -634,36 +637,12 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         device_id_override_block += "<p class='hint'>Prefilled from Short ID. Change it only for debugging.</p></div>";
     }
 
-    std::string bearer_token_block;
-    if (card.show_bearer_token) {
-        bearer_token_block += "<div class='field'><label for='token_";
-        bearer_token_block += htmlEscape(card.backend_key);
-        bearer_token_block += "'>Bearer token</label>";
-        bearer_token_block += "<div class='secret-row'><input class='input' id='token_";
-        bearer_token_block += htmlEscape(card.backend_key);
-        bearer_token_block += "' name='token_";
-        bearer_token_block += htmlEscape(card.backend_key);
-        bearer_token_block += "' type='password' value='";
-        bearer_token_block += htmlEscape(card.bearer_token);
-        bearer_token_block += "'><button class='button button--ghost' type='button' data-secret-toggle='token_";
-        bearer_token_block += htmlEscape(card.backend_key);
-        bearer_token_block += "'>Show</button></div></div>";
-    }
-
     std::string status_block;
-    if (card.has_status) {
-        status_block += "<div class='meta'><span class='pill'>State <code>";
-        status_block += htmlEscape(card.state_key);
-        status_block += "</code></span><span class='pill'>Result <code>";
-        status_block += htmlEscape(card.result_key);
-        status_block += "</code></span><span class='pill'>Retry ";
-        status_block += std::to_string(card.retry_count);
-        status_block += "</span></div>";
+    if (!card.enabled) {
+        status_block.clear();
+    } else if (card.has_status) {
         status_block += "<p>Last attempt: <code>";
         status_block += htmlEscape(card.last_attempt);
-        status_block += "</code></p>";
-        status_block += "<p>Last success: <code>";
-        status_block += htmlEscape(card.last_success);
         status_block += "</code></p>";
         status_block += "<p>HTTP code: <code>";
         status_block += card.last_http_status > 0 ? std::to_string(card.last_http_status)
@@ -686,13 +665,10 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         WebTemplateKey::kBackendCard,
         WebTemplateBindings{
             {"DISPLAY_NAME", htmlEscape(card.display_name)},
-            {"BACKEND_KEY", htmlEscape(card.backend_key)},
             {"BACKEND_KEY_ATTR", htmlEscape(card.backend_key)},
-            {"IMPLEMENTED", card.implemented ? "true" : "false"},
             {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
             {"ENDPOINT_BLOCK", endpoint_block},
             {"DEVICE_ID_OVERRIDE_BLOCK", device_id_override_block},
-            {"BEARER_TOKEN_BLOCK", bearer_token_block},
             {"STATUS_BLOCK", status_block},
         });
 }
@@ -725,10 +701,9 @@ BackendsPageViewModel buildBackendsPageViewModel(
         BackendCardViewModel card;
         card.display_name = descriptor.display_name;
         card.backend_key = descriptor.backend_key;
-        card.implemented = descriptor.implemented;
         card.enabled = record != nullptr && record->enabled != 0U;
         if (record != nullptr) {
-            card.endpoint = backendDefaultEndpointUrl(descriptor.type);
+            card.endpoint = backendDisplayEndpoint(descriptor.type);
             card.show_device_id_override = descriptor.type == BackendType::kSensorCommunity;
             if (card.show_device_id_override) {
                 card.device_id_override =
@@ -736,11 +711,6 @@ BackendsPageViewModel buildBackendsPageViewModel(
                 if (card.device_id_override.empty()) {
                     card.device_id_override = build_info.short_chip_id;
                 }
-            }
-            card.show_bearer_token = descriptor.type == BackendType::kAir360Api;
-            if (card.show_bearer_token) {
-                card.bearer_token =
-                    boundedCString(record->bearer_token, sizeof(record->bearer_token));
             }
         }
 
@@ -752,9 +722,6 @@ BackendsPageViewModel buildBackendsPageViewModel(
             card.last_attempt = formatStatusTime(
                 status->last_attempt_unix_ms,
                 status->last_attempt_uptime_ms);
-            card.last_success = formatStatusTime(
-                status->last_success_unix_ms,
-                status->last_success_uptime_ms);
             card.last_http_status = status->last_http_status;
             card.last_response_time_ms = status->last_response_time_ms;
             card.last_error = status->last_error;
@@ -995,8 +962,6 @@ bool validateConfigForm(
     const std::string& device_name,
     const std::string& wifi_ssid,
     const std::string& wifi_password,
-    const std::string& ap_ssid,
-    const std::string& ap_password,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -1018,23 +983,6 @@ bool validateConfigForm(
         error = "Wi-Fi password must be empty or at least 8 characters.";
         return false;
     }
-    if (ap_ssid.empty()) {
-        error = "Setup AP name must not be empty.";
-        return false;
-    }
-    if (ap_ssid.size() > 32U) {
-        error = "Setup AP name is too long.";
-        return false;
-    }
-    if (ap_password.size() > 63U) {
-        error = "Setup AP password is too long.";
-        return false;
-    }
-    if (!ap_password.empty() && ap_password.size() < 8U) {
-        error = "Setup AP password must be empty or at least 8 characters.";
-        return false;
-    }
-
     error.clear();
     return true;
 }
@@ -1519,13 +1467,6 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 findFormValue(fields, device_id_name.c_str()));
         }
 
-        if (descriptor.type == BackendType::kAir360Api) {
-            const std::string token_name = std::string("token_") + descriptor.backend_key;
-            copyString(
-                record->bearer_token,
-                sizeof(record->bearer_token),
-                findFormValue(fields, token_name.c_str()));
-        }
     }
 
     const esp_err_t save_err = server->backend_config_repository_->save(updated);
@@ -1609,24 +1550,17 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string device_name = findFormValue(fields, "device_name");
     const std::string wifi_ssid = findFormValue(fields, "wifi_ssid");
     const std::string wifi_password = findFormValue(fields, "wifi_password");
-    const std::string ap_ssid = findFormValue(fields, "ap_ssid");
-    const std::string ap_password = findFormValue(fields, "ap_password");
 
     std::string validation_error;
     if (!validateConfigForm(
             device_name,
             wifi_ssid,
             wifi_password,
-            ap_ssid,
-            ap_password,
             validation_error)) {
         DeviceConfig preview = *server->config_;
         copyString(preview.device_name, sizeof(preview.device_name), device_name);
         copyString(preview.wifi_sta_ssid, sizeof(preview.wifi_sta_ssid), wifi_ssid);
         copyString(preview.wifi_sta_password, sizeof(preview.wifi_sta_password), wifi_password);
-        copyString(preview.lab_ap_ssid, sizeof(preview.lab_ap_ssid), ap_ssid);
-        copyString(preview.lab_ap_password, sizeof(preview.lab_ap_password), ap_password);
-        preview.local_auth_enabled = formHasKey(fields, "local_auth_enabled") ? 1U : 0U;
 
         const std::string html = renderConfigPage(
             preview,
@@ -1640,12 +1574,9 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     updated.magic = kDeviceConfigMagic;
     updated.schema_version = kDeviceConfigSchemaVersion;
     updated.record_size = static_cast<std::uint16_t>(sizeof(DeviceConfig));
-    updated.local_auth_enabled = formHasKey(fields, "local_auth_enabled") ? 1U : 0U;
     copyString(updated.device_name, sizeof(updated.device_name), device_name);
     copyString(updated.wifi_sta_ssid, sizeof(updated.wifi_sta_ssid), wifi_ssid);
     copyString(updated.wifi_sta_password, sizeof(updated.wifi_sta_password), wifi_password);
-    copyString(updated.lab_ap_ssid, sizeof(updated.lab_ap_ssid), ap_ssid);
-    copyString(updated.lab_ap_password, sizeof(updated.lab_ap_password), ap_password);
 
     const esp_err_t save_err = server->config_repository_->save(updated);
     if (save_err != ESP_OK) {

@@ -83,7 +83,7 @@ Current implementation files:
 - `web_ui.cpp`
   Provides shared page-shell rendering, embedded HTML template expansion, navigation, notices, and HTML escaping for firmware pages.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection and Air360 bearer token changes immediately.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection changes immediately.
 - `webui/`
   Contains the embedded frontend files used by firmware, including shared CSS, progressive-enhancement JavaScript, and page body templates.
 - `sensors/`
@@ -179,7 +179,7 @@ The runtime stores three separate NVS-backed models:
 - `SensorConfigList`
   The configured sensor inventory, including type, inferred transport, poll interval, display name, and transport-specific fields.
 - `BackendConfigList`
-  Enabled backend set, upload interval, backend display names, static endpoint defaults, and backend-specific credentials such as the Air360 bearer token.
+  Enabled backend set, upload interval, backend display names, static endpoint defaults, and backend-specific persisted fields used by individual upload adapters.
 
 ## Build
 
@@ -315,7 +315,7 @@ Currently implemented backends are:
 - `Air360 API`
   Fixed base endpoint `http://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
 
-Backend selection and upload interval are configured through `/backends`. Endpoint URLs are static in firmware and are not edited through the UI. The Air360 backend accepts a bearer token through the local `/backends` form.
+Backend selection and upload interval are configured through `/backends`. Endpoint URLs are static in firmware and are not edited through the UI.
 
 For `Sensor.Community`, the `/backends` form also exposes a device id field prefilled from the runtime `Short ID`. You can change it for debugging; the saved value is then used for `X-Sensor` and related legacy id fields.
 

@@ -144,7 +144,7 @@ Confirmed routes:
 - `/sensors`
   Sensor configuration form for add, update, delete, staged apply/discard, and runtime inspection.
 - `/backends`
-  Backend configuration form for upload interval, enablement, and backend credentials such as the Air360 bearer token.
+  Backend configuration form for upload interval, enablement, and adapter-specific persisted fields exposed by the current UI.
 - `/assets/*`
   Embedded CSS and JavaScript assets used by the shared firmware UI shell.
 

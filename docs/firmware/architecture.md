@@ -146,7 +146,7 @@ The runtime exposes local routes for overview, JSON status, device config, senso
 - `/sensors`
   Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them.
 - `/backends`
-  Backend enablement, upload interval, and Air360 bearer token configuration.
+  Backend enablement, upload interval, and adapter-specific backend configuration exposed by the current UI.
 - `/assets/*`
   Shared embedded CSS and JavaScript used by the local web UI shell.
 

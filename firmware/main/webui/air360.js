@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (hintNode instanceof HTMLElement) {
       hintNode.textContent = hasStationConfig
-        ? "Leave Wi-Fi SSID empty to reboot back into setup AP mode."
+        ? "Leave Wi-Fi SSID empty to reboot into setup AP mode."
         : "Station mode is disabled while Wi-Fi SSID is empty.";
     }
   }

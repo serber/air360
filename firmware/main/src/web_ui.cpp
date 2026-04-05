@@ -215,10 +215,7 @@ std::string renderPageDocument(
         html += " shell--narrow";
     }
     html += "'><div class='chrome'><header class='topbar'>";
-    html += "<div class='brand'><div class='brand__eyebrow'>Air360 Firmware</div>";
-    html += "<div class='brand__title'>";
-    html += htmlEscape(heading);
-    html += "</div></div><nav class='nav'>";
+    html += "<div class='brand'><div class='brand__eyebrow'>Air360 Firmware</div></div><nav class='nav'>";
 
     for (const auto& item : kNavItems) {
         html += "<a class='nav__link";
@@ -234,7 +231,7 @@ std::string renderPageDocument(
 
     html += "<a class='nav__link nav__link--muted' href='/status'>Status JSON</a>";
     html += "</nav></header><main class='page'><section class='pagehead'>";
-    html += "<div class='eyebrow'>Local Runtime</div><h1>";
+    html += "<h1>";
     html += htmlEscape(heading);
     html += "</h1>";
     if (!lead_html.empty()) {
