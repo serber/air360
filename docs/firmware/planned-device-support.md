@@ -44,7 +44,7 @@ The sensor table below follows the same category semantics and ordering used by 
 
 | Device | Category | Transport | Function | Priority | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| SIM7600E | mobile uplink | uart | send data without Wi-Fi | high | planned | Preferred cellular module candidate. See [`../sim7600e-mobile-uplink-adr.md`](../sim7600e-mobile-uplink-adr.md). |
+| SIM7600E | mobile uplink | uart | send data without Wi-Fi | high | planned | Preferred cellular module candidate. See [`adr/sim7600e-mobile-uplink-adr.md`](adr/sim7600e-mobile-uplink-adr.md). |
 
 ## Light Sensor Notes
 

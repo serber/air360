@@ -33,6 +33,8 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
   Forward-looking inventory of planned sensors, peripherals, and connectivity modules. This file is planning-oriented, not a record of what is already implemented.
 - [`platform-selection.md`](platform-selection.md)
   Engineering notes for choosing a hardware baseline for the current firmware, including why the present implementation fits ESP32-S3 best and how ESP32-C3, ESP32-C6, and ESP8266 compare as future alternatives.
+- [`adr/README.md`](adr/README.md)
+  Firmware architecture decision records for planned changes such as measurement/runtime separation, live sensor apply, and cellular uplink.
 - [`../../firmware/README.md`](../../firmware/README.md)
   Operational firmware README with build, flash, monitor, startup, upload, and known-limitation details.
 - [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/)
@@ -49,6 +51,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
 - Use [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/) when preparing a beta or stable firmware release from an existing local build.
 - Use [`planned-device-support.md`](planned-device-support.md) when discussing future hardware support beyond what is already implemented.
 - Use [`platform-selection.md`](platform-selection.md) when discussing whether Air360 should stay on ESP32-S3, move to ESP32-C3 or ESP32-C6, or attempt an ESP8266 port.
+- Use [`adr/README.md`](adr/README.md) when the task is about planned firmware architecture changes rather than already implemented behavior.
 
 ## Scope Boundary
 
