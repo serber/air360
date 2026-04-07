@@ -368,9 +368,10 @@ enum class SensorCategory : std::uint8_t {
     kClimate = 1U,
     kTemperatureHumidity = 2U,
     kAirQuality = 3U,
-    kParticulateMatter = 4U,
-    kLocation = 5U,
-    kGas = 6U,
+    kLight = 4U,
+    kParticulateMatter = 5U,
+    kLocation = 6U,
+    kGas = 7U,
 };
 
 struct SensorCategoryDescriptor {
@@ -565,6 +566,10 @@ constexpr SensorType kAirQualitySensorTypes[] = {
     SensorType::kEns160,
 };
 
+constexpr SensorType kLightSensorTypes[] = {
+    SensorType::kVeml7700,
+};
+
 constexpr SensorType kParticulateMatterSensorTypes[] = {
     SensorType::kSps30,
 };
@@ -606,6 +611,15 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         sizeof(kAirQualitySensorTypes) / sizeof(kAirQualitySensorTypes[0]),
     },
     {
+        SensorCategory::kLight,
+        "light",
+        "Light",
+        "Ambient light and illuminance sensing.",
+        false,
+        kLightSensorTypes,
+        sizeof(kLightSensorTypes) / sizeof(kLightSensorTypes[0]),
+    },
+    {
         SensorCategory::kParticulateMatter,
         "particulate-matter",
         "Particulate Matter",
@@ -644,6 +658,8 @@ SensorCategory sensorCategoryForType(SensorType type) {
             return SensorCategory::kTemperatureHumidity;
         case SensorType::kEns160:
             return SensorCategory::kAirQuality;
+        case SensorType::kVeml7700:
+            return SensorCategory::kLight;
         case SensorType::kSps30:
             return SensorCategory::kParticulateMatter;
         case SensorType::kGpsNmea:
@@ -801,6 +817,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
         case SensorType::kEns160:
             return "Defaults: I2C bus 0, currently address 0x52. The driver also probes 0x53 as a fallback.";
+        case SensorType::kVeml7700:
+            return "Defaults: I2C bus 0 at address 0x10. Reports ambient light in lux.";
         case SensorType::kGpsNmea: {
             std::string hint = "Defaults: fixed UART ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);

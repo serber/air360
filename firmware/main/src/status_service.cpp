@@ -665,6 +665,10 @@ std::string StatusService::renderStatusJson() const {
         json += jsonNumberOrNull(
             measurement_runtime.measurement,
             SensorValueKind::kGasResistanceOhms);
+        json += ",\"illuminance_lux\":";
+        json += jsonNumberOrNull(
+            measurement_runtime.measurement,
+            SensorValueKind::kIlluminanceLux);
         json += ",";
         json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
         json += "}";

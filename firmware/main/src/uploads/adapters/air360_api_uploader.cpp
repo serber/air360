@@ -66,6 +66,8 @@ const char* sensorTypeKey(SensorType type) {
             return "ens160";
         case SensorType::kMe3No2:
             return "me3_no2";
+        case SensorType::kVeml7700:
+            return "veml7700";
         case SensorType::kUnknown:
         default:
             return "unknown";
