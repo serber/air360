@@ -226,7 +226,7 @@ std::string renderPageDocument(
         html += " shell--narrow";
     }
     html += "'><div class='chrome'><header class='topbar'>";
-    html += "<div class='brand'><div class='brand__eyebrow'>Air360 Firmware</div><div class='brand__version'>";
+    html += "<div class='brand'><div class='brand__eyebrow'>Air360</div><div class='brand__version'>";
     html += htmlEscape(firmwareVersionLabel());
     html += "</div></div><nav class='nav'>";
 

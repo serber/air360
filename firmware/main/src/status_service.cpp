@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
+#include <vector>
 #include <string>
 #include <utility>
 
@@ -241,6 +242,9 @@ const char* resetReasonLabel(esp_reset_reason_t reason) {
 }
 
 struct RuntimeOverviewViewModel {
+    std::string health_status_pill_html;
+    std::string health_summary_html;
+    std::string health_checks_html;
     std::string network_mode;
     std::string device_name;
     std::size_t sensor_count = 0U;
@@ -264,6 +268,257 @@ struct RuntimeOverviewViewModel {
     std::string backend_block_html;
     std::string sensor_block_html;
 };
+
+enum class HealthStatus : std::uint8_t {
+    kHealthy = 0U,
+    kDegraded,
+    kOffline,
+    kSetupRequired,
+};
+
+struct HealthCheckViewModel {
+    std::string key;
+    std::string label;
+    bool ok = false;
+    std::string summary;
+    std::string pill_text;
+};
+
+struct HealthViewModel {
+    HealthStatus status = HealthStatus::kSetupRequired;
+    std::string summary;
+    std::vector<HealthCheckViewModel> checks;
+};
+
+MeasurementRuntimeInfo measurementRuntimeForSensor(
+    const MeasurementStore* measurement_store,
+    std::uint32_t sensor_id);
+
+const char* healthStatusKey(HealthStatus status) {
+    switch (status) {
+        case HealthStatus::kHealthy:
+            return "healthy";
+        case HealthStatus::kDegraded:
+            return "degraded";
+        case HealthStatus::kOffline:
+            return "offline";
+        case HealthStatus::kSetupRequired:
+        default:
+            return "setup_required";
+    }
+}
+
+const char* healthStatusLabel(HealthStatus status) {
+    switch (status) {
+        case HealthStatus::kHealthy:
+            return "Healthy";
+        case HealthStatus::kDegraded:
+            return "Degraded";
+        case HealthStatus::kOffline:
+            return "Offline";
+        case HealthStatus::kSetupRequired:
+        default:
+            return "Setup Required";
+    }
+}
+
+const char* healthStatusPillClass(HealthStatus status) {
+    return status == HealthStatus::kHealthy ? "pill pill--ok" : "pill pill--danger";
+}
+
+std::uint64_t sensorFreshnessThresholdMs(std::uint32_t poll_interval_ms) {
+    constexpr std::uint64_t kMinimumFreshnessThresholdMs = 15000ULL;
+    if (poll_interval_ms == 0U) {
+        return kMinimumFreshnessThresholdMs;
+    }
+
+    const std::uint64_t threshold = static_cast<std::uint64_t>(poll_interval_ms) * 3ULL;
+    return threshold > kMinimumFreshnessThresholdMs ? threshold : kMinimumFreshnessThresholdMs;
+}
+
+bool sensorIsReporting(
+    const SensorRuntimeInfo& sensor,
+    const MeasurementRuntimeInfo& measurement_runtime,
+    std::uint64_t now_uptime_ms) {
+    if (!sensor.enabled) {
+        return true;
+    }
+
+    switch (sensor.state) {
+        case SensorRuntimeState::kConfigured:
+        case SensorRuntimeState::kInitialized:
+        case SensorRuntimeState::kPolling:
+            break;
+        case SensorRuntimeState::kDisabled:
+        case SensorRuntimeState::kAbsent:
+        case SensorRuntimeState::kUnsupported:
+        case SensorRuntimeState::kError:
+        default:
+            return false;
+    }
+
+    if (measurement_runtime.last_sample_time_ms == 0U ||
+        measurement_runtime.last_sample_time_ms > now_uptime_ms) {
+        return false;
+    }
+
+    const std::uint64_t sample_age_ms = now_uptime_ms - measurement_runtime.last_sample_time_ms;
+    return sample_age_ms <= sensorFreshnessThresholdMs(sensor.poll_interval_ms);
+}
+
+bool backendIsHealthy(const BackendStatusSnapshot& backend) {
+    if (!backend.enabled) {
+        return true;
+    }
+
+    if (backend.state == BackendRuntimeState::kError ||
+        backend.state == BackendRuntimeState::kNotImplemented) {
+        return false;
+    }
+
+    switch (backend.last_result) {
+        case UploadResultClass::kConfigError:
+        case UploadResultClass::kUnsupported:
+        case UploadResultClass::kTransportError:
+        case UploadResultClass::kHttpError:
+        case UploadResultClass::kNoNetwork:
+            return false;
+        case UploadResultClass::kUnknown:
+        case UploadResultClass::kNoData:
+        case UploadResultClass::kSuccess:
+        default:
+            return true;
+    }
+}
+
+std::string renderHealthChecksHtml(const std::vector<HealthCheckViewModel>& checks) {
+    std::string html;
+    for (const auto& check : checks) {
+        html += "<span class='pill'>";
+        html += htmlEscape(check.pill_text);
+        html += "</span>";
+    }
+    return html;
+}
+
+HealthViewModel buildHealthViewModel(
+    const NetworkState& network_state,
+    const std::vector<SensorRuntimeInfo>& sensors,
+    const std::vector<BackendStatusSnapshot>& backends,
+    const MeasurementStore* measurement_store) {
+    const std::uint64_t now_uptime_ms = uptimeMilliseconds();
+    const bool setup_required =
+        network_state.mode == NetworkMode::kSetupAp || !network_state.station_config_present;
+    const bool uplink_available = network_state.station_connected;
+    const bool time_synced = network_state.time_synchronized;
+
+    std::size_t enabled_sensor_count = 0U;
+    std::size_t failing_sensor_count = 0U;
+    for (const auto& sensor : sensors) {
+        if (!sensor.enabled) {
+            continue;
+        }
+
+        ++enabled_sensor_count;
+        const MeasurementRuntimeInfo measurement_runtime =
+            measurementRuntimeForSensor(measurement_store, sensor.id);
+        if (!sensorIsReporting(sensor, measurement_runtime, now_uptime_ms)) {
+            ++failing_sensor_count;
+        }
+    }
+
+    std::size_t enabled_backend_count = 0U;
+    std::size_t failing_backend_count = 0U;
+    for (const auto& backend : backends) {
+        if (!backend.enabled) {
+            continue;
+        }
+
+        ++enabled_backend_count;
+        if (!backendIsHealthy(backend)) {
+            ++failing_backend_count;
+        }
+    }
+
+    HealthViewModel model;
+    model.checks = {
+        {
+            "time_synced",
+            "Time synced",
+            time_synced,
+            time_synced ? "Valid time available."
+                        : (network_state.time_sync_error.empty() ? "Valid time not available yet."
+                                                                 : network_state.time_sync_error),
+            time_synced ? "time ok" : "time missing",
+        },
+        {
+            "sensors_reporting",
+            "Sensors reporting",
+            failing_sensor_count == 0U,
+            enabled_sensor_count == 0U
+                ? "No enabled sensors."
+                : (failing_sensor_count == 0U
+                       ? "All enabled sensors are reporting."
+                       : std::to_string(failing_sensor_count) + " sensor(s) are not reporting."),
+            failing_sensor_count == 0U ? "sensors ok"
+                                       : std::to_string(failing_sensor_count) + " sensor issue",
+        },
+        {
+            "uplink_available",
+            "Uplink available",
+            uplink_available,
+            setup_required ? "Station setup is not complete."
+                           : (uplink_available ? "Station uplink connected."
+                                               : "Station uplink unavailable."),
+            uplink_available ? "uplink ok" : "uplink down",
+        },
+        {
+            "backends_healthy",
+            "Backends healthy",
+            failing_backend_count == 0U,
+            enabled_backend_count == 0U
+                ? "No enabled backends."
+                : (failing_backend_count == 0U
+                       ? "All enabled backends look healthy."
+                       : std::to_string(failing_backend_count) + " backend(s) need attention."),
+            failing_backend_count == 0U ? "backends ok"
+                                        : std::to_string(failing_backend_count) + " backend issue",
+        },
+    };
+
+    if (setup_required) {
+        model.status = HealthStatus::kSetupRequired;
+        model.summary = "Device is in setup mode. Configure station Wi-Fi to enter normal operation.";
+    } else if (!uplink_available || !time_synced) {
+        model.status = HealthStatus::kOffline;
+        if (!uplink_available && !time_synced) {
+            model.summary = "Station uplink is unavailable and valid time is not ready yet.";
+        } else if (!uplink_available) {
+            model.summary = "Station uplink is unavailable.";
+        } else {
+            model.summary = "Valid time is not ready yet.";
+        }
+    } else if (failing_sensor_count > 0U || failing_backend_count > 0U) {
+        model.status = HealthStatus::kDegraded;
+        if (failing_sensor_count > 0U && failing_backend_count > 0U) {
+            model.summary = std::to_string(failing_sensor_count) + " sensor(s) and " +
+                            std::to_string(failing_backend_count) +
+                            " backend(s) need attention.";
+        } else if (failing_sensor_count > 0U) {
+            model.summary =
+                std::to_string(failing_sensor_count) + " sensor(s) are not reporting.";
+        } else {
+            model.summary =
+                std::to_string(failing_backend_count) + " backend(s) need attention.";
+        }
+    } else {
+        model.status = HealthStatus::kHealthy;
+        model.summary =
+            "Time is synced, enabled sensors are reporting, and enabled backends look healthy.";
+    }
+
+    return model;
+}
 
 MeasurementRuntimeInfo measurementRuntimeForSensor(
     const MeasurementStore* measurement_store,
@@ -370,6 +625,19 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     const MeasurementStore* measurement_store,
     const UploadManager* upload_manager) {
     RuntimeOverviewViewModel model;
+    const HealthViewModel health =
+        buildHealthViewModel(network_state, sensors, backends, measurement_store);
+    model.health_status_pill_html = "<span class='";
+    model.health_status_pill_html += healthStatusPillClass(health.status);
+    model.health_status_pill_html += "'>";
+    model.health_status_pill_html += htmlEscape(healthStatusLabel(health.status));
+    model.health_status_pill_html += "</span>";
+    if (!health.summary.empty() && health.status != HealthStatus::kHealthy) {
+        model.health_summary_html = "<p class='muted'>";
+        model.health_summary_html += htmlEscape(health.summary);
+        model.health_summary_html += "</p>";
+    }
+    model.health_checks_html = renderHealthChecksHtml(health.checks);
     model.network_mode = networkModeString(network_state.mode);
     model.device_name = config.device_name;
     model.sensor_count = sensors.size();
@@ -473,6 +741,9 @@ std::string StatusService::renderRootHtml() const {
     const std::string body = renderPageTemplate(
         WebTemplateKey::kHome,
         WebTemplateBindings{
+            {"HEALTH_STATUS_PILL", model.health_status_pill_html},
+            {"HEALTH_SUMMARY_BLOCK", model.health_summary_html},
+            {"HEALTH_CHECKS", model.health_checks_html},
             {"NETWORK_MODE", htmlEscape(model.network_mode)},
             {"DEVICE_NAME", htmlEscape(model.device_name)},
             {"SENSOR_COUNT", std::to_string(model.sensor_count)},
@@ -499,7 +770,7 @@ std::string StatusService::renderRootHtml() const {
 
     return renderPageDocument(
         WebPageKey::kHome,
-        "runtime overview",
+        "Air 360 runtime overview",
         "Runtime Overview",
         "Live device overview, sensor state, upload state, and runtime metadata.",
         body,
@@ -512,6 +783,8 @@ std::string StatusService::renderStatusJson() const {
     const std::vector<BackendStatusSnapshot> backends =
         upload_manager_ != nullptr ? upload_manager_->backends()
                                    : std::vector<BackendStatusSnapshot>{};
+    const HealthViewModel health =
+        buildHealthViewModel(network_state_, sensors, backends, measurement_store_);
 
     std::string json;
     json.reserve(8192);
@@ -538,6 +811,24 @@ std::string StatusService::renderStatusJson() const {
     json += "\"uptime_ms\":" + std::to_string(uptimeMilliseconds()) + ",";
     json += "\"reset_reason\":" + std::to_string(static_cast<int>(reset_reason_)) + ",";
     json += "\"reset_reason_label\":\"" + jsonEscape(resetReasonLabel(reset_reason_)) + "\",";
+    json += "\"health_status\":\"" + jsonEscape(healthStatusKey(health.status)) + "\",";
+    json += "\"health_summary\":\"" + jsonEscape(health.summary) + "\",";
+    json += "\"health_checks\":{";
+    for (std::size_t index = 0; index < health.checks.size(); ++index) {
+        const auto& check = health.checks[index];
+        if (index > 0U) {
+            json += ",";
+        }
+        json += "\"";
+        json += jsonEscape(check.key);
+        json += "\":{";
+        json += "\"state\":\"";
+        json += check.ok ? "ok" : "attention";
+        json += "\",\"summary\":\"";
+        json += jsonEscape(check.summary);
+        json += "\"}";
+    }
+    json += "},";
     json += "\"nvs_ready\":";
     json += boolString(nvs_ready_);
     json += ",\"watchdog_armed\":";

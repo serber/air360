@@ -145,7 +145,7 @@ pre {
 .brand__eyebrow,
 .eyebrow {
     color: var(--accent-ink);
-    font-size: 0.86rem;
+    font-size: 0.96rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -386,6 +386,18 @@ pre {
     color: #4f6271;
     font-size: 0.8rem;
     font-weight: 600;
+}
+
+.pill--ok {
+    border-color: rgba(22, 101, 52, 0.16);
+    background: var(--ok-soft);
+    color: var(--ok);
+}
+
+.pill--danger {
+    border-color: rgba(180, 35, 24, 0.14);
+    background: var(--danger-soft);
+    color: var(--danger);
 }
 
 .notice {
