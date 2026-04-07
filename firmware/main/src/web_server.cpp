@@ -432,6 +432,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
 SensorsPageViewModel buildSensorsPageViewModel(
     const SensorConfigList& sensor_config_list,
     const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
     bool has_pending_changes,
     const std::string& notice,
     bool error_notice);
@@ -1180,6 +1181,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
 SensorsPageViewModel buildSensorsPageViewModel(
     const SensorConfigList& sensor_config_list,
     const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
     bool has_pending_changes,
     const std::string& notice,
     bool error_notice) {
@@ -1255,12 +1257,14 @@ SensorsPageViewModel buildSensorsPageViewModel(
         card.transport_summary = transportSummaryForRecord(record);
         card.poll_interval_ms = record.poll_interval_ms;
         card.enabled = record.enabled != 0U;
+        const MeasurementRuntimeInfo measurement_runtime =
+            measurement_store.runtimeInfoForSensor(record.id);
         if (runtime_info != nullptr) {
             card.runtime_error = runtime_info->last_error;
-            card.queued_sample_count = runtime_info->queued_sample_count;
-            if (!runtime_info->measurement.empty()) {
-                card.latest_reading = measurementSummary(runtime_info->measurement);
-            }
+        }
+        card.queued_sample_count = measurement_runtime.queued_sample_count;
+        if (!measurement_runtime.measurement.empty()) {
+            card.latest_reading = measurementSummary(measurement_runtime.measurement);
         }
 
         const SensorCategoryDescriptor* category_descriptor =
@@ -1365,6 +1369,7 @@ std::string renderBackendsPage(
 std::string renderSensorsPage(
     const SensorConfigList& sensor_config_list,
     const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
     bool has_pending_changes,
     const std::string& notice,
     bool error_notice) {
@@ -1372,6 +1377,7 @@ std::string renderSensorsPage(
         buildSensorsPageViewModel(
             sensor_config_list,
             sensor_manager,
+            measurement_store,
             has_pending_changes,
             notice,
             error_notice);
@@ -1463,6 +1469,7 @@ esp_err_t WebServer::start(
     SensorConfigRepository& sensor_config_repository,
     SensorConfigList& sensor_config_list,
     SensorManager& sensor_manager,
+    MeasurementStore& measurement_store,
     BackendConfigRepository& backend_config_repository,
     BackendConfigList& backend_config_list,
     UploadManager& upload_manager,
@@ -1478,6 +1485,7 @@ esp_err_t WebServer::start(
     sensor_config_repository_ = &sensor_config_repository;
     sensor_config_list_ = &sensor_config_list;
     sensor_manager_ = &sensor_manager;
+    measurement_store_ = &measurement_store;
     backend_config_repository_ = &backend_config_repository;
     backend_config_list_ = &backend_config_list;
     upload_manager_ = &upload_manager;
@@ -1628,6 +1636,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
+            *server->measurement_store_,
             server->has_pending_sensor_changes_,
             "",
             false);
@@ -1639,6 +1648,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
+            *server->measurement_store_,
             server->has_pending_sensor_changes_,
             "Failed to read form body.",
             true);
@@ -1656,6 +1666,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
                 true);
@@ -1667,6 +1678,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
+            *server->measurement_store_,
             server->has_pending_sensor_changes_,
             "Sensor configuration saved. Device is rebooting now.",
             false);
@@ -1681,6 +1693,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
+            *server->measurement_store_,
             server->has_pending_sensor_changes_,
             "Pending sensor changes discarded.",
             false);
@@ -1692,6 +1705,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 "Failed to delete sensor: invalid sensor id.",
                 true);
@@ -1704,6 +1718,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 "Unsupported sensor type.",
                 true);
@@ -1715,6 +1730,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 "Invalid numeric sensor fields.",
                 true);
@@ -1724,6 +1740,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 "Poll interval must be at least 5000 ms.",
                 true);
@@ -1738,6 +1755,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 "Sensor pin must be a valid integer.",
                 true);
@@ -1752,6 +1770,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 "I2C address must be a valid value like 0x76.",
                 true);
@@ -1766,6 +1785,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 const std::string html = renderSensorsPage(
                     server->staged_sensor_config_,
                     *server->sensor_manager_,
+                    *server->measurement_store_,
                     server->has_pending_sensor_changes_,
                     "Invalid sensor id.",
                     true);
@@ -1777,6 +1797,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 const std::string html = renderSensorsPage(
                     server->staged_sensor_config_,
                     *server->sensor_manager_,
+                    *server->measurement_store_,
                     server->has_pending_sensor_changes_,
                     "Sensor not found.",
                     true);
@@ -1839,6 +1860,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 const std::string html = renderSensorsPage(
                     server->staged_sensor_config_,
                     *server->sensor_manager_,
+                    *server->measurement_store_,
                     server->has_pending_sensor_changes_,
                     "Sensor list is full.",
                     true);
@@ -1855,6 +1877,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 validation_error,
                 true);
@@ -1865,6 +1888,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
+                *server->measurement_store_,
                 server->has_pending_sensor_changes_,
                 validation_error,
                 true);
@@ -1874,6 +1898,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
+            *server->measurement_store_,
             server->has_pending_sensor_changes_,
             "Unsupported sensor action.",
             true);
@@ -1885,6 +1910,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     const std::string html = renderSensorsPage(
         server->staged_sensor_config_,
         *server->sensor_manager_,
+        *server->measurement_store_,
         server->has_pending_sensor_changes_,
         action == "delete" ? "Sensor deletion staged." : "Sensor changes staged in memory.",
         false);

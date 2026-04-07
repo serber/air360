@@ -265,6 +265,18 @@ struct RuntimeOverviewViewModel {
     std::string sensor_block_html;
 };
 
+MeasurementRuntimeInfo measurementRuntimeForSensor(
+    const MeasurementStore* measurement_store,
+    std::uint32_t sensor_id) {
+    if (measurement_store == nullptr) {
+        MeasurementRuntimeInfo info;
+        info.sensor_id = sensor_id;
+        return info;
+    }
+
+    return measurement_store->runtimeInfoForSensor(sensor_id);
+}
+
 std::string renderBackendOverviewBlock(
     const std::vector<BackendStatusSnapshot>& backends,
     std::uint32_t upload_interval_ms) {
@@ -308,7 +320,9 @@ std::string renderBackendOverviewBlock(
     return html;
 }
 
-std::string renderSensorOverviewBlock(const std::vector<SensorRuntimeInfo>& sensors) {
+std::string renderSensorOverviewBlock(
+    const std::vector<SensorRuntimeInfo>& sensors,
+    const MeasurementStore* measurement_store) {
     std::string html;
     if (sensors.empty()) {
         return "<p class='muted'>No sensors configured yet.</p>";
@@ -316,7 +330,9 @@ std::string renderSensorOverviewBlock(const std::vector<SensorRuntimeInfo>& sens
 
     html += "<div class='list'>";
     for (const auto& sensor : sensors) {
-        const std::string readings_block = measurementListHtml(sensor.measurement);
+        const MeasurementRuntimeInfo measurement_runtime =
+            measurementRuntimeForSensor(measurement_store, sensor.id);
+        const std::string readings_block = measurementListHtml(measurement_runtime.measurement);
 
         std::string last_error_block;
         if (!sensor.last_error.empty()) {
@@ -333,7 +349,7 @@ std::string renderSensorOverviewBlock(const std::vector<SensorRuntimeInfo>& sens
                 {"BINDING_SUMMARY", htmlEscape(sensor.binding_summary)},
                 {"STATE_KEY", htmlEscape(sensorRuntimeStateKey(sensor.state))},
                 {"POLL_INTERVAL_MS", std::to_string(sensor.poll_interval_ms)},
-                {"QUEUED_SAMPLE_COUNT", std::to_string(sensor.queued_sample_count)},
+                {"QUEUED_SAMPLE_COUNT", std::to_string(measurement_runtime.queued_sample_count)},
                 {"READINGS_BLOCK", readings_block},
                 {"LAST_ERROR_BLOCK", last_error_block},
             });
@@ -351,6 +367,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     bool config_loaded_from_storage,
     const std::vector<SensorRuntimeInfo>& sensors,
     const std::vector<BackendStatusSnapshot>& backends,
+    const MeasurementStore* measurement_store,
     const UploadManager* upload_manager) {
     RuntimeOverviewViewModel model;
     model.network_mode = networkModeString(network_state.mode);
@@ -379,7 +396,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.backend_block_html = renderBackendOverviewBlock(
         backends,
         upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U);
-    model.sensor_block_html = renderSensorOverviewBlock(sensors);
+    model.sensor_block_html = renderSensorOverviewBlock(sensors, measurement_store);
 
     if (!network_state.last_error.empty()) {
         model.network_error_html += " · Last network error: <code>";
@@ -423,6 +440,10 @@ void StatusService::setSensors(const SensorManager& sensor_manager) {
     sensor_manager_ = &sensor_manager;
 }
 
+void StatusService::setMeasurements(const MeasurementStore& measurement_store) {
+    measurement_store_ = &measurement_store;
+}
+
 void StatusService::setUploads(const UploadManager& upload_manager) {
     upload_manager_ = &upload_manager;
 }
@@ -446,6 +467,7 @@ std::string StatusService::renderRootHtml() const {
         config_loaded_from_storage_,
         sensors,
         backends,
+        measurement_store_,
         upload_manager_);
 
     const std::string body = renderPageTemplate(
@@ -609,6 +631,8 @@ std::string StatusService::renderStatusJson() const {
     json += "\"sensors\":[";
     for (std::size_t index = 0; index < sensors.size(); ++index) {
         const auto& sensor = sensors[index];
+        const MeasurementRuntimeInfo measurement_runtime =
+            measurementRuntimeForSensor(measurement_store_, sensor.id);
         if (index > 0U) {
             json += ",";
         }
@@ -622,19 +646,25 @@ std::string StatusService::renderStatusJson() const {
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
         json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
-        json += "\"last_sample_time_ms\":" + std::to_string(sensor.last_sample_time_ms) + ",";
-        json += "\"queued_sample_count\":" + std::to_string(sensor.queued_sample_count) + ",";
+        json += "\"last_sample_time_ms\":" +
+                std::to_string(measurement_runtime.last_sample_time_ms) + ",";
+        json += "\"queued_sample_count\":" +
+                std::to_string(measurement_runtime.queued_sample_count) + ",";
         json += "\"measurements\":";
-        json += measurementArrayJson(sensor.measurement);
+        json += measurementArrayJson(measurement_runtime.measurement);
         json += ",";
         json += "\"temperature_c\":";
-        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kTemperatureC);
+        json += jsonNumberOrNull(measurement_runtime.measurement, SensorValueKind::kTemperatureC);
         json += ",\"humidity_percent\":";
-        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kHumidityPercent);
+        json += jsonNumberOrNull(
+            measurement_runtime.measurement,
+            SensorValueKind::kHumidityPercent);
         json += ",\"pressure_hpa\":";
-        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kPressureHpa);
+        json += jsonNumberOrNull(measurement_runtime.measurement, SensorValueKind::kPressureHpa);
         json += ",\"gas_resistance_ohms\":";
-        json += jsonNumberOrNull(sensor.measurement, SensorValueKind::kGasResistanceOhms);
+        json += jsonNumberOrNull(
+            measurement_runtime.measurement,
+            SensorValueKind::kGasResistanceOhms);
         json += ",";
         json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
         json += "}";
