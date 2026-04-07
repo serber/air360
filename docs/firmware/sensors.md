@@ -8,12 +8,13 @@ The sensor subsystem is designed around one central orchestrator and multiple is
 
 ## Core Model
 
-The subsystem is built from four layers:
+The subsystem is built from five layers:
 
 - persisted sensor inventory in [`../../firmware/main/include/air360/sensors/sensor_config.hpp`](../../firmware/main/include/air360/sensors/sensor_config.hpp)
 - driver interface and measurement model in [`../../firmware/main/include/air360/sensors/sensor_driver.hpp`](../../firmware/main/include/air360/sensors/sensor_driver.hpp)
 - sensor registry in [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp)
 - runtime orchestration in [`../../firmware/main/src/sensors/sensor_manager.cpp`](../../firmware/main/src/sensors/sensor_manager.cpp)
+- measurement runtime and upload queueing in [`../../firmware/main/src/uploads/measurement_store.cpp`](../../firmware/main/src/uploads/measurement_store.cpp)
 
 ## Central Orchestrator
 
@@ -27,7 +28,8 @@ This class:
 - calls `init()` during managed sensor construction
 - starts one FreeRTOS task named `air360_sensor`
 - iteratively calls `poll()` for active drivers
-- stores the latest `SensorRuntimeInfo` snapshot for the UI and `/status`
+- stores lifecycle-oriented `SensorRuntimeInfo` snapshots for the UI and `/status`
+- forwards successful readings into `MeasurementStore`
 
 The current design does not create one task per sensor.
 
@@ -42,6 +44,8 @@ Measurements are generic rather than sensor-specific.
 - the meaning of each `kind` comes from [`SensorValueKind`](../../firmware/main/include/air360/sensors/sensor_types.hpp)
 
 This lets different drivers publish different channel sets without changing the top-level status/UI model.
+
+The latest measurement payload is no longer owned by `SensorManager`. It is owned by the measurement runtime in `MeasurementStore`, which also owns the bounded upload queue.
 
 Examples:
 
@@ -198,6 +202,7 @@ This lets the UI distinguish between:
 The runtime snapshot exposed through `Overview`, `/sensors`, and `/status` also includes:
 
 - configured `poll_interval_ms`
+- latest measurement values derived from `MeasurementStore`
 - `queued_sample_count` derived from `MeasurementStore`
 
 ## Current Limitations

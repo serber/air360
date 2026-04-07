@@ -95,7 +95,7 @@ Owns Wi-Fi startup decisions:
 
 [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp)
 
-Aggregates runtime state from build info, persisted config, network state, sensor manager snapshots, and upload manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes a generic `measurements` array for every sensor plus a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
+Aggregates runtime state from build info, persisted config, network state, sensor manager snapshots, measurement store snapshots, and upload manager snapshots. It renders both the root HTML page and the `/status` JSON document. `/status` exposes a generic `measurements` array for every sensor plus a few convenience fields such as `temperature_c`, `humidity_percent`, `pressure_hpa`, and `gas_resistance_ohms` when those values exist.
 
 The current `/status` payload also includes:
 
@@ -155,10 +155,23 @@ Responsibilities:
 - initializes drivers
 - owns the background task `air360_sensor`
 - schedules iterative polling
-- stores runtime state and latest measurements
-- exposes snapshots for the UI and `/status`, including queued sample depth derived from `MeasurementStore`
+- stores lifecycle-oriented runtime state
+- forwards successful sensor readings into `MeasurementStore`
+- exposes runtime snapshots for the UI and `/status`
 
 This is the current answer to the orchestration question: the firmware uses a single central manager with one background polling task rather than one task per sensor.
+
+### MeasurementStore
+
+[`../../firmware/main/src/uploads/measurement_store.cpp`](../../firmware/main/src/uploads/measurement_store.cpp)
+
+Owns measurement runtime state:
+
+- latest measurement snapshot for each sensor
+- the bounded global pending queue
+- the inflight upload window used by `UploadManager`
+
+This means the UI-facing latest values and the upload queue no longer live inside `SensorManager`.
 
 ## HTTP And Local Control Surface
 
@@ -209,6 +222,7 @@ Implemented in the current firmware:
 - Phase 2-style onboarding through `/config`
 - Phase 3 sensor configuration through `/sensors`
 - background polling through `SensorManager`
+- measurement runtime ownership through `MeasurementStore`
 - working drivers for selected I2C, GPIO, and UART sensors
 - vendor-backed wrappers for Bosch BME280, Bosch BME680, ScioSense ENS160, Sensirion SPS30, TinyGPSPlus, and Adafruit DHT
 - a local ADC-backed `ME3-NO2` bring-up driver that currently reports raw ADC and calibrated millivolt readings for a custom analog AFE path

@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed.
+Implemented.
 
-This document records a planned architecture decision for the firmware. It is not a description of already implemented behavior.
+This document records an architecture decision that is now reflected in the firmware implementation.
 
 ## Decision Summary
 
@@ -23,15 +23,15 @@ The queue remains fixed-size. When it fills up, the oldest queued samples are dr
 
 ## Context
 
-The current firmware already has a `MeasurementStore`, but the sensor runtime still owns part of the measurement-facing state and appends directly into the upload queue from inside `SensorManager`.
+The older runtime mixed sensor lifecycle state with measurement-facing state.
 
-That creates tighter coupling than necessary between:
+That created tighter coupling than necessary between:
 
 - sensor lifecycle
 - latest values shown in the UI
 - upload queueing behavior
 
-This coupling makes future work harder than it needs to be, especially:
+That coupling made future work harder than it needed to be, especially:
 
 - live sensor reconfiguration without reboot
 - clearer queue and backlog policies
@@ -81,13 +81,13 @@ The goal is not to create a complex pipeline. The goal is to make the ownership 
 
 ### 2. A dedicated measurement runtime component should own latest values and the queue
 
-Introduce or reshape the existing measurement layer so it owns:
+The measurement layer should own:
 
 - `latest measurement` per `sensor_id`
 - `pending` queue
 - `inflight` upload window
 
-The important point is ownership, not naming. The existing `MeasurementStore` may evolve into this role rather than introducing a completely new type.
+This is now implemented by evolving the existing `MeasurementStore` into that role instead of introducing a second parallel runtime service.
 
 ### 3. Keep a single bounded queue
 
@@ -199,7 +199,7 @@ Important clarification:
 
 ## Implications For Status And UI
 
-After this separation, UI and `/status` should assemble sensor views from two sources:
+After this separation, UI and `/status` assemble sensor views from two sources:
 
 - sensor runtime state from `SensorManager`
 - latest measurement and queue state from the measurement runtime
@@ -225,13 +225,25 @@ Queued samples that were already collected for a sensor may remain in the queue 
 
 ## Recommended Refactor Direction
 
-The preferred implementation sequence is:
+The implemented sequence was:
 
 1. make the measurement runtime the owner of latest values per sensor
-2. route new sensor readings through that measurement runtime instead of pushing directly into queue logic from scattered call sites
+2. route new sensor readings through that measurement runtime
 3. remove measurement payload ownership from `SensorRuntimeInfo`
 4. update `StatusService` and UI composition to read runtime state and measurement state separately
-5. only then pursue live sensor apply without reboot
+
+## Implementation Notes
+
+The current firmware now reflects this split:
+
+- `SensorManager` owns driver lifecycle, polling, and lifecycle-oriented runtime state
+- `MeasurementStore` owns:
+  - latest measurement by `sensor_id`
+  - the global pending queue
+  - the inflight upload window
+- `StatusService` and the `/sensors` page compose sensor views from both sources
+
+This means queue policy and latest-value ownership are now decoupled from the lifetime of driver instances.
 
 ## Practical Conclusion
 

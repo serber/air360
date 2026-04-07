@@ -138,7 +138,7 @@ Confirmed routes:
 - `/`
   Runtime overview page. In setup AP mode the UI redirects this route to `/config`.
 - `/status`
-  JSON status payload with build, network, config, backend, and sensor state, including `reset_reason_label` and per-sensor queue depth.
+  JSON status payload with build, network, config, backend, and sensor state, including `reset_reason_label`, latest measurements, and per-sensor queue depth.
 - `/config`
   Device and Wi-Fi configuration form. In setup AP mode this page also consumes the scanned SSID list from `/wifi-scan`.
 - `/sensors`
@@ -173,3 +173,4 @@ idf.py -p /dev/tty.usbserial-0001 flash monitor
 - Then read [`../../firmware/main/src/web_server.cpp`](../../firmware/main/src/web_server.cpp), [`../../firmware/main/src/status_service.cpp`](../../firmware/main/src/status_service.cpp), and [`../../firmware/main/src/web_ui.cpp`](../../firmware/main/src/web_ui.cpp) for the local control surface.
 - For persistence, read [`../../firmware/main/src/config_repository.cpp`](../../firmware/main/src/config_repository.cpp) and [`../../firmware/main/src/sensors/sensor_config_repository.cpp`](../../firmware/main/src/sensors/sensor_config_repository.cpp).
 - For sensors, read [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp) before reading any concrete driver.
+- For measurement ownership and queueing, read [`../../firmware/main/src/uploads/measurement_store.cpp`](../../firmware/main/src/uploads/measurement_store.cpp).
