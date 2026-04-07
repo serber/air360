@@ -35,7 +35,7 @@ Key files and directories:
 - `firmware.code-workspace`
   VS Code workspace entry point for opening this directory as an ESP-IDF project.
 - `main/third_party/`
-  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, Adafruit DHT, Adafruit VEML7700, and the minimal Adafruit BusIO subset required by that driver.
+  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, Adafruit DHT, Adafruit VEML7700, the minimal Adafruit BusIO subset required by that driver, and a shared `arduino_compat/` shim layer reused by multiple Arduino-style upstream libraries.
 
 ### `main/`
 
@@ -87,7 +87,7 @@ Current implementation files:
 - `web_ui.cpp`
   Provides shared page-shell rendering, embedded HTML template expansion, navigation, notices, and HTML escaping for firmware pages.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection changes immediately.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them live, and persists backend selection changes immediately.
 - `webui/`
   Contains the embedded frontend files used by firmware, including shared CSS, progressive-enhancement JavaScript, and page body templates.
 - `sensors/`
@@ -370,10 +370,12 @@ Current transport model by sensor type:
 Current UI/runtime notes confirmed by the implementation:
 
 - sensor poll interval minimum is `5000 ms`
+- `Overview` now starts with a compact `Health` summary derived from time sync, sensor freshness, uplink availability, and backend health
 - the `Sensors` page and `Overview` show queued sample counts per sensor based on `MeasurementStore`
 - `Overview -> Sensors` shows the configured per-sensor poll interval
 - `Overview -> Backends` shows the configured global upload interval for all backends
 - `/status` includes both numeric `reset_reason` and string `reset_reason_label`
+- `/status` also includes `health_status`, `health_summary`, and `health_checks`
 - `DHT11`, `DHT22`, `ME3-NO2`
   Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
 
@@ -385,7 +387,7 @@ Current default I2C addresses from the registry are:
 - `SPS30`: `0x69`
 - `ENS160`: `0x52`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Light`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Light`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 
@@ -402,7 +404,7 @@ Current UI behavior of note:
 - `/config` only edits device name and station Wi-Fi credentials
 - in setup AP mode the config page also shows a scanned SSID dropdown backed by `/wifi-scan`
 - setup AP mode intentionally restricts the navigation to the `Device` section
-- the runtime overview page surfaces device identity, enabled backend summary, sensor summary, uptime, and boot count
+- the runtime overview page starts with a compact `Health` block and then surfaces device identity, enabled backend summary, sensor summary, uptime, and boot count
 
 ## Storage and Partitions
 
@@ -435,8 +437,7 @@ The current runtime depends on NVS, not on SPIFFS.
 Current limitations confirmed by the source tree:
 
 - no captive-portal DNS or wildcard DNS flow is implemented yet
-- config changes are applied by reboot rather than live reconfiguration
-- sensor changes are not applied live; they are staged in memory and only persisted when the user explicitly applies them and reboots
+- device config changes are still applied by reboot
 - the local auth flag is stored but not enforced yet and is not currently exposed in the firmware UI
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the firmware UI is still server-rendered and form-driven rather than fully API-driven

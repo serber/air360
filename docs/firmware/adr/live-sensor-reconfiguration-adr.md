@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed.
+Implemented.
 
-This document records a planned architecture decision for the firmware. It is not a description of already implemented behavior.
+This document now records an implemented architecture decision for the firmware.
 
 ## Prerequisite
 
