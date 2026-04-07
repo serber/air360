@@ -255,7 +255,7 @@ Do not expose highly sensitive identifiers more than necessary. In particular:
 
 The upload pipeline should remain structurally the same:
 
-- `SensorManager` appends samples into `MeasurementStore`
+- `SensorManager` forwards successful readings into `MeasurementStore`
 - `UploadManager` waits for a valid uplink and valid time
 - samples remain queued while the modem is offline
 - queue drains when connectivity returns

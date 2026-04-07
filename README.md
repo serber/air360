@@ -66,8 +66,12 @@ Start here depending on what you need.
   [docs/firmware/planned-device-support.md](docs/firmware/planned-device-support.md)
 - Sensor.Community opportunity roadmap:
   [docs/ecosystem/sensor-community-opportunity-roadmap.md](docs/ecosystem/sensor-community-opportunity-roadmap.md)
+- Measurement runtime ADR:
+  [docs/firmware/adr/measurement-runtime-separation-adr.md](docs/firmware/adr/measurement-runtime-separation-adr.md)
+- Live sensor reconfiguration ADR:
+  [docs/firmware/adr/live-sensor-reconfiguration-adr.md](docs/firmware/adr/live-sensor-reconfiguration-adr.md)
 - Mobile uplink ADR:
-  [docs/sim7600e-mobile-uplink-adr.md](docs/sim7600e-mobile-uplink-adr.md)
+  [docs/firmware/adr/sim7600e-mobile-uplink-adr.md](docs/firmware/adr/sim7600e-mobile-uplink-adr.md)
 - Firmware documentation map:
   [docs/firmware/README.md](docs/firmware/README.md)
 - Firmware end-user manual:

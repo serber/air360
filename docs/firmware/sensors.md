@@ -8,12 +8,13 @@ The sensor subsystem is designed around one central orchestrator and multiple is
 
 ## Core Model
 
-The subsystem is built from four layers:
+The subsystem is built from five layers:
 
 - persisted sensor inventory in [`../../firmware/main/include/air360/sensors/sensor_config.hpp`](../../firmware/main/include/air360/sensors/sensor_config.hpp)
 - driver interface and measurement model in [`../../firmware/main/include/air360/sensors/sensor_driver.hpp`](../../firmware/main/include/air360/sensors/sensor_driver.hpp)
 - sensor registry in [`../../firmware/main/src/sensors/sensor_registry.cpp`](../../firmware/main/src/sensors/sensor_registry.cpp)
 - runtime orchestration in [`../../firmware/main/src/sensors/sensor_manager.cpp`](../../firmware/main/src/sensors/sensor_manager.cpp)
+- measurement runtime and upload queueing in [`../../firmware/main/src/uploads/measurement_store.cpp`](../../firmware/main/src/uploads/measurement_store.cpp)
 
 ## Central Orchestrator
 
@@ -27,7 +28,8 @@ This class:
 - calls `init()` during managed sensor construction
 - starts one FreeRTOS task named `air360_sensor`
 - iteratively calls `poll()` for active drivers
-- stores the latest `SensorRuntimeInfo` snapshot for the UI and `/status`
+- stores lifecycle-oriented `SensorRuntimeInfo` snapshots for the UI and `/status`
+- forwards successful readings into `MeasurementStore`
 
 The current design does not create one task per sensor.
 
@@ -43,11 +45,14 @@ Measurements are generic rather than sensor-specific.
 
 This lets different drivers publish different channel sets without changing the top-level status/UI model.
 
+The latest measurement payload is no longer owned by `SensorManager`. It is owned by the measurement runtime in `MeasurementStore`, which also owns the bounded upload queue.
+
 Examples:
 
 - `BME280` publishes temperature, humidity, pressure
 - `BME680` publishes temperature, humidity, pressure, and gas resistance
 - `ENS160` publishes AQI, TVOC, and eCO2
+- `VEML7700` publishes ambient light in lux
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, speed, course, and HDOP
 - `DHT11` and `DHT22` publish temperature and humidity
 - `ME3-NO2` publishes raw ADC and calibrated millivolt readings for a custom analog AFE path
@@ -66,6 +71,7 @@ The table below uses the same category semantics and ordering as the current `/s
 | `Temperature / Humidity` | `dht11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
 | `Temperature / Humidity` | `dht22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
 | `Air Quality` | `ens160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
+| `Light` | `veml7700` | `i2c` | `illuminance_lux` | bus 0, address `0x10` |
 | `Particulate Matter` | `sps30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
 | `Location` | `gps_nmea` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed`, `course`, `hdop` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
 | `Gas` | `me3_no2` | `analog` | `adc_raw`, `voltage_mv` | one of GPIO4, GPIO5, GPIO6; default poll `5000 ms` |
@@ -123,6 +129,9 @@ Current patterns:
 - ScioSense-backed wrapper
   - `ens160_sensor.cpp`
   - vendored driver under `third_party/ens160/`
+- Adafruit-backed ambient light wrapper
+  - `veml7700_sensor.cpp`
+  - vendored driver under `third_party/adafruit_veml7700/`
 - TinyGPSPlus-backed wrapper
   - `gps_nmea_sensor.cpp`
   - vendored parser under `third_party/tinygpsplus/`
@@ -138,7 +147,7 @@ The `/sensors` page is implemented in [`../../firmware/main/src/web_server.cpp`]
 Current behavior:
 
 - organize sensors by category instead of showing one flat driver list
-- categories are currently `Climate`, `Temperature / Humidity`, `Air Quality`, `Particulate Matter`, `Location`, and `Gas`
+- categories are currently `Climate`, `Temperature / Humidity`, `Air Quality`, `Light`, `Particulate Matter`, `Location`, and `Gas`
 - treat every category except `Gas` as a single-sensor slot
 - add a new sensor from the models allowed in that category
 - edit an existing sensor
@@ -162,6 +171,8 @@ The current category-to-model mapping is:
   - `DHT22`
 - `Air Quality`
   - `ENS160`
+- `Light`
+  - `VEML7700`
 - `Particulate Matter`
   - `SPS30`
 - `Location`
@@ -198,6 +209,7 @@ This lets the UI distinguish between:
 The runtime snapshot exposed through `Overview`, `/sensors`, and `/status` also includes:
 
 - configured `poll_interval_ms`
+- latest measurement values derived from `MeasurementStore`
 - `queued_sample_count` derived from `MeasurementStore`
 
 ## Current Limitations

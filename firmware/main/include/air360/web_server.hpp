@@ -7,6 +7,7 @@
 #include "air360/status_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
+#include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "esp_err.h"
@@ -24,6 +25,7 @@ class WebServer {
         SensorConfigRepository& sensor_config_repository,
         SensorConfigList& sensor_config_list,
         SensorManager& sensor_manager,
+        MeasurementStore& measurement_store,
         BackendConfigRepository& backend_config_repository,
         BackendConfigList& backend_config_list,
         UploadManager& upload_manager,
@@ -47,6 +49,7 @@ class WebServer {
     SensorConfigRepository* sensor_config_repository_ = nullptr;
     SensorConfigList* sensor_config_list_ = nullptr;
     SensorManager* sensor_manager_ = nullptr;
+    MeasurementStore* measurement_store_ = nullptr;
     BackendConfigRepository* backend_config_repository_ = nullptr;
     BackendConfigList* backend_config_list_ = nullptr;
     UploadManager* upload_manager_ = nullptr;

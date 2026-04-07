@@ -35,7 +35,7 @@ Key files and directories:
 - `firmware.code-workspace`
   VS Code workspace entry point for opening this directory as an ESP-IDF project.
 - `main/third_party/`
-  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, and Adafruit DHT.
+  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, Adafruit DHT, Adafruit VEML7700, and the minimal Adafruit BusIO subset required by that driver.
 
 ### `main/`
 
@@ -352,6 +352,7 @@ Supported drivers confirmed by the current registry:
 
 - `BME280`
 - `BME680`
+- `VEML7700`
 - `SPS30`
 - `ENS160`
 - `GPS (NMEA)`
@@ -361,7 +362,7 @@ Supported drivers confirmed by the current registry:
 
 Current transport model by sensor type:
 
-- `BME280`, `BME680`, `SPS30`, `ENS160`
+- `BME280`, `BME680`, `VEML7700`, `SPS30`, `ENS160`
   I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
 - `GPS (NMEA)`
   UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
@@ -380,10 +381,11 @@ Current default I2C addresses from the registry are:
 
 - `BME280`: `0x76`
 - `BME680`: `0x77`
+- `VEML7700`: `0x10`
 - `SPS30`: `0x69`
 - `ENS160`: `0x52`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Light`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 

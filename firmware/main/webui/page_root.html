@@ -1,4 +1,10 @@
 <div class='stack stack--scene'>
+    <section class='panel panel--overview stack'>
+        <h2>Health</h2>
+        <div class='meta'>{{HEALTH_STATUS_PILL}}{{HEALTH_CHECKS}}</div>
+        {{HEALTH_SUMMARY_BLOCK}}
+    </section>
+
     <section class='stats'>
         <div class='stat'><div class='stat__label'>Mode</div><div class='stat__value'><code>{{NETWORK_MODE}}</code></div></div>
         <div class='stat'><div class='stat__label'>Device</div><div class='stat__value'><code>{{DEVICE_NAME}}</code></div></div>

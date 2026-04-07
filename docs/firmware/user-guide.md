@@ -190,6 +190,7 @@ Current categories:
 - `Climate`
 - `Temperature / Humidity`
 - `Air Quality`
+- `Light`
 - `Particulate Matter`
 - `Location`
 - `Gas`
@@ -204,6 +205,8 @@ Current supported models:
   - `DHT22`
 - `Air Quality`
   - `ENS160`
+- `Light`
+  - `VEML7700`
 - `Particulate Matter`
   - `SPS30`
 - `Location`
@@ -220,6 +223,7 @@ That means:
 - you can configure only one `Climate` sensor
 - only one `Temperature / Humidity` sensor
 - only one `Air Quality` sensor
+- only one `Light` sensor
 - only one `Particulate Matter` sensor
 - only one `Location` sensor
 - `Gas` can contain multiple sensors
@@ -273,6 +277,8 @@ Current default bindings:
   I2C bus 0, default address `0x77`
 - `ENS160`
   I2C bus 0, default address `0x52`
+- `VEML7700`
+  I2C bus 0, default address `0x10`
 - `SPS30`
   I2C bus 0, default address `0x69`
 - `GPS (NMEA)`

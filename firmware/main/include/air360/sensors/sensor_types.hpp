@@ -17,6 +17,7 @@ enum class SensorType : std::uint8_t {
     kSps30 = 6U,
     kEns160 = 7U,
     kMe3No2 = 8U,
+    kVeml7700 = 9U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -83,6 +84,7 @@ enum class SensorValueKind : std::uint8_t {
     kVoltageMv = 24U,
     kCourseDeg = 25U,
     kHdop = 26U,
+    kIlluminanceLux = 27U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -139,6 +141,8 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "course_deg";
         case SensorValueKind::kHdop:
             return "hdop";
+        case SensorValueKind::kIlluminanceLux:
+            return "illuminance_lux";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -199,6 +203,8 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "Course";
         case SensorValueKind::kHdop:
             return "HDOP";
+        case SensorValueKind::kIlluminanceLux:
+            return "Illuminance";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -251,6 +257,8 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "";
         case SensorValueKind::kVoltageMv:
             return "mV";
+        case SensorValueKind::kIlluminanceLux:
+            return "lux";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -286,6 +294,8 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kAdcRaw:
         case SensorValueKind::kVoltageMv:
             return 0;
+        case SensorValueKind::kIlluminanceLux:
+            return 1;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:
             return 6;

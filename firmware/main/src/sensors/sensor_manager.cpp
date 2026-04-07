@@ -188,9 +188,6 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                         managed.driver_ready = true;
                         managed.runtime.state = SensorRuntimeState::kInitialized;
                         managed.runtime.last_error.clear();
-                        managed.runtime.measurement = managed.driver->latestMeasurement();
-                        managed.runtime.last_sample_time_ms =
-                            managed.runtime.measurement.sample_time_ms;
                         managed.next_action_time_ms = now_ms;
                     } else {
                         managed.driver_ready = false;
@@ -212,9 +209,6 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                     managed.driver_ready = true;
                     managed.runtime.state = SensorRuntimeState::kInitialized;
                     managed.runtime.last_error.clear();
-                    managed.runtime.measurement = managed.driver->latestMeasurement();
-                    managed.runtime.last_sample_time_ms =
-                        managed.runtime.measurement.sample_time_ms;
                     managed.next_action_time_ms = now_ms;
                 } else {
                     managed.driver_ready = false;
@@ -265,12 +259,7 @@ std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
     std::vector<SensorRuntimeInfo> snapshot;
     snapshot.reserve(sensors_.size());
     for (const auto& sensor : sensors_) {
-        SensorRuntimeInfo runtime = sensor.runtime;
-        if (measurement_store_ != nullptr) {
-            runtime.queued_sample_count =
-                measurement_store_->queuedSampleCountForSensor(runtime.id);
-        }
-        snapshot.push_back(std::move(runtime));
+        snapshot.push_back(sensor.runtime);
     }
     unlock();
     return snapshot;
@@ -398,17 +387,12 @@ void SensorManager::taskMain() {
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
 
-            if (op_err == ESP_OK && !measurement.empty() && measurement_store_ != nullptr) {
-                const std::int64_t sample_unix_ms = currentUnixMilliseconds();
-                if (sample_unix_ms > 0) {
-                    measurement_store_->append(
-                        MeasurementSample{
-                            record.id,
-                            record.sensor_type,
-                            static_cast<std::uint64_t>(sample_unix_ms),
-                            measurement,
-                        });
-                }
+            if (op_err == ESP_OK && measurement_store_ != nullptr) {
+                measurement_store_->recordMeasurement(
+                    record.id,
+                    record.sensor_type,
+                    measurement,
+                    currentUnixMilliseconds());
             }
 
             lock();
@@ -425,8 +409,6 @@ void SensorManager::taskMain() {
 
             if (op_err == ESP_OK) {
                 sensor.driver_ready = true;
-                sensor.runtime.measurement = measurement;
-                sensor.runtime.last_sample_time_ms = measurement.sample_time_ms;
                 sensor.runtime.state = needs_init ? SensorRuntimeState::kInitialized
                                                   : SensorRuntimeState::kPolling;
                 sensor.runtime.last_error = driver_status;

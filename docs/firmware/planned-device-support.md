@@ -14,7 +14,7 @@ Status:
 
 ## Sensors
 
-The sensor table below follows the same category semantics and ordering used by the current firmware UI where possible. Categories that do not yet exist in the implemented UI, such as `Light` and `Radiation`, are listed after the current runtime categories.
+The sensor table below follows the same category semantics and ordering used by the current firmware UI where possible. Categories that do not yet exist in the implemented UI, such as `Radiation`, are listed after the current runtime categories.
 
 | Category | Device | Transport | Outputs | Priority | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -28,7 +28,6 @@ The sensor table below follows the same category semantics and ordering used by 
 | `Particulate Matter` | Plantower PMS Series | uart | `pm1_0`, `pm2_5`, `pm10_0` | high | planned | PMSx003 / PMS7003-class modules. |
 | `Light` | OPT3001 | i2c | `illuminance_lux` | medium | planned | Candidate ambient light sensor. |
 | `Light` | VEML6030 | i2c | `illuminance_lux` | medium | planned | Candidate ambient light sensor. |
-| `Light` | VEML7700 | i2c | `illuminance_lux` | medium | planned | Candidate ambient light sensor. |
 | `Light` | VEML6070 | i2c | `uv_index` or raw UV | low | planned | UV-focused, not a general ALS replacement. |
 | `Radiation` | Radiation SBM-19 | gpio / pulse | `cpm`, `radiation_level` | medium | planned | Geiger tube integration candidate. |
 | `Radiation` | Radiation SBM-20 | gpio / pulse | `cpm`, `radiation_level` | medium | planned | Geiger tube integration candidate. |
@@ -44,10 +43,9 @@ The sensor table below follows the same category semantics and ordering used by 
 
 | Device | Category | Transport | Function | Priority | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| SIM7600E | mobile uplink | uart | send data without Wi-Fi | high | planned | Preferred cellular module candidate. See [`../sim7600e-mobile-uplink-adr.md`](../sim7600e-mobile-uplink-adr.md). |
+| SIM7600E | mobile uplink | uart | send data without Wi-Fi | high | planned | Preferred cellular module candidate. See [`adr/sim7600e-mobile-uplink-adr.md`](adr/sim7600e-mobile-uplink-adr.md). |
 
 ## Light Sensor Notes
 
 - `OPT3001` or `VEML6030`: cleaner long-term choices.
-- `VEML7700`: good if module availability matters.
 - `BH1750`: easy to source, but weaker long-term choice.
