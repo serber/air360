@@ -139,6 +139,8 @@ The main sections are:
 
 `Overview` is the main runtime dashboard.
 
+![Overview page](images/firmware_overview.png)
+
 It currently shows:
 
 - network mode
@@ -170,6 +172,8 @@ Each sensor card in `Overview` shows:
 
 `Device` is for station network configuration and identity.
 
+![Device page](images/firmware_device.png)
+
 It currently allows you to edit:
 
 - `Device name`
@@ -185,6 +189,8 @@ Notes:
 ## Sensors Page
 
 `Sensors` is category-based. It does not show one flat list of low-level driver keys.
+
+![Sensors page](images/firmware_sensors.png)
 
 Current categories:
 
@@ -290,6 +296,8 @@ Current default bindings:
 For I2C sensors the current UI allows manual address override.
 
 ## Backends Page
+
+![Backends page](images/firmware_backends.png)
 
 `Backends` controls where data is uploaded.
 
