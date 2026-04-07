@@ -1,3 +1,3 @@
 #pragma once
 
-#include "../ens160/Wire.h"
+#include "../arduino_compat/Wire.h"
