@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed.
+Implemented.
 
-This document records a planned firmware architecture and UX decision. It does not describe already implemented behavior.
+This document now records an implemented firmware architecture and UX decision.
 
 ## Decision Summary
 

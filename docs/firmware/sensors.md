@@ -212,6 +212,8 @@ The runtime snapshot exposed through `Overview`, `/sensors`, and `/status` also 
 - latest measurement values derived from `MeasurementStore`
 - `queued_sample_count` derived from `MeasurementStore`
 
+`Overview` also derives a top-level `Health` summary from sensor freshness, time sync, network uplink, and backend state, but the per-sensor runtime source of truth remains the snapshot above.
+
 ## Current Limitations
 
 - Sensor config still stores several transport-specific fields directly in `SensorRecord`.

@@ -147,6 +147,7 @@ It currently shows:
 - enabled backend count
 - uptime
 - boot count
+- a compact `Health` summary
 - identity information such as chip id, MAC, chip type, current UTC date, reset reason, and IP address
 - per-backend overview cards
 - per-sensor overview cards
@@ -386,6 +387,7 @@ This means:
 
 - it is normal for uploads not to start immediately at the exact moment the web UI becomes reachable
 - `Overview` and `/status` show the current date once time is synchronized
+- `Overview` also shows a compact `Health` summary so you can quickly see whether time, sensors, uplink, and backends currently look healthy
 
 ## Typical User Flow
 

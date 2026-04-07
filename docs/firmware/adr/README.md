@@ -17,4 +17,4 @@ These documents are firmware-specific architecture decision records. Some are st
 - [`static-ip-configuration-adr.md`](static-ip-configuration-adr.md)
   Planned optional static IPv4 configuration for Wi-Fi station mode from the `Device` page.
 - [`overview-health-status-adr.md`](overview-health-status-adr.md)
-  Planned aggregated device health summary for the `Overview` page and `/status`.
+  Implemented aggregated device health summary for the `Overview` page and `/status`.

@@ -100,8 +100,16 @@ Aggregates runtime state from build info, persisted config, network state, senso
 The current `/status` payload also includes:
 
 - `reset_reason` and `reset_reason_label`
+- `health_status`, `health_summary`, and derived `health_checks`
 - per-sensor `poll_interval_ms`
 - per-sensor `queued_sample_count`
+
+The root `Overview` page now also starts with a compact `Health` section derived from the same runtime inputs. The current implementation aggregates:
+
+- time sync state
+- enabled sensor reporting freshness
+- station uplink availability
+- enabled backend health
 
 ### UploadManager
 
@@ -226,6 +234,7 @@ Implemented in the current firmware:
 - working drivers for selected I2C, GPIO, and UART sensors
 - vendor-backed wrappers for Bosch BME280, Bosch BME680, ScioSense ENS160, Sensirion SPS30, TinyGPSPlus, and Adafruit DHT
 - a vendor-backed `VEML7700` wrapper over Adafruit's library that reports illuminance in lux
+- a shared `third_party/arduino_compat/` shim layer reused by `ENS160`, `Adafruit_BusIO`, and `Adafruit_VEML7700`
 - a local ADC-backed `ME3-NO2` bring-up driver that currently reports raw ADC and calibrated millivolt readings for a custom analog AFE path
 - a generic measurement model that allows different drivers to publish different channel sets
 - local status reporting for live sensor state and measurements

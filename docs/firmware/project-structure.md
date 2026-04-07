@@ -62,6 +62,8 @@ firmware/
   `esp_http_server` wrapper for `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*`.
 - [`../../firmware/main/webui/`](../../firmware/main/webui/)
   Hand-authored frontend files embedded directly into the firmware image, including `air360.css`, `air360.js`, and page body templates.
+- [`../../firmware/main/third_party/arduino_compat/`](../../firmware/main/third_party/arduino_compat/)
+  Shared Arduino-style compatibility shims reused by multiple vendored sensor libraries.
 
 ### Public headers
 
@@ -138,7 +140,7 @@ Confirmed routes:
 - `/`
   Runtime overview page. In setup AP mode the UI redirects this route to `/config`.
 - `/status`
-  JSON status payload with build, network, config, backend, and sensor state, including `reset_reason_label`, latest measurements, and per-sensor queue depth.
+  JSON status payload with build, network, config, backend, sensor, and derived health state, including `reset_reason_label`, `health_status`, latest measurements, and per-sensor queue depth.
 - `/config`
   Device and Wi-Fi configuration form. In setup AP mode this page also consumes the scanned SSID list from `/wifi-scan`.
 - `/sensors`

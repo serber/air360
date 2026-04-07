@@ -35,7 +35,7 @@ Key files and directories:
 - `firmware.code-workspace`
   VS Code workspace entry point for opening this directory as an ESP-IDF project.
 - `main/third_party/`
-  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, Adafruit DHT, Adafruit VEML7700, and the minimal Adafruit BusIO subset required by that driver.
+  Vendored upstream sources used by sensor wrappers, currently including BME280, BME680, ENS160, SPS30, TinyGPSPlus, Adafruit DHT, Adafruit VEML7700, the minimal Adafruit BusIO subset required by that driver, and a shared `arduino_compat/` shim layer reused by multiple Arduino-style upstream libraries.
 
 ### `main/`
 
@@ -370,10 +370,12 @@ Current transport model by sensor type:
 Current UI/runtime notes confirmed by the implementation:
 
 - sensor poll interval minimum is `5000 ms`
+- `Overview` now starts with a compact `Health` summary derived from time sync, sensor freshness, uplink availability, and backend health
 - the `Sensors` page and `Overview` show queued sample counts per sensor based on `MeasurementStore`
 - `Overview -> Sensors` shows the configured per-sensor poll interval
 - `Overview -> Backends` shows the configured global upload interval for all backends
 - `/status` includes both numeric `reset_reason` and string `reset_reason_label`
+- `/status` also includes `health_status`, `health_summary`, and `health_checks`
 - `DHT11`, `DHT22`, `ME3-NO2`
   Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
 
@@ -402,7 +404,7 @@ Current UI behavior of note:
 - `/config` only edits device name and station Wi-Fi credentials
 - in setup AP mode the config page also shows a scanned SSID dropdown backed by `/wifi-scan`
 - setup AP mode intentionally restricts the navigation to the `Device` section
-- the runtime overview page surfaces device identity, enabled backend summary, sensor summary, uptime, and boot count
+- the runtime overview page starts with a compact `Health` block and then surfaces device identity, enabled backend summary, sensor summary, uptime, and boot count
 
 ## Storage and Partitions
 

@@ -16,6 +16,7 @@ The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
 - serves shared CSS, JavaScript, and page templates from embedded files under `firmware/main/webui/`
 - runs a background sensor manager for supported drivers
 - runs a background upload manager for supported remote backends
+- renders a compact `Health` summary in `Overview` and exposes the same derived state in `/status`
 
 ## Document Map
 
