@@ -9,7 +9,7 @@ These documents are firmware-specific architecture decision records. Some are st
 - [`measurement-runtime-separation-adr.md`](measurement-runtime-separation-adr.md)
   Implemented split between sensor lifecycle management and measurement runtime ownership.
 - [`live-sensor-reconfiguration-adr.md`](live-sensor-reconfiguration-adr.md)
-  Planned no-reboot sensor apply behavior built on top of the measurement/runtime split.
+  Implemented no-reboot sensor apply behavior built on top of the measurement/runtime split.
 - [`sim7600e-mobile-uplink-adr.md`](sim7600e-mobile-uplink-adr.md)
   Planned cellular uplink support using `SIM7600E`.
 - [`configurable-sntp-server-adr.md`](configurable-sntp-server-adr.md)

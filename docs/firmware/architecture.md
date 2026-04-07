@@ -137,7 +137,7 @@ Owns route registration and POST handling for:
 - `/wifi-scan`
 - `/assets/*`
 
-It also saves configuration changes and triggers `esp_restart()` after a successful device config save. Sensor config changes are staged in memory inside `WebServer`; they are persisted only when the user explicitly applies them, and that action also reboots the device.
+It also saves configuration changes and triggers `esp_restart()` after a successful device config save. Sensor config changes are staged in memory inside `WebServer`; they are persisted only when the user explicitly applies them, and that action now rebuilds the sensor runtime without rebooting the device.
 
 ### SensorConfigRepository
 
@@ -192,7 +192,7 @@ The runtime exposes local routes for overview, JSON status, device config, senso
 - `/config`
   Device and Wi-Fi configuration form.
 - `/sensors`
-  Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply and reboot` persists them. The runtime cards expose configured poll interval and queued sample count.
+  Sensor add/edit/delete flow plus current runtime sensor state. Sensor edits are staged in memory until `Apply now` persists them and rebuilds the sensor runtime live. The runtime cards expose configured poll interval and queued sample count.
 - `/backends`
   Backend enablement, upload interval, and adapter-specific backend configuration exposed by the current UI. The overview page shows the configured global backend upload interval.
 - `/wifi-scan`

@@ -244,7 +244,7 @@ Important current behavior:
 
 - sensor changes are staged in memory first
 - they are not written to NVS immediately
-- after staging, you must press `Apply and reboot`
+- after staging, you must press `Apply now`
 
 ### How To Remove Or Change A Sensor
 
@@ -255,8 +255,8 @@ For an existing sensor card:
 
 Then finish with:
 
-- `Apply and reboot`
-  Persists the staged sensor set and restarts the device
+- `Apply now`
+  Persists the staged sensor set and rebuilds the sensor runtime without rebooting the device
 - `Discard pending changes`
   Throws away staged sensor edits
 
@@ -406,7 +406,7 @@ This means:
 1. Open `Sensors`.
 2. Add the sensors you actually have connected.
 3. Stage the changes.
-4. Press `Apply and reboot`.
+4. Press `Apply now`.
 5. After reboot, check `Overview` and `Sensors` for runtime state and readings.
 
 ### Backend Setup
@@ -465,7 +465,7 @@ If `queued sample count` keeps increasing:
 ## Current Limitations
 
 - The firmware UI is local and server-rendered; there is no cloud-side device provisioning flow.
-- Sensor changes require `Apply and reboot`.
+- Sensor changes require `Apply now`.
 - Setup AP mode intentionally exposes only the `Device` page.
 - Backend upload interval is global, not per backend.
 - Sensor poll interval cannot be set below `5000 ms`.

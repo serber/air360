@@ -158,7 +158,7 @@ Current behavior:
 - expose only valid board pin options for GPIO-backed and analog-backed sensors
 - apply fixed board UART wiring for GPS
 - keep edits in a staged in-memory `SensorConfigList`
-- persist staged changes only when the user explicitly applies them and reboots
+- persist staged changes only when the user explicitly applies them
 - allow discarding the staged list without touching persisted NVS state
 
 The current category-to-model mapping is:
@@ -180,11 +180,10 @@ The current category-to-model mapping is:
 - `Gas`
   - `ME3-NO2`
 
-After `Apply and reboot`:
+After `Apply now`:
 
 - `SensorConfigRepository` persists the new list
-- the device reboots
-- startup loads the persisted list and `SensorManager::applyConfig()` rebuilds the active runtime state
+- `SensorManager::applyConfig()` rebuilds the active runtime state without rebooting the device
 - `StatusService` starts exposing the new configuration through `/` and `/status`
 
 ## Runtime States

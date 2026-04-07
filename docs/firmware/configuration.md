@@ -130,7 +130,7 @@ Important current behavior:
 - I2C-backed sensors expose an address override field in the current UI
 - GPS records are validated against fixed board UART wiring from the registry defaults
 - GPIO-backed and analog-backed sensors are constrained to the configured board sensor pins
-- sensor edits in `/sensors` are staged in memory and only persisted when the user explicitly applies them and reboots
+- sensor edits in `/sensors` are staged in memory and only persisted when the user explicitly applies them live
 - stored sensor config with an older or incompatible layout is currently replaced with defaults rather than migrated
 
 ## Runtime Backend Configuration

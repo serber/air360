@@ -87,7 +87,7 @@ Current implementation files:
 - `web_ui.cpp`
   Provides shared page-shell rendering, embedded HTML template expansion, navigation, notices, and HTML escaping for firmware pages.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them and reboots, and persists backend selection changes immediately.
+  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them live, and persists backend selection changes immediately.
 - `webui/`
   Contains the embedded frontend files used by firmware, including shared CSS, progressive-enhancement JavaScript, and page body templates.
 - `sensors/`
@@ -387,7 +387,7 @@ Current default I2C addresses from the registry are:
 - `SPS30`: `0x69`
 - `ENS160`: `0x52`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Light`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply and reboot` persists the staged list and restarts the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Temperature / Humidity`, `Air Quality`, `Light`, `Particulate Matter`, `Location`, `Gas`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 
@@ -437,8 +437,7 @@ The current runtime depends on NVS, not on SPIFFS.
 Current limitations confirmed by the source tree:
 
 - no captive-portal DNS or wildcard DNS flow is implemented yet
-- config changes are applied by reboot rather than live reconfiguration
-- sensor changes are not applied live; they are staged in memory and only persisted when the user explicitly applies them and reboots
+- device config changes are still applied by reboot
 - the local auth flag is stored but not enforced yet and is not currently exposed in the firmware UI
 - the `storage` SPIFFS partition is reserved but not mounted or used
 - the firmware UI is still server-rendered and form-driven rather than fully API-driven

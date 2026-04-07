@@ -1692,19 +1692,16 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         }
 
         *server->sensor_config_list_ = server->staged_sensor_config_;
+        server->sensor_manager_->applyConfig(*server->sensor_config_list_);
         server->has_pending_sensor_changes_ = false;
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
             *server->measurement_store_,
             server->has_pending_sensor_changes_,
-            "Sensor configuration saved. Device is rebooting now.",
+            "Sensor configuration saved and applied.",
             false);
-        esp_err_t response_err = httpd_resp_send(request, html.c_str(), html.size());
-        if (response_err == ESP_OK) {
-            scheduleRestart();
-        }
-        return response_err;
+        return httpd_resp_send(request, html.c_str(), html.size());
     } else if (action == "discard") {
         server->staged_sensor_config_ = *server->sensor_config_list_;
         server->has_pending_sensor_changes_ = false;
