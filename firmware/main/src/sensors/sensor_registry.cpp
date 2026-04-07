@@ -9,6 +9,7 @@
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
+#include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_UART_PORT
@@ -143,6 +144,29 @@ bool validateEns160Record(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x52U && record.i2c_address != 0x53U) {
         error = "ENS160 I2C address must be 0x52 or 0x53.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "VEML7700 currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id != 0U) {
+        error = "I2C bus id must be 0 for the current board wiring.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x10U) {
+        error = "VEML7700 I2C address must be 0x10.";
         return false;
     }
 
@@ -303,6 +327,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateEns160Record,
         &createEns160Sensor,
+    },
+    {
+        SensorType::kVeml7700,
+        "veml7700",
+        "VEML7700",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x10U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateVeml7700Record,
+        &createVeml7700Sensor,
     },
     {
         SensorType::kGpsNmea,

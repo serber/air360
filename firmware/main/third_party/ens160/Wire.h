@@ -26,6 +26,10 @@ class TwoWire {
         return begin();
     }
 
+    void end() {}
+
+    void setClock(std::uint32_t) {}
+
     void beginTransmission(std::uint8_t address) {
         current_address_ = address;
         tx_length_ = 0U;

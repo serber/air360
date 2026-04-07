@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "driver/gpio.h"
@@ -37,6 +38,22 @@ using word = std::uint16_t;
 
 #ifndef HEX
 #define HEX 16
+#endif
+
+#ifndef LSBFIRST
+#define LSBFIRST 0
+#endif
+
+#ifndef MSBFIRST
+#define MSBFIRST 1
+#endif
+
+#ifndef I2C_BUFFER_LENGTH
+#define I2C_BUFFER_LENGTH 32
+#endif
+
+#ifndef F
+#define F(x) x
 #endif
 
 inline unsigned long millis() {
@@ -90,7 +107,7 @@ constexpr T min(T a, T b) {
     return a < b ? a : b;
 }
 
-class SerialStub {
+class Stream {
   public:
     template <typename T>
     void print(const T&, int = 10) {}
@@ -100,5 +117,7 @@ class SerialStub {
 
     void println() {}
 };
+
+class SerialStub : public Stream {};
 
 inline SerialStub Serial{};
