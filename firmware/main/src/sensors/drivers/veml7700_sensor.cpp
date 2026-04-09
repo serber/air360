@@ -30,12 +30,6 @@ esp_err_t Veml7700Sensor::init(
         return ESP_ERR_INVALID_STATE;
     }
 
-    const esp_err_t probe_err = i2c_bus_manager_->probe(record_.i2c_bus_id, record_.i2c_address);
-    if (probe_err != ESP_OK) {
-        setError("VEML7700 probe failed on the selected I2C bus and address.");
-        return probe_err;
-    }
-
     wire_ = std::make_unique<::TwoWire>();
     wire_->attach(i2c_bus_manager_, record_.i2c_bus_id);
 

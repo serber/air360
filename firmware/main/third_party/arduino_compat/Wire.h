@@ -60,8 +60,14 @@ class TwoWire {
     }
 
     std::uint8_t endTransmission(bool = true) {
-        if (manager_ == nullptr || tx_length_ == 0U) {
+        if (manager_ == nullptr) {
             return 4U;
+        }
+
+        if (tx_length_ == 0U) {
+            pending_register_valid_ = false;
+            const esp_err_t err = manager_->probe(bus_id_, current_address_);
+            return err == ESP_OK ? 0U : 4U;
         }
 
         if (tx_length_ == 1U) {
