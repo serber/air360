@@ -8,6 +8,7 @@
 #include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/ens160_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
+#include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
@@ -192,6 +193,29 @@ bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x10U) {
         error = "VEML7700 I2C address must be 0x10.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateHtu2xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "HTU2X currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id != 0U) {
+        error = "I2C bus id must be 0 for the current board wiring.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x40U) {
+        error = "HTU2X I2C address must be 0x40.";
         return false;
     }
 
@@ -486,6 +510,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateDs18b20Record,
         &createDs18b20Sensor,
+    },
+    {
+        SensorType::kHtu2x,
+        "htu2x",
+        "HTU2X",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x40U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateHtu2xRecord,
+        &createHtu2xSensor,
     },
     {
         SensorType::kMe3No2,

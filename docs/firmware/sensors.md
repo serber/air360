@@ -57,6 +57,7 @@ Examples:
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, speed, course, and HDOP
 - `DHT11` and `DHT22` publish temperature and humidity
 - `DS18B20` publishes temperature
+- `HTU2X` publishes temperature and humidity
 - `ME3-NO2` publishes raw ADC and calibrated millivolt readings for a custom analog AFE path
 - `SPS30` publishes PM mass, number concentration, and particle size channels
 
@@ -73,6 +74,7 @@ The table below uses the same category semantics and ordering as the current `/s
 | `Temperature / Humidity` | `dht11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
 | `Temperature / Humidity` | `dht22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
 | `Temperature / Humidity` | `ds18b20` | `gpio / 1-wire` | `temperature` | one of GPIO4, GPIO5, GPIO6; single DS18B20 per bus; min poll `5000 ms` |
+| `Temperature / Humidity` | `htu2x` | `i2c` | `temperature`, `humidity` | bus 0, address `0x40`; min poll `5000 ms` |
 | `Air Quality` | `ens160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
 | `Air Quality` | `scd30` | `i2c` | `co2_ppm`, `temperature`, `humidity` | bus 0, address `0x61`; min poll `5000 ms` |
 | `Light` | `veml7700` | `i2c` | `illuminance_lux` | bus 0, address `0x10` |
@@ -124,6 +126,9 @@ Current patterns:
 - ESP Component Registry-backed wrapper
   - `ds18b20_sensor.cpp`
   - managed components `espressif/ds18b20` and `espressif/onewire_bus`
+- ESP Component Registry-backed temp/humidity wrapper
+  - `htu2x_sensor.cpp`
+  - managed component `esp-idf-lib/si7021`
 - ESP Component Registry-backed CO2 wrapper
   - `scd30_sensor.cpp`
   - managed component `esp-idf-lib/scd30`
@@ -180,6 +185,7 @@ The current category-to-model mapping is:
   - `DHT11`
   - `DHT22`
   - `DS18B20`
+  - `HTU2X`
 - `Air Quality`
   - `ENS160`
   - `SCD30`
