@@ -55,6 +55,7 @@ Examples:
 - `VEML7700` publishes ambient light in lux
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, speed, course, and HDOP
 - `DHT11` and `DHT22` publish temperature and humidity
+- `DS18B20` publishes temperature
 - `ME3-NO2` publishes raw ADC and calibrated millivolt readings for a custom analog AFE path
 - `SPS30` publishes PM mass, number concentration, and particle size channels
 
@@ -70,6 +71,7 @@ The table below uses the same category semantics and ordering as the current `/s
 | `Climate` | `bme680` | `i2c` | `temperature`, `humidity`, `pressure`, `gas_resistance` | bus 0, address `0x77` |
 | `Temperature / Humidity` | `dht11` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
 | `Temperature / Humidity` | `dht22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
+| `Temperature / Humidity` | `ds18b20` | `gpio / 1-wire` | `temperature` | one of GPIO4, GPIO5, GPIO6; single DS18B20 per bus; min poll `5000 ms` |
 | `Air Quality` | `ens160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
 | `Light` | `veml7700` | `i2c` | `illuminance_lux` | bus 0, address `0x10` |
 | `Particulate Matter` | `sps30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
@@ -117,6 +119,9 @@ Current patterns:
 - Adafruit-backed wrapper
   - `dht_sensor.cpp`
   - vendored driver under `third_party/adafruit_dht/`
+- ESP Component Registry-backed wrapper
+  - `ds18b20_sensor.cpp`
+  - managed components `espressif/ds18b20` and `espressif/onewire_bus`
 - local ADC-backed driver
   - `me3_no2_sensor.cpp`
 - Bosch-backed wrappers
@@ -169,6 +174,7 @@ The current category-to-model mapping is:
 - `Temperature / Humidity`
   - `DHT11`
   - `DHT22`
+  - `DS18B20`
 - `Air Quality`
   - `ENS160`
 - `Light`

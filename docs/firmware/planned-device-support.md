@@ -22,7 +22,6 @@ The sensor table below follows the same category semantics and ordering used by 
 | `Climate` | BMP180 | i2c | `temperature`, `pressure` | low | planned | Older Bosch pressure sensor. |
 | `Temperature / Humidity` | SHT3x | i2c | `temperature`, `humidity` | high | planned | Strong candidate for temp/humidity support. |
 | `Temperature / Humidity` | HTU21D | i2c | `temperature`, `humidity` | medium | planned | Environmental sensor candidate. |
-| `Temperature / Humidity` | DS18B20 | gpio / 1-wire | `temperature` | medium | planned | Simple external temperature probe. |
 | `Air Quality` | CCS811 | i2c | `tvoc`, `eco2` | medium | planned | Same class of outputs as ENS160. |
 | `Air Quality` | SCD30 | i2c | `co2_ppm`, `temperature`, `humidity` | high | planned | Important CO2-class sensor candidate. |
 | `Particulate Matter` | Plantower PMS Series | uart | `pm1_0`, `pm2_5`, `pm10_0` | high | planned | PMSx003 / PMS7003-class modules. |

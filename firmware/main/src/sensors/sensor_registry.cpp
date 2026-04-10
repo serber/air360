@@ -5,6 +5,7 @@
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
+#include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/ens160_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
@@ -231,6 +232,26 @@ bool validateDht22Record(const SensorRecord& record, std::string& error) {
     return validateDhtRecord(record, error, 2000U);
 }
 
+bool validateDs18b20Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kGpio) {
+        error = "DS18B20 currently supports only GPIO / 1-Wire transport.";
+        return false;
+    }
+
+    if (record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_0 &&
+        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_1 &&
+        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_2) {
+        error = "GPIO pin must match one of the board sensor GPIO slots.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -403,6 +424,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateDht22Record,
         &createDht22Sensor,
+    },
+    {
+        SensorType::kDs18b20,
+        "ds18b20",
+        "DS18B20",
+        false,
+        false,
+        false,
+        true,
+        true,
+        5000U,
+        0U,
+        0x00U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateDs18b20Record,
+        &createDs18b20Sensor,
     },
     {
         SensorType::kMe3No2,

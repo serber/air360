@@ -19,6 +19,7 @@ idf_component_register(
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
+        "src/sensors/drivers/ds18b20_sensor.cpp"
         "src/sensors/drivers/ens160_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
@@ -60,6 +61,8 @@ idf_component_register(
         esp_http_server
         esp_driver_i2c
         esp_driver_uart
+        espressif__ds18b20
+        espressif__onewire_bus
         esp_adc
         efuse
         esp_psram

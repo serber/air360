@@ -109,6 +109,15 @@ bool mapMeasurement(
                 default:
                     return false;
             }
+        case SensorType::kDs18b20:
+            out_pin = 7U;
+            switch (point.value_kind) {
+                case SensorValueKind::kTemperatureC:
+                    out_value_type = "temperature";
+                    return true;
+                default:
+                    return false;
+            }
         case SensorType::kGpsNmea:
             out_pin = 9U;
             switch (point.value_kind) {

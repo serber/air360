@@ -58,6 +58,8 @@ const char* sensorTypeKey(SensorType type) {
             return "dht11";
         case SensorType::kDht22:
             return "dht22";
+        case SensorType::kDs18b20:
+            return "ds18b20";
         case SensorType::kBme680:
             return "bme680";
         case SensorType::kSps30:

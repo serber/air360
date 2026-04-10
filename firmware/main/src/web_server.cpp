@@ -560,6 +560,7 @@ constexpr SensorType kClimateSensorTypes[] = {
 constexpr SensorType kTemperatureHumiditySensorTypes[] = {
     SensorType::kDht11,
     SensorType::kDht22,
+    SensorType::kDs18b20,
 };
 
 constexpr SensorType kAirQualitySensorTypes[] = {
@@ -655,6 +656,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
             return SensorCategory::kClimate;
         case SensorType::kDht11:
         case SensorType::kDht22:
+        case SensorType::kDs18b20:
             return SensorCategory::kTemperatureHumidity;
         case SensorType::kEns160:
             return SensorCategory::kAirQuality;
@@ -834,6 +836,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         case SensorType::kDht11:
         case SensorType::kDht22:
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
+        case SensorType::kDs18b20:
+            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6). Uses the official ESP 1-Wire DS18B20 driver and expects a single probe on that bus.";
         case SensorType::kMe3No2:
             return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6). Current driver reports raw ADC and calibrated voltage.";
         case SensorType::kUnknown:
