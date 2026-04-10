@@ -21,6 +21,7 @@ enum class SensorType : std::uint8_t {
     kDs18b20 = 10U,
     kScd30 = 11U,
     kHtu2x = 12U,
+    kSht4x = 13U,
 };
 
 enum class TransportKind : std::uint8_t {

@@ -2,3 +2,4 @@ dependencies:
   espressif/ds18b20: "0.3.1"
   esp-idf-lib/scd30: "1.0.12"
   esp-idf-lib/si7021: "1.0.8"
+  esp-idf-lib/sht4x: "1.0.7"

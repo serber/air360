@@ -562,6 +562,7 @@ constexpr SensorType kTemperatureHumiditySensorTypes[] = {
     SensorType::kDht22,
     SensorType::kDs18b20,
     SensorType::kHtu2x,
+    SensorType::kSht4x,
 };
 
 constexpr SensorType kAirQualitySensorTypes[] = {
@@ -660,6 +661,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kDht22:
         case SensorType::kDs18b20:
         case SensorType::kHtu2x:
+        case SensorType::kSht4x:
             return SensorCategory::kTemperatureHumidity;
         case SensorType::kEns160:
         case SensorType::kScd30:
@@ -846,6 +848,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6). Uses the official ESP 1-Wire DS18B20 driver and expects a single probe on that bus.";
         case SensorType::kHtu2x:
             return "Defaults: I2C bus 0 at address 0x40. Uses the esp-idf-lib SI7021 driver for HTU2x-compatible sensors.";
+        case SensorType::kSht4x:
+            return "Defaults: I2C bus 0 at address 0x44. Uses the esp-idf-lib SHT4X driver for Sensirion SHT40/SHT41/SHT45 sensors.";
         case SensorType::kMe3No2:
             return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6). Current driver reports raw ADC and calibrated voltage.";
         case SensorType::kUnknown:

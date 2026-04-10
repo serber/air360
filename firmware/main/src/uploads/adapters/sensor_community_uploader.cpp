@@ -173,6 +173,7 @@ bool mapMeasurement(
         case SensorType::kEns160:
         case SensorType::kScd30:
         case SensorType::kHtu2x:
+        case SensorType::kSht4x:
         case SensorType::kMe3No2:
         case SensorType::kVeml7700:
         default:

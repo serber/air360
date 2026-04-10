@@ -11,6 +11,7 @@
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
+#include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
@@ -216,6 +217,29 @@ bool validateHtu2xRecord(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x40U) {
         error = "HTU2X I2C address must be 0x40.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "SHT4X currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id != 0U) {
+        error = "I2C bus id must be 0 for the current board wiring.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x44U) {
+        error = "SHT4X I2C address must be 0x44.";
         return false;
     }
 
@@ -529,6 +553,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateHtu2xRecord,
         &createHtu2xSensor,
+    },
+    {
+        SensorType::kSht4x,
+        "sht4x",
+        "SHT4X",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x44U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateSht4xRecord,
+        &createSht4xSensor,
     },
     {
         SensorType::kMe3No2,
