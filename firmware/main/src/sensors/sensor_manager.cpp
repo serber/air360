@@ -387,7 +387,7 @@ void SensorManager::taskMain() {
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
 
-            if (op_err == ESP_OK && measurement_store_ != nullptr) {
+            if (op_err == ESP_OK && !measurement.empty() && measurement_store_ != nullptr) {
                 measurement_store_->recordMeasurement(
                     record.id,
                     record.sensor_type,

@@ -171,6 +171,7 @@ bool mapMeasurement(
             }
         case SensorType::kUnknown:
         case SensorType::kEns160:
+        case SensorType::kScd30:
         case SensorType::kMe3No2:
         case SensorType::kVeml7700:
         default:

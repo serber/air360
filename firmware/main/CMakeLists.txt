@@ -23,6 +23,7 @@ idf_component_register(
         "src/sensors/drivers/ens160_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
+        "src/sensors/drivers/scd30_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
         "src/sensors/drivers/veml7700_sensor.cpp"
@@ -61,6 +62,7 @@ idf_component_register(
         esp_http_server
         esp_driver_i2c
         esp_driver_uart
+        esp-idf-lib__scd30
         espressif__ds18b20
         espressif__onewire_bus
         esp_adc

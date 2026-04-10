@@ -52,6 +52,7 @@ Examples:
 - `BME280` publishes temperature, humidity, pressure
 - `BME680` publishes temperature, humidity, pressure, and gas resistance
 - `ENS160` publishes AQI, TVOC, and eCO2
+- `SCD30` publishes CO2, temperature, and humidity
 - `VEML7700` publishes ambient light in lux
 - `GPS (NMEA)` publishes latitude, longitude, altitude, satellites, speed, course, and HDOP
 - `DHT11` and `DHT22` publish temperature and humidity
@@ -73,6 +74,7 @@ The table below uses the same category semantics and ordering as the current `/s
 | `Temperature / Humidity` | `dht22` | `gpio` | `temperature`, `humidity` | one of GPIO4, GPIO5, GPIO6; min poll `5000 ms` |
 | `Temperature / Humidity` | `ds18b20` | `gpio / 1-wire` | `temperature` | one of GPIO4, GPIO5, GPIO6; single DS18B20 per bus; min poll `5000 ms` |
 | `Air Quality` | `ens160` | `i2c` | `aqi`, `tvoc`, `eco2` | bus 0, address `0x52` |
+| `Air Quality` | `scd30` | `i2c` | `co2_ppm`, `temperature`, `humidity` | bus 0, address `0x61`; min poll `5000 ms` |
 | `Light` | `veml7700` | `i2c` | `illuminance_lux` | bus 0, address `0x10` |
 | `Particulate Matter` | `sps30` | `i2c` | PM mass, number concentration, particle size | bus 0, address `0x69` |
 | `Location` | `gps_nmea` | `uart` | `latitude`, `longitude`, `altitude`, `satellites`, `speed`, `course`, `hdop` | UART1, RX GPIO44, TX GPIO43, default `9600` baud |
@@ -122,6 +124,9 @@ Current patterns:
 - ESP Component Registry-backed wrapper
   - `ds18b20_sensor.cpp`
   - managed components `espressif/ds18b20` and `espressif/onewire_bus`
+- ESP Component Registry-backed CO2 wrapper
+  - `scd30_sensor.cpp`
+  - managed component `esp-idf-lib/scd30`
 - local ADC-backed driver
   - `me3_no2_sensor.cpp`
 - Bosch-backed wrappers
@@ -177,6 +182,7 @@ The current category-to-model mapping is:
   - `DS18B20`
 - `Air Quality`
   - `ENS160`
+  - `SCD30`
 - `Light`
   - `VEML7700`
 - `Particulate Matter`

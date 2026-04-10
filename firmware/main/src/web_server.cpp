@@ -565,6 +565,7 @@ constexpr SensorType kTemperatureHumiditySensorTypes[] = {
 
 constexpr SensorType kAirQualitySensorTypes[] = {
     SensorType::kEns160,
+    SensorType::kScd30,
 };
 
 constexpr SensorType kLightSensorTypes[] = {
@@ -659,6 +660,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kDs18b20:
             return SensorCategory::kTemperatureHumidity;
         case SensorType::kEns160:
+        case SensorType::kScd30:
             return SensorCategory::kAirQuality;
         case SensorType::kVeml7700:
             return SensorCategory::kLight;
@@ -819,6 +821,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
         case SensorType::kEns160:
             return "Defaults: I2C bus 0, currently address 0x52. The driver also probes 0x53 as a fallback.";
+        case SensorType::kScd30:
+            return "Defaults: I2C bus 0 at address 0x61. Reports CO2, temperature, and humidity.";
         case SensorType::kVeml7700:
             return "Defaults: I2C bus 0 at address 0x10. Reports ambient light in lux.";
         case SensorType::kGpsNmea: {

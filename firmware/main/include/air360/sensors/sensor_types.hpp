@@ -19,6 +19,7 @@ enum class SensorType : std::uint8_t {
     kMe3No2 = 8U,
     kVeml7700 = 9U,
     kDs18b20 = 10U,
+    kScd30 = 11U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -81,11 +82,12 @@ enum class SensorValueKind : std::uint8_t {
     kAqi = 20U,
     kTvocPpb = 21U,
     kEco2Ppm = 22U,
-    kAdcRaw = 23U,
-    kVoltageMv = 24U,
-    kCourseDeg = 25U,
-    kHdop = 26U,
-    kIlluminanceLux = 27U,
+    kCo2Ppm = 23U,
+    kAdcRaw = 24U,
+    kVoltageMv = 25U,
+    kCourseDeg = 26U,
+    kHdop = 27U,
+    kIlluminanceLux = 28U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -134,6 +136,8 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "tvoc_ppb";
         case SensorValueKind::kEco2Ppm:
             return "eco2_ppm";
+        case SensorValueKind::kCo2Ppm:
+            return "co2_ppm";
         case SensorValueKind::kAdcRaw:
             return "adc_raw";
         case SensorValueKind::kVoltageMv:
@@ -196,6 +200,8 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "TVOC";
         case SensorValueKind::kEco2Ppm:
             return "eCO2";
+        case SensorValueKind::kCo2Ppm:
+            return "CO2";
         case SensorValueKind::kAdcRaw:
             return "ADC raw";
         case SensorValueKind::kVoltageMv:
@@ -253,6 +259,7 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
         case SensorValueKind::kTvocPpb:
             return "ppb";
         case SensorValueKind::kEco2Ppm:
+        case SensorValueKind::kCo2Ppm:
             return "ppm";
         case SensorValueKind::kAdcRaw:
             return "";
@@ -292,6 +299,7 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kAqi:
         case SensorValueKind::kTvocPpb:
         case SensorValueKind::kEco2Ppm:
+        case SensorValueKind::kCo2Ppm:
         case SensorValueKind::kAdcRaw:
         case SensorValueKind::kVoltageMv:
             return 0;
