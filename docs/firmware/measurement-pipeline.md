@@ -41,6 +41,8 @@ For each sensor due for action:
 | `driver_ready == false` | Call `driver->init(record, context)` |
 | `driver_ready == true` | Call `driver->poll()` |
 
+Drivers access hardware exclusively through `SensorDriverContext`, which carries `I2cBusManager` and `UartPortManager` references. See [transport-binding.md](transport-binding.md) for bus initialisation, transfer API, and per-transport constants.
+
 ### After `init()`
 
 - On success: `driver_ready = true`, state → `kInitialized`, `next_action_time_ms = now` (poll immediately on the next loop iteration)
@@ -222,6 +224,8 @@ After uploading to all enabled backends:
 
 If a backend fails, the **same 32 samples** will be retried on the next upload cycle. This guarantees at-least-once delivery per sample, at the cost of potential duplicates if a backend accepted the data but the response was lost.
 
+How each backend converts a `MeasurementBatch` into HTTP requests and classifies the response is covered in [upload-adapters.md](upload-adapters.md).
+
 ---
 
 ## Upload cycle timing
@@ -246,6 +250,8 @@ A measurement is silently dropped from the upload queue (but still updates the U
 
 - `currentUnixMilliseconds()` returns `<= 0` — SNTP has not synchronized yet
 - `measurement.empty()` — the driver returned no values (e.g., SCD30 waiting for first sample)
+
+For how SNTP synchronisation works and how time validity is determined, see [time.md](time.md).
 
 ---
 

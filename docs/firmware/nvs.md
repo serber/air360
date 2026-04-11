@@ -223,3 +223,7 @@ esptool.py --port <PORT> erase_region 0x9000 0x6000
 ```
 
 On next boot the firmware writes fresh defaults for all three blobs and resets the boot counter.
+
+---
+
+For field-level details, valid ranges, and validation rules enforced on save, see [configuration-reference.md](configuration-reference.md).

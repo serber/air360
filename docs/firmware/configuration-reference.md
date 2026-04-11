@@ -20,7 +20,7 @@ All three are loaded at boot step 4–6, validated, and replaced with compiled-i
 
 ## How to change configuration
 
-Configuration is changed through the embedded web UI served on port 80, or via the HTTP API used by the web UI. The three pages map directly to the three domains:
+Configuration is changed through the embedded web UI served on port 80, or via the HTTP API used by the web UI (see [web-ui.md](web-ui.md)). The three pages map directly to the three domains:
 
 | Web UI page | Domain |
 |-------------|--------|

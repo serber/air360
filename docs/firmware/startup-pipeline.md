@@ -115,7 +115,7 @@ Both calls are idempotent (already-initialized is not an error). Failure is **fa
 
 ### Step 4 — Load or create device config
 
-`ConfigRepository::loadOrCreate()` reads the `device_cfg` blob from NVS (namespace `"air360"`). If not found, or if magic/version/size validation fails, factory defaults are written and used.
+`ConfigRepository::loadOrCreate()` reads the `device_cfg` blob from NVS (namespace `"air360"`). If not found, or if magic/version/size validation fails, factory defaults are written and used. See [configuration-reference.md](configuration-reference.md) for field defaults and validation rules, and [nvs.md](nvs.md) for the blob format and integrity guard pattern.
 
 After loading:
 - `StatusService` is updated with the loaded config, boot source, and boot count
@@ -177,6 +177,8 @@ Network failures at this step are **non-fatal** — the device continues booting
 
 `StatusService` is updated with the current network state.
 
+The full connection sequence, event handler lifecycle, SNTP synchronisation logic, and state transition diagram are in [network-manager.md](network-manager.md).
+
 ---
 
 ### Step 8 — Start upload manager + apply backend config
@@ -187,6 +189,8 @@ Two calls:
 2. `UploadManager::applyConfig(backend_config_list)` — configures the backends list
 
 > **`air360_upload` task is spawned here** — it begins running its upload cycle independently.
+
+The full pipeline — queue mechanics, upload window, batch assembly, acknowledge/restore cycle — is in [measurement-pipeline.md](measurement-pipeline.md).
 
 `StatusService` is updated with the upload manager reference.
 

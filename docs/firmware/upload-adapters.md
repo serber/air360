@@ -247,7 +247,7 @@ Any other HTTP status → `kHttpError`.
 
 ## Transport layer
 
-Both adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`:
+Both adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
 
 - HTTP client: `esp_http_client` with CRT bundle (TLS capable)
 - Timeout: 15 000 ms per request

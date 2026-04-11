@@ -38,7 +38,7 @@ struct NetworkState {
 
 ## Boot-time network selection (step 7/9)
 
-`App::run()` calls `NetworkManager` once during initialisation:
+`App::run()` calls `NetworkManager` once during boot step 7 of the 9-step startup sequence (see [startup-pipeline.md](startup-pipeline.md)):
 
 ```
 Station SSID in NVS?
@@ -146,6 +146,8 @@ Duplicate SSIDs (multiple BSSIDs with the same name) are deduplicated — only t
 ---
 
 ## Time synchronisation
+
+> A full reference for both time domains (uptime vs Unix), the validity threshold, and all places in the system that gate on valid time is in [time.md](time.md). This section covers only the SNTP mechanics inside `NetworkManager`.
 
 ### `synchronizeTime()` (called internally)
 

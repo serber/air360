@@ -59,7 +59,7 @@ Displays a read-only dashboard. Refreshed on every page load (no auto-refresh).
 
 ## Page: Device Configuration (`/config`)
 
-Form for network credentials and device identity. Accessible in all network modes (including setup AP).
+Form for network credentials and device identity. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
 
 **Fields:**
 
@@ -81,7 +81,7 @@ In `kSetupAp` mode, the SSID field also shows a **network selector** dropdown po
 
 ## Page: Sensor Configuration (`/sensors`)
 
-Sensor edits use a **two-phase staged commit** pattern:
+Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-sensor address rules, and poll interval ranges are in [configuration-reference.md](configuration-reference.md#sensor-configuration-sensor_cfg).
 
 1. Each form action (`add`, `update`, `delete`) modifies an in-memory **staged config** (`staged_sensor_config_`) and sets `has_pending_sensor_changes_ = true`. Nothing is written to NVS yet.
 2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes take effect immediately without a reboot.

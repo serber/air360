@@ -48,7 +48,7 @@ Each poll cycle:
 
 ## HAL adapter
 
-SPS30 communicates through the Sensirion vendor I2C HAL, adapted in `sensirion_i2c_hal.cpp`. The HAL translates `sensirion_i2c_hal_read/write` calls into `I2cBusManager::readRaw/writeRaw`. Delays use `vTaskDelay` for ≥ 1 ms and `esp_rom_delay_us` for < 1 ms.
+SPS30 communicates through the Sensirion vendor I2C HAL, adapted in `sensirion_i2c_hal.cpp`. The HAL translates `sensirion_i2c_hal_read/write` calls into `I2cBusManager::readRaw/writeRaw`. Delays use `vTaskDelay` for ≥ 1 ms and `esp_rom_delay_us` for < 1 ms. The `getComponentBus()` method is used to obtain the legacy `i2c_bus_handle_t` required by the Sensirion HAL — see [transport-binding.md](../transport-binding.md) for details.
 
 ## Recommended poll interval
 
