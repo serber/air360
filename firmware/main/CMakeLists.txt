@@ -27,9 +27,6 @@ idf_component_register(
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
         "src/sensors/drivers/veml7700_sensor.cpp"
-        "third_party/adafruit_dht/DHT.cpp"
-        "third_party/adafruit_busio/Adafruit_I2CDevice.cpp"
-        "third_party/adafruit_busio/Adafruit_BusIO_Register.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
@@ -41,8 +38,6 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
         "third_party/sps30"
-        "third_party/adafruit_dht"
-        "third_party/adafruit_busio"
     REQUIRES
         esp_app_format
         esp_common
@@ -53,6 +48,7 @@ idf_component_register(
         esp_driver_i2c
         esp_driver_uart
         esp-idf-lib__bme680
+        esp-idf-lib__dht
         esp-idf-lib__scd30
         esp-idf-lib__sht4x
         esp-idf-lib__si7021

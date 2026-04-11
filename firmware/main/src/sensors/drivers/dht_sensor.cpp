@@ -5,10 +5,18 @@
 #include <memory>
 #include <string>
 
-#include "DHT.h"
+#include "esp_err.h"
 #include "esp_timer.h"
 
 namespace air360 {
+
+namespace {
+
+dht_sensor_type_t toComponentType(DhtModel model) {
+    return model == DhtModel::kDht11 ? DHT_TYPE_DHT11 : DHT_TYPE_AM2301;
+}
+
+}  // namespace
 
 DhtSensor::DhtSensor(DhtModel model) : model_(model) {}
 
@@ -21,7 +29,6 @@ SensorType DhtSensor::type() const {
 esp_err_t DhtSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     static_cast<void>(context);
     record_ = record;
-    sensor_.reset();
     measurement_.clear();
     last_error_.clear();
     initialized_ = false;
@@ -31,16 +38,6 @@ esp_err_t DhtSensor::init(const SensorRecord& record, const SensorDriverContext&
         return ESP_ERR_INVALID_ARG;
     }
 
-    const std::uint8_t dht_type = model_ == DhtModel::kDht11 ? DHT11 : DHT22;
-    sensor_ = std::make_unique<DHT>(
-        static_cast<std::uint8_t>(record_.analog_gpio_pin),
-        dht_type);
-    if (sensor_ == nullptr) {
-        setError("Failed to allocate DHT driver.");
-        return ESP_ERR_NO_MEM;
-    }
-
-    sensor_->begin();
     initialized_ = true;
     return ESP_OK;
 }
@@ -51,22 +48,21 @@ esp_err_t DhtSensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (sensor_ == nullptr) {
-        setError("DHT driver is unavailable.");
+    float humidity_percent = NAN;
+    float temperature_c = NAN;
+    const esp_err_t err = dht_read_float_data(
+        toComponentType(model_),
+        static_cast<gpio_num_t>(record_.analog_gpio_pin),
+        &humidity_percent,
+        &temperature_c);
+    if (err != ESP_OK) {
+        setError(std::string("Failed to read DHT sample: ") + esp_err_to_name(err) + ".");
         initialized_ = false;
-        return ESP_ERR_INVALID_STATE;
+        return err;
     }
 
-    if (!sensor_->read()) {
-        setError("Failed to read DHT frame.");
-        initialized_ = false;
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    const float temperature_c = sensor_->readTemperature(false, false);
-    const float humidity_percent = sensor_->readHumidity(false);
     if (std::isnan(temperature_c) || std::isnan(humidity_percent)) {
-        setError("Adafruit DHT library returned invalid values.");
+        setError("DHT component returned invalid values.");
         initialized_ = false;
         return ESP_ERR_INVALID_RESPONSE;
     }

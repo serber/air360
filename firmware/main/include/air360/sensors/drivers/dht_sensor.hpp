@@ -1,11 +1,11 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
-
-class DHT;
+#include "dht.h"
 
 namespace air360 {
 
@@ -32,7 +32,6 @@ class DhtSensor final : public SensorDriver {
 
     DhtModel model_;
     SensorRecord record_{};
-    std::unique_ptr<DHT> sensor_;
     SensorMeasurement measurement_{};
     std::string last_error_;
     bool initialized_ = false;
