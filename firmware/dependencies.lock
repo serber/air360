@@ -1,4 +1,21 @@
 dependencies:
+  cinderblocks/esp_tinygpsplusplus:
+    component_hash: 4dd01357b3536696b0e3132dd68cbbd9a41536f9618cb65eec9c86efaedab76f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s3
+    - esp32s2
+    - esp32
+    - esp32c3
+    - esp32c6
+    - esp32h2
+    version: 1.1.1
   esp-idf-lib/bme680:
     component_hash: a1fe811e9ff6143a738222a543087a726883ab35aff340afa60347ff837a2dca
     dependencies:
@@ -237,6 +254,7 @@ dependencies:
       type: idf
     version: 6.0.0
 direct_dependencies:
+- cinderblocks/esp_tinygpsplusplus
 - esp-idf-lib/bme680
 - esp-idf-lib/scd30
 - esp-idf-lib/sht4x
@@ -244,6 +262,6 @@ direct_dependencies:
 - esp-idf-lib/veml7700
 - espressif/bme280
 - espressif/ds18b20
-manifest_hash: 3a424a0fc884a5611aba60f758c8e02369eaaf38b8cd1abd76d12bb0c3fea145
+manifest_hash: f1ccd23cfe75feb01cdbc1b7a9874cbe833479d9fc3948023829aa104f684436
 target: esp32s3
 version: 3.0.0

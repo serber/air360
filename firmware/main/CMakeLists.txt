@@ -33,7 +33,6 @@ idf_component_register(
         "third_party/adafruit_busio/Adafruit_I2CDevice.cpp"
         "third_party/adafruit_busio/Adafruit_BusIO_Register.cpp"
         "third_party/ens160/ScioSense_ENS160.cpp"
-        "third_party/tinygpsplus/TinyGPS++.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
@@ -48,7 +47,6 @@ idf_component_register(
         "third_party/adafruit_dht"
         "third_party/adafruit_busio"
         "third_party/ens160"
-        "third_party/tinygpsplus"
     REQUIRES
         esp_app_format
         esp_common
@@ -67,6 +65,7 @@ idf_component_register(
         espressif__i2c_bus
         espressif__ds18b20
         espressif__onewire_bus
+        cinderblocks__esp_tinygpsplusplus
         esp_adc
         efuse
         esp_psram
