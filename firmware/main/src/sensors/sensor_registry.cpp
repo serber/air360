@@ -373,7 +373,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         false,
         false,
         true,
-        10000U,
+        5000U,
         0U,
         0x77U,
         0U,
