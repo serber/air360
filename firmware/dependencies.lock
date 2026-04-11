@@ -117,6 +117,32 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.8
+  esp-idf-lib/veml7700:
+    component_hash: befc99425dd4810c5b56eb76e3a583422f5ddb2a6f1e7e04ca8845892447114f
+    dependencies:
+    - name: esp-idf-lib/esp_idf_lib_helpers
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: esp-idf-lib/i2cdev
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32c2
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    - esp32c61
+    - esp32h2
+    - esp32p4
+    - esp32s2
+    - esp32s3
+    version: 1.0.7
   espressif/ds18b20:
     component_hash: 13c5310b993bda17bd507b2c25cacce6962fe092029a5232815814d40339cec0
     dependencies:
@@ -146,7 +172,8 @@ direct_dependencies:
 - esp-idf-lib/scd30
 - esp-idf-lib/sht4x
 - esp-idf-lib/si7021
+- esp-idf-lib/veml7700
 - espressif/ds18b20
-manifest_hash: e2304d23b8ac2e94533a31792c990587f0cd7a3f83fe23853896a1cb46614e78
+manifest_hash: 2b5dae23610965c524ab190c7bce936c190cb1c9c2466548f33ad2233a3d4b8c
 target: esp32s3
 version: 3.0.0

@@ -149,9 +149,8 @@ Current patterns:
 - ScioSense-backed wrapper
   - `ens160_sensor.cpp`
   - vendored driver under `third_party/ens160/`
-- Adafruit-backed ambient light wrapper
+- ESP-IDF-Lib-backed ambient light wrapper
   - `veml7700_sensor.cpp`
-  - vendored driver under `third_party/adafruit_veml7700/`
 - TinyGPSPlus-backed wrapper
   - `gps_nmea_sensor.cpp`
   - vendored parser under `third_party/tinygpsplus/`
