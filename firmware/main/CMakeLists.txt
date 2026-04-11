@@ -37,7 +37,6 @@ idf_component_register(
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
-        "third_party/bme68x/bme68x.c"
         "third_party/sps30/sensirion_common.c"
         "third_party/sps30/sensirion_i2c.c"
         "third_party/sps30/sps30_i2c.c"
@@ -45,7 +44,6 @@ idf_component_register(
         "src/web_server.cpp"
     INCLUDE_DIRS
         "include"
-        "third_party/bme68x"
         "third_party/sps30"
         "third_party/adafruit_dht"
         "third_party/adafruit_busio"
@@ -60,6 +58,7 @@ idf_component_register(
         esp_http_server
         esp_driver_i2c
         esp_driver_uart
+        esp-idf-lib__bme680
         esp-idf-lib__scd30
         esp-idf-lib__sht4x
         esp-idf-lib__si7021

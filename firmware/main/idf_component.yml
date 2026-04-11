@@ -5,3 +5,4 @@ dependencies:
   esp-idf-lib/sht4x: 1.0.7
   esp-idf-lib/veml7700: 1.0.7
   espressif/bme280: ^0.1.1
+  esp-idf-lib/bme680: ^1.0.7

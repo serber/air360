@@ -1,4 +1,30 @@
 dependencies:
+  esp-idf-lib/bme680:
+    component_hash: a1fe811e9ff6143a738222a543087a726883ab35aff340afa60347ff837a2dca
+    dependencies:
+    - name: esp-idf-lib/esp_idf_lib_helpers
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: esp-idf-lib/i2cdev
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32c2
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    - esp32c61
+    - esp32h2
+    - esp32p4
+    - esp32s2
+    - esp32s3
+    version: 1.0.7
   esp-idf-lib/esp_idf_lib_helpers:
     component_hash: 689853bb8993434f9556af0f2816e808bf77b5d22100144b21f3519993daf237
     dependencies: []
@@ -211,12 +237,13 @@ dependencies:
       type: idf
     version: 6.0.0
 direct_dependencies:
+- esp-idf-lib/bme680
 - esp-idf-lib/scd30
 - esp-idf-lib/sht4x
 - esp-idf-lib/si7021
 - esp-idf-lib/veml7700
 - espressif/bme280
 - espressif/ds18b20
-manifest_hash: 0ec35e9c3d3d731a01510bfbb1fbdb0eb11855db78a891aeb0fb3e94320fffd3
+manifest_hash: 3a424a0fc884a5611aba60f758c8e02369eaaf38b8cd1abd76d12bb0c3fea145
 target: esp32s3
 version: 3.0.0
