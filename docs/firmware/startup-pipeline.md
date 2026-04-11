@@ -68,6 +68,21 @@ Static allocation places these objects in BSS/data segment rather than on the st
 
 Steps execute sequentially in the main task. There is no parallelism at this stage.
 
+| Step | Action | Fatal? | Side effect |
+|------|--------|--------|-------------|
+| pre | Init boot LEDs (GPIO 10/11) | No | Both LEDs off |
+| 1/9 | Arm task watchdog (10 s, no panic) | No | Main task subscribed to TWDT |
+| 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | Red LED on failure |
+| 3/9 | Initialize network core (`netif` + event loop) | **Yes** | Red LED on failure |
+| 4/9 | Load or create `device_cfg` | No | `boot_count` incremented; `StatusService` updated |
+| 5/9 | Load or create `sensor_cfg`; start sensor task | No | **`air360_sensor` task spawned** |
+| 6/9 | Load or create `backend_cfg` | No | — |
+| 7/9 | Resolve network mode (station or setup AP) | No | `StatusService` updated with network state |
+| 8/9 | Start upload manager; apply backend config | No | **`air360_upload` task spawned** |
+| 9/9 | Start web server | **Yes** | Green LED on success; WDT removed from main task |
+
+---
+
 ### Boot LEDs (pre-step)
 
 GPIO 10 (red) and GPIO 11 (green) are configured as outputs and both set low. The LED state is used as a coarse boot indicator:
