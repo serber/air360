@@ -294,6 +294,39 @@ esp_err_t I2cBusManager::readRegister(
     return err;
 }
 
+esp_err_t I2cBusManager::getComponentBus(
+    std::uint8_t bus_id,
+    i2c_bus_handle_t& out_handle) {
+    out_handle = nullptr;
+
+    ensureMutex();
+    lock();
+    BusState* bus_state = nullptr;
+    esp_err_t err = ensureBus(bus_id, bus_state);
+    unlock();
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    i2c_port_num_t port = I2C_NUM_0;
+    gpio_num_t sda_pin = GPIO_NUM_NC;
+    gpio_num_t scl_pin = GPIO_NUM_NC;
+    if (!resolveBusPins(bus_id, port, sda_pin, scl_pin)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    i2c_config_t config{};
+    config.mode = I2C_MODE_MASTER;
+    config.sda_io_num = sda_pin;
+    config.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    config.scl_io_num = scl_pin;
+    config.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    config.master.clk_speed = kI2cClockHz;
+
+    out_handle = i2c_bus_create(static_cast<i2c_port_t>(port), &config);
+    return out_handle != nullptr ? ESP_OK : ESP_FAIL;
+}
+
 void I2cBusManager::shutdown() {
     ensureMutex();
     lock();

@@ -37,7 +37,6 @@ idf_component_register(
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
-        "third_party/bme280/bme280.c"
         "third_party/bme68x/bme68x.c"
         "third_party/sps30/sensirion_common.c"
         "third_party/sps30/sensirion_i2c.c"
@@ -46,7 +45,6 @@ idf_component_register(
         "src/web_server.cpp"
     INCLUDE_DIRS
         "include"
-        "third_party/bme280"
         "third_party/bme68x"
         "third_party/sps30"
         "third_party/adafruit_dht"
@@ -66,6 +64,8 @@ idf_component_register(
         esp-idf-lib__sht4x
         esp-idf-lib__si7021
         esp-idf-lib__veml7700
+        espressif__bme280
+        espressif__i2c_bus
         espressif__ds18b20
         espressif__onewire_bus
         esp_adc

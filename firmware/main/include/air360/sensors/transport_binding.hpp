@@ -8,6 +8,7 @@
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "i2c_bus.h"
 
 namespace air360 {
 
@@ -43,6 +44,9 @@ class I2cBusManager {
         std::uint8_t reg,
         std::uint8_t* buffer,
         std::size_t buffer_size);
+    esp_err_t getComponentBus(
+        std::uint8_t bus_id,
+        i2c_bus_handle_t& out_handle);
     void shutdown();
 
   private:

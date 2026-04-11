@@ -143,6 +143,34 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.7
+  espressif/bme280:
+    component_hash: 873d97d0bd30004f45d1653f078a4bafe39c1767e57d4bae0f0a13bc3a4d5e3d
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: espressif/i2c_bus
+      registry_url: https://components.espressif.com
+      require: public
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.1
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
   espressif/ds18b20:
     component_hash: 13c5310b993bda17bd507b2c25cacce6962fe092029a5232815814d40339cec0
     dependencies:
@@ -154,6 +182,20 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 0.3.1
+  espressif/i2c_bus:
+    component_hash: 804ec068d163570fd367b279a310ca383484630d2310c586b50def0bcf21de13
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=4.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.5.1
   espressif/onewire_bus:
     component_hash: d709015ba466095259228521cf1bad9c0cdaaa42a92ea5d9c88ec6c28ae89e9b
     dependencies:
@@ -173,7 +215,8 @@ direct_dependencies:
 - esp-idf-lib/sht4x
 - esp-idf-lib/si7021
 - esp-idf-lib/veml7700
+- espressif/bme280
 - espressif/ds18b20
-manifest_hash: 2b5dae23610965c524ab190c7bce936c190cb1c9c2466548f33ad2233a3d4b8c
+manifest_hash: 0ec35e9c3d3d731a01510bfbb1fbdb0eb11855db78a891aeb0fb3e94320fffd3
 target: esp32s3
 version: 3.0.0
