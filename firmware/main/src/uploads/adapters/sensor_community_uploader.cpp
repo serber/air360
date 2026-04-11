@@ -170,7 +170,6 @@ bool mapMeasurement(
                     return false;
             }
         case SensorType::kUnknown:
-        case SensorType::kEns160:
         case SensorType::kScd30:
         case SensorType::kHtu2x:
         case SensorType::kSht4x:

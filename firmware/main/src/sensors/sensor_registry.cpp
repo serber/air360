@@ -6,7 +6,6 @@
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
 #include "air360/sensors/drivers/ds18b20_sensor.hpp"
-#include "air360/sensors/drivers/ens160_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
@@ -125,29 +124,6 @@ bool validateSps30Record(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x69U) {
         error = "SPS30 I2C address must be 0x69.";
-        return false;
-    }
-
-    return true;
-}
-
-bool validateEns160Record(const SensorRecord& record, std::string& error) {
-    if (!validateCommonRecord(record, error)) {
-        return false;
-    }
-
-    if (record.transport_kind != TransportKind::kI2c) {
-        error = "ENS160 currently supports only I2C.";
-        return false;
-    }
-
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
-        return false;
-    }
-
-    if (record.i2c_address != 0x52U && record.i2c_address != 0x53U) {
-        error = "ENS160 I2C address must be 0x52 or 0x53.";
         return false;
     }
 
@@ -401,25 +377,6 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateSps30Record,
         &createSps30Sensor,
-    },
-    {
-        SensorType::kEns160,
-        "ens160",
-        "ENS160",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x52U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateEns160Record,
-        &createEns160Sensor,
     },
     {
         SensorType::kScd30,

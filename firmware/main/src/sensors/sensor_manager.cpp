@@ -125,7 +125,6 @@ void SensorManager::applyConfig(const SensorConfigList& config) {
 std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     const SensorConfigList& config) {
     SensorRegistry registry;
-    const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
     const std::uint64_t now_ms = uptimeMilliseconds();
     std::vector<ManagedSensor> sensors;
     std::vector<ClaimedUartBinding> claimed_uart_bindings;
@@ -183,19 +182,10 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                     managed.runtime.state = SensorRuntimeState::kError;
                     managed.runtime.last_error = "Failed to allocate sensor driver.";
                 } else {
-                    const esp_err_t init_err = managed.driver->init(record, driver_context);
-                    if (init_err == ESP_OK) {
-                        managed.driver_ready = true;
-                        managed.runtime.state = SensorRuntimeState::kInitialized;
-                        managed.runtime.last_error.clear();
-                        managed.next_action_time_ms = now_ms;
-                    } else {
-                        managed.driver_ready = false;
-                        managed.runtime.state = classifyFailureState(init_err);
-                        managed.runtime.last_error = errorText(*managed.driver, init_err);
-                        managed.next_action_time_ms =
-                            now_ms + std::min<std::uint32_t>(record.poll_interval_ms, kRetryDelayMs);
-                    }
+                    managed.driver_ready = false;
+                    managed.runtime.state = SensorRuntimeState::kConfigured;
+                    managed.runtime.last_error.clear();
+                    managed.next_action_time_ms = now_ms;
                 }
             }
         } else {
@@ -204,19 +194,10 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                 managed.runtime.state = SensorRuntimeState::kError;
                 managed.runtime.last_error = "Failed to allocate sensor driver.";
             } else {
-                const esp_err_t init_err = managed.driver->init(record, driver_context);
-                if (init_err == ESP_OK) {
-                    managed.driver_ready = true;
-                    managed.runtime.state = SensorRuntimeState::kInitialized;
-                    managed.runtime.last_error.clear();
-                    managed.next_action_time_ms = now_ms;
-                } else {
-                    managed.driver_ready = false;
-                    managed.runtime.state = classifyFailureState(init_err);
-                    managed.runtime.last_error = errorText(*managed.driver, init_err);
-                    managed.next_action_time_ms =
-                        now_ms + std::min<std::uint32_t>(record.poll_interval_ms, kRetryDelayMs);
-                }
+                managed.driver_ready = false;
+                managed.runtime.state = SensorRuntimeState::kConfigured;
+                managed.runtime.last_error.clear();
+                managed.next_action_time_ms = now_ms;
             }
         }
 

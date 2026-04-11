@@ -15,12 +15,10 @@ idf_component_register(
         "src/uploads/upload_manager.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
-        "src/sensors/drivers/bosch_i2c_support.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
         "src/sensors/drivers/ds18b20_sensor.cpp"
-        "src/sensors/drivers/ens160_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/htu2x_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
@@ -32,7 +30,6 @@ idf_component_register(
         "third_party/adafruit_dht/DHT.cpp"
         "third_party/adafruit_busio/Adafruit_I2CDevice.cpp"
         "third_party/adafruit_busio/Adafruit_BusIO_Register.cpp"
-        "third_party/ens160/ScioSense_ENS160.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
@@ -46,7 +43,6 @@ idf_component_register(
         "third_party/sps30"
         "third_party/adafruit_dht"
         "third_party/adafruit_busio"
-        "third_party/ens160"
     REQUIRES
         esp_app_format
         esp_common

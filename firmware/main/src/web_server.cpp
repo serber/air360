@@ -366,12 +366,10 @@ struct SensorCardViewModel {
 
 enum class SensorCategory : std::uint8_t {
     kClimate = 1U,
-    kTemperatureHumidity = 2U,
-    kAirQuality = 3U,
-    kLight = 4U,
-    kParticulateMatter = 5U,
-    kLocation = 6U,
-    kGas = 7U,
+    kLight = 2U,
+    kParticulateMatter = 3U,
+    kLocation = 4U,
+    kGas = 5U,
 };
 
 struct SensorCategoryDescriptor {
@@ -555,19 +553,11 @@ std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
 constexpr SensorType kClimateSensorTypes[] = {
     SensorType::kBme280,
     SensorType::kBme680,
-};
-
-constexpr SensorType kTemperatureHumiditySensorTypes[] = {
     SensorType::kDht11,
     SensorType::kDht22,
     SensorType::kDs18b20,
     SensorType::kHtu2x,
     SensorType::kSht4x,
-};
-
-constexpr SensorType kAirQualitySensorTypes[] = {
-    SensorType::kEns160,
-    SensorType::kScd30,
 };
 
 constexpr SensorType kLightSensorTypes[] = {
@@ -583,6 +573,7 @@ constexpr SensorType kLocationSensorTypes[] = {
 };
 
 constexpr SensorType kGasSensorTypes[] = {
+    SensorType::kScd30,
     SensorType::kMe3No2,
 };
 
@@ -591,28 +582,10 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         SensorCategory::kClimate,
         "climate",
         "Climate",
-        "Temperature, humidity, pressure, and optional gas resistance.",
+        "Temperature, humidity, pressure, and related climate measurements over GPIO or I2C.",
         false,
         kClimateSensorTypes,
         sizeof(kClimateSensorTypes) / sizeof(kClimateSensorTypes[0]),
-    },
-    {
-        SensorCategory::kTemperatureHumidity,
-        "temperature-humidity",
-        "Temperature / Humidity",
-        "Digital temperature and humidity sensors over GPIO or I2C.",
-        false,
-        kTemperatureHumiditySensorTypes,
-        sizeof(kTemperatureHumiditySensorTypes) / sizeof(kTemperatureHumiditySensorTypes[0]),
-    },
-    {
-        SensorCategory::kAirQuality,
-        "air-quality",
-        "Air Quality",
-        "VOC and eCO2 sensing.",
-        false,
-        kAirQualitySensorTypes,
-        sizeof(kAirQualitySensorTypes) / sizeof(kAirQualitySensorTypes[0]),
     },
     {
         SensorCategory::kLight,
@@ -644,8 +617,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
     {
         SensorCategory::kGas,
         "gas",
-        "Gas",
-        "Electrochemical gas sensors. Multiple gas sensors are allowed.",
+        "Gas / CO2",
+        "CO2 and electrochemical gas sensors. Multiple gas sensors are allowed.",
         true,
         kGasSensorTypes,
         sizeof(kGasSensorTypes) / sizeof(kGasSensorTypes[0]),
@@ -656,16 +629,14 @@ SensorCategory sensorCategoryForType(SensorType type) {
     switch (type) {
         case SensorType::kBme280:
         case SensorType::kBme680:
-            return SensorCategory::kClimate;
         case SensorType::kDht11:
         case SensorType::kDht22:
         case SensorType::kDs18b20:
         case SensorType::kHtu2x:
         case SensorType::kSht4x:
-            return SensorCategory::kTemperatureHumidity;
-        case SensorType::kEns160:
+            return SensorCategory::kClimate;
         case SensorType::kScd30:
-            return SensorCategory::kAirQuality;
+            return SensorCategory::kGas;
         case SensorType::kVeml7700:
             return SensorCategory::kLight;
         case SensorType::kSps30:
@@ -823,8 +794,6 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x77. Gas resistance is reported when the heater run is valid.";
         case SensorType::kSps30:
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
-        case SensorType::kEns160:
-            return "Defaults: I2C bus 0, currently address 0x52. The driver also probes 0x53 as a fallback.";
         case SensorType::kScd30:
             return "Defaults: I2C bus 0 at address 0x61. Reports CO2, temperature, and humidity.";
         case SensorType::kVeml7700:
