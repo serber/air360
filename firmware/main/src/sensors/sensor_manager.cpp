@@ -106,13 +106,16 @@ const ClaimedUartBinding* findClaimedUartBinding(
 
 }  // namespace
 
+SensorManager::SensorManager() {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
 void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
     measurement_store_ = &measurement_store;
 }
 
 void SensorManager::applyConfig(const SensorConfigList& config) {
     stop();
-    ensureMutex();
 
     std::vector<ManagedSensor> next_sensors = buildManagedSensors(config);
 
@@ -208,8 +211,6 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
 }
 
 void SensorManager::stop() {
-    ensureMutex();
-
     lock();
     const bool had_task = task_ != nullptr;
     stop_requested_ = true;
@@ -235,7 +236,6 @@ void SensorManager::stop() {
 }
 
 std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
-    ensureMutex();
     lock();
     std::vector<SensorRuntimeInfo> snapshot;
     snapshot.reserve(sensors_.size());
@@ -247,7 +247,6 @@ std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
 }
 
 std::size_t SensorManager::configuredCount() const {
-    ensureMutex();
     lock();
     const std::size_t count = sensors_.size();
     unlock();
@@ -255,7 +254,6 @@ std::size_t SensorManager::configuredCount() const {
 }
 
 std::size_t SensorManager::enabledCount() const {
-    ensureMutex();
     lock();
     std::size_t count = 0U;
     for (const auto& sensor : sensors_) {
@@ -265,12 +263,6 @@ std::size_t SensorManager::enabledCount() const {
     }
     unlock();
     return count;
-}
-
-void SensorManager::ensureMutex() const {
-    if (mutex_ == nullptr) {
-        mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
-    }
 }
 
 void SensorManager::lock() const {

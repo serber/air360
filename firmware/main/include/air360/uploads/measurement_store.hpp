@@ -21,6 +21,8 @@ struct MeasurementRuntimeInfo {
 
 class MeasurementStore {
   public:
+    MeasurementStore();
+
     void recordMeasurement(
         std::uint32_t sensor_id,
         SensorType sensor_type,
@@ -38,7 +40,6 @@ class MeasurementStore {
     std::uint32_t droppedSampleCount() const;
 
   private:
-    void ensureMutex() const;
     void lock() const;
     void unlock() const;
 

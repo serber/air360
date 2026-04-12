@@ -34,7 +34,7 @@ Decisions that have been accepted but are not yet implemented.
 
 Refactoring and correctness improvements to the existing codebase.
 
-- [`proposed-mutex-constructor-init-adr.md`](proposed-mutex-constructor-init-adr.md)
+- [`implemented-mutex-constructor-init-adr.md`](implemented-mutex-constructor-init-adr.md)
   Fix the racy lazy `ensureMutex()` pattern — initialize mutexes in constructors.
 - [`proposed-web-server-handler-split-adr.md`](proposed-web-server-handler-split-adr.md)
   Split `web_server.cpp` (79 KB) and `status_service.cpp` (36 KB) into focused files.

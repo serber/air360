@@ -36,12 +36,15 @@ void appendPendingLocked(
 
 }  // namespace
 
+MeasurementStore::MeasurementStore() {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
 void MeasurementStore::recordMeasurement(
     std::uint32_t sensor_id,
     SensorType sensor_type,
     const SensorMeasurement& measurement,
     std::int64_t sample_unix_ms) {
-    ensureMutex();
     lock();
 
     LatestMeasurementEntry* latest_entry = nullptr;
@@ -76,7 +79,6 @@ void MeasurementStore::recordMeasurement(
 }
 
 void MeasurementStore::append(const MeasurementSample& sample) {
-    ensureMutex();
     lock();
 
     appendPendingLocked(pending_, sample, dropped_sample_count_, queued_count_by_sensor_);
@@ -85,7 +87,6 @@ void MeasurementStore::append(const MeasurementSample& sample) {
 }
 
 std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::size_t max_samples) {
-    ensureMutex();
     lock();
 
     if (!inflight_.empty()) {
@@ -106,7 +107,6 @@ std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::size_t m
 }
 
 void MeasurementStore::acknowledgeInflight() {
-    ensureMutex();
     lock();
     for (const auto& sample : inflight_) {
         auto it = queued_count_by_sensor_.find(sample.sensor_id);
@@ -121,7 +121,6 @@ void MeasurementStore::acknowledgeInflight() {
 }
 
 void MeasurementStore::restoreInflight() {
-    ensureMutex();
     lock();
     if (!inflight_.empty()) {
         pending_.insert(pending_.begin(), inflight_.begin(), inflight_.end());
@@ -144,7 +143,6 @@ void MeasurementStore::restoreInflight() {
 }
 
 MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sensor_id) const {
-    ensureMutex();
     lock();
 
     MeasurementRuntimeInfo info;
@@ -167,7 +165,6 @@ MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sens
 }
 
 std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id) const {
-    ensureMutex();
     lock();
 
     const auto it = queued_count_by_sensor_.find(sensor_id);
@@ -178,7 +175,6 @@ std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id
 }
 
 std::size_t MeasurementStore::pendingCount() const {
-    ensureMutex();
     lock();
     const std::size_t count = pending_.size();
     unlock();
@@ -186,7 +182,6 @@ std::size_t MeasurementStore::pendingCount() const {
 }
 
 std::size_t MeasurementStore::inflightCount() const {
-    ensureMutex();
     lock();
     const std::size_t count = inflight_.size();
     unlock();
@@ -194,17 +189,10 @@ std::size_t MeasurementStore::inflightCount() const {
 }
 
 std::uint32_t MeasurementStore::droppedSampleCount() const {
-    ensureMutex();
     lock();
     const std::uint32_t count = dropped_sample_count_;
     unlock();
     return count;
-}
-
-void MeasurementStore::ensureMutex() const {
-    if (mutex_ == nullptr) {
-        mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
-    }
 }
 
 void MeasurementStore::lock() const {

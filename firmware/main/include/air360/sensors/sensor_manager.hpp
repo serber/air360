@@ -32,6 +32,8 @@ struct SensorRuntimeInfo {
 
 class SensorManager {
   public:
+    SensorManager();
+
     void setMeasurementStore(MeasurementStore& measurement_store);
     void applyConfig(const SensorConfigList& config);
     void stop();
@@ -50,7 +52,6 @@ class SensorManager {
         std::uint64_t next_action_time_ms = 0U;
     };
 
-    void ensureMutex() const;
     void lock() const;
     void unlock() const;
     std::vector<ManagedSensor> buildManagedSensors(const SensorConfigList& config);
