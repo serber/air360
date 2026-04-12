@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <unordered_map>
 #include <utility>
 
 namespace air360 {
@@ -13,10 +14,21 @@ constexpr std::size_t kMaxQueuedSamples = 256U;
 void appendPendingLocked(
     std::vector<MeasurementSample>& pending,
     const MeasurementSample& sample,
-    std::uint32_t& dropped_sample_count) {
+    std::uint32_t& dropped_sample_count,
+    std::unordered_map<std::uint32_t, std::uint32_t>& count_map) {
     pending.push_back(sample);
+    ++count_map[sample.sensor_id];
+
     if (pending.size() > kMaxQueuedSamples) {
         const std::size_t overflow = pending.size() - kMaxQueuedSamples;
+        for (std::size_t i = 0U; i < overflow; ++i) {
+            auto it = count_map.find(pending[i].sensor_id);
+            if (it != count_map.end()) {
+                if (--it->second == 0U) {
+                    count_map.erase(it);
+                }
+            }
+        }
         pending.erase(pending.begin(), pending.begin() + static_cast<std::ptrdiff_t>(overflow));
         dropped_sample_count += static_cast<std::uint32_t>(overflow);
     }
@@ -56,7 +68,8 @@ void MeasurementStore::recordMeasurement(
                 static_cast<std::uint64_t>(sample_unix_ms),
                 measurement,
             },
-            dropped_sample_count_);
+            dropped_sample_count_,
+            queued_count_by_sensor_);
     }
 
     unlock();
@@ -66,7 +79,7 @@ void MeasurementStore::append(const MeasurementSample& sample) {
     ensureMutex();
     lock();
 
-    appendPendingLocked(pending_, sample, dropped_sample_count_);
+    appendPendingLocked(pending_, sample, dropped_sample_count_, queued_count_by_sensor_);
 
     unlock();
 }
@@ -95,6 +108,14 @@ std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::size_t m
 void MeasurementStore::acknowledgeInflight() {
     ensureMutex();
     lock();
+    for (const auto& sample : inflight_) {
+        auto it = queued_count_by_sensor_.find(sample.sensor_id);
+        if (it != queued_count_by_sensor_.end()) {
+            if (--it->second == 0U) {
+                queued_count_by_sensor_.erase(it);
+            }
+        }
+    }
     inflight_.clear();
     unlock();
 }
@@ -107,6 +128,14 @@ void MeasurementStore::restoreInflight() {
         inflight_.clear();
         if (pending_.size() > kMaxQueuedSamples) {
             const std::size_t overflow = pending_.size() - kMaxQueuedSamples;
+            for (std::size_t i = 0U; i < overflow; ++i) {
+                auto it = queued_count_by_sensor_.find(pending_[i].sensor_id);
+                if (it != queued_count_by_sensor_.end()) {
+                    if (--it->second == 0U) {
+                        queued_count_by_sensor_.erase(it);
+                    }
+                }
+            }
             pending_.erase(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(overflow));
             dropped_sample_count_ += static_cast<std::uint32_t>(overflow);
         }
@@ -128,15 +157,9 @@ MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sens
         }
     }
 
-    for (const auto& sample : pending_) {
-        if (sample.sensor_id == sensor_id) {
-            ++info.queued_sample_count;
-        }
-    }
-    for (const auto& sample : inflight_) {
-        if (sample.sensor_id == sensor_id) {
-            ++info.queued_sample_count;
-        }
+    const auto it = queued_count_by_sensor_.find(sensor_id);
+    if (it != queued_count_by_sensor_.end()) {
+        info.queued_sample_count = it->second;
     }
 
     unlock();
@@ -147,17 +170,8 @@ std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id
     ensureMutex();
     lock();
 
-    std::size_t count = 0U;
-    for (const auto& sample : pending_) {
-        if (sample.sensor_id == sensor_id) {
-            ++count;
-        }
-    }
-    for (const auto& sample : inflight_) {
-        if (sample.sensor_id == sensor_id) {
-            ++count;
-        }
-    }
+    const auto it = queued_count_by_sensor_.find(sensor_id);
+    const std::size_t count = (it != queued_count_by_sensor_.end()) ? it->second : 0U;
 
     unlock();
     return count;

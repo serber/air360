@@ -87,7 +87,7 @@ measurement_store_->recordMeasurement(
 );
 ```
 
-`recordMeasurement()` does two things under a single mutex lock:
+`recordMeasurement()` does three things under a single mutex lock:
 
 ### 2a — Update `latest_by_sensor_`
 
@@ -115,6 +115,14 @@ if (sample_unix_ms > 0 && !measurement.empty()) {
 ```
 
 If time is not synchronized, readings still update `latest_by_sensor_` (visible in the UI) but are **not enqueued for upload**.
+
+### 2c — Update `queued_count_by_sensor_`
+
+When a sample is appended to `pending_`, its `sensor_id` counter is incremented in `queued_count_by_sensor_` — an `unordered_map<sensor_id, count>` that tracks the total number of queued samples (pending + inflight) per sensor.
+
+The map is decremented in `acknowledgeInflight()` and when overflow drops samples from the front of `pending_`. It is never modified by `beginUploadWindow()` or `restoreInflight()` — moving samples between `pending_` and `inflight_` does not change the total count per sensor.
+
+This map is the backing store for `runtimeInfoForSensor()` and `queuedSampleCountForSensor()`, giving both O(1) lookup instead of a full scan of the queues.
 
 ```cpp
 struct MeasurementSample {
@@ -275,7 +283,9 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 |------|------------|
 | `air360_sensor` | `recordMeasurement()` |
 | `air360_upload` | `beginUploadWindow()`, `acknowledgeInflight()`, `restoreInflight()`, `pendingCount()` |
-| Web server task | `runtimeInfoForSensor()`, `pendingCount()`, `inflightCount()` |
+| Web server task | `runtimeInfoForSensor()`, `queuedSampleCountForSensor()`, `pendingCount()`, `inflightCount()` |
+
+`runtimeInfoForSensor()` and `queuedSampleCountForSensor()` use the `queued_count_by_sensor_` map for O(1) lookup — the mutex is held for a map lookup rather than a full scan of `pending_` and `inflight_`.
 
 ---
 

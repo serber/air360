@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "air360/uploads/measurement_batch.hpp"
@@ -52,6 +53,7 @@ class MeasurementStore {
     std::vector<LatestMeasurementEntry> latest_by_sensor_;
     std::vector<MeasurementSample> pending_;
     std::vector<MeasurementSample> inflight_;
+    std::unordered_map<std::uint32_t, std::uint32_t> queued_count_by_sensor_;
     std::uint32_t dropped_sample_count_ = 0U;
 };
 

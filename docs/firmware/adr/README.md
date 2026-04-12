@@ -16,6 +16,8 @@ Decisions that are reflected in the current codebase.
   No-reboot sensor apply behavior built on top of the measurement/runtime split.
 - [`implemented-overview-health-status-adr.md`](implemented-overview-health-status-adr.md)
   Aggregated device health summary for the `Overview` page and `/status`.
+- [`implemented-measurement-store-sensor-index-adr.md`](implemented-measurement-store-sensor-index-adr.md)
+  O(1) per-sensor counter map in `MeasurementStore` replacing O(n) linear scans.
 
 ---
 
@@ -34,14 +36,14 @@ Refactoring and correctness improvements to the existing codebase.
 
 - [`proposed-mutex-constructor-init-adr.md`](proposed-mutex-constructor-init-adr.md)
   Fix the racy lazy `ensureMutex()` pattern — initialize mutexes in constructors.
-- [`proposed-measurement-store-sensor-index-adr.md`](proposed-measurement-store-sensor-index-adr.md)
-  Replace O(n) per-sensor linear scans in `MeasurementStore` with an O(1) counter map.
 - [`proposed-web-server-handler-split-adr.md`](proposed-web-server-handler-split-adr.md)
   Split `web_server.cpp` (79 KB) and `status_service.cpp` (36 KB) into focused files.
 - [`proposed-upload-retry-backoff-adr.md`](proposed-upload-retry-backoff-adr.md)
   Replace fixed retry interval with capped exponential backoff per backend.
 - [`proposed-sensor-log-state-transitions-adr.md`](proposed-sensor-log-state-transitions-adr.md)
   Log sensor errors on state transitions only, not on every 250 ms poll iteration.
+- [`proposed-non-blocking-sensor-init-adr.md`](proposed-non-blocking-sensor-init-adr.md)
+  Enforce non-blocking `init()` contract — warm-up delays via `warmup_ms_out` instead of `vTaskDelay()`.
 
 ---
 
