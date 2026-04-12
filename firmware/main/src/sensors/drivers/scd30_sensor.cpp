@@ -5,26 +5,13 @@
 #include <memory>
 #include <string>
 
+#include "air360/sensors/transport_binding.hpp"
 #include "esp_timer.h"
-#include "i2cdev.h"
 #include "scd30.h"
-#include "sdkconfig.h"
 
 namespace air360 {
 
 namespace {
-
-#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
-#define CONFIG_AIR360_I2C0_SDA_GPIO 8
-#endif
-
-#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
-#define CONFIG_AIR360_I2C0_SCL_GPIO 9
-#endif
-
-constexpr i2c_port_t kScd30I2cPort = I2C_NUM_0;
-constexpr gpio_num_t kScd30SdaPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
-constexpr gpio_num_t kScd30SclPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
 
 std::uint16_t measurementIntervalSeconds(std::uint32_t poll_interval_ms) {
     const std::uint32_t rounded_up = (poll_interval_ms + 999U) / 1000U;
@@ -48,20 +35,21 @@ SensorType Scd30Sensor::type() const {
 }
 
 esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    static_cast<void>(context);
     reset();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
 
-    esp_err_t err = i2cdev_init();
-    if (err != ESP_OK) {
-        setError("Failed to initialize i2cdev subsystem for SCD30.");
-        return err;
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!context.i2c_bus_manager->resolvePins(record.i2c_bus_id, port, sda, scl)) {
+        setError("Unknown I2C bus id for SCD30.");
+        return ESP_ERR_NOT_SUPPORTED;
     }
 
     std::memset(&device_, 0, sizeof(device_));
-    err = scd30_init_desc(&device_, kScd30I2cPort, kScd30SdaPin, kScd30SclPin);
+    esp_err_t err = scd30_init_desc(&device_, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize SCD30 descriptor.");
         reset();

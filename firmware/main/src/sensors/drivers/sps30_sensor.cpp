@@ -1,6 +1,7 @@
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -18,6 +19,8 @@ extern "C" {
 namespace air360 {
 
 namespace {
+
+constexpr std::uint32_t kSps30I2cSpeedHz = 100000U;
 
 esp_err_t mapResultToEspErr(std::int16_t result) {
     switch (result) {
@@ -51,13 +54,20 @@ std::string describeResult(std::int16_t result) {
     }
 }
 
-void prepareContext(I2cBusManager* bus_manager, const SensorRecord& record) {
-    sps30HalSetContext(bus_manager, record.i2c_bus_id);
-    sensirion_i2c_hal_select_bus(record.i2c_bus_id);
-    sps30_init(record.i2c_address);
+}  // namespace
+
+Sps30Sensor::~Sps30Sensor() {
+    reset();
 }
 
-}  // namespace
+void Sps30Sensor::reset() {
+    sps30HalClearContext();
+    if (device_initialized_) {
+        i2c_dev_delete_mutex(&device_);
+        device_initialized_ = false;
+    }
+    initialized_ = false;
+}
 
 SensorType Sps30Sensor::type() const {
     return SensorType::kSps30;
@@ -66,29 +76,32 @@ SensorType Sps30Sensor::type() const {
 esp_err_t Sps30Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
+    reset();
     record_ = record;
-    i2c_bus_manager_ = context.i2c_bus_manager;
     measurement_.clear();
     last_error_.clear();
-    initialized_ = false;
 
-    if (i2c_bus_manager_ == nullptr) {
-        setError("I2C bus manager is unavailable.");
-        return ESP_ERR_INVALID_STATE;
+    std::memset(&device_, 0, sizeof(device_));
+    esp_err_t err = context.i2c_bus_manager->setupDevice(record, kSps30I2cSpeedHz, device_);
+    if (err != ESP_OK) {
+        setError(std::string("Failed to set up I2C device for SPS30: ") + esp_err_to_name(err));
+        return err;
+    }
+    device_initialized_ = true;
+
+    err = i2c_dev_check_present(&device_);
+    if (err != ESP_OK) {
+        setError("SPS30 not found on the selected I2C bus and address.");
+        return ESP_ERR_NOT_FOUND;
     }
 
-    const esp_err_t probe_err = i2c_bus_manager_->probe(record.i2c_bus_id, record.i2c_address);
-    if (probe_err != ESP_OK) {
-        setError("SPS30 probe failed on the selected I2C bus and address.");
-        return probe_err;
-    }
-
-    prepareContext(i2c_bus_manager_, record_);
+    sps30HalSetContext(&device_);
     sensirion_i2c_hal_init();
+    sps30_init(record.i2c_address);
 
     esp_err_t start_err = startMeasurement();
     if (start_err != ESP_OK) {
-        prepareContext(i2c_bus_manager_, record_);
+        sps30HalSetContext(&device_);
         const std::int16_t wake_err = sps30_wake_up_sequence();
         if (wake_err != NO_ERROR) {
             setError(std::string("Failed to wake SPS30: ") + describeResult(wake_err) + ".");
@@ -106,12 +119,12 @@ esp_err_t Sps30Sensor::init(
 }
 
 esp_err_t Sps30Sensor::poll() {
-    if (!initialized_ || i2c_bus_manager_ == nullptr) {
+    if (!initialized_) {
         setError("SPS30 is not initialized.");
         return ESP_ERR_INVALID_STATE;
     }
 
-    prepareContext(i2c_bus_manager_, record_);
+    sps30HalSetContext(&device_);
 
     float mc_1p0 = 0.0F;
     float mc_2p5 = 0.0F;
@@ -170,7 +183,7 @@ void Sps30Sensor::setError(const std::string& message) {
 }
 
 esp_err_t Sps30Sensor::startMeasurement() {
-    prepareContext(i2c_bus_manager_, record_);
+    sps30HalSetContext(&device_);
     const std::int16_t result =
         sps30_start_measurement(SPS30_OUTPUT_FORMAT_OUTPUT_FORMAT_FLOAT);
     if (result != NO_ERROR) {

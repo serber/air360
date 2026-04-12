@@ -117,6 +117,11 @@ void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
 void SensorManager::applyConfig(const SensorConfigList& config) {
     stop();
 
+    const esp_err_t i2c_err = i2c_bus_manager_.init();
+    if (i2c_err != ESP_OK) {
+        ESP_LOGE(kTag, "I2C bus manager init failed: %s", esp_err_to_name(i2c_err));
+    }
+
     std::vector<ManagedSensor> next_sensors = buildManagedSensors(config);
 
     lock();
@@ -231,7 +236,6 @@ void SensorManager::stop() {
     lock();
     stop_requested_ = false;
     unlock();
-    i2c_bus_manager_.shutdown();
     uart_port_manager_.shutdown();
 }
 

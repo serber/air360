@@ -9,9 +9,9 @@ Laser particulate matter (PM) sensor from Sensirion. Measures mass and number co
 
 ## Initialization
 
-1. Verify I2C bus availability via `I2cBusManager`
-2. Probe the I2C address via `i2c_bus_manager->probe()`
-3. Set up the HAL context via `prepareContext()` — configures the global bus pointer used by the Sensirion HAL
+1. Set up the `i2c_dev_t` descriptor via `context.i2c_bus_manager->setupDevice()` — fills port, address, GPIO pins, clock speed, pull-ups, and creates the `i2cdev` mutex
+2. Verify device presence via `i2c_dev_check_present()`
+3. Set the HAL context via `sps30HalSetContext(&device_)` — binds the global Sensirion HAL pointer to this driver's `i2c_dev_t`
 4. Initialize the Sensirion I2C HAL via `sensirion_i2c_hal_init()`
 5. Initialize the SPS30 library via `sps30_init()`
 6. Start continuous measurement via `sps30_start_measurement(SPS30_OUTPUT_FORMAT_OUTPUT_FORMAT_FLOAT)`
@@ -20,7 +20,7 @@ Laser particulate matter (PM) sensor from Sensirion. Measures mass and number co
 ## Polling
 
 Each poll cycle:
-1. Refresh the HAL context via `prepareContext()` — required before every Sensirion library call
+1. Refresh the HAL context via `sps30HalSetContext(&device_)` — required before every Sensirion library call because the HAL uses a global pointer
 2. Read 10 float values via `sps30_read_measurement_values_float()`
 
 ## Measurements
@@ -48,7 +48,7 @@ Each poll cycle:
 
 ## HAL adapter
 
-SPS30 communicates through the Sensirion vendor I2C HAL, adapted in `sensirion_i2c_hal.cpp`. The HAL translates `sensirion_i2c_hal_read/write` calls into `I2cBusManager::readRaw/writeRaw`. Delays use `vTaskDelay` for ≥ 1 ms and `esp_rom_delay_us` for < 1 ms. The `getComponentBus()` method is used to obtain the legacy `i2c_bus_handle_t` required by the Sensirion HAL — see [transport-binding.md](../transport-binding.md) for details.
+SPS30 communicates through the Sensirion vendor I2C HAL, adapted in `sensirion_i2c_hal.cpp`. The HAL translates `sensirion_i2c_hal_read/write` calls into `i2c_dev_read()` / `i2c_dev_write()` using a global `i2c_dev_t*` pointer (`g_device`). The pointer is set by `sps30HalSetContext(i2c_dev_t*)` before each Sensirion library call and cleared during driver teardown. Delays use `vTaskDelay` for ≥ 1 ms and `esp_rom_delay_us` for < 1 ms.
 
 ## Recommended poll interval
 

@@ -10,8 +10,8 @@ Temperature and humidity sensor from the HTU2x family (HTU21D and compatible) by
 
 ## Initialization
 
-1. Initialize the `i2cdev` subsystem
-2. Initialize the sensor descriptor via `si7021_init_desc()`
+1. Resolve bus pins via `context.i2c_bus_manager->resolvePins()`
+2. Initialize the sensor descriptor via `si7021_init_desc()` (passes resolved port and GPIO pins)
 3. Delay **1000 ms** — some HTU21D variants silently ignore the first I2C transaction after power-on
 4. Reset the sensor via `si7021_reset()`
 

@@ -15,9 +15,9 @@ struct SensorRecord {
     std::uint8_t enabled = 1U;
     SensorType sensor_type = SensorType::kUnknown;
     TransportKind transport_kind = TransportKind::kUnknown;
-    std::uint32_t poll_interval_ms = 10000U;
+    std::uint32_t poll_interval_ms = 5000U;
     std::uint8_t i2c_bus_id = 0U;
-    std::uint8_t i2c_address = 0x77U;
+    std::uint8_t i2c_address = 0x00U;
     std::uint8_t uart_port_id = 1U;
     std::uint8_t reserved0 = 0U;
     std::int16_t analog_gpio_pin = -1;

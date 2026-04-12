@@ -1,7 +1,7 @@
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 
-#include <cstdio>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -14,24 +14,21 @@ extern "C" {
 
 namespace air360 {
 
-struct Bme280DriverState {
-    i2c_bus_handle_t bus = nullptr;
-    bme280_handle_t sensor = nullptr;
-};
-
 namespace {
 
 constexpr bme280_sensor_sampling kOversampling = BME280_SAMPLING_X1;
 constexpr bme280_sensor_filter kFilter = BME280_FILTER_OFF;
 constexpr bme280_standby_duration kStandbyDuration = BME280_STANDBY_MS_0_5;
-
-std::string formatChipId(std::uint8_t chip_id) {
-    char buffer[8];
-    std::snprintf(buffer, sizeof(buffer), "0x%02x", static_cast<unsigned>(chip_id));
-    return buffer;
-}
+constexpr std::uint32_t kBme280I2cSpeedHz = 100000U;
 
 }  // namespace
+
+struct Bme280DriverState {
+    i2c_dev_t dev{};
+    bool dev_initialized = false;
+    i2c_bus_handle_t bus = nullptr;
+    bme280_handle_t sensor = nullptr;
+};
 
 Bme280Sensor::~Bme280Sensor() {
     destroyState();
@@ -48,46 +45,31 @@ esp_err_t Bme280Sensor::init(
     last_error_.clear();
     initialized_ = false;
 
-    if (context.i2c_bus_manager == nullptr) {
-        setError("I2C bus manager is unavailable.");
-        return ESP_ERR_INVALID_STATE;
-    }
-
     destroyState();
 
-    const esp_err_t probe_err =
-        context.i2c_bus_manager->probe(record.i2c_bus_id, record.i2c_address);
-    if (probe_err != ESP_OK) {
-        setError("BME280 did not respond on the selected I2C bus and address.");
-        return probe_err == ESP_ERR_TIMEOUT ? ESP_ERR_NOT_FOUND : probe_err;
-    }
-
-    std::uint8_t chip_id = 0U;
-    const esp_err_t chip_id_err =
-        context.i2c_bus_manager->readRegister(
-            record.i2c_bus_id,
-            record.i2c_address,
-            BME280_REGISTER_CHIPID,
-            &chip_id,
-            1U);
-    if (chip_id_err != ESP_OK) {
-        setError("BME280 did not respond on the selected I2C bus and address.");
-        return chip_id_err == ESP_ERR_TIMEOUT ? ESP_ERR_NOT_FOUND : chip_id_err;
-    }
-
-    if (chip_id != BME280_DEFAULT_CHIPID) {
-        setError(
-            std::string("Unexpected chip id for BME280: ") + formatChipId(chip_id) + ".");
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
     state_ = new Bme280DriverState{};
-    const esp_err_t bus_err =
-        context.i2c_bus_manager->getComponentBus(record.i2c_bus_id, state_->bus);
-    if (bus_err != ESP_OK || state_->bus == nullptr) {
+
+    std::memset(&state_->dev, 0, sizeof(state_->dev));
+    esp_err_t err = context.i2c_bus_manager->setupDevice(record, kBme280I2cSpeedHz, state_->dev);
+    if (err != ESP_OK) {
+        setError(std::string("Failed to set up I2C device for BME280: ") + esp_err_to_name(err));
+        destroyState();
+        return err;
+    }
+    state_->dev_initialized = true;
+
+    err = i2c_dev_check_present(&state_->dev);
+    if (err != ESP_OK) {
+        setError("BME280 did not respond on the selected I2C bus and address.");
+        destroyState();
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    err = context.i2c_bus_manager->getComponentBus(record.i2c_bus_id, state_->bus);
+    if (err != ESP_OK) {
         setError("Failed to bind BME280 to the shared I2C bus.");
         destroyState();
-        return bus_err != ESP_OK ? bus_err : ESP_FAIL;
+        return err;
     }
 
     state_->sensor = bme280_create(state_->bus, record.i2c_address);
@@ -97,17 +79,18 @@ esp_err_t Bme280Sensor::init(
         return ESP_ERR_NO_MEM;
     }
 
-    const esp_err_t init_err = bme280_default_init(state_->sensor);
-    if (init_err != ESP_OK) {
-        setError("Failed to initialize BME280.");
+    // bme280_default_init() reads and validates the chip ID internally.
+    err = bme280_default_init(state_->sensor);
+    if (err != ESP_OK) {
+        setError("Failed to initialize BME280 (chip ID mismatch or I2C error).");
         destroyState();
-        return init_err;
+        return err;
     }
 
-    const esp_err_t configure_err = configureSensor();
-    if (configure_err != ESP_OK) {
+    err = configureSensor();
+    if (err != ESP_OK) {
         destroyState();
-        return configure_err;
+        return err;
     }
 
     initialized_ = true;
@@ -190,9 +173,14 @@ void Bme280Sensor::destroyState() {
         return;
     }
 
-    // The shared bus belongs to I2cBusManager; this driver only owns the device handle.
     if (state_->sensor != nullptr) {
         bme280_delete(&state_->sensor);
+    }
+
+    // i2c_bus_create() borrowed the bus from i2cdev — do not delete the bus itself.
+
+    if (state_->dev_initialized) {
+        i2c_dev_delete_mutex(&state_->dev);
     }
 
     delete state_;

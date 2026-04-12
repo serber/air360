@@ -1,12 +1,10 @@
 #pragma once
 
-#include <cstdint>
+#include "i2cdev.h"
 
 namespace air360 {
 
-class I2cBusManager;
-
-void sps30HalSetContext(I2cBusManager* bus_manager, std::uint8_t bus_id);
+void sps30HalSetContext(i2c_dev_t* device);
 void sps30HalClearContext();
 
 }  // namespace air360

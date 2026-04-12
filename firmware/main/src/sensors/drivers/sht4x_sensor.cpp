@@ -5,26 +5,14 @@
 #include <memory>
 #include <string>
 
+#include "air360/sensors/transport_binding.hpp"
 #include "esp_timer.h"
-#include "i2cdev.h"
-#include "sdkconfig.h"
 #include "sht4x.h"
 
 namespace air360 {
 
 namespace {
 
-#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
-#define CONFIG_AIR360_I2C0_SDA_GPIO 8
-#endif
-
-#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
-#define CONFIG_AIR360_I2C0_SCL_GPIO 9
-#endif
-
-constexpr i2c_port_t kSht4xI2cPort = I2C_NUM_0;
-constexpr gpio_num_t kSht4xSdaPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
-constexpr gpio_num_t kSht4xSclPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
 constexpr std::uint32_t kSht4xI2cSpeedHz = 100000U;
 
 }  // namespace
@@ -38,20 +26,21 @@ SensorType Sht4xSensor::type() const {
 }
 
 esp_err_t Sht4xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    static_cast<void>(context);
     reset();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
 
-    esp_err_t err = i2cdev_init();
-    if (err != ESP_OK) {
-        setError("Failed to initialize i2cdev subsystem for SHT4X.");
-        return err;
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!context.i2c_bus_manager->resolvePins(record.i2c_bus_id, port, sda, scl)) {
+        setError("Unknown I2C bus id for SHT4X.");
+        return ESP_ERR_NOT_SUPPORTED;
     }
 
     std::memset(&device_, 0, sizeof(device_));
-    err = sht4x_init_desc(&device_, kSht4xI2cPort, kSht4xSdaPin, kSht4xSclPin);
+    esp_err_t err = sht4x_init_desc(&device_, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize SHT4X descriptor.");
         reset();

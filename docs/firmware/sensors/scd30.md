@@ -9,8 +9,8 @@ Optical CO₂ sensor (NDIR) with temperature and humidity from Sensirion.
 
 ## Initialization
 
-1. Initialize the `i2cdev` subsystem
-2. Initialize the sensor descriptor via `scd30_init_desc()`
+1. Resolve bus pins via `context.i2c_bus_manager->resolvePins()`
+2. Initialize the sensor descriptor via `scd30_init_desc()` (passes resolved port and GPIO pins)
 3. Verify device presence via `i2c_dev_check_present()`
 4. Calculate the measurement interval from `poll_interval_ms`:
    ```

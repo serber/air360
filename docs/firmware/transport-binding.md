@@ -10,7 +10,7 @@ Every driver receives a `SensorDriverContext` when `init()` is called:
 
 ```cpp
 struct SensorDriverContext {
-    I2cBusManager*  i2c_bus_manager  = nullptr;
+    I2cBusManager*   i2c_bus_manager  = nullptr;
     UartPortManager* uart_port_manager = nullptr;
 };
 ```
@@ -21,48 +21,41 @@ Drivers access hardware only through these pointers. Direct ESP-IDF I2C or UART 
 
 ## `I2cBusManager`
 
-Manages the ESP32-S3's I2C master buses. The current board has one bus (bus 0). The implementation supports up to 2 buses (`std::array<BusState, 2>`), though only bus 0 is wired.
+A thin coordination layer that owns the `i2cdev` subsystem lifecycle and centralises I2C pin configuration. `i2cdev` (from `esp-idf-lib`) is the component that actually owns and manages the I2C master bus handles.
+
+### Responsibilities
+
+- Call `i2cdev_init()` once before any driver initialises.
+- Map logical bus IDs to ESP-IDF port numbers and GPIO pin numbers — the single authoritative source for `CONFIG_AIR360_I2C0_SDA/SCL_GPIO`.
+- Prepare `i2c_dev_t` descriptors for drivers that use `i2cdev` directly.
+- Supply an `i2c_bus_handle_t` for drivers that require the `espressif__i2c_bus` component.
 
 ### Bus configuration
 
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| Bus | I2C_NUM_0 | `resolveBusPins(bus_id=0)` |
+| Bus | `I2C_NUM_0` | bus id 0 |
 | SDA pin | GPIO 8 | `CONFIG_AIR360_I2C0_SDA_GPIO` |
 | SCL pin | GPIO 9 | `CONFIG_AIR360_I2C0_SCL_GPIO` |
-| Clock speed | 100 000 Hz | `kI2cClockHz` |
-| Internal pullups | enabled | `flags.enable_internal_pullup = 1` |
-| Glitch filter | 7 (cycles) | `glitch_ignore_cnt = 7` |
-| Transfer timeout | 200 ms | `kI2cTransferTimeoutMs` |
+| Default clock | 100 000 Hz | `kDefaultI2cClockHz` |
+| Pull-ups | enabled | set in `setupDevice()` |
 
-The ESP-IDF new `i2c_master` driver API is used (`i2c_new_master_bus`, `i2c_master_bus_add_device`).
-
-### Lazy initialisation
-
-Neither the bus nor individual device handles are created at startup. `ensureBus()` initialises the bus on first use; `ensureDevice()` registers the device handle on first access. Once registered, both handles persist for the lifetime of the manager.
-
-Each bus holds up to **8** registered device handles (`std::array<DeviceState, 8>`). If all slots are occupied and a new device is requested, `ESP_ERR_NO_MEM` is returned.
-
-### Mutex
-
-A static `StaticSemaphore_t` buffer backs a `SemaphoreHandle_t` mutex, created lazily on the first call. Every public method acquires the mutex before touching bus or device state. The lock is held for the full duration of each I2C transfer.
+Pin constants are defined once in `transport_binding.cpp`. No driver duplicates them.
 
 ### Public API
 
 | Method | Description |
 |--------|-------------|
-| `probe(bus_id, address)` | Sends an address probe (`i2c_master_probe`). Returns `ESP_OK` if a device ACKs at that address. Used by some drivers during `init()` to detect hardware presence. |
-| `writeRegister(bus_id, address, reg, value)` | Writes a single register: transmits `[reg, value]`. |
-| `write(bus_id, address, reg, buffer, size)` | Writes multiple bytes to a register: transmits `[reg, buf[0], ..., buf[n-1]]`. Max payload including register byte is 32 bytes (`sizeof(staging)`). |
-| `writeRaw(bus_id, address, buffer, size)` | Transmits raw bytes with no register prefix. Used by drivers that compose their own command sequences (e.g., SPS30). |
-| `readRaw(bus_id, address, buffer, size)` | Receives raw bytes (`i2c_master_receive`). |
-| `readRegister(bus_id, address, reg, buffer, size)` | Write-then-read: transmits `[reg]`, then receives N bytes (`i2c_master_transmit_receive`). Standard register read for most sensors. |
-| `getComponentBus(bus_id, out_handle)` | Returns an `i2c_bus_handle_t` for use with the legacy `i2c_bus` ESP-IDF component. Used by SPS30, which relies on the Sensirion I2C HAL adapter that requires this handle type. |
-| `shutdown()` | Releases all device handles and deletes the master bus. Called from the destructor. |
+| `init()` | Calls `i2cdev_init()`. Idempotent — safe to call on every `applyConfig()`. Must be called before any driver's `init()`. |
+| `resolvePins(bus_id, out_port, out_sda, out_scl)` | Fills `out_port`, `out_sda`, and `out_scl` for a given logical bus id. Returns `false` if the id is unknown. Used by drivers whose underlying component library manages its own `i2c_dev_t` (e.g., VEML7700, SCD30, SHT4X). |
+| `setupDevice(record, speed_hz, out_dev)` | Resolves pins for `record.i2c_bus_id`, fills all fields of `out_dev` (`port`, `addr`, `cfg`), and calls `i2c_dev_create_mutex()`. Used by drivers that manage a bare `i2c_dev_t` directly (SPS30, BME280). |
+| `getComponentBus(bus_id, out_handle)` | Returns an `i2c_bus_handle_t` that borrows the bus already initialised by `i2cdev`. Internally calls `i2c_bus_create()`, which detects the existing bus handle via `i2c_master_get_bus_handle()` and avoids creating a second master. Used by BME280, which relies on the `espressif__bme280` component. |
 
-### Write staging buffer
+### Bus ownership
 
-`write()` pre-assembles the register byte and payload into a 32-byte stack buffer before calling `i2c_master_transmit`. Callers must not exceed 31 bytes of payload (`buffer_size + 1 ≤ 32`); exceeding this returns `ESP_ERR_INVALID_SIZE`.
+`i2cdev` owns the I2C master bus. It creates the bus on the first `i2c_dev_create_mutex()` call and reference-counts usage per port — the bus is torn down only when the last `i2c_dev_delete_mutex()` drops the ref-count to zero.
+
+`getComponentBus()` produces a _borrowed_ handle: the `espressif__i2c_bus` component's `i2c_bus_create()` detects that the port is already acquired and returns a handle without calling `i2c_new_master_bus()` again. Callers must **not** call `i2c_bus_delete()` on this handle — doing so would destroy `i2cdev`'s bus.
 
 ---
 
@@ -108,8 +101,6 @@ UART1 is being mapped to GPIO 18/17, which overlap the default console pins;
 serial logs may disappear after sensor init
 ```
 
-This applies when GPS is initialised with non-default GPIO pins that happen to overlap the console.
-
 ### Public API
 
 | Method | Description |
@@ -123,7 +114,7 @@ This applies when GPS is initialised with non-default GPIO pins that happen to o
 
 ## Lifetime
 
-Both managers are owned as members of `SensorManager` (static allocation inside `App::run()`). They are created before any sensor is initialised and live for the duration of the application. `shutdown()` is called from their destructors, which run when `SensorManager` is destroyed — in practice, never during normal operation.
+Both managers are owned as members of `SensorManager`. `I2cBusManager::init()` is called in `SensorManager::applyConfig()` before any driver is constructed. Both managers live for the duration of the application. `UartPortManager::shutdown()` is called from its destructor and from `SensorManager::stop()`.
 
 For the list of all sensor drivers that use these managers, see [sensors/README.md](sensors/README.md).
 
@@ -133,11 +124,8 @@ For the list of all sensor drivers that use these managers, see [sensors/README.
 
 | Constant | Value | Applies to |
 |----------|-------|-----------|
-| I2C clock | 100 000 Hz | All I2C sensors |
-| I2C transfer timeout | 200 ms | All I2C operations |
-| I2C internal pullup | enabled | Bus 0 |
-| I2C max devices per bus | 8 | `DeviceState` array |
-| I2C write staging buffer | 32 bytes | `write()` method |
+| I2C default clock | 100 000 Hz | All I2C sensors |
+| I2C pull-ups | enabled | Bus 0 |
 | UART RX buffer | 4 096 bytes | All UART ports |
 | UART TX buffer | 0 (blocking) | All UART ports |
 | Log tag | `air360.transport` | Both managers |

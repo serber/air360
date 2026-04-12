@@ -5,28 +5,16 @@
 #include <memory>
 #include <string>
 
+#include "air360/sensors/transport_binding.hpp"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "i2cdev.h"
-#include "sdkconfig.h"
 #include "si7021.h"
 
 namespace air360 {
 
 namespace {
 
-#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
-#define CONFIG_AIR360_I2C0_SDA_GPIO 8
-#endif
-
-#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
-#define CONFIG_AIR360_I2C0_SCL_GPIO 9
-#endif
-
-constexpr i2c_port_t kHtu2xI2cPort = I2C_NUM_0;
-constexpr gpio_num_t kHtu2xSdaPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
-constexpr gpio_num_t kHtu2xSclPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
 constexpr std::uint32_t kHtu2xStartupDelayMs = 1000U;
 constexpr std::uint32_t kHtu2xI2cSpeedHz = 100000U;
 
@@ -41,20 +29,21 @@ SensorType Htu2xSensor::type() const {
 }
 
 esp_err_t Htu2xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    static_cast<void>(context);
     reset();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
 
-    esp_err_t err = i2cdev_init();
-    if (err != ESP_OK) {
-        setError("Failed to initialize i2cdev subsystem for HTU2X.");
-        return err;
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!context.i2c_bus_manager->resolvePins(record.i2c_bus_id, port, sda, scl)) {
+        setError("Unknown I2C bus id for HTU2X.");
+        return ESP_ERR_NOT_SUPPORTED;
     }
 
     std::memset(&device_, 0, sizeof(device_));
-    err = si7021_init_desc(&device_, kHtu2xI2cPort, kHtu2xSdaPin, kHtu2xSclPin);
+    esp_err_t err = si7021_init_desc(&device_, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize HTU2X descriptor.");
         reset();

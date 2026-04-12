@@ -6,11 +6,10 @@
 #include <memory>
 #include <string>
 
+#include "air360/sensors/transport_binding.hpp"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "i2cdev.h"
-#include "sdkconfig.h"
 
 extern "C" {
 #include "bme680.h"
@@ -25,17 +24,6 @@ struct Bme680DriverState {
 
 namespace {
 
-#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
-#define CONFIG_AIR360_I2C0_SDA_GPIO 8
-#endif
-
-#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
-#define CONFIG_AIR360_I2C0_SCL_GPIO 9
-#endif
-
-constexpr i2c_port_t kBme680I2cPort = I2C_NUM_0;
-constexpr gpio_num_t kBme680SdaPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
-constexpr gpio_num_t kBme680SclPin = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
 constexpr std::uint32_t kBme680I2cSpeedHz = 100000U;
 constexpr std::int16_t kAmbientTemperatureC = 25;
 constexpr bme680_oversampling_rate_t kOversampling = BME680_OSR_2X;
@@ -56,28 +44,29 @@ SensorType Bme680Sensor::type() const {
 esp_err_t Bme680Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
-    static_cast<void>(context);
     reset();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
     initialized_ = false;
 
-    esp_err_t err = i2cdev_init();
-    if (err != ESP_OK) {
-        setError("Failed to initialize i2cdev subsystem for BME680.");
-        return err;
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!context.i2c_bus_manager->resolvePins(record.i2c_bus_id, port, sda, scl)) {
+        setError("Unknown I2C bus id for BME680.");
+        return ESP_ERR_NOT_SUPPORTED;
     }
 
     state_ = new Bme680DriverState{};
     std::memset(&state_->device, 0, sizeof(state_->device));
 
-    err = bme680_init_desc(
+    esp_err_t err = bme680_init_desc(
         &state_->device,
         record.i2c_address,
-        kBme680I2cPort,
-        kBme680SdaPin,
-        kBme680SclPin);
+        port,
+        sda,
+        scl);
     if (err != ESP_OK) {
         setError("Failed to initialize BME680 descriptor.");
         reset();

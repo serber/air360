@@ -10,8 +10,8 @@ High-accuracy temperature and humidity sensor from Sensirion (SHT40 / SHT41 / SH
 
 ## Initialization
 
-1. Initialize the `i2cdev` subsystem
-2. Initialize the sensor descriptor via `sht4x_init_desc()`
+1. Resolve bus pins via `context.i2c_bus_manager->resolvePins()`
+2. Initialize the sensor descriptor via `sht4x_init_desc()` (passes resolved port and GPIO pins)
 3. Configure the sensor:
    - Repeatability: `SHT4X_HIGH` (maximum accuracy)
    - Heater: `SHT4X_HEATER_OFF`
