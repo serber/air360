@@ -1,0 +1,10 @@
+dependencies:
+  espressif/ds18b20: 0.3.1
+  esp-idf-lib/scd30: 1.0.12
+  esp-idf-lib/si7021: 1.0.8
+  esp-idf-lib/sht4x: 1.0.7
+  esp-idf-lib/veml7700: 1.0.7
+  esp-idf-lib/dht: 1.2.0
+  espressif/bme280: ^0.1.1
+  esp-idf-lib/bme680: ^1.0.7
+  cinderblocks/esp_tinygpsplusplus: "1.1.1"

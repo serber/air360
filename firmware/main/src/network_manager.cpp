@@ -26,6 +26,7 @@ constexpr EventBits_t kStationConnectedBit = BIT0;
 constexpr EventBits_t kStationFailedBit = BIT1;
 constexpr char kDefaultSntpServer[] = "pool.ntp.org";
 constexpr std::uint32_t kSntpPollIntervalMs = 250U;
+constexpr std::uint32_t kStationWaitSliceMs = 250U;
 
 struct RuntimeContext {
     EventGroupHandle_t station_events = nullptr;
@@ -91,6 +92,43 @@ std::string stationHostname(const DeviceConfig& config) {
 
 void setStateError(NetworkState& state, const char* error) {
     state.last_error = error == nullptr ? "" : error;
+}
+
+void resetCurrentTaskWatchdogIfSubscribed() {
+    if (esp_task_wdt_status(nullptr) == ESP_OK) {
+        esp_task_wdt_reset();
+    }
+}
+
+EventBits_t waitForStationResult(
+    EventGroupHandle_t station_events,
+    std::uint32_t timeout_ms) {
+    if (station_events == nullptr) {
+        return 0U;
+    }
+
+    EventBits_t bits = 0U;
+    const std::int64_t started_ms = uptimeMilliseconds();
+    while ((uptimeMilliseconds() - started_ms) < timeout_ms) {
+        const std::uint32_t elapsed_ms =
+            static_cast<std::uint32_t>(uptimeMilliseconds() - started_ms);
+        const std::uint32_t remaining_ms = timeout_ms - elapsed_ms;
+        const std::uint32_t wait_ms = std::min(kStationWaitSliceMs, remaining_ms);
+
+        bits = xEventGroupWaitBits(
+            station_events,
+            kStationConnectedBit | kStationFailedBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(wait_ms));
+        if ((bits & (kStationConnectedBit | kStationFailedBit)) != 0U) {
+            return bits;
+        }
+
+        resetCurrentTaskWatchdogIfSubscribed();
+    }
+
+    return bits;
 }
 
 }  // namespace
@@ -181,7 +219,7 @@ esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
             synchronized = true;
             break;
         }
-        esp_task_wdt_reset();
+        resetCurrentTaskWatchdogIfSubscribed();
         vTaskDelay(pdMS_TO_TICKS(kSntpPollIntervalMs));
     }
 
@@ -368,12 +406,7 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     ESP_LOGI(kTag, "Station hostname: %s", hostname.c_str());
     ESP_LOGI(kTag, "Attempting station join: ssid=%s", config.wifi_sta_ssid);
 
-    const EventBits_t bits = xEventGroupWaitBits(
-        context.station_events,
-        kStationConnectedBit | kStationFailedBit,
-        pdTRUE,
-        pdFALSE,
-        pdMS_TO_TICKS(timeout_ms));
+    const EventBits_t bits = waitForStationResult(context.station_events, timeout_ms);
 
     esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_handler);
     esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler);

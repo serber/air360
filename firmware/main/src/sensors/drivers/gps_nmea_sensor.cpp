@@ -5,7 +5,7 @@
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
-#include "TinyGPS++.h"
+#include <TinyGPSPlus.h>
 #include "esp_timer.h"
 
 namespace air360 {

@@ -4,7 +4,6 @@
 #include <memory>
 #include <string>
 
-#include "air360/sensors/drivers/bosch_i2c_support.hpp"
 #include "air360/sensors/sensor_driver.hpp"
 
 namespace air360 {
@@ -24,10 +23,9 @@ class Bme280Sensor final : public SensorDriver {
 
   private:
     esp_err_t configureSensor();
+    void destroyState();
     void setError(const std::string& message);
 
-    SensorRecord record_{};
-    BoschI2cContext interface_context_{};
     SensorMeasurement measurement_{};
     std::string last_error_;
     Bme280DriverState* state_ = nullptr;

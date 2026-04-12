@@ -57,6 +57,10 @@ bool isDegraded(const BackendStatusSnapshot& backend) {
 
 }  // namespace
 
+UploadManager::UploadManager() {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
 void UploadManager::start(
     const BuildInfo& build_info,
     const DeviceConfig& device_config,
@@ -72,7 +76,6 @@ void UploadManager::start(
 
 void UploadManager::applyConfig(const BackendConfigList& config) {
     stop();
-    ensureMutex();
 
     std::vector<ManagedBackend> next_backends = buildManagedBackends(config);
 
@@ -210,8 +213,6 @@ bool UploadManager::hasNetworkForUpload(std::string& last_error) const {
 }
 
 void UploadManager::stop() {
-    ensureMutex();
-
     lock();
     const bool had_task = task_ != nullptr;
     stop_requested_ = true;
@@ -235,7 +236,6 @@ void UploadManager::stop() {
 }
 
 std::vector<BackendStatusSnapshot> UploadManager::backends() const {
-    ensureMutex();
     lock();
     std::vector<BackendStatusSnapshot> snapshot;
     snapshot.reserve(backends_.size());
@@ -247,7 +247,6 @@ std::vector<BackendStatusSnapshot> UploadManager::backends() const {
 }
 
 bool UploadManager::backendStatus(BackendType type, BackendStatusSnapshot& out_status) const {
-    ensureMutex();
     lock();
     for (const auto& backend : backends_) {
         if (backend.snapshot.backend_type == type) {
@@ -262,7 +261,6 @@ bool UploadManager::backendStatus(BackendType type, BackendStatusSnapshot& out_s
 }
 
 std::size_t UploadManager::enabledCount() const {
-    ensureMutex();
     lock();
     std::size_t count = 0U;
     for (const auto& backend : backends_) {
@@ -275,7 +273,6 @@ std::size_t UploadManager::enabledCount() const {
 }
 
 std::size_t UploadManager::degradedCount() const {
-    ensureMutex();
     lock();
     std::size_t count = 0U;
     for (const auto& backend : backends_) {
@@ -288,7 +285,6 @@ std::size_t UploadManager::degradedCount() const {
 }
 
 std::uint32_t UploadManager::uploadIntervalMs() const {
-    ensureMutex();
     lock();
     const std::uint32_t value = cycle_interval_ms_;
     unlock();
@@ -296,7 +292,6 @@ std::uint32_t UploadManager::uploadIntervalMs() const {
 }
 
 std::uint64_t UploadManager::lastOverallAttemptUptimeMs() const {
-    ensureMutex();
     lock();
     const std::uint64_t value = last_overall_attempt_uptime_ms_;
     unlock();
@@ -304,17 +299,10 @@ std::uint64_t UploadManager::lastOverallAttemptUptimeMs() const {
 }
 
 std::int64_t UploadManager::lastOverallAttemptUnixMs() const {
-    ensureMutex();
     lock();
     const std::int64_t value = last_overall_attempt_unix_ms_;
     unlock();
     return value;
-}
-
-void UploadManager::ensureMutex() const {
-    if (mutex_ == nullptr) {
-        mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
-    }
 }
 
 void UploadManager::lock() const {

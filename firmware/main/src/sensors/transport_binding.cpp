@@ -2,313 +2,106 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "driver/uart.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 namespace air360 {
 
 namespace {
 
 constexpr char kTag[] = "air360.transport";
-constexpr int kI2cTransferTimeoutMs = 200;
-constexpr std::uint32_t kI2cClockHz = 100000U;
-constexpr int kUartRxBufferSize = 4096;
-constexpr int kUartTxBufferSize = 0;
+
+#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
+#define CONFIG_AIR360_I2C0_SDA_GPIO 8
+#endif
+#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
+#define CONFIG_AIR360_I2C0_SCL_GPIO 9
+#endif
+
 constexpr gpio_num_t kBus0Sda = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
 constexpr gpio_num_t kBus0Scl = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
+constexpr std::uint32_t kDefaultI2cClockHz = 100000U;
+
+constexpr int kUartRxBufferSize = 4096;
+constexpr int kUartTxBufferSize = 0;
 #if CONFIG_ESP_CONSOLE_UART && CONFIG_ESP_CONSOLE_UART_DEFAULT
 constexpr int kDefaultConsoleRxPin = 44;
 constexpr int kDefaultConsoleTxPin = 43;
 #endif
 
-bool resolveBusPins(
+}  // namespace
+
+// ── I2cBusManager ────────────────────────────────────────────────────────────
+
+esp_err_t I2cBusManager::init() {
+    return i2cdev_init();
+}
+
+bool I2cBusManager::resolvePins(
     std::uint8_t bus_id,
-    i2c_port_num_t& port,
-    gpio_num_t& sda_pin,
-    gpio_num_t& scl_pin) {
+    i2c_port_t& out_port,
+    gpio_num_t& out_sda,
+    gpio_num_t& out_scl) const {
     if (bus_id == 0U) {
-        port = I2C_NUM_0;
-        sda_pin = kBus0Sda;
-        scl_pin = kBus0Scl;
+        out_port = I2C_NUM_0;
+        out_sda = kBus0Sda;
+        out_scl = kBus0Scl;
         return true;
     }
-
     return false;
 }
 
-}  // namespace
-
-I2cBusManager::~I2cBusManager() {
-    shutdown();
-}
-
-void I2cBusManager::ensureMutex() {
-    if (mutex_ == nullptr) {
-        mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
-    }
-}
-
-void I2cBusManager::lock() {
-    xSemaphoreTake(mutex_, portMAX_DELAY);
-}
-
-void I2cBusManager::unlock() {
-    xSemaphoreGive(mutex_);
-}
-
-esp_err_t I2cBusManager::ensureBus(std::uint8_t bus_id, BusState*& out_state) {
-    if (bus_id >= buses_.size()) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    out_state = &buses_[bus_id];
-    if (out_state->initialized) {
-        return ESP_OK;
-    }
-
-    i2c_port_num_t port = I2C_NUM_0;
-    gpio_num_t sda_pin = GPIO_NUM_NC;
-    gpio_num_t scl_pin = GPIO_NUM_NC;
-    if (!resolveBusPins(bus_id, port, sda_pin, scl_pin)) {
+esp_err_t I2cBusManager::setupDevice(
+    const SensorRecord& record,
+    std::uint32_t speed_hz,
+    i2c_dev_t& out_dev) const {
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!resolvePins(record.i2c_bus_id, port, sda, scl)) {
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    i2c_master_bus_config_t bus_config{};
-    bus_config.i2c_port = port;
-    bus_config.sda_io_num = sda_pin;
-    bus_config.scl_io_num = scl_pin;
-    bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
-    bus_config.glitch_ignore_cnt = 7;
-    bus_config.intr_priority = 0;
-    bus_config.trans_queue_depth = 0;
-    bus_config.flags.enable_internal_pullup = 1;
-    bus_config.flags.allow_pd = 0;
+    std::memset(&out_dev, 0, sizeof(out_dev));
+    out_dev.port = port;
+    out_dev.addr = record.i2c_address;
+    out_dev.cfg.sda_io_num = sda;
+    out_dev.cfg.scl_io_num = scl;
+    out_dev.cfg.master.clk_speed = speed_hz;
+    out_dev.cfg.sda_pullup_en = 1;
+    out_dev.cfg.scl_pullup_en = 1;
 
-    esp_err_t err = i2c_new_master_bus(&bus_config, &out_state->handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    out_state->initialized = true;
-    return ESP_OK;
+    return i2c_dev_create_mutex(&out_dev);
 }
 
-esp_err_t I2cBusManager::ensureDevice(
+esp_err_t I2cBusManager::getComponentBus(
     std::uint8_t bus_id,
-    std::uint8_t address,
-    BusState*& out_bus,
-    i2c_master_dev_handle_t& out_device) {
-    out_bus = nullptr;
-    out_device = nullptr;
-
-    esp_err_t err = ensureBus(bus_id, out_bus);
-    if (err != ESP_OK) {
-        return err;
+    i2c_bus_handle_t& out_handle) const {
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!resolvePins(bus_id, port, sda, scl)) {
+        return ESP_ERR_NOT_SUPPORTED;
     }
 
-    for (auto& device : out_bus->devices) {
-        if (!device.initialized) {
-            continue;
-        }
-        if (device.address == address && device.handle != nullptr) {
-            out_device = device.handle;
-            return ESP_OK;
-        }
-    }
+    // i2cdev already owns this bus. i2c_bus_create() detects the existing
+    // handle via i2c_master_get_bus_handle() and borrows it.
+    i2c_config_t config{};
+    config.mode = I2C_MODE_MASTER;
+    config.sda_io_num = sda;
+    config.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    config.scl_io_num = scl;
+    config.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    config.master.clk_speed = kDefaultI2cClockHz;
 
-    for (auto& device : out_bus->devices) {
-        if (device.initialized) {
-            continue;
-        }
-
-        i2c_device_config_t device_config{};
-        device_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-        device_config.device_address = address;
-        device_config.scl_speed_hz = kI2cClockHz;
-        device_config.scl_wait_us = 0;
-        device_config.flags.disable_ack_check = 0;
-
-        err = i2c_master_bus_add_device(out_bus->handle, &device_config, &device.handle);
-        if (err != ESP_OK) {
-            return err;
-        }
-
-        device.initialized = true;
-        device.address = address;
-        out_device = device.handle;
-        return ESP_OK;
-    }
-
-    return ESP_ERR_NO_MEM;
+    out_handle = i2c_bus_create(port, &config);
+    return out_handle != nullptr ? ESP_OK : ESP_FAIL;
 }
 
-void I2cBusManager::releaseDevices(BusState& bus) {
-    for (auto& device : bus.devices) {
-        if (!device.initialized || device.handle == nullptr) {
-            continue;
-        }
-
-        i2c_master_bus_rm_device(device.handle);
-        device.handle = nullptr;
-        device.address = 0U;
-        device.initialized = false;
-    }
-}
-
-esp_err_t I2cBusManager::probe(std::uint8_t bus_id, std::uint8_t address) {
-    ensureMutex();
-    lock();
-    BusState* bus_state = nullptr;
-    esp_err_t err = ensureBus(bus_id, bus_state);
-    if (err != ESP_OK) {
-        unlock();
-        return err;
-    }
-
-    err = i2c_master_probe(bus_state->handle, address, kI2cTransferTimeoutMs);
-    unlock();
-    return err;
-}
-
-esp_err_t I2cBusManager::writeRegister(
-    std::uint8_t bus_id,
-    std::uint8_t address,
-    std::uint8_t reg,
-    std::uint8_t value) {
-    return write(bus_id, address, reg, &value, 1U);
-}
-
-esp_err_t I2cBusManager::write(
-    std::uint8_t bus_id,
-    std::uint8_t address,
-    std::uint8_t reg,
-    const std::uint8_t* buffer,
-    std::size_t buffer_size) {
-    if (buffer == nullptr || buffer_size == 0U) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ensureMutex();
-    lock();
-    BusState* bus_state = nullptr;
-    i2c_master_dev_handle_t device = nullptr;
-    esp_err_t err = ensureDevice(bus_id, address, bus_state, device);
-    if (err != ESP_OK) {
-        unlock();
-        return err;
-    }
-
-    std::uint8_t staging[32];
-    if (buffer_size + 1U > sizeof(staging)) {
-        unlock();
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    staging[0] = reg;
-    for (std::size_t index = 0; index < buffer_size; ++index) {
-        staging[index + 1U] = buffer[index];
-    }
-
-    err = i2c_master_transmit(device, staging, buffer_size + 1U, kI2cTransferTimeoutMs);
-    unlock();
-    return err;
-}
-
-esp_err_t I2cBusManager::writeRaw(
-    std::uint8_t bus_id,
-    std::uint8_t address,
-    const std::uint8_t* buffer,
-    std::size_t buffer_size) {
-    if (buffer == nullptr || buffer_size == 0U) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ensureMutex();
-    lock();
-    BusState* bus_state = nullptr;
-    i2c_master_dev_handle_t device = nullptr;
-    esp_err_t err = ensureDevice(bus_id, address, bus_state, device);
-    if (err != ESP_OK) {
-        unlock();
-        return err;
-    }
-
-    err = i2c_master_transmit(device, buffer, buffer_size, kI2cTransferTimeoutMs);
-    unlock();
-    return err;
-}
-
-esp_err_t I2cBusManager::readRaw(
-    std::uint8_t bus_id,
-    std::uint8_t address,
-    std::uint8_t* buffer,
-    std::size_t buffer_size) {
-    if (buffer == nullptr || buffer_size == 0U) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ensureMutex();
-    lock();
-    BusState* bus_state = nullptr;
-    i2c_master_dev_handle_t device = nullptr;
-    esp_err_t err = ensureDevice(bus_id, address, bus_state, device);
-    if (err != ESP_OK) {
-        unlock();
-        return err;
-    }
-
-    err = i2c_master_receive(device, buffer, buffer_size, kI2cTransferTimeoutMs);
-    unlock();
-    return err;
-}
-
-esp_err_t I2cBusManager::readRegister(
-    std::uint8_t bus_id,
-    std::uint8_t address,
-    std::uint8_t reg,
-    std::uint8_t* buffer,
-    std::size_t buffer_size) {
-    if (buffer == nullptr || buffer_size == 0U) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ensureMutex();
-    lock();
-    BusState* bus_state = nullptr;
-    i2c_master_dev_handle_t device = nullptr;
-    esp_err_t err = ensureDevice(bus_id, address, bus_state, device);
-    if (err != ESP_OK) {
-        unlock();
-        return err;
-    }
-
-    err = i2c_master_transmit_receive(
-        device,
-        &reg,
-        1U,
-        buffer,
-        buffer_size,
-        kI2cTransferTimeoutMs);
-    unlock();
-    return err;
-}
-
-void I2cBusManager::shutdown() {
-    ensureMutex();
-    lock();
-    for (auto& bus : buses_) {
-        if (!bus.initialized || bus.handle == nullptr) {
-            continue;
-        }
-
-        releaseDevices(bus);
-        i2c_del_master_bus(bus.handle);
-        bus.handle = nullptr;
-        bus.initialized = false;
-    }
-    unlock();
-}
+// ── UartPortManager ──────────────────────────────────────────────────────────
 
 UartPortManager::~UartPortManager() {
     shutdown();

@@ -44,6 +44,8 @@ struct BackendStatusSnapshot {
 
 class UploadManager {
   public:
+    UploadManager();
+
     void start(
         const BuildInfo& build_info,
         const DeviceConfig& device_config,
@@ -70,7 +72,6 @@ class UploadManager {
         std::uint64_t next_action_time_ms = 0U;
     };
 
-    void ensureMutex() const;
     void lock() const;
     void unlock() const;
     std::vector<ManagedBackend> buildManagedBackends(const BackendConfigList& config) const;

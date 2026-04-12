@@ -281,7 +281,7 @@ void App::run() {
 
     ESP_LOGI(
         kTag,
-        "Phase 3.2 runtime ready on port %" PRIu16,
+        "Runtime ready on port %" PRIu16,
         config.http_port);
     setBootLedState(true, false);
 

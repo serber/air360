@@ -15,27 +15,21 @@ idf_component_register(
         "src/uploads/upload_manager.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
-        "src/sensors/drivers/bosch_i2c_support.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
-        "src/sensors/drivers/ens160_sensor.cpp"
+        "src/sensors/drivers/ds18b20_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
+        "src/sensors/drivers/htu2x_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
+        "src/sensors/drivers/scd30_sensor.cpp"
+        "src/sensors/drivers/sht4x_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
         "src/sensors/drivers/veml7700_sensor.cpp"
-        "third_party/adafruit_dht/DHT.cpp"
-        "third_party/adafruit_busio/Adafruit_I2CDevice.cpp"
-        "third_party/adafruit_busio/Adafruit_BusIO_Register.cpp"
-        "third_party/adafruit_veml7700/Adafruit_VEML7700.cpp"
-        "third_party/ens160/ScioSense_ENS160.cpp"
-        "third_party/tinygpsplus/TinyGPS++.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
-        "third_party/bme280/bme280.c"
-        "third_party/bme68x/bme68x.c"
         "third_party/sps30/sensirion_common.c"
         "third_party/sps30/sensirion_i2c.c"
         "third_party/sps30/sps30_i2c.c"
@@ -43,14 +37,7 @@ idf_component_register(
         "src/web_server.cpp"
     INCLUDE_DIRS
         "include"
-        "third_party/bme280"
-        "third_party/bme68x"
         "third_party/sps30"
-        "third_party/adafruit_dht"
-        "third_party/adafruit_busio"
-        "third_party/adafruit_veml7700"
-        "third_party/ens160"
-        "third_party/tinygpsplus"
     REQUIRES
         esp_app_format
         esp_common
@@ -60,6 +47,17 @@ idf_component_register(
         esp_http_server
         esp_driver_i2c
         esp_driver_uart
+        esp-idf-lib__bme680
+        esp-idf-lib__dht
+        esp-idf-lib__scd30
+        esp-idf-lib__sht4x
+        esp-idf-lib__si7021
+        esp-idf-lib__veml7700
+        espressif__bme280
+        espressif__i2c_bus
+        espressif__ds18b20
+        espressif__onewire_bus
+        cinderblocks__esp_tinygpsplusplus
         esp_adc
         efuse
         esp_psram

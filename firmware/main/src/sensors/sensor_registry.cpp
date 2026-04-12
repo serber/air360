@@ -5,9 +5,12 @@
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
-#include "air360/sensors/drivers/ens160_sensor.hpp"
+#include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
+#include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
+#include "air360/sensors/drivers/scd30_sensor.hpp"
+#include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
@@ -17,11 +20,11 @@
 #endif
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_RX_GPIO 44
+#define CONFIG_AIR360_GPS_DEFAULT_RX_GPIO 18
 #endif
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 43
+#define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 17
 #endif
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
@@ -127,13 +130,13 @@ bool validateSps30Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
-bool validateEns160Record(const SensorRecord& record, std::string& error) {
+bool validateScd30Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
     }
 
     if (record.transport_kind != TransportKind::kI2c) {
-        error = "ENS160 currently supports only I2C.";
+        error = "SCD30 currently supports only I2C.";
         return false;
     }
 
@@ -142,8 +145,8 @@ bool validateEns160Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_address != 0x52U && record.i2c_address != 0x53U) {
-        error = "ENS160 I2C address must be 0x52 or 0x53.";
+    if (record.i2c_address != 0x61U) {
+        error = "SCD30 I2C address must be 0x61.";
         return false;
     }
 
@@ -167,6 +170,52 @@ bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x10U) {
         error = "VEML7700 I2C address must be 0x10.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateHtu2xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "HTU2X currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id != 0U) {
+        error = "I2C bus id must be 0 for the current board wiring.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x40U) {
+        error = "HTU2X I2C address must be 0x40.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "SHT4X currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id != 0U) {
+        error = "I2C bus id must be 0 for the current board wiring.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x44U) {
+        error = "SHT4X I2C address must be 0x44.";
         return false;
     }
 
@@ -231,6 +280,26 @@ bool validateDht22Record(const SensorRecord& record, std::string& error) {
     return validateDhtRecord(record, error, 2000U);
 }
 
+bool validateDs18b20Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kGpio) {
+        error = "DS18B20 currently supports only GPIO / 1-Wire transport.";
+        return false;
+    }
+
+    if (record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_0 &&
+        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_1 &&
+        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_2) {
+        error = "GPIO pin must match one of the board sensor GPIO slots.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -261,7 +330,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         false,
         false,
         true,
-        10000U,
+        5000U,
         0U,
         0x76U,
         0U,
@@ -280,7 +349,7 @@ constexpr SensorDescriptor kDescriptors[] = {
         false,
         false,
         true,
-        10000U,
+        5000U,
         0U,
         0x77U,
         0U,
@@ -310,9 +379,9 @@ constexpr SensorDescriptor kDescriptors[] = {
         &createSps30Sensor,
     },
     {
-        SensorType::kEns160,
-        "ens160",
-        "ENS160",
+        SensorType::kScd30,
+        "scd30",
+        "SCD30",
         true,
         false,
         false,
@@ -320,13 +389,13 @@ constexpr SensorDescriptor kDescriptors[] = {
         true,
         5000U,
         0U,
-        0x52U,
+        0x61U,
         0U,
         -1,
         -1,
         0U,
-        &validateEns160Record,
-        &createEns160Sensor,
+        &validateScd30Record,
+        &createScd30Sensor,
     },
     {
         SensorType::kVeml7700,
@@ -403,6 +472,63 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateDht22Record,
         &createDht22Sensor,
+    },
+    {
+        SensorType::kDs18b20,
+        "ds18b20",
+        "DS18B20",
+        false,
+        false,
+        false,
+        true,
+        true,
+        5000U,
+        0U,
+        0x00U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateDs18b20Record,
+        &createDs18b20Sensor,
+    },
+    {
+        SensorType::kHtu2x,
+        "htu2x",
+        "HTU2X",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x40U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateHtu2xRecord,
+        &createHtu2xSensor,
+    },
+    {
+        SensorType::kSht4x,
+        "sht4x",
+        "SHT4X",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x44U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateSht4xRecord,
+        &createSht4xSensor,
     },
     {
         SensorType::kMe3No2,

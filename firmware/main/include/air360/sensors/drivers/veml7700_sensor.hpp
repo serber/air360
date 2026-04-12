@@ -1,20 +1,18 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
-
-class Adafruit_VEML7700;
-class TwoWire;
+#include "veml7700.h"
 
 namespace air360 {
 
-class I2cBusManager;
-
 class Veml7700Sensor final : public SensorDriver {
   public:
+    Veml7700Sensor() = default;
+    ~Veml7700Sensor() override;
+
     SensorType type() const override;
     esp_err_t init(
         const SensorRecord& record,
@@ -24,14 +22,15 @@ class Veml7700Sensor final : public SensorDriver {
     std::string lastError() const override;
 
   private:
+    void reset();
     void setError(const std::string& message);
 
     SensorRecord record_{};
-    I2cBusManager* i2c_bus_manager_ = nullptr;
+    i2c_dev_t device_{};
+    veml7700_config_t config_{};
+    bool descriptor_initialized_ = false;
     SensorMeasurement measurement_{};
     std::string last_error_;
-    std::unique_ptr<::TwoWire> wire_;
-    std::unique_ptr<::Adafruit_VEML7700> sensor_;
     bool initialized_ = false;
 };
 

@@ -4,74 +4,47 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "i2c_bus.h"
+#include "i2cdev.h"
+
+#include "air360/sensors/sensor_config.hpp"
 
 namespace air360 {
 
+// Owns the i2cdev subsystem lifecycle for all I2C sensor drivers.
+// Call init() once before any driver initialises. Drivers use resolvePins()
+// and setupDevice() instead of calling i2cdev_init() or hardcoding GPIO numbers.
 class I2cBusManager {
   public:
-    ~I2cBusManager();
+    // Initialise the i2cdev subsystem. Idempotent — safe to call on every
+    // applyConfig(). Must be called before any driver's init().
+    esp_err_t init();
 
-    esp_err_t probe(std::uint8_t bus_id, std::uint8_t address);
-    esp_err_t writeRegister(
+    // Fill out_port / out_sda / out_scl for the given logical bus id.
+    // Returns false if the bus id is not known.
+    bool resolvePins(
         std::uint8_t bus_id,
-        std::uint8_t address,
-        std::uint8_t reg,
-        std::uint8_t value);
-    esp_err_t write(
-        std::uint8_t bus_id,
-        std::uint8_t address,
-        std::uint8_t reg,
-        const std::uint8_t* buffer,
-        std::size_t buffer_size);
-    esp_err_t writeRaw(
-        std::uint8_t bus_id,
-        std::uint8_t address,
-        const std::uint8_t* buffer,
-        std::size_t buffer_size);
-    esp_err_t readRaw(
-        std::uint8_t bus_id,
-        std::uint8_t address,
-        std::uint8_t* buffer,
-        std::size_t buffer_size);
-    esp_err_t readRegister(
-        std::uint8_t bus_id,
-        std::uint8_t address,
-        std::uint8_t reg,
-        std::uint8_t* buffer,
-        std::size_t buffer_size);
-    void shutdown();
+        i2c_port_t& out_port,
+        gpio_num_t& out_sda,
+        gpio_num_t& out_scl) const;
 
-  private:
-    struct DeviceState {
-        bool initialized = false;
-        std::uint8_t address = 0U;
-        i2c_master_dev_handle_t handle = nullptr;
-    };
+    // Populate out_dev from the sensor record and call i2c_dev_create_mutex().
+    // Used by drivers that manage their own i2c_dev_t directly (SPS30).
+    esp_err_t setupDevice(
+        const SensorRecord& record,
+        std::uint32_t speed_hz,
+        i2c_dev_t& out_dev) const;
 
-    struct BusState {
-        bool initialized = false;
-        i2c_master_bus_handle_t handle = nullptr;
-        std::array<DeviceState, 8> devices{};
-    };
-
-    void ensureMutex();
-    void lock();
-    void unlock();
-    esp_err_t ensureBus(std::uint8_t bus_id, BusState*& out_state);
-    esp_err_t ensureDevice(
+    // Return an i2c_bus_handle_t that shares the bus already initialised by
+    // i2cdev. Used by components built on espressif__i2c_bus (BME280).
+    esp_err_t getComponentBus(
         std::uint8_t bus_id,
-        std::uint8_t address,
-        BusState*& out_bus,
-        i2c_master_dev_handle_t& out_device);
-    void releaseDevices(BusState& bus);
-
-    StaticSemaphore_t mutex_buffer_{};
-    SemaphoreHandle_t mutex_ = nullptr;
-    std::array<BusState, 2> buses_{};
+        i2c_bus_handle_t& out_handle) const;
 };
 
 class UartPortManager {

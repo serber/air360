@@ -106,13 +106,21 @@ const ClaimedUartBinding* findClaimedUartBinding(
 
 }  // namespace
 
+SensorManager::SensorManager() {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
 void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
     measurement_store_ = &measurement_store;
 }
 
 void SensorManager::applyConfig(const SensorConfigList& config) {
     stop();
-    ensureMutex();
+
+    const esp_err_t i2c_err = i2c_bus_manager_.init();
+    if (i2c_err != ESP_OK) {
+        ESP_LOGE(kTag, "I2C bus manager init failed: %s", esp_err_to_name(i2c_err));
+    }
 
     std::vector<ManagedSensor> next_sensors = buildManagedSensors(config);
 
@@ -125,7 +133,6 @@ void SensorManager::applyConfig(const SensorConfigList& config) {
 std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     const SensorConfigList& config) {
     SensorRegistry registry;
-    const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
     const std::uint64_t now_ms = uptimeMilliseconds();
     std::vector<ManagedSensor> sensors;
     std::vector<ClaimedUartBinding> claimed_uart_bindings;
@@ -183,19 +190,10 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                     managed.runtime.state = SensorRuntimeState::kError;
                     managed.runtime.last_error = "Failed to allocate sensor driver.";
                 } else {
-                    const esp_err_t init_err = managed.driver->init(record, driver_context);
-                    if (init_err == ESP_OK) {
-                        managed.driver_ready = true;
-                        managed.runtime.state = SensorRuntimeState::kInitialized;
-                        managed.runtime.last_error.clear();
-                        managed.next_action_time_ms = now_ms;
-                    } else {
-                        managed.driver_ready = false;
-                        managed.runtime.state = classifyFailureState(init_err);
-                        managed.runtime.last_error = errorText(*managed.driver, init_err);
-                        managed.next_action_time_ms =
-                            now_ms + std::min<std::uint32_t>(record.poll_interval_ms, kRetryDelayMs);
-                    }
+                    managed.driver_ready = false;
+                    managed.runtime.state = SensorRuntimeState::kConfigured;
+                    managed.runtime.last_error.clear();
+                    managed.next_action_time_ms = now_ms;
                 }
             }
         } else {
@@ -204,19 +202,10 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                 managed.runtime.state = SensorRuntimeState::kError;
                 managed.runtime.last_error = "Failed to allocate sensor driver.";
             } else {
-                const esp_err_t init_err = managed.driver->init(record, driver_context);
-                if (init_err == ESP_OK) {
-                    managed.driver_ready = true;
-                    managed.runtime.state = SensorRuntimeState::kInitialized;
-                    managed.runtime.last_error.clear();
-                    managed.next_action_time_ms = now_ms;
-                } else {
-                    managed.driver_ready = false;
-                    managed.runtime.state = classifyFailureState(init_err);
-                    managed.runtime.last_error = errorText(*managed.driver, init_err);
-                    managed.next_action_time_ms =
-                        now_ms + std::min<std::uint32_t>(record.poll_interval_ms, kRetryDelayMs);
-                }
+                managed.driver_ready = false;
+                managed.runtime.state = SensorRuntimeState::kConfigured;
+                managed.runtime.last_error.clear();
+                managed.next_action_time_ms = now_ms;
             }
         }
 
@@ -227,8 +216,6 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
 }
 
 void SensorManager::stop() {
-    ensureMutex();
-
     lock();
     const bool had_task = task_ != nullptr;
     stop_requested_ = true;
@@ -249,12 +236,10 @@ void SensorManager::stop() {
     lock();
     stop_requested_ = false;
     unlock();
-    i2c_bus_manager_.shutdown();
     uart_port_manager_.shutdown();
 }
 
 std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
-    ensureMutex();
     lock();
     std::vector<SensorRuntimeInfo> snapshot;
     snapshot.reserve(sensors_.size());
@@ -266,7 +251,6 @@ std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
 }
 
 std::size_t SensorManager::configuredCount() const {
-    ensureMutex();
     lock();
     const std::size_t count = sensors_.size();
     unlock();
@@ -274,7 +258,6 @@ std::size_t SensorManager::configuredCount() const {
 }
 
 std::size_t SensorManager::enabledCount() const {
-    ensureMutex();
     lock();
     std::size_t count = 0U;
     for (const auto& sensor : sensors_) {
@@ -284,12 +267,6 @@ std::size_t SensorManager::enabledCount() const {
     }
     unlock();
     return count;
-}
-
-void SensorManager::ensureMutex() const {
-    if (mutex_ == nullptr) {
-        mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
-    }
 }
 
 void SensorManager::lock() const {
@@ -387,7 +364,7 @@ void SensorManager::taskMain() {
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
 
-            if (op_err == ESP_OK && measurement_store_ != nullptr) {
+            if (op_err == ESP_OK && !measurement.empty() && measurement_store_ != nullptr) {
                 measurement_store_->recordMeasurement(
                     record.id,
                     record.sensor_type,

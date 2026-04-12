@@ -55,27 +55,26 @@ The older planning documents in `docs/` still matter, but they should be read as
 
 Start here depending on what you need.
 
-- Firmware architecture:
-  [docs/firmware/architecture.md](docs/firmware/architecture.md)
-- Firmware configuration and source layout:
-  [docs/firmware/configuration.md](docs/firmware/configuration.md)
-  and [docs/firmware/project-structure.md](docs/firmware/project-structure.md)
-- Firmware sensor subsystem:
-  [docs/firmware/sensors.md](docs/firmware/sensors.md)
-- Planned future device support:
-  [docs/firmware/planned-device-support.md](docs/firmware/planned-device-support.md)
-- Sensor.Community opportunity roadmap:
-  [docs/ecosystem/sensor-community-opportunity-roadmap.md](docs/ecosystem/sensor-community-opportunity-roadmap.md)
-- Measurement runtime ADR:
-  [docs/firmware/adr/measurement-runtime-separation-adr.md](docs/firmware/adr/measurement-runtime-separation-adr.md)
-- Live sensor reconfiguration ADR:
-  [docs/firmware/adr/live-sensor-reconfiguration-adr.md](docs/firmware/adr/live-sensor-reconfiguration-adr.md)
-- Mobile uplink ADR:
-  [docs/firmware/adr/sim7600e-mobile-uplink-adr.md](docs/firmware/adr/sim7600e-mobile-uplink-adr.md)
-- Firmware documentation map:
+- Firmware documentation map (all subsystems):
   [docs/firmware/README.md](docs/firmware/README.md)
+- Firmware architecture overview:
+  [docs/firmware/ARCHITECTURE.md](docs/firmware/ARCHITECTURE.md)
+- Firmware source layout:
+  [docs/firmware/PROJECT_STRUCTURE.md](docs/firmware/PROJECT_STRUCTURE.md)
+- Firmware startup sequence:
+  [docs/firmware/startup-pipeline.md](docs/firmware/startup-pipeline.md)
+- Firmware configuration reference:
+  [docs/firmware/configuration-reference.md](docs/firmware/configuration-reference.md)
+- Firmware sensor subsystem:
+  [docs/firmware/sensors/README.md](docs/firmware/sensors/README.md)
+- Firmware measurement pipeline:
+  [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md)
 - Firmware end-user manual:
   [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
+- Firmware architecture decision records:
+  [docs/firmware/adr/README.md](docs/firmware/adr/README.md)
+- Sensor.Community opportunity roadmap:
+  [docs/ecosystem/sensor-community-opportunity-roadmap.md](docs/ecosystem/sensor-community-opportunity-roadmap.md)
 - Firmware release-packaging skill:
   [.agents/skills/air360-firmware-release-bundle/](.agents/skills/air360-firmware-release-bundle/)
 - Backend documentation map:
@@ -148,7 +147,7 @@ If you need repository context first:
 
 1. Read this file
 2. Read [docs/firmware/README.md](docs/firmware/README.md)
-3. Read [docs/firmware/architecture.md](docs/firmware/architecture.md)
+3. Read [docs/firmware/ARCHITECTURE.md](docs/firmware/ARCHITECTURE.md)
 
 If you need backend work:
 

@@ -30,11 +30,11 @@
 #endif
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_RX_GPIO 44
+#define CONFIG_AIR360_GPS_DEFAULT_RX_GPIO 18
 #endif
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 43
+#define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 17
 #endif
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
@@ -366,12 +366,10 @@ struct SensorCardViewModel {
 
 enum class SensorCategory : std::uint8_t {
     kClimate = 1U,
-    kTemperatureHumidity = 2U,
-    kAirQuality = 3U,
-    kLight = 4U,
-    kParticulateMatter = 5U,
-    kLocation = 6U,
-    kGas = 7U,
+    kLight = 2U,
+    kParticulateMatter = 3U,
+    kLocation = 4U,
+    kGas = 5U,
 };
 
 struct SensorCategoryDescriptor {
@@ -555,15 +553,11 @@ std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
 constexpr SensorType kClimateSensorTypes[] = {
     SensorType::kBme280,
     SensorType::kBme680,
-};
-
-constexpr SensorType kTemperatureHumiditySensorTypes[] = {
     SensorType::kDht11,
     SensorType::kDht22,
-};
-
-constexpr SensorType kAirQualitySensorTypes[] = {
-    SensorType::kEns160,
+    SensorType::kDs18b20,
+    SensorType::kHtu2x,
+    SensorType::kSht4x,
 };
 
 constexpr SensorType kLightSensorTypes[] = {
@@ -579,6 +573,7 @@ constexpr SensorType kLocationSensorTypes[] = {
 };
 
 constexpr SensorType kGasSensorTypes[] = {
+    SensorType::kScd30,
     SensorType::kMe3No2,
 };
 
@@ -587,28 +582,10 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         SensorCategory::kClimate,
         "climate",
         "Climate",
-        "Temperature, humidity, pressure, and optional gas resistance.",
+        "Temperature, humidity, pressure, and related climate measurements over GPIO or I2C.",
         false,
         kClimateSensorTypes,
         sizeof(kClimateSensorTypes) / sizeof(kClimateSensorTypes[0]),
-    },
-    {
-        SensorCategory::kTemperatureHumidity,
-        "temperature-humidity",
-        "Temperature / Humidity",
-        "Single-wire digital temperature and humidity sensors.",
-        false,
-        kTemperatureHumiditySensorTypes,
-        sizeof(kTemperatureHumiditySensorTypes) / sizeof(kTemperatureHumiditySensorTypes[0]),
-    },
-    {
-        SensorCategory::kAirQuality,
-        "air-quality",
-        "Air Quality",
-        "VOC and eCO2 sensing.",
-        false,
-        kAirQualitySensorTypes,
-        sizeof(kAirQualitySensorTypes) / sizeof(kAirQualitySensorTypes[0]),
     },
     {
         SensorCategory::kLight,
@@ -640,8 +617,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
     {
         SensorCategory::kGas,
         "gas",
-        "Gas",
-        "Electrochemical gas sensors. Multiple gas sensors are allowed.",
+        "Gas / CO2",
+        "CO2 and electrochemical gas sensors. Multiple gas sensors are allowed.",
         true,
         kGasSensorTypes,
         sizeof(kGasSensorTypes) / sizeof(kGasSensorTypes[0]),
@@ -652,12 +629,14 @@ SensorCategory sensorCategoryForType(SensorType type) {
     switch (type) {
         case SensorType::kBme280:
         case SensorType::kBme680:
-            return SensorCategory::kClimate;
         case SensorType::kDht11:
         case SensorType::kDht22:
-            return SensorCategory::kTemperatureHumidity;
-        case SensorType::kEns160:
-            return SensorCategory::kAirQuality;
+        case SensorType::kDs18b20:
+        case SensorType::kHtu2x:
+        case SensorType::kSht4x:
+            return SensorCategory::kClimate;
+        case SensorType::kScd30:
+            return SensorCategory::kGas;
         case SensorType::kVeml7700:
             return SensorCategory::kLight;
         case SensorType::kSps30:
@@ -815,8 +794,8 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x77. Gas resistance is reported when the heater run is valid.";
         case SensorType::kSps30:
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
-        case SensorType::kEns160:
-            return "Defaults: I2C bus 0, currently address 0x52. The driver also probes 0x53 as a fallback.";
+        case SensorType::kScd30:
+            return "Defaults: I2C bus 0 at address 0x61. Reports CO2, temperature, and humidity.";
         case SensorType::kVeml7700:
             return "Defaults: I2C bus 0 at address 0x10. Reports ambient light in lux.";
         case SensorType::kGpsNmea: {
@@ -834,6 +813,12 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         case SensorType::kDht11:
         case SensorType::kDht22:
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
+        case SensorType::kDs18b20:
+            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6). Uses the official ESP 1-Wire DS18B20 driver and expects a single probe on that bus.";
+        case SensorType::kHtu2x:
+            return "Defaults: I2C bus 0 at address 0x40. Uses the esp-idf-lib SI7021 driver for HTU2x-compatible sensors.";
+        case SensorType::kSht4x:
+            return "Defaults: I2C bus 0 at address 0x44. Uses the esp-idf-lib SHT4X driver for Sensirion SHT40/SHT41/SHT45 sensors.";
         case SensorType::kMe3No2:
             return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6). Current driver reports raw ADC and calibrated voltage.";
         case SensorType::kUnknown:

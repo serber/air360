@@ -1,116 +1,40 @@
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 
-#include <cstdio>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
 
-extern "C" {
-#include "bme68x.h"
-}
-
 #include "air360/sensors/transport_binding.hpp"
-#include "esp_err.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+extern "C" {
+#include "bme680.h"
+}
 
 namespace air360 {
 
 struct Bme680DriverState {
-    bme68x_dev device{};
-    bme68x_conf conf{};
-    bme68x_heatr_conf heatr_conf{};
+    bme680_t device{};
+    bool descriptor_initialized = false;
 };
 
 namespace {
 
-constexpr std::uint32_t kAmbientTemperatureC = 25U;
-constexpr std::uint8_t kOversampling = BME68X_OS_2X;
+constexpr std::uint32_t kBme680I2cSpeedHz = 100000U;
+constexpr std::int16_t kAmbientTemperatureC = 25;
+constexpr bme680_oversampling_rate_t kOversampling = BME680_OSR_2X;
+constexpr bme680_filter_size_t kFilter = BME680_IIR_SIZE_0;
 constexpr std::uint16_t kHeaterTemperatureC = 300U;
 constexpr std::uint16_t kHeaterDurationMs = 100U;
-constexpr std::uint32_t kMeasurementSlackUs = 1000U;
-
-esp_err_t mapResultToEspErr(int8_t result) {
-    switch (result) {
-        case BME68X_OK:
-            return ESP_OK;
-        case BME68X_E_DEV_NOT_FOUND:
-            return ESP_ERR_NOT_FOUND;
-        case BME68X_E_INVALID_LENGTH:
-        case BME68X_E_NULL_PTR:
-            return ESP_ERR_INVALID_ARG;
-        case BME68X_E_COM_FAIL:
-            return ESP_FAIL;
-        case BME68X_W_NO_NEW_DATA:
-            return ESP_ERR_NOT_FOUND;
-        default:
-            return ESP_FAIL;
-    }
-}
-
-std::string describeResult(int8_t result) {
-    switch (result) {
-        case BME68X_OK:
-            return "ok";
-        case BME68X_E_NULL_PTR:
-            return "null pointer";
-        case BME68X_E_COM_FAIL:
-            return "communication failure";
-        case BME68X_E_DEV_NOT_FOUND:
-            return "sensor not found";
-        case BME68X_E_INVALID_LENGTH:
-            return "invalid length";
-        case BME68X_E_SELF_TEST:
-            return "self test failed";
-        case BME68X_W_DEFINE_OP_MODE:
-            return "invalid operation mode";
-        case BME68X_W_NO_NEW_DATA:
-            return "no new data";
-        case BME68X_W_DEFINE_SHD_HEATR_DUR:
-            return "heater duration not defined";
-        default:
-            return "unknown bme68x error";
-    }
-}
-
-BME68X_INTF_RET_TYPE readCallback(
-    std::uint8_t reg_addr,
-    std::uint8_t* reg_data,
-    std::uint32_t length,
-    void* intf_ptr) {
-    auto* context = static_cast<BoschI2cContext*>(intf_ptr);
-    if (context == nullptr) {
-        return static_cast<BME68X_INTF_RET_TYPE>(-1);
-    }
-
-    const esp_err_t err = boschI2cRead(*context, reg_addr, reg_data, length);
-    return err == ESP_OK ? BME68X_INTF_RET_SUCCESS : static_cast<BME68X_INTF_RET_TYPE>(-1);
-}
-
-BME68X_INTF_RET_TYPE writeCallback(
-    std::uint8_t reg_addr,
-    const std::uint8_t* reg_data,
-    std::uint32_t length,
-    void* intf_ptr) {
-    auto* context = static_cast<BoschI2cContext*>(intf_ptr);
-    if (context == nullptr) {
-        return static_cast<BME68X_INTF_RET_TYPE>(-1);
-    }
-
-    const esp_err_t err = boschI2cWrite(*context, reg_addr, reg_data, length);
-    return err == ESP_OK ? BME68X_INTF_RET_SUCCESS : static_cast<BME68X_INTF_RET_TYPE>(-1);
-}
-
-void delayUs(std::uint32_t period_us, void* intf_ptr) {
-    static_cast<void>(intf_ptr);
-    boschDelayUs(period_us);
-}
 
 }  // namespace
 
 Bme680Sensor::~Bme680Sensor() {
-    delete state_;
-    state_ = nullptr;
+    reset();
 }
 
 SensorType Bme680Sensor::type() const {
@@ -120,46 +44,49 @@ SensorType Bme680Sensor::type() const {
 esp_err_t Bme680Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
+    reset();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
     initialized_ = false;
 
-    if (context.i2c_bus_manager == nullptr) {
-        setError("I2C bus manager is unavailable.");
-        return ESP_ERR_INVALID_STATE;
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!context.i2c_bus_manager->resolvePins(record.i2c_bus_id, port, sda, scl)) {
+        setError("Unknown I2C bus id for BME680.");
+        return ESP_ERR_NOT_SUPPORTED;
     }
 
-    interface_context_.bus_manager = context.i2c_bus_manager;
-    interface_context_.bus_id = record.i2c_bus_id;
-    interface_context_.address = record.i2c_address;
-
-    delete state_;
     state_ = new Bme680DriverState{};
-
     std::memset(&state_->device, 0, sizeof(state_->device));
-    std::memset(&state_->conf, 0, sizeof(state_->conf));
-    std::memset(&state_->heatr_conf, 0, sizeof(state_->heatr_conf));
 
-    state_->device.intf = BME68X_I2C_INTF;
-    state_->device.intf_ptr = &interface_context_;
-    state_->device.read = &readCallback;
-    state_->device.write = &writeCallback;
-    state_->device.delay_us = &delayUs;
-    state_->device.amb_temp = static_cast<int8_t>(kAmbientTemperatureC);
+    esp_err_t err = bme680_init_desc(
+        &state_->device,
+        record.i2c_address,
+        port,
+        sda,
+        scl);
+    if (err != ESP_OK) {
+        setError("Failed to initialize BME680 descriptor.");
+        reset();
+        return err;
+    }
+    state_->descriptor_initialized = true;
+    state_->device.i2c_dev.cfg.master.clk_speed = kBme680I2cSpeedHz;
+    state_->device.i2c_dev.cfg.sda_pullup_en = 1;
+    state_->device.i2c_dev.cfg.scl_pullup_en = 1;
 
-    const int8_t init_result = bme68x_init(&state_->device);
-    if (init_result != BME68X_OK) {
-        setError(std::string("Failed to initialize BME680: ") + describeResult(init_result) + ".");
-        delete state_;
-        state_ = nullptr;
-        return mapResultToEspErr(init_result);
+    err = bme680_init_sensor(&state_->device);
+    if (err != ESP_OK) {
+        setError(std::string("Failed to initialize BME680 sensor: ") + esp_err_to_name(err));
+        reset();
+        return err;
     }
 
     const esp_err_t configure_err = configureSensor();
     if (configure_err != ESP_OK) {
-        delete state_;
-        state_ = nullptr;
+        reset();
         return configure_err;
     }
 
@@ -173,40 +100,46 @@ esp_err_t Bme680Sensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    int8_t result = bme68x_set_op_mode(BME68X_FORCED_MODE, &state_->device);
-    if (result != BME68X_OK) {
-        setError(std::string("Failed to start BME680 forced measurement: ") + describeResult(result) + ".");
+    uint32_t measurement_duration_ticks = 0U;
+    esp_err_t err = bme680_get_measurement_duration(&state_->device, &measurement_duration_ticks);
+    if (err != ESP_OK || measurement_duration_ticks == 0U) {
+        setError("Failed to calculate BME680 measurement duration.");
         initialized_ = false;
-        return mapResultToEspErr(result);
+        return err != ESP_OK ? err : ESP_FAIL;
     }
 
-    const std::uint32_t measurement_duration_us =
-        bme68x_get_meas_dur(BME68X_FORCED_MODE, &state_->conf, &state_->device) +
-        (static_cast<std::uint32_t>(state_->heatr_conf.heatr_dur) * 1000U) + kMeasurementSlackUs;
-    boschDelayUs(measurement_duration_us);
-
-    bme68x_data data{};
-    std::uint8_t field_count = 0U;
-    result = bme68x_get_data(BME68X_FORCED_MODE, &data, &field_count, &state_->device);
-    if (result != BME68X_OK && result != BME68X_W_NO_NEW_DATA) {
-        setError(std::string("Failed to read BME680 measurement: ") + describeResult(result) + ".");
+    err = bme680_force_measurement(&state_->device);
+    if (err != ESP_OK) {
+        setError("Failed to start BME680 forced measurement.");
         initialized_ = false;
-        return mapResultToEspErr(result);
+        return err;
     }
 
-    if (field_count == 0U || (data.status & BME68X_NEW_DATA_MSK) == 0U) {
-        setError("BME680 returned no fresh sample.");
-        return ESP_ERR_NOT_FOUND;
+    vTaskDelay(measurement_duration_ticks);
+
+    bme680_values_float_t data{};
+    err = bme680_get_results_float(&state_->device, &data);
+    if (err != ESP_OK) {
+        setError(std::string("Failed to read BME680 measurement: ") + esp_err_to_name(err));
+        initialized_ = false;
+        return err;
+    }
+
+    if (std::isnan(data.temperature) ||
+        std::isnan(data.humidity) ||
+        std::isnan(data.pressure)) {
+        setError("BME680 driver returned invalid values.");
+        initialized_ = false;
+        return ESP_ERR_INVALID_RESPONSE;
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, data.temperature);
     measurement_.addValue(SensorValueKind::kHumidityPercent, data.humidity);
-    measurement_.addValue(SensorValueKind::kPressureHpa, data.pressure / 100.0F);
+    measurement_.addValue(SensorValueKind::kPressureHpa, data.pressure);
 
-    if ((data.status & BME68X_GASM_VALID_MSK) != 0U &&
-        (data.status & BME68X_HEAT_STAB_MSK) != 0U) {
+    if (data.gas_resistance > 0.0F) {
         measurement_.addValue(SensorValueKind::kGasResistanceOhms, data.gas_resistance);
     }
 
@@ -223,33 +156,57 @@ std::string Bme680Sensor::lastError() const {
 }
 
 esp_err_t Bme680Sensor::configureSensor() {
-    state_->conf.filter = BME68X_FILTER_OFF;
-    state_->conf.odr = BME68X_ODR_NONE;
-    state_->conf.os_hum = kOversampling;
-    state_->conf.os_pres = kOversampling;
-    state_->conf.os_temp = kOversampling;
-
-    int8_t result = bme68x_set_conf(&state_->conf, &state_->device);
-    if (result != BME68X_OK) {
-        setError(std::string("Failed to configure BME680 oversampling: ") + describeResult(result) + ".");
-        return mapResultToEspErr(result);
+    esp_err_t err = bme680_set_oversampling_rates(
+        &state_->device,
+        kOversampling,
+        kOversampling,
+        kOversampling);
+    if (err != ESP_OK) {
+        setError("Failed to configure BME680 oversampling.");
+        return err;
     }
 
-    state_->heatr_conf.enable = BME68X_ENABLE;
-    state_->heatr_conf.heatr_temp = kHeaterTemperatureC;
-    state_->heatr_conf.heatr_dur = kHeaterDurationMs;
-    state_->heatr_conf.heatr_temp_prof = nullptr;
-    state_->heatr_conf.heatr_dur_prof = nullptr;
-    state_->heatr_conf.profile_len = 0U;
-    state_->heatr_conf.shared_heatr_dur = 0U;
+    err = bme680_set_filter_size(&state_->device, kFilter);
+    if (err != ESP_OK) {
+        setError("Failed to configure BME680 filter.");
+        return err;
+    }
 
-    result = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &state_->heatr_conf, &state_->device);
-    if (result != BME68X_OK) {
-        setError(std::string("Failed to configure BME680 gas heater: ") + describeResult(result) + ".");
-        return mapResultToEspErr(result);
+    err = bme680_set_heater_profile(&state_->device, 0U, kHeaterTemperatureC, kHeaterDurationMs);
+    if (err != ESP_OK) {
+        setError("Failed to configure BME680 gas heater profile.");
+        return err;
+    }
+
+    err = bme680_use_heater_profile(&state_->device, 0);
+    if (err != ESP_OK) {
+        setError("Failed to enable BME680 gas heater profile.");
+        return err;
+    }
+
+    err = bme680_set_ambient_temperature(&state_->device, kAmbientTemperatureC);
+    if (err != ESP_OK) {
+        setError("Failed to configure BME680 ambient temperature.");
+        return err;
     }
 
     return ESP_OK;
+}
+
+void Bme680Sensor::reset() {
+    initialized_ = false;
+    if (state_ == nullptr) {
+        return;
+    }
+
+    if (state_->descriptor_initialized) {
+        bme680_free_desc(&state_->device);
+        std::memset(&state_->device, 0, sizeof(state_->device));
+        state_->descriptor_initialized = false;
+    }
+
+    delete state_;
+    state_ = nullptr;
 }
 
 void Bme680Sensor::setError(const std::string& message) {

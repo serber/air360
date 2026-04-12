@@ -15,9 +15,12 @@ enum class SensorType : std::uint8_t {
     kDht22 = 4U,
     kBme680 = 5U,
     kSps30 = 6U,
-    kEns160 = 7U,
     kMe3No2 = 8U,
     kVeml7700 = 9U,
+    kDs18b20 = 10U,
+    kScd30 = 11U,
+    kHtu2x = 12U,
+    kSht4x = 13U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -77,14 +80,12 @@ enum class SensorValueKind : std::uint8_t {
     kNc4_0PerCm3 = 17U,
     kNc10_0PerCm3 = 18U,
     kTypicalParticleSizeUm = 19U,
-    kAqi = 20U,
-    kTvocPpb = 21U,
-    kEco2Ppm = 22U,
-    kAdcRaw = 23U,
-    kVoltageMv = 24U,
-    kCourseDeg = 25U,
-    kHdop = 26U,
-    kIlluminanceLux = 27U,
+    kCo2Ppm = 23U,
+    kAdcRaw = 24U,
+    kVoltageMv = 25U,
+    kCourseDeg = 26U,
+    kHdop = 27U,
+    kIlluminanceLux = 28U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -127,12 +128,8 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "nc10_0_per_cm3";
         case SensorValueKind::kTypicalParticleSizeUm:
             return "typical_particle_size_um";
-        case SensorValueKind::kAqi:
-            return "aqi";
-        case SensorValueKind::kTvocPpb:
-            return "tvoc_ppb";
-        case SensorValueKind::kEco2Ppm:
-            return "eco2_ppm";
+        case SensorValueKind::kCo2Ppm:
+            return "co2_ppm";
         case SensorValueKind::kAdcRaw:
             return "adc_raw";
         case SensorValueKind::kVoltageMv:
@@ -189,12 +186,8 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "NC10";
         case SensorValueKind::kTypicalParticleSizeUm:
             return "Particle size";
-        case SensorValueKind::kAqi:
-            return "AQI";
-        case SensorValueKind::kTvocPpb:
-            return "TVOC";
-        case SensorValueKind::kEco2Ppm:
-            return "eCO2";
+        case SensorValueKind::kCo2Ppm:
+            return "CO2";
         case SensorValueKind::kAdcRaw:
             return "ADC raw";
         case SensorValueKind::kVoltageMv:
@@ -247,11 +240,7 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "#/cm3";
         case SensorValueKind::kTypicalParticleSizeUm:
             return "um";
-        case SensorValueKind::kAqi:
-            return "";
-        case SensorValueKind::kTvocPpb:
-            return "ppb";
-        case SensorValueKind::kEco2Ppm:
+        case SensorValueKind::kCo2Ppm:
             return "ppm";
         case SensorValueKind::kAdcRaw:
             return "";
@@ -288,9 +277,7 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kNc10_0PerCm3:
         case SensorValueKind::kTypicalParticleSizeUm:
             return 1;
-        case SensorValueKind::kAqi:
-        case SensorValueKind::kTvocPpb:
-        case SensorValueKind::kEco2Ppm:
+        case SensorValueKind::kCo2Ppm:
         case SensorValueKind::kAdcRaw:
         case SensorValueKind::kVoltageMv:
             return 0;
