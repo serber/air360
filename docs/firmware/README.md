@@ -1,63 +1,118 @@
-# Air360 Firmware Docs
+# Air360 Firmware Documentation
 
-This directory contains implementation-oriented documentation for the ESP-IDF firmware project in [`../../firmware/`](../../firmware/).
+Documentation for the Air360 firmware — an ESP32-S3 air quality monitoring device built on ESP-IDF 6.x and FreeRTOS.
 
-These documents are written from the current `firmware/` source tree. They are meant to make the codebase easier to navigate, but `firmware/` remains the source of truth for implemented behavior.
+The `firmware/` directory is the source of truth for all implemented behaviour described here.
 
-## What Is In Scope
+---
 
-The current firmware is an ESP-IDF 6.x project for `esp32s3` that:
+## Getting started
 
-- boots a C++17 runtime around `air360::App`
-- persists device, sensor, and backend configuration in NVS
-- brings up either Wi-Fi station mode or setup AP mode
-- synchronizes UTC time through SNTP when station uplink is available
-- exposes a local web UI at `/`, `/status`, `/config`, `/sensors`, and `/backends`
-- serves shared CSS, JavaScript, and page templates from embedded files under `firmware/main/webui/`
-- runs a background sensor manager for supported drivers
-- runs a background upload manager for supported remote backends
-- renders a compact `Health` summary in `Overview` and exposes the same derived state in `/status`
+| Document | Description |
+|----------|-------------|
+| [user-guide.md](user-guide.md) | End-user guide: flashing, first-time setup, web UI walkthrough |
+| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Directory layout, key source files, third-party components |
 
-## Document Map
+---
 
-- [`architecture.md`](architecture.md)
-  Startup flow, runtime model, module boundaries, and steady-state behavior.
-- [`configuration.md`](configuration.md)
-  `Kconfig`, `sdkconfig.defaults`, runtime NVS config, partition layout, and board-level defaults.
-- [`user-guide.md`](user-guide.md)
-  End-user walkthrough for setup AP onboarding, station-mode usage, sensors, backends, and the local web UI.
-- [`project-structure.md`](project-structure.md)
-  Source tree walkthrough, component layout, build inputs, and developer navigation.
-- [`sensors.md`](sensors.md)
-  Sensor subsystem architecture, registry/runtime model, supported drivers, generic measurements, transports, and current board wiring assumptions.
-- [`planned-device-support.md`](planned-device-support.md)
-  Forward-looking inventory of planned sensors, peripherals, and connectivity modules. This file is planning-oriented, not a record of what is already implemented.
-- [`platform-selection.md`](platform-selection.md)
-  Engineering notes for choosing a hardware baseline for the current firmware, including why the present implementation fits ESP32-S3 best and how ESP32-C3, ESP32-C6, and ESP8266 compare as future alternatives.
-- [`adr/README.md`](adr/README.md)
-  Firmware architecture decision records for implemented and planned changes such as measurement/runtime separation, live sensor apply, and cellular uplink.
-- [`../../firmware/README.md`](../../firmware/README.md)
-  Operational firmware README with build, flash, monitor, startup, upload, and known-limitation details.
-- [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/)
-  Repo-local skill for turning the current `firmware/build/` outputs into a GitHub-release-ready bundle with merged image, split images, zip archives, checksums, and release notes.
+## Architecture and boot
 
-## How To Use These Docs
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System overview: components, task model, data flow, GPIO allocation |
+| [startup-pipeline.md](startup-pipeline.md) | 9-step boot sequence, long-lived tasks, failure modes |
+| [nvs.md](nvs.md) | NVS storage: namespace, blob structs, validation and reset behaviour |
 
-- Start with [`project-structure.md`](project-structure.md) if you are new to the firmware tree.
-- Read [`../../firmware/README.md`](../../firmware/README.md) first if you need the practical build and runtime overview.
-- Use [`user-guide.md`](user-guide.md) when the audience is a device user rather than a firmware developer.
-- Read [`architecture.md`](architecture.md) to understand boot flow and service ownership.
-- Use [`configuration.md`](configuration.md) when changing defaults, `sdkconfig`, or partitions.
-- Use [`sensors.md`](sensors.md) before adding a new driver or changing sensor setup behavior.
-- Use [`../../.agents/skills/air360-firmware-release-bundle/`](../../.agents/skills/air360-firmware-release-bundle/) when preparing a beta or stable firmware release from an existing local build.
-- Use [`planned-device-support.md`](planned-device-support.md) when discussing future hardware support beyond what is already implemented.
-- Use [`platform-selection.md`](platform-selection.md) when discussing whether Air360 should stay on ESP32-S3, move to ESP32-C3 or ESP32-C6, or attempt an ESP8266 port.
-- Use [`adr/README.md`](adr/README.md) when the task is about planned firmware architecture changes rather than already implemented behavior.
+---
 
-## Scope Boundary
+## Configuration
 
-This directory mostly documents the current firmware implementation.
+| Document | Description |
+|----------|-------------|
+| [configuration-reference.md](configuration-reference.md) | All configurable fields: defaults, ranges, validation rules |
+| [web-ui.md](web-ui.md) | Embedded HTTP server: routes, pages, form actions, JavaScript behaviour |
 
-Planning and compatibility notes for the wider replacement effort still live in the parent [`../`](../) directory. Those files are useful design context, but they should not be treated as proof that a feature already exists in `firmware/`.
+---
 
-Exceptions in this directory are [`planned-device-support.md`](planned-device-support.md) and [`platform-selection.md`](platform-selection.md), which are intentionally more decision-oriented and forward-looking than the implementation walkthroughs. They should be treated as planning and compatibility context rather than proof that a feature or target already exists in `firmware/`.
+## Networking and time
+
+| Document | Description |
+|----------|-------------|
+| [network-manager.md](network-manager.md) | Wi-Fi station / setup AP modes, SNTP time sync, state transitions |
+| [time.md](time.md) | Uptime vs Unix time, SNTP sync sequence, time validity threshold, where time gates the system |
+
+---
+
+## Sensor subsystem
+
+| Document | Description |
+|----------|-------------|
+| [sensors/supported-sensors.md](sensors/supported-sensors.md) | Supported sensors: category, transport, address/pin |
+| [sensors/README.md](sensors/README.md) | Per-driver documentation index |
+| [transport-binding.md](transport-binding.md) | I2C bus manager and UART port manager used by all sensor drivers |
+
+### Sensor drivers
+
+| Document | Sensor | Transport | Measurements |
+|----------|--------|-----------|--------------|
+| [sensors/bme280.md](sensors/bme280.md) | BME280 | I2C `0x76` | Temperature, humidity, pressure |
+| [sensors/bme680.md](sensors/bme680.md) | BME680 | I2C `0x77` | Temperature, humidity, pressure, gas resistance |
+| [sensors/sps30.md](sensors/sps30.md) | SPS30 | I2C `0x69` | PM1.0–PM10.0, particle number concentrations, typical particle size |
+| [sensors/scd30.md](sensors/scd30.md) | SCD30 | I2C `0x61` | CO₂, temperature, humidity |
+| [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | I2C `0x10` | Illuminance |
+| [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | I2C `0x40` | Temperature, humidity |
+| [sensors/sht4x.md](sensors/sht4x.md) | SHT4X | I2C `0x44` | Temperature, humidity |
+| [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | UART1 | Latitude, longitude, altitude, speed, satellites, HDOP |
+| [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | GPIO | Temperature, humidity |
+| [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | GPIO (1-Wire) | Temperature |
+| [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Analog (ADC) | Raw ADC count, voltage |
+
+---
+
+## Measurement pipeline and upload
+
+| Document | Description |
+|----------|-------------|
+| [measurement-pipeline.md](measurement-pipeline.md) | Sensor polling → queue → upload window → batch assembly → acknowledge/restore |
+| [upload-adapters.md](upload-adapters.md) | Sensor.Community and Air360 API adapters: request format, grouping, response classification |
+| [upload-transport.md](upload-transport.md) | HTTP execution layer: `esp_http_client` configuration, TLS, response struct |
+
+---
+
+## Architecture Decision Records
+
+See [adr/README.md](adr/README.md) for the full index grouped by status.
+
+---
+
+## Document map
+
+Key cross-document relationships:
+
+```
+startup-pipeline
+  ├─ nvs                     (steps 4–6: config load)
+  ├─ configuration-reference (field defaults and validation)
+  ├─ network-manager         (step 7: Wi-Fi connection)
+  └─ measurement-pipeline    (step 8: upload task spawn)
+
+measurement-pipeline
+  ├─ transport-binding       (sensor driver hardware access)
+  └─ upload-adapters         (batch → HTTP requests)
+
+upload-adapters
+  └─ upload-transport        (HTTP execution)
+
+network-manager
+  └─ time                    (SNTP sync sequence, validity threshold)
+
+measurement-pipeline
+  └─ time                    (why samples are blocked before SNTP)
+
+web-ui
+  ├─ configuration-reference (field constraints for /config and /sensors)
+  └─ network-manager         (setup AP mode detection)
+
+sensors/*
+  └─ transport-binding       (I2C / UART / GPIO transport details)
+```

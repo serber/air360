@@ -1,479 +1,383 @@
 # Air360 Firmware User Guide
 
-## Purpose
-
-This guide explains how to use the current Air360 firmware from the moment the device starts in setup AP mode through normal operation in station mode.
+This guide explains how to use the Air360 firmware web interface — from first boot through sensor and backend configuration in normal operation.
 
 It is written for device users, not for firmware developers.
 
+---
+
+## What You Need
+
+- A device flashed with the Air360 firmware
+- A phone, tablet, or laptop with Wi-Fi
+- The SSID and password of the Wi-Fi network the device should join
+
+---
+
 ## Flashing The Firmware
 
-If you are starting from a release package, the easiest flashing path is the merged `full.bin` image through:
+If you are starting from a release package, the easiest path is the merged `full.bin` image via the browser-based ESP flash tool:
 
-```text
+```
 https://espflash.app/
 ```
 
 Recommended flow:
 
-1. Download the current `full.bin` release asset for your build.
-2. Open `https://espflash.app/` in a desktop browser with Web Serial support.
+1. Download the current `full.bin` release asset.
+2. Open `https://espflash.app/` in a desktop browser with Web Serial support (Chrome or Edge).
 3. Connect the device by USB.
-4. Select the device port in the browser.
-5. Choose the Air360 `full.bin` file.
+4. Select the device serial port in the browser.
+5. Select the Air360 `full.bin` file.
 6. Start flashing and wait for the device to reboot.
 
-After flashing, if the device has no saved station Wi-Fi credentials, it should boot into setup AP mode and expose `http://192.168.4.1/config`.
+After flashing, if no station Wi-Fi credentials are saved, the device boots into setup AP mode and exposes `http://192.168.4.1/config`.
 
-## Before You Start
+---
 
-You need:
+## Network Modes
 
-- a device flashed with the current Air360 firmware
-- a phone, tablet, or laptop with Wi-Fi
-- the SSID and password of the Wi-Fi network the device should join
+The firmware operates in one of two modes:
 
-The firmware works in two main network modes:
+| Mode | When | Access |
+|------|------|--------|
+| `setup AP` | No valid station credentials, or station join failed | Connect to the device's own Wi-Fi network, open `http://192.168.4.1/` |
+| `station` | Joined the configured Wi-Fi network | Open the device by its DHCP IP address on your network |
 
-- `setup AP`
-  First-time setup and recovery mode. The device creates its own Wi-Fi network and exposes only the `Device` page.
-- `station`
-  Normal operating mode. The device joins your Wi-Fi network and exposes the full web UI.
+In **setup AP mode** the navigation is intentionally limited to the `Device` page only. All other pages redirect to `Device`.
+
+In **station mode** the full UI is available.
+
+---
 
 ## First Boot: Setup AP Mode
 
-When the device has no valid station Wi-Fi configuration, it starts in setup AP mode.
+When no Wi-Fi credentials are configured, the device starts in setup AP mode.
 
-In this mode:
-
-- the device creates its own Wi-Fi network
-- the web UI is available at `http://192.168.4.1/`
-- the UI navigation is intentionally limited to the `Device` page
-
-### Step 1. Connect To The Device AP
+### Step 1 — Connect to the device AP
 
 1. Power on the device.
-2. On your phone or laptop, open the Wi-Fi settings.
-3. Find the Air360 setup access point.
-   The default SSID comes from the firmware defaults configured for the board.
-4. Connect to that network.
+2. Open Wi-Fi settings on your phone or laptop.
+3. Connect to the Air360 setup network. The default SSID is `air360`, password `air360password`.
 
-If the AP has a password, enter the configured setup password.
+### Step 2 — Open the setup page
 
-### Step 2. Open The Setup Page
+Open `http://192.168.4.1/` or `http://192.168.4.1/config` in a browser.
 
-Open:
+In setup AP mode both routes lead to the Device configuration page.
 
-```text
-http://192.168.4.1/config
-```
+### Step 3 — Enter station Wi-Fi credentials
 
-You can also open:
+1. Optionally change the **Device name** (used as the DHCP hostname on your network).
+2. In **Wi-Fi SSID**, pick a network from the scanned dropdown or type the SSID manually.
+3. Enter **Wi-Fi password**.
+4. Press **Save and reboot**.
 
-```text
-http://192.168.4.1/
-```
+The device reboots and attempts to join the configured network.
 
-In setup AP mode the root route redirects to `Device`.
+> To return to setup AP mode at any time, go to `Device`, clear the Wi-Fi SSID field, and save. The device will reboot into setup AP mode.
 
-### Step 3. Configure Station Wi-Fi
+---
 
-On the `Device` page:
+## Finding The Device In Station Mode
 
-1. Check `Device name`.
-2. In `Wi-Fi SSID`, choose a network from the scanned list or enter the SSID manually.
-3. Enter `Wi-Fi password`.
-4. Press `Save and reboot`.
+After a successful join, the device receives a DHCP address from your router.
 
-Important behavior:
+Ways to find it:
 
-- the page shows both a manual SSID input and a dropdown with scanned nearby networks
-- after saving, the firmware reboots automatically
-- setup AP settings are not edited through the UI; the page is focused only on joining the real Wi-Fi network
+- Check the connected client list in your router admin panel — look for the configured Device name as the hostname.
+- Use a network scanner app on your phone.
+- Check the serial monitor output during boot — the assigned IP is logged.
 
-## After Save: Transition To Station Mode
+Once you have the IP, open `http://<device-ip>/` in a browser.
 
-After reboot, the firmware tries to join the configured Wi-Fi network.
+---
 
-If the join succeeds:
+## Web UI Overview
 
-- the device switches to `station` mode
-- it receives an IP address from your router
-- the full web UI becomes available
+The navigation bar contains five sections:
 
-If the join fails:
+| Section | Purpose |
+|---------|---------|
+| **Overview** | Runtime dashboard: health, identity, sensors, backends |
+| **Device** | Device name and station Wi-Fi credentials |
+| **Sensors** | Sensor inventory — add, configure, remove |
+| **Backends** | Upload targets — enable, configure, monitor |
+| **Status JSON** | Raw machine-readable runtime state at `/status` |
 
-- the firmware falls back to setup AP mode again
-- reconnect to the Air360 AP and correct the Wi-Fi settings
-
-## How To Find The Device In Station Mode
-
-Once the device is on your Wi-Fi network, open it through the IP address assigned by your router.
-
-Typical ways to find it:
-
-- look at the connected client list in your router
-- look for the configured `Device name` as the DHCP hostname
-- use the IP address shown by the router
-
-The current firmware sets the station hostname from `Device name`, normalized into a safe network name.
-
-## Main Sections In Station Mode
-
-In station mode the full UI is available.
-
-The main sections are:
-
-- `Overview`
-  Runtime summary, identity information, backend status, and sensor status.
-- `Device`
-  Device name and station Wi-Fi credentials.
-- `Sensors`
-  Sensor configuration by category.
-- `Backends`
-  Upload backend configuration and backend runtime status.
-- `Status JSON`
-  Raw machine-readable runtime state at `/status`.
+---
 
 ## Overview Page
 
-`Overview` is the main runtime dashboard.
+The Overview page is the main runtime dashboard.
 
-![Overview page](images/firmware_overview.png)
+![Runtime Overview](images/firmware_overview.png)
 
-It currently shows:
+The top of the page shows a **Health** bar with quick-glance status for time sync, sensors, uplink, and backends.
 
-- network mode
-- device name
-- configured sensor count
-- enabled backend count
-- uptime
-- boot count
-- a compact `Health` summary
-- identity information such as chip id, MAC, chip type, current UTC date, reset reason, and IP address
-- per-backend overview cards
-- per-sensor overview cards
+Below the health bar:
 
-### What Sensor Cards Show
+| Field | Description |
+|-------|-------------|
+| Mode | Current network mode (`station` or `setup AP`) |
+| Device | Device name |
+| Sensors | Number of configured sensors |
+| Backends | Number of enabled backends |
+| Uptime | Time since last boot |
+| Boot count | Total number of boots since first flash |
 
-Each sensor card in `Overview` shows:
+### Identity block
 
-- sensor name
-- binding summary
-- configured poll interval
-- runtime state
-- queued sample count
-- latest readings
-- runtime error, if one exists
+Shows the chip ID, Short ID, MAC address, chip type, detected features, crystal frequency, current UTC date and time, last reset reason, and current IP address.
 
-`queued sample count` means how many collected samples for that sensor are currently waiting in the internal upload queue.
+The **Short ID** is the identifier used by Sensor.Community. Note it here when registering the device on the Sensor.Community portal.
+
+### Backend cards
+
+Each enabled backend shows its current state, last upload attempt time, HTTP status code, and response time.
+
+### Sensor cards
+
+Each configured sensor shows:
+
+- Sensor model and transport binding
+- Configured poll interval
+- Runtime state
+- Queued sample count — how many collected measurements are currently waiting in the upload queue
+- Latest readings
+- Runtime error message, if any
+
+---
 
 ## Device Page
 
-`Device` is for station network configuration and identity.
+The Device page manages the device name and station Wi-Fi credentials.
 
-![Device page](images/firmware_device.png)
+![Device Configuration](images/firmware_device.png)
 
-It currently allows you to edit:
+Available fields:
 
-- `Device name`
-- `Wi-Fi SSID`
-- `Wi-Fi password`
+| Field | Description |
+|-------|-------------|
+| Device name | Logical name shown in the UI and used as the DHCP hostname |
+| Wi-Fi SSID | Station network to join |
+| Wi-Fi password | Station network password |
 
-Notes:
+**Saving device settings reboots the device.**
 
-- in setup AP mode this is the only visible page
-- saving device settings reboots the device
-- in station mode this page is still available if you need to move the device to another Wi-Fi network
+This page is available in both setup AP mode and station mode. In station mode it is useful when moving the device to a different Wi-Fi network.
+
+---
 
 ## Sensors Page
 
-`Sensors` is category-based. It does not show one flat list of low-level driver keys.
+The Sensors page manages the sensor inventory. Sensors are organized into categories.
 
-![Sensors page](images/firmware_sensors.png)
+![Sensor Configuration](images/firmware_sensors.png)
 
-Current categories:
+### Supported sensors by category
 
-- `Climate`
-- `Temperature / Humidity`
-- `Air Quality`
-- `Light`
-- `Particulate Matter`
-- `Location`
-- `Gas`
+| Category | Models |
+|----------|--------|
+| Climate | BME280, BME680 |
+| Temperature & Humidity | SHT4X, HTU2X, DHT11, DHT22 |
+| Temperature | DS18B20 |
+| CO2 | SCD30 |
+| Light | VEML7700 |
+| Particulate Matter | SPS30 |
+| Location | GPS (NMEA) |
+| Gas | ME3-NO2 |
 
-Current supported models:
+All categories except **Gas** allow only one configured sensor at a time.
 
-- `Climate`
-  - `BME280`
-  - `BME680`
-- `Temperature / Humidity`
-  - `DHT11`
-  - `DHT22`
-- `Air Quality`
-  - `ENS160`
-- `Light`
-  - `VEML7700`
-- `Particulate Matter`
-  - `SPS30`
-- `Location`
-  - `GPS (NMEA)`
-- `Gas`
-  - `ME3-NO2`
+### Default transport bindings
 
-### Category Rules
+| Sensor | Transport | Default address / pin |
+|--------|-----------|----------------------|
+| BME280 | I2C bus 0 | `0x76` |
+| BME680 | I2C bus 0 | `0x77` |
+| SHT4X | I2C bus 0 | `0x44` |
+| HTU2X | I2C bus 0 | `0x40` |
+| SCD30 | I2C bus 0 | `0x61` |
+| VEML7700 | I2C bus 0 | `0x10` |
+| SPS30 | I2C bus 0 | `0x69` |
+| GPS (NMEA) | UART1 | GPIO18 (RX), GPIO17 (TX) |
+| DHT11, DHT22 | GPIO | GPIO4, GPIO5, or GPIO6 |
+| DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
+| ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
 
-All current categories except `Gas` are single-sensor categories.
+I2C sensors allow an optional address override if your module uses a non-default address. GPIO and analog sensors require selecting one of the three available board pins.
 
-That means:
+### Adding a sensor
 
-- you can configure only one `Climate` sensor
-- only one `Temperature / Humidity` sensor
-- only one `Air Quality` sensor
-- only one `Light` sensor
-- only one `Particulate Matter` sensor
-- only one `Location` sensor
-- `Gas` can contain multiple sensors
-
-### How To Add A Sensor
-
-1. Open `Sensors`.
+1. Open **Sensors**.
 2. Find the category you want.
-3. If the category supports multiple models, choose the model.
-4. Set `Poll interval (ms)`.
-5. If the sensor uses I2C, adjust `I2C address` only if you intentionally need a non-default address.
-6. If the sensor uses GPIO or analog input, choose one of the supported board GPIO pins.
-7. Enable the sensor if needed.
-8. Press `Stage sensor changes`.
+3. Select the sensor model.
+4. Set the **Poll interval (ms)**. Minimum is 5000 ms for most sensors.
+5. For I2C sensors: adjust the **I2C address** only if needed.
+6. For GPIO or analog sensors: select the board pin from the dropdown.
+7. Make sure the sensor is enabled.
+8. Press **Stage sensor changes**.
 
-Important current behavior:
+### Removing or updating a sensor
 
-- sensor changes are staged in memory first
-- they are not written to NVS immediately
-- after staging, you must press `Apply now`
+1. Open the existing sensor card.
+2. Change settings and press **Stage sensor changes**, or press **Stage sensor deletion**.
 
-### How To Remove Or Change A Sensor
+### Applying changes
 
-For an existing sensor card:
+Sensor edits are staged in memory and are not saved until you explicitly apply them:
 
-- change the settings and press `Stage sensor changes`
-- or press `Stage sensor deletion`
+- **Apply now** — persists the staged sensor list to NVS and rebuilds the sensor runtime without rebooting the device.
+- **Discard pending changes** — discards all staged edits and returns to the last saved state.
 
-Then finish with:
+After pressing **Apply now**, sensor readings should appear in **Overview** within the first configured poll interval.
 
-- `Apply now`
-  Persists the staged sensor set and rebuilds the sensor runtime without rebooting the device
-- `Discard pending changes`
-  Throws away staged sensor edits
-
-### Sensor Poll Interval
-
-The current firmware enforces:
-
-- minimum poll interval: `5000 ms`
-
-If a lower value is entered, the UI or server-side validation rejects it.
-
-### Sensor Defaults And Bindings
-
-Current default bindings:
-
-- `BME280`
-  I2C bus 0, default address `0x76`
-- `BME680`
-  I2C bus 0, default address `0x77`
-- `ENS160`
-  I2C bus 0, default address `0x52`
-- `VEML7700`
-  I2C bus 0, default address `0x10`
-- `SPS30`
-  I2C bus 0, default address `0x69`
-- `GPS (NMEA)`
-  fixed UART binding from board defaults
-- `DHT11`, `DHT22`, `ME3-NO2`
-  one of the board sensor GPIO slots
-
-For I2C sensors the current UI allows manual address override.
+---
 
 ## Backends Page
 
-![Backends page](images/firmware_backends.png)
+The Backends page configures where measurement data is uploaded.
 
-`Backends` controls where data is uploaded.
+![Upload Backends](images/firmware_backends.png)
 
-Current supported backends:
+### Upload interval
 
-- `Sensor.Community`
-- `Air360 API`
+The **Upload interval** field at the top of the page controls how often the device sends a data batch to all enabled backends. The allowed range is 10 000–300 000 ms (10 s to 5 min). The default is 145 000 ms.
 
-### Sensor.Community Setup
+### Sensor.Community
 
-To use `Sensor.Community`:
+To use Sensor.Community:
 
-1. Open the device UI in station mode.
-2. Go to `Overview`.
-3. Note the current `Short ID`.
-4. Open:
+1. Open **Overview** and note the **Short ID**.
+2. Register your device at `https://devices.sensor.community/` using that Short ID.
+3. Return to the firmware **Backends** page.
+4. Enable Sensor.Community.
+5. Leave **Device ID override** at its default value unless you need a different ID for debugging.
+6. Press **Save**.
 
-```text
-https://devices.sensor.community/
-```
+> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the Short ID. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
 
-5. Register or configure the device on the Sensor.Community portal using that `Short ID`.
-6. Return to the firmware `Backends` page.
-7. Enable `Sensor.Community`.
-8. Leave the `Device ID override` at its default value unless you intentionally need a different id for debugging.
-9. Save the backend settings.
+### Air360 API
 
-Important rule:
+Enable Air360 API and press **Save**. No additional credentials are required in the current firmware version.
 
-- the id configured on the Sensor.Community portal must match the id the firmware uses for upload
-- by default that is the runtime `Short ID`
-- if you manually change `Device ID override`, that override becomes the id used by the uploader and should match the portal-side configuration
+### Save behavior
 
-### What Can Be Configured
+Backend settings are saved immediately when you press **Save** — there is no staged apply flow for backends.
 
-The page currently allows:
+### Backend runtime status
 
-- global upload interval
-- enabling or disabling each backend
-- `Sensor.Community` device id override
+Each backend card shows:
 
-`Air360 API` does not use a bearer token in the current firmware.
+- Enabled or disabled state
+- Endpoint URL
+- Last upload attempt time
+- HTTP status code
+- Response time in ms
+- Last error, if any
 
-### Save Behavior
-
-Unlike `Sensors`, backend changes are persisted immediately.
-
-There is no staged apply flow for backends.
-
-### Backend Runtime Information
-
-Each backend card shows runtime information such as:
-
-- enabled or disabled
-- last attempt time
-- HTTP status
-- response time
-- last error when applicable
-
-On `Overview`, backend cards also show the currently configured global upload interval.
+---
 
 ## Status JSON
 
-The raw runtime endpoint is:
+The raw runtime endpoint is available at:
 
-```text
-/status
+```
+http://<device-ip>/status
 ```
 
-This endpoint is useful for advanced troubleshooting and integration.
+This endpoint is useful for advanced troubleshooting and external integrations. It includes build information, boot count, reset reason, network state, sensor runtime state with latest measurements and queued sample counts, and backend runtime state.
 
-It currently includes:
+---
 
-- build information
-- boot count
-- reset reason and reset reason label
-- network state
-- sensor runtime state
-- measurements
-- per-sensor poll interval
-- per-sensor queued sample count
-- backend runtime state
+## Time Synchronization And Upload Timing
 
-## Time Synchronization And Uploads
+Uploads require valid UTC time. The firmware synchronizes time via SNTP after joining the station network.
 
-Uploads require valid Unix time.
+What this means in practice:
 
-Current behavior:
+- It is normal for uploads to not start immediately when the web UI first becomes reachable.
+- The **Overview** page shows the current UTC date once time is synchronized. Before sync the date field shows `1970`.
+- The **Health** bar shows `time ok` once time sync succeeds.
+- The firmware retries time synchronization continuously while in station mode.
 
-- after station uplink is available, the firmware tries to synchronize UTC time through SNTP
-- if time is not valid yet, uploads wait
-- the firmware keeps retrying time synchronization in station mode
+---
 
-This means:
+## Typical Workflows
 
-- it is normal for uploads not to start immediately at the exact moment the web UI becomes reachable
-- `Overview` and `/status` show the current date once time is synchronized
-- `Overview` also shows a compact `Health` summary so you can quickly see whether time, sensors, uplink, and backends currently look healthy
-
-## Typical User Flow
-
-### First-Time Setup
+### First-time setup
 
 1. Power on the device.
-2. Connect to the Air360 setup AP.
-3. Open `http://192.168.4.1/config`.
+2. Connect to the `air360` setup AP (password: `air360password`).
+3. Open `http://192.168.4.1/`.
 4. Enter station Wi-Fi SSID and password.
-5. Press `Save and reboot`.
-6. Find the device IP in your router.
-7. Open the full UI in station mode.
+5. Press **Save and reboot**.
+6. Find the device IP in your router and open the full UI.
 
-### Sensor Setup
+### Configuring sensors
 
-1. Open `Sensors`.
-2. Add the sensors you actually have connected.
+1. Open **Sensors**.
+2. Add each sensor you have physically connected to the device.
 3. Stage the changes.
-4. Press `Apply now`.
-5. After reboot, check `Overview` and `Sensors` for runtime state and readings.
+4. Press **Apply now**.
+5. Check **Overview** to confirm sensors show readings within the first poll interval.
 
-### Backend Setup
+### Enabling Sensor.Community upload
 
-1. Open `Backends`.
-2. Set the upload interval.
-3. Enable the backend you need.
-4. For `Sensor.Community`, make sure the portal-side device registration uses the same `Short ID` or override value as the firmware.
-5. Save the page.
-6. Watch backend status on `Overview`.
+1. Open **Overview** → note the Short ID.
+2. Register the device at `https://devices.sensor.community/`.
+3. Open **Backends** → enable Sensor.Community → press **Save**.
+4. Set the upload interval as needed.
+5. Monitor upload status on **Overview** or **Backends**.
+
+---
 
 ## Troubleshooting
 
-### The Device Stays In AP Mode
+### The device stays in AP mode after reboot
 
-Possible reasons:
+- Wi-Fi SSID or password is incorrect.
+- The configured Wi-Fi network is out of range or unavailable.
 
-- wrong Wi-Fi SSID
-- wrong Wi-Fi password
-- Wi-Fi network unavailable
-- device cannot join the configured network
+**Fix:** Reconnect to the setup AP, open `/config`, correct the credentials, and save again.
 
-What to do:
-
-- reconnect to the setup AP
-- open `/config`
-- correct Wi-Fi credentials
-- save and reboot again
-
-### The Web UI Opens But Uploads Do Not Start
+### The UI opens but uploads do not start
 
 Check:
+- The mode shown on **Overview** is `station`, not `setup AP`.
+- The current UTC date on **Overview** is valid, not `1970` — time sync must succeed first.
+- Sensor cards show actual readings.
+- Backend cards do not show transport or HTTP errors.
 
-- the device is in `station` mode
-- current UTC date is valid, not `1970`
-- sensor cards show real readings
-- backend cards do not show transport or HTTP errors
-
-### A Sensor Shows No Data
+### A sensor shows no data or an error
 
 Check:
+- The sensor is enabled.
+- Physical wiring matches the configured transport (correct I2C address or GPIO pin).
+- The runtime state and error message on the sensor card in **Overview**.
+- For I2C sensors: confirm the sensor is powered and properly connected to SDA/SCL.
 
-- the sensor is enabled
-- wiring matches the expected transport
-- GPIO or I2C address is correct
-- the runtime state and runtime error on the sensor card
+### The sensor queue count keeps growing
 
-### A Sensor Queue Keeps Growing
+If the queued sample count on a sensor card keeps increasing without going down:
 
-If `queued sample count` keeps increasing:
+- Backend uploads are likely failing — check backend cards for errors.
+- The device may have lost station uplink.
+- UTC time may not be synchronized — check the date on **Overview**.
 
-- backend uploads may be failing
-- upload interval may be too long for the current sensor poll interval
-- the device may be offline or time may not yet be synchronized
+### Moving the device to a different Wi-Fi network
+
+Open **Device**, update the SSID and password, and press **Save and reboot**. The device will attempt to join the new network.
+
+---
 
 ## Current Limitations
 
-- The firmware UI is local and server-rendered; there is no cloud-side device provisioning flow.
-- Sensor changes require `Apply now`.
-- Setup AP mode intentionally exposes only the `Device` page.
-- Backend upload interval is global, not per backend.
-- Sensor poll interval cannot be set below `5000 ms`.
+- Device name and Wi-Fi changes require a reboot.
+- Sensor changes require explicitly pressing **Apply now** — staging alone does not persist.
+- Setup AP mode exposes only the Device page.
+- The upload interval is global — it applies to all enabled backends.
+- Sensor poll interval cannot be set below 5000 ms (2000 ms for DHT11/DHT22).
+- The `storage` partition is reserved but not currently used.
+- OTA firmware update is not yet implemented.

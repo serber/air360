@@ -21,7 +21,7 @@ firmware/               ESP-IDF application
   main/src/             C++17 application sources (~30 files)
   main/include/air360/  Public headers
   main/webui/           Embedded web-UI assets (HTML/CSS/JS)
-  main/third_party/     Vendored C libraries (Adafruit, TinyGPS++, ENS160, SPS30)
+  main/third_party/     Vendored C library (SPS30)
   managed_components/   ESP-IDF component manager dependencies
   sdkconfig.defaults    Baseline build configuration
   partitions.csv        Flash layout
@@ -91,14 +91,14 @@ Node.js ≥20.9.0 required.
 - **RTOS**: FreeRTOS (tasks, queues, event groups)
 - **Storage**: NVS (key-value config), SPIFFS partition (384 KB), OTA data partition
 - **Networking**: Wi-Fi station + soft-AP (lab AP SSID: `air360`)
-- **Peripherals**: I2C0 (SDA=GPIO8, SCL=GPIO9), UART1 GPS (RX=GPIO44, TX=GPIO43, 9600 baud), 3 configurable GPIO sensor pins
+- **Peripherals**: I2C0 (SDA=GPIO8, SCL=GPIO9), UART1 GPS (RX=GPIO18, TX=GPIO17, 9600 baud), 3 configurable GPIO sensor pins
 - **HTTP server**: port 80, embedded web UI
 - **Upload targets**: Sensor.Community API, Air360 backend API
 - **Managed components** (idf_component.yml): bme280, bme680, ds18b20, scd30, sht4x, si7021, veml7700
 
 #### Sensor drivers (firmware/main/src/sensors/drivers/)
 
-BME280, BME680, DHT, DS18B20, ENS160, GPS NMEA, HTU2X, ME3 (NO2), SCD30 (CO2), SHT4X, SPS30 (particulates), VEML7700 (light), I2C support, Sensirion HAL.
+BME280, BME680, DHT, DS18B20, GPS NMEA, HTU2X, ME3 (NO2), SCD30 (CO2), SHT4X, SPS30 (particulates), VEML7700 (light), I2C support, Sensirion HAL.
 
 ### Backend
 
@@ -113,6 +113,28 @@ BME280, BME680, DHT, DS18B20, ENS160, GPS NMEA, HTU2X, ME3 (NO2), SCD30 (CO2), S
 - **UI**: React 19, Tailwind CSS 4
 - **Language**: TypeScript 5
 - **Linting**: ESLint 9 (core-web-vitals + typescript rules)
+
+---
+
+## Firmware documentation
+
+Full implementation documentation lives in [`docs/firmware/`](docs/firmware/README.md). Start with the index:
+
+| Document | What it covers |
+|----------|----------------|
+| [docs/firmware/README.md](docs/firmware/README.md) | Documentation index and cross-reference map |
+| [docs/firmware/ARCHITECTURE.md](docs/firmware/ARCHITECTURE.md) | System overview, task model, data flow, GPIO allocation |
+| [docs/firmware/startup-pipeline.md](docs/firmware/startup-pipeline.md) | 9-step boot sequence, long-lived tasks, failure modes |
+| [docs/firmware/configuration-reference.md](docs/firmware/configuration-reference.md) | All NVS config fields: defaults, ranges, validation |
+| [docs/firmware/network-manager.md](docs/firmware/network-manager.md) | Wi-Fi station / AP modes, SNTP, state transitions |
+| [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md) | Sensor polling → queue → upload cycle |
+| [docs/firmware/nvs.md](docs/firmware/nvs.md) | NVS storage format and integrity guards |
+| [docs/firmware/web-ui.md](docs/firmware/web-ui.md) | HTTP routes, pages, JS behaviour |
+| [docs/firmware/time.md](docs/firmware/time.md) | Uptime vs Unix time, SNTP sync, time gates |
+| [docs/firmware/sensors/README.md](docs/firmware/sensors/README.md) | Per-driver documentation index |
+| [docs/firmware/transport-binding.md](docs/firmware/transport-binding.md) | I2C bus manager, UART port manager |
+| [docs/firmware/upload-adapters.md](docs/firmware/upload-adapters.md) | Sensor.Community and Air360 API adapters |
+| [docs/firmware/upload-transport.md](docs/firmware/upload-transport.md) | HTTP execution layer (esp_http_client) |
 
 ---
 
