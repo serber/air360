@@ -28,6 +28,7 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 | `GET` | `/status` | JSON status endpoint |
 | `GET` | `/wifi-scan` | JSON Wi-Fi scan results |
 | `GET` / `POST` | `/config` | Device configuration page |
+| `POST` | `/check-sntp` | SNTP server reachability check |
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
 | `GET` / `POST` | `/backends` | Backend configuration page |
 
@@ -68,11 +69,14 @@ Form for network credentials and device identity. Accessible in all network mode
 | Device name | `<input maxlength=31>` | Stored as `device_name` in `DeviceConfig` |
 | Wi-Fi SSID | `<input maxlength=32>` | Empty = setup AP mode on next boot |
 | Wi-Fi password | `<input type=password maxlength=63>` | Show/Hide toggle button; disabled when SSID is empty |
+| SNTP server | `<input maxlength=63>` + Check SNTP button | Empty = use firmware default (`pool.ntp.org`) |
 
 In `kSetupAp` mode, the SSID field also shows a **network selector** dropdown populated from a `GET /wifi-scan` request fired on page load. Selecting a network fills the SSID text input. The dropdown is hidden in station mode.
 
+The **Check SNTP** button fires `POST /check-sntp` with the current input value and displays the result inline below the field. It does not submit the form.
+
 **Submit action:** `POST /config`
-- Validates field lengths and password constraints server-side.
+- Validates field lengths, password constraints, and SNTP server characters server-side.
 - Saves to NVS via `ConfigRepository::save()`.
 - Responds with "Configuration saved. Device is rebooting now." and calls `esp_restart()`.
 - On validation failure, re-renders the form with the submitted values preserved and an error notice.
@@ -169,6 +173,32 @@ If in `kSetupAp` mode and no scan has been done yet (`last_scan_uptime_ms == 0`)
 
 ---
 
+## Endpoint: `/check-sntp`
+
+`POST /check-sntp` performs a runtime reachability check for a candidate NTP server. The request body is form-encoded: `server=<hostname>`. The response is JSON.
+
+**Success:**
+```json
+{ "success": true }
+```
+
+**Failure:**
+```json
+{ "success": false, "error": "<reason>" }
+```
+
+| `error` value | Meaning |
+|---------------|---------|
+| `invalid_input` | Server string is empty, too long, or contains invalid characters |
+| `not_connected` | Device is not connected to station Wi-Fi |
+| `sync_failed` | SNTP init failed or server did not respond within the timeout |
+
+The check deinitialises the existing SNTP session (if any) and initialises a new one with the test server. If the check succeeds, SNTP stays running with the test server until the next reboot. If it fails, SNTP is deinitialised and the maintenance loop will retry with the configured server.
+
+This endpoint does not modify stored configuration. Use `POST /config` followed by a reboot to persist the server.
+
+---
+
 ## Static assets (`/assets/*`)
 
 CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.css` and `/assets/air360.js`. Both are compiled into the firmware binary as C arrays via `web_assets.hpp`. Requests to unrecognised asset paths return HTTP 404.
@@ -185,6 +215,7 @@ CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.
 | **Sensor form sync** | When the sensor type `<select>` changes, the I2C address field or GPIO pin selector is shown/hidden and the default I2C address is injected. |
 | **Config form sync** | When the Wi-Fi SSID field is cleared, the password field is disabled and the hint text updates. |
 | **Wi-Fi network selector** | On the config page in setup AP mode, `loadWifiNetworks()` calls `GET /wifi-scan` asynchronously and populates the SSID dropdown. Selecting an option fills the SSID text input. |
+| **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status paragraph. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |
 | **Show/Hide password** | Buttons with `data-secret-toggle` toggle `input.type` between `"password"` and `"text"`. |

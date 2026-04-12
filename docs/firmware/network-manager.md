@@ -155,10 +155,22 @@ Called immediately after a successful station connection and from `ensureStation
 
 1. Requires `station_connected == true`; fails immediately otherwise.
 2. If `hasValidUnixTime()` is already true, skips SNTP and returns `ESP_OK`. This handles the case of a reboot with time already set by a previous run.
-3. On the first call: `esp_netif_sntp_init()` with server `pool.ntp.org` (`sntp_initialized = false → true`).
+3. On the first call: `esp_netif_sntp_init()` with the configured SNTP server — `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org` (`sntp_initialized = false → true`). The configured server is cached in `configured_sntp_server_` when `connectStation()` is called.
 4. On subsequent calls: `esp_netif_sntp_start()` (re-arms the already-initialised SNTP client).
 5. Polls `hasValidUnixTime()` every **250 ms** with task watchdog reset, up to `timeout_ms` (default 15 000 ms).
 6. Sets `time_synchronized = true` and records `last_time_sync_unix_ms` on success.
+
+### `checkSntp(server, timeout_ms)` (public)
+
+Runtime validation of a candidate SNTP server before it is saved. Used by `POST /check-sntp`.
+
+1. Validates `server` is non-empty, ≤ 63 chars, and contains only printable ASCII characters. Returns `error = "invalid_input"` on failure.
+2. Requires `station_connected == true`; returns `error = "not_connected"` otherwise.
+3. Deinitialises the existing SNTP client (`esp_netif_sntp_deinit()`) if already initialised.
+4. Initialises SNTP with the test server (`esp_netif_sntp_init()`).
+5. Waits for a sync notification from the SNTP driver (`esp_netif_sntp_sync_wait()`) in 250 ms slices with task watchdog reset, up to `timeout_ms` (default 10 000 ms).
+6. On success: returns `success = true`; the SNTP client stays running with the test server.
+7. On timeout: deinitialises SNTP, returns `error = "sync_failed"`. The maintenance loop will reinitialise SNTP with the configured server on its next retry.
 
 ### Time validity threshold
 
@@ -214,7 +226,7 @@ This periodically retries SNTP in case the first attempt timed out (e.g., NTP se
 |-----------|-------|--------|
 | Station connect timeout | 15 000 ms | `connectStation()` default |
 | Station wait poll slice | 250 ms | `kStationWaitSliceMs` |
-| SNTP server | `pool.ntp.org` | `kDefaultSntpServer` |
+| SNTP server | `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org` | `kDefaultSntpServer` / `DeviceConfig` |
 | SNTP poll interval | 250 ms | `kSntpPollIntervalMs` |
 | SNTP timeout (initial) | 15 000 ms | `synchronizeTime()` default |
 | SNTP timeout (retry) | 10 000 ms | `ensureStationTime()` call |

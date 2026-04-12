@@ -35,7 +35,16 @@
                     </div>
                     <p class='hint' data-wifi-password-hint>Leave Wi-Fi SSID empty to reboot into setup AP mode.</p>
                 </div>
+                <hr>
+                <h3>SNTP</h3>
+                <div class='field'>
+                    <label for='sntp_server'>SNTP server</label>
+                    <input class='input' id='sntp_server' name='sntp_server' maxlength='63' placeholder='pool.ntp.org' value='{{SNTP_SERVER_VALUE}}'>
+                    <p class='hint'>Leave empty to use the default server (pool.ntp.org).</p>
+                    <p class='hint' data-check-sntp-status hidden></p>
+                </div>
                 <div class='split-actions'>
+                    <button class='button button--ghost' type='button' data-check-sntp>Check SNTP</button>
                     <button class='button' type='submit'>Save and reboot</button>
                 </div>
             </form>

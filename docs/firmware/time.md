@@ -76,7 +76,7 @@ SNTP runs over the station Wi-Fi interface. It is not attempted in setup AP mode
 
 1. Requires `station_connected == true`; returns `ESP_ERR_INVALID_STATE` otherwise.
 2. If `hasValidUnixTime()` is already true — marks `time_synchronized = true` and returns `ESP_OK` immediately (no SNTP traffic sent).
-3. First call: `esp_netif_sntp_init()` with server `pool.ntp.org`. Sets `sntp_initialized = true`.
+3. First call: `esp_netif_sntp_init()` with `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org`. Sets `sntp_initialized = true`.
 4. Subsequent calls: `esp_netif_sntp_start()` (re-arms the already-initialised client).
 5. Polls `hasValidUnixTime()` every **250 ms**, resetting the task watchdog on each iteration, until the threshold is crossed or the timeout expires.
 6. On success: sets `time_synchronized = true`, records `last_time_sync_unix_ms`.
@@ -98,7 +98,7 @@ This covers the case where SNTP timed out during the initial boot (e.g., NTP ser
 
 | Constant | Value |
 |----------|-------|
-| Server | `pool.ntp.org` |
+| Server | `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org` |
 | Poll interval (during sync wait) | 250 ms |
 | Initial sync timeout | 15 000 ms |
 | Maintenance retry timeout | 10 000 ms |
@@ -161,7 +161,7 @@ Set during batch assembly from `currentUnixMilliseconds()` at the time the uploa
 ## Summary: time flow
 
 ```
-SNTP sync (pool.ntp.org)
+SNTP sync (configured server or pool.ntp.org)
   └─ NetworkManager::synchronizeTime()
        └─ gettimeofday() returns tv_sec ≥ 1700000000
             │

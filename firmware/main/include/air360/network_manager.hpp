@@ -39,12 +39,18 @@ struct WifiNetworkRecord {
     wifi_auth_mode_t auth_mode = WIFI_AUTH_OPEN;
 };
 
+struct SntpCheckResult {
+    bool success = false;
+    std::string error;  // "invalid_input" | "not_connected" | "sync_failed"
+};
+
 class NetworkManager {
   public:
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
     esp_err_t scanAvailableNetworks();
     esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
+    SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
     const NetworkState& state() const;
     const std::vector<WifiNetworkRecord>& availableNetworks() const;
     const std::string& lastScanError() const;
@@ -72,6 +78,7 @@ class NetworkManager {
     std::vector<WifiNetworkRecord> available_networks_{};
     std::string last_scan_error_{};
     std::uint64_t last_scan_uptime_ms_ = 0U;
+    std::string configured_sntp_server_{};
 };
 
 }  // namespace air360

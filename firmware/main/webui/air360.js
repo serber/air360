@@ -185,6 +185,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function checkSntp(button, input, statusNode) {
+    const server = input.value.trim();
+
+    button.disabled = true;
+    statusNode.hidden = false;
+    statusNode.textContent = "Checking SNTP server...";
+
+    try {
+      const response = await fetch("/check-sntp", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `server=${encodeURIComponent(server)}`,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+
+      if (payload?.success) {
+        statusNode.textContent = "SNTP check succeeded. Server is reachable.";
+      } else {
+        const error = payload?.error ?? "unknown";
+        if (error === "invalid_input") {
+          statusNode.textContent = "Invalid server address.";
+        } else if (error === "not_connected") {
+          statusNode.textContent = "Not connected to Wi-Fi. Cannot check SNTP server.";
+        } else {
+          statusNode.textContent = "SNTP sync failed. Server may be unreachable or invalid.";
+        }
+      }
+    } catch {
+      statusNode.textContent = "Request failed. Could not reach the device.";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function syncBackendCard(panel) {
     const checkbox = panel.querySelector("[data-backend-enabled-toggle]");
     if (!(checkbox instanceof HTMLInputElement)) {
@@ -267,6 +307,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     loadWifiNetworks(form);
+  }
+
+  for (const button of document.querySelectorAll("[data-check-sntp]")) {
+    if (!(button instanceof HTMLButtonElement)) {
+      continue;
+    }
+
+    const input = document.getElementById("sntp_server");
+    const statusNode = document.querySelector("[data-check-sntp-status]");
+
+    if (!(input instanceof HTMLInputElement) || !(statusNode instanceof HTMLElement)) {
+      continue;
+    }
+
+    button.addEventListener("click", () => {
+      checkSntp(button, input, statusNode);
+    });
   }
 
   for (const panel of document.querySelectorAll("[data-backend-card]")) {
