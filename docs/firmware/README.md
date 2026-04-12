@@ -81,14 +81,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 
 ## Architecture Decision Records
 
-| Document | Status | Topic |
-|----------|--------|-------|
-| [adr/measurement-runtime-separation-adr.md](adr/measurement-runtime-separation-adr.md) | Implemented | Split between sensor lifecycle and measurement runtime ownership |
-| [adr/live-sensor-reconfiguration-adr.md](adr/live-sensor-reconfiguration-adr.md) | Implemented | No-reboot sensor reconfiguration via `SensorManager::applyConfig()` |
-| [adr/overview-health-status-adr.md](adr/overview-health-status-adr.md) | Implemented | Aggregated device health summary for Overview page and `/status` |
-| [adr/configurable-sntp-server-adr.md](adr/configurable-sntp-server-adr.md) | Proposed | User-configurable SNTP server with runtime `Check SNTP` action |
-| [adr/static-ip-configuration-adr.md](adr/static-ip-configuration-adr.md) | Proposed | Optional static IPv4 configuration for Wi-Fi station mode |
-| [adr/sim7600e-mobile-uplink-adr.md](adr/sim7600e-mobile-uplink-adr.md) | Proposed | Cellular uplink via SIM7600E |
+See [adr/README.md](adr/README.md) for the full index grouped by status.
 
 ---
 
