@@ -1,6 +1,7 @@
 #include "air360/cellular_manager.hpp"
 
 #include "air360/connectivity_checker.hpp"
+#include "air360/network_manager.hpp"
 #include "esp_log.h"
 
 namespace air360 {
@@ -13,6 +14,10 @@ constexpr std::uint32_t kCheckRetries = 3U;
 
 }  // namespace
 
+void CellularManager::init(NetworkManager& network_manager) {
+    network_manager_ = &network_manager;
+}
+
 const CellularState& CellularManager::state() const {
     return state_;
 }
@@ -21,6 +26,10 @@ void CellularManager::onPppConnected(const char* ip_address, const char* check_h
     state_.ppp_connected = true;
     state_.ip_address = (ip_address != nullptr) ? ip_address : "";
     state_.last_error.clear();
+
+    if (network_manager_ != nullptr) {
+        network_manager_->setCellularStatus(true, ip_address);
+    }
 
     ESP_LOGI(kTag, "PPP connected, IP: %s", state_.ip_address.c_str());
 
@@ -53,6 +62,10 @@ void CellularManager::onPppDisconnected(const char* reason) {
     state_.ppp_connected = false;
     state_.connectivity_ok = false;
     state_.ip_address.clear();
+
+    if (network_manager_ != nullptr) {
+        network_manager_->setCellularStatus(false, nullptr);
+    }
 
     if (reason != nullptr && reason[0] != '\0') {
         state_.last_error = reason;

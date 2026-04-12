@@ -747,6 +747,14 @@ esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
 
 UplinkStatus NetworkManager::uplinkStatus() const {
     UplinkStatus status;
+    // Cellular bearer takes priority.  Populated by CellularManager via
+    // setCellularStatus() after PPP connects.
+    if (!state_.cellular_ip.empty() && hasValidUnixTime()) {
+        status.uplink_ready = true;
+        status.active_bearer = UplinkBearer::kCellular;
+        return status;
+    }
+    // Wi-Fi station bearer — unchanged behavior when cellular is absent.
     if (state_.mode == NetworkMode::kStation &&
         state_.station_connected &&
         hasValidUnixTime()) {
@@ -754,6 +762,14 @@ UplinkStatus NetworkManager::uplinkStatus() const {
         status.active_bearer = UplinkBearer::kWifi;
     }
     return status;
+}
+
+void NetworkManager::setCellularStatus(bool ppp_connected, const char* ip_address) {
+    if (ppp_connected && ip_address != nullptr && ip_address[0] != '\0') {
+        state_.cellular_ip = ip_address;
+    } else {
+        state_.cellular_ip.clear();
+    }
 }
 
 esp_err_t NetworkManager::stopStation() {

@@ -5,6 +5,8 @@
 
 namespace air360 {
 
+class NetworkManager;  // forward declaration — avoids circular include
+
 // Runtime state of the cellular modem.
 // Populated progressively as modem bring-up advances (Phase 1+).
 // connectivity_ok / connectivity_check_skipped are set after the post-PPP
@@ -26,29 +28,37 @@ struct CellularState {
 
 // Manages the SIM7600E modem lifecycle.
 //
-// Phase 2 (current): connectivity check after PPP is established.
 // Phase 1 (pending): modem power-on, AT init, PDP context, PPP session.
+// Phase 2 (done):    connectivity check after PPP establishes.
+// Phase 4 (done):    wires PPP events into NetworkManager::uplinkStatus().
 //
 // Thread-safety: state() is read-only and safe to call from any task.
 // Mutating methods (onPppConnected, onPppDisconnected) must be called from
 // the cellular task only (Phase 1).
 class CellularManager {
   public:
+    // Phase 4: registers the NetworkManager that receives PPP bearer updates.
+    // Must be called before the cellular task is started (Phase 1).
+    void init(NetworkManager& network_manager);
+
     const CellularState& state() const;
 
     // Called by the cellular task (Phase 1) once the PPP session is up and
-    // the netif IP is known.  Runs the connectivity check synchronously and
-    // updates state accordingly.
+    // the netif IP is known.  Runs the connectivity check, updates state, and
+    // calls NetworkManager::setCellularStatus(true, ip) so uplinkStatus()
+    // reflects the active bearer.
     //   ip_address  — dotted-decimal IP string assigned to the PPP netif
-    //   check_host  — target for ICMP ping; null or empty = skip check
+    //   check_host  — ICMP ping target; null or empty = skip check
     void onPppConnected(const char* ip_address, const char* check_host);
 
     // Called by the cellular task (Phase 1) when the PPP session drops.
-    //   reason — short description for the log and last_error field; may be null
+    // Calls NetworkManager::setCellularStatus(false, nullptr).
+    //   reason — short description logged and stored in last_error; may be null
     void onPppDisconnected(const char* reason);
 
   private:
     CellularState state_;
+    NetworkManager* network_manager_ = nullptr;
 };
 
 }  // namespace air360

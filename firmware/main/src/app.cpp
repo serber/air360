@@ -10,6 +10,7 @@
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/cellular_config_repository.hpp"
+#include "air360/cellular_manager.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
@@ -134,6 +135,7 @@ void App::run() {
     static MeasurementStore measurement_store;
     static CellularConfigRepository cellular_config_repository;
     static CellularConfig cellular_config = makeDefaultCellularConfig();
+    static CellularManager cellular_manager;
     static BackendConfigRepository backend_config_repository;
     static BackendConfigList backend_config_list = makeDefaultBackendConfigList();
     static UploadManager upload_manager;
@@ -222,6 +224,8 @@ void App::run() {
         kTag,
         "Cellular uplink: %s",
         cellular_config.enabled ? "enabled" : "disabled");
+
+    cellular_manager.init(network_manager);
 
     sensor_config_list = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;
