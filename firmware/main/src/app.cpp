@@ -20,6 +20,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -59,6 +60,15 @@ esp_err_t initBootLeds() {
 
 bool hasStationConfig(const DeviceConfig& config) {
     return config.wifi_sta_ssid[0] != '\0';
+}
+
+void debugWindowCallback(void* arg) {
+    auto* nm = static_cast<NetworkManager*>(arg);
+    ESP_LOGI(kTag, "Wi-Fi debug window expired, stopping station");
+    const esp_err_t err = nm->stopStation();
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "Station stop after debug window failed: %s", esp_err_to_name(err));
+    }
 }
 
 esp_err_t initWatchdog() {
@@ -129,6 +139,7 @@ void App::run() {
     static UploadManager upload_manager;
     static NetworkManager network_manager;
     static WebServer web_server;
+    static esp_timer_handle_t debug_window_timer = nullptr;
 
     const esp_err_t leds_err = initBootLeds();
     if (leds_err != ESP_OK) {
@@ -256,24 +267,67 @@ void App::run() {
     static_cast<void>(backend_defaults_written);
 
     ESP_LOGI(kTag, "Boot step 7/9: resolve network mode");
-    if (hasStationConfig(config)) {
-        ESP_LOGI(kTag, "Station config present, attempting normal mode Wi-Fi join");
-        const esp_err_t station_err = network_manager.connectStation(config);
-        if (station_err != ESP_OK) {
-            ESP_LOGW(
-                kTag,
-                "Station join failed, falling back to setup AP: %s",
-                esp_err_to_name(station_err));
+    if (cellular_config.enabled != 0U) {
+        // Cellular is the primary uplink.  Wi-Fi station is started only if
+        // credentials exist, giving the operator a debug window at boot.
+        // No AP fallback here — if cellular also fails, the fallback cascade
+        // is driven by CellularManager (Phase 1).
+        if (hasStationConfig(config)) {
+            const esp_err_t station_err = network_manager.connectStation(config);
+            if (station_err != ESP_OK) {
+                ESP_LOGW(
+                    kTag,
+                    "Station join failed during cellular debug window: %s",
+                    esp_err_to_name(station_err));
+            }
+
+            if (cellular_config.wifi_debug_window_s > 0U && debug_window_timer == nullptr) {
+                esp_timer_create_args_t timer_args{};
+                timer_args.callback = debugWindowCallback;
+                timer_args.arg = &network_manager;
+                timer_args.name = "wifi_dbg_win";
+                const esp_err_t timer_err =
+                    esp_timer_create(&timer_args, &debug_window_timer);
+                if (timer_err == ESP_OK) {
+                    const std::uint64_t window_us =
+                        static_cast<std::uint64_t>(cellular_config.wifi_debug_window_s) *
+                        1000000ULL;
+                    esp_timer_start_once(debug_window_timer, window_us);
+                    ESP_LOGI(
+                        kTag,
+                        "Wi-Fi debug window active (%" PRIu16 " s)",
+                        cellular_config.wifi_debug_window_s);
+                } else {
+                    ESP_LOGW(
+                        kTag,
+                        "Failed to create debug window timer: %s",
+                        esp_err_to_name(timer_err));
+                }
+            }
+        } else {
+            ESP_LOGI(kTag, "Cellular uplink, no station credentials — skipping Wi-Fi");
+        }
+    } else {
+        // Cellular disabled — standard Wi-Fi / setup-AP flow.
+        if (hasStationConfig(config)) {
+            ESP_LOGI(kTag, "Station config present, attempting normal mode Wi-Fi join");
+            const esp_err_t station_err = network_manager.connectStation(config);
+            if (station_err != ESP_OK) {
+                ESP_LOGW(
+                    kTag,
+                    "Station join failed, falling back to setup AP: %s",
+                    esp_err_to_name(station_err));
+                const esp_err_t ap_err = network_manager.startLabAp(config);
+                if (ap_err != ESP_OK) {
+                    ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
+                }
+            }
+        } else {
+            ESP_LOGI(kTag, "No station config present, entering setup AP mode");
             const esp_err_t ap_err = network_manager.startLabAp(config);
             if (ap_err != ESP_OK) {
                 ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
             }
-        }
-    } else {
-        ESP_LOGI(kTag, "No station config present, entering setup AP mode");
-        const esp_err_t ap_err = network_manager.startLabAp(config);
-        if (ap_err != ESP_OK) {
-            ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
         }
     }
     status_service.setNetworkState(network_manager.state());

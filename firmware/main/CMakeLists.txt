@@ -4,7 +4,9 @@ idf_component_register(
         "src/app.cpp"
         "src/build_info.cpp"
         "src/cellular_config_repository.cpp"
+        "src/cellular_manager.cpp"
         "src/config_repository.cpp"
+        "src/connectivity_checker.cpp"
         "src/network_manager.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
@@ -66,6 +68,7 @@ idf_component_register(
         mbedtls
         esp_netif
         esp_system
+        lwip
         esp_timer
         esp_wifi
         freertos
