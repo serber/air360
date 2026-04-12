@@ -17,6 +17,17 @@ enum class NetworkMode : std::uint8_t {
     kStation,
 };
 
+enum class UplinkBearer : std::uint8_t {
+    kNone = 0,
+    kWifi,
+    kCellular,
+};
+
+struct UplinkStatus {
+    bool uplink_ready = false;
+    UplinkBearer active_bearer = UplinkBearer::kNone;
+};
+
 struct NetworkState {
     NetworkMode mode = NetworkMode::kOffline;
     bool station_config_present = false;
@@ -28,6 +39,7 @@ struct NetworkState {
     std::string station_ssid;
     std::string lab_ap_ssid;
     std::string ip_address;
+    std::string cellular_ip;  // populated by CellularManager in Phase 1
     std::string last_error;
     std::string time_sync_error;
     std::int64_t last_time_sync_unix_ms = 0;
@@ -48,9 +60,11 @@ class NetworkManager {
   public:
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
+    esp_err_t stopStation();
     esp_err_t scanAvailableNetworks();
     esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
     SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
+    UplinkStatus uplinkStatus() const;
     const NetworkState& state() const;
     const std::vector<WifiNetworkRecord>& availableNetworks() const;
     const std::string& lastScanError() const;

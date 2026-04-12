@@ -193,21 +193,22 @@ bool UploadManager::hasNetworkForUpload(std::string& last_error) const {
         return false;
     }
 
-    const NetworkState& network = network_manager_->state();
-    if (network.mode != NetworkMode::kStation || !network.station_connected) {
-        last_error = "Station uplink is not connected.";
-        return false;
-    }
-
-    if (network_manager_->hasValidTime()) {
+    if (network_manager_->uplinkStatus().uplink_ready) {
         last_error.clear();
         return true;
     }
 
-    if (!network.time_sync_error.empty()) {
-        last_error = "Unix time is not valid yet: " + network.time_sync_error;
+    // Bearer is up but time is not yet valid: provide a specific message.
+    const NetworkState& network = network_manager_->state();
+    const bool bearer_up = (network.mode == NetworkMode::kStation && network.station_connected);
+    if (bearer_up) {
+        if (!network.time_sync_error.empty()) {
+            last_error = "Unix time is not valid yet: " + network.time_sync_error;
+        } else {
+            last_error = "Unix time is not valid yet.";
+        }
     } else {
-        last_error = "Unix time is not valid yet.";
+        last_error = "Uplink is not ready.";
     }
     return false;
 }
@@ -386,10 +387,7 @@ void UploadManager::taskMain() {
             continue;
         }
 
-        const NetworkState& network = network_manager_->state();
-        if (network.mode != NetworkMode::kStation ||
-            !network.station_connected ||
-            !network_manager_->hasValidTime()) {
+        if (!network_manager_->uplinkStatus().uplink_ready) {
             lock();
             next_cycle_time_ms_ = now_ms + static_cast<std::uint64_t>(pdTICKS_TO_MS(kUploadLoopDelay));
             unlock();

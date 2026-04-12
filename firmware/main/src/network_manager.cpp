@@ -745,6 +745,40 @@ esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
     return synchronizeTime(timeout_ms);
 }
 
+UplinkStatus NetworkManager::uplinkStatus() const {
+    UplinkStatus status;
+    if (state_.mode == NetworkMode::kStation &&
+        state_.station_connected &&
+        hasValidUnixTime()) {
+        status.uplink_ready = true;
+        status.active_bearer = UplinkBearer::kWifi;
+    }
+    return status;
+}
+
+esp_err_t NetworkManager::stopStation() {
+    esp_err_t err = esp_wifi_disconnect();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED &&
+        err != ESP_ERR_WIFI_NOT_CONNECT) {
+        ESP_LOGW(kTag, "esp_wifi_disconnect on stop: %s", esp_err_to_name(err));
+    }
+
+    err = esp_wifi_stop();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
+        ESP_LOGW(kTag, "esp_wifi_stop: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    state_.station_connected = false;
+    state_.ip_address.clear();
+    if (state_.mode == NetworkMode::kStation) {
+        state_.mode = NetworkMode::kOffline;
+    }
+
+    ESP_LOGI(kTag, "Wi-Fi station stopped");
+    return ESP_OK;
+}
+
 const NetworkState& NetworkManager::state() const {
     return state_;
 }

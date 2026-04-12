@@ -3,6 +3,7 @@ idf_component_register(
         "src/app_main.cpp"
         "src/app.cpp"
         "src/build_info.cpp"
+        "src/cellular_config_repository.cpp"
         "src/config_repository.cpp"
         "src/network_manager.cpp"
         "src/web_assets.cpp"

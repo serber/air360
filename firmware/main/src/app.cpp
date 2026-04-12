@@ -9,6 +9,7 @@
 #include "air360/status_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
+#include "air360/cellular_config_repository.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
@@ -121,6 +122,8 @@ void App::run() {
     static SensorConfigList sensor_config_list = makeDefaultSensorConfigList();
     static SensorManager sensor_manager;
     static MeasurementStore measurement_store;
+    static CellularConfigRepository cellular_config_repository;
+    static CellularConfig cellular_config = makeDefaultCellularConfig();
     static BackendConfigRepository backend_config_repository;
     static BackendConfigList backend_config_list = makeDefaultBackendConfigList();
     static UploadManager upload_manager;
@@ -185,6 +188,29 @@ void App::run() {
     status_service.markNvsReady(true);
     status_service.setConfig(config, loaded_from_storage, wrote_defaults);
     status_service.setBootCount(boot_count);
+
+    cellular_config = makeDefaultCellularConfig();
+    bool cellular_config_loaded = false;
+    bool cellular_defaults_written = false;
+
+    ESP_LOGI(kTag, "Boot step 4b/9: load or create cellular config");
+    const esp_err_t cellular_config_err = cellular_config_repository.loadOrCreate(
+        cellular_config,
+        cellular_config_loaded,
+        cellular_defaults_written);
+    if (cellular_config_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Cellular config load failed, using in-memory defaults: %s",
+            esp_err_to_name(cellular_config_err));
+        cellular_config = makeDefaultCellularConfig();
+    }
+    static_cast<void>(cellular_config_loaded);
+    static_cast<void>(cellular_defaults_written);
+    ESP_LOGI(
+        kTag,
+        "Cellular uplink: %s",
+        cellular_config.enabled ? "enabled" : "disabled");
 
     sensor_config_list = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;
