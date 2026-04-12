@@ -5,6 +5,7 @@
 
 # Directory metadata
 .directory
+.cache
 
 .vscode/
 **/.vscode/*

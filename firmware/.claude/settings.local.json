@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/albert/Documents/sources/**)",
+      "Bash(mkdir -p /Users/albert/Documents/sources/air360/firmware/.claude/skills/air360-docs/templates)",
+      "Bash(mkdir -p /Users/albert/Documents/sources/air360/firmware/.claude/skills/air360-firmware-docs/templates)",
+      "Bash(mkdir -p /Users/albert/Documents/sources/air360/firmware/.claude/skills/air360-firmware-release-bundle/scripts)",
+      "Bash(mkdir -p /Users/albert/Documents/sources/air360/firmware/.claude/skills/esp-idf-cpp-developer/references)",
+      "Bash(chmod +x /Users/albert/Documents/sources/air360/firmware/.claude/skills/esp-idf-cpp-developer/scripts/validate.sh)",
+      "Bash(chmod +x /Users/albert/Documents/sources/air360/firmware/.claude/skills/air360-firmware-release-bundle/scripts/create_release_bundle.py)",
+      "WebFetch(domain:components.espressif.com)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

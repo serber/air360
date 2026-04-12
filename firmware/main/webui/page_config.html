@@ -43,6 +43,34 @@
                     <p class='hint'>Leave empty to use the default server (pool.ntp.org).</p>
                     <p class='hint' data-check-sntp-status hidden></p>
                 </div>
+                <hr>
+                <h3>Static IP</h3>
+                <p class='muted'>When enabled, the device uses the configured address instead of DHCP. Applies to station mode only; setup AP is unaffected.</p>
+                <div class='field'>
+                    <label class='label--inline'>
+                        <input type='checkbox' name='sta_use_static_ip' value='1' {{STA_USE_STATIC_IP_CHECKED}} data-static-ip-toggle>
+                        Use static IP
+                    </label>
+                </div>
+                <fieldset class='stack' data-static-ip-fields {{STA_STATIC_IP_FIELDSET_DISABLED}}>
+                    <div class='field'>
+                        <label for='sta_ip'>IP address</label>
+                        <input class='input' id='sta_ip' name='sta_ip' maxlength='15' placeholder='192.168.1.100' value='{{STA_IP_VALUE}}'>
+                    </div>
+                    <div class='field'>
+                        <label for='sta_netmask'>Subnet mask</label>
+                        <input class='input' id='sta_netmask' name='sta_netmask' maxlength='15' placeholder='255.255.255.0' value='{{STA_NETMASK_VALUE}}'>
+                    </div>
+                    <div class='field'>
+                        <label for='sta_gateway'>Gateway</label>
+                        <input class='input' id='sta_gateway' name='sta_gateway' maxlength='15' placeholder='192.168.1.1' value='{{STA_GATEWAY_VALUE}}'>
+                    </div>
+                    <div class='field'>
+                        <label for='sta_dns'>DNS server</label>
+                        <input class='input' id='sta_dns' name='sta_dns' maxlength='15' placeholder='8.8.8.8' value='{{STA_DNS_VALUE}}'>
+                        <p class='hint'>Leave empty to use the gateway as DNS.</p>
+                    </div>
+                </fieldset>
                 <div class='split-actions'>
                     <button class='button button--ghost' type='button' data-check-sntp>Check SNTP</button>
                     <button class='button' type='submit'>Save and reboot</button>

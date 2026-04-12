@@ -319,6 +319,11 @@ struct ConfigPageViewModel {
     std::string wifi_ssid_options_html;
     std::string wifi_ssid_select_hidden_attr;
     std::string sntp_server_value;
+    bool sta_use_static_ip = false;
+    std::string sta_ip_value;
+    std::string sta_netmask_value;
+    std::string sta_gateway_value;
+    std::string sta_dns_value;
 };
 
 struct BackendCardViewModel {
@@ -463,6 +468,12 @@ std::string renderConfigPage(
             {"WIFI_SSID_OPTIONS", model.wifi_ssid_options_html},
             {"WIFI_SSID_SELECT_HIDDEN", model.wifi_ssid_select_hidden_attr},
             {"SNTP_SERVER_VALUE", htmlEscape(model.sntp_server_value)},
+            {"STA_USE_STATIC_IP_CHECKED", model.sta_use_static_ip ? "checked" : ""},
+            {"STA_STATIC_IP_FIELDSET_DISABLED", model.sta_use_static_ip ? "" : "disabled"},
+            {"STA_IP_VALUE", htmlEscape(model.sta_ip_value)},
+            {"STA_NETMASK_VALUE", htmlEscape(model.sta_netmask_value)},
+            {"STA_GATEWAY_VALUE", htmlEscape(model.sta_gateway_value)},
+            {"STA_DNS_VALUE", htmlEscape(model.sta_dns_value)},
         });
 
     return renderPageDocument(
@@ -904,6 +915,12 @@ ConfigPageViewModel buildConfigPageViewModel(
         model.network_error_html += htmlEscape(network_state.last_error);
         model.network_error_html += "</code></p>";
     }
+
+    model.sta_use_static_ip = config.sta_use_static_ip != 0U;
+    model.sta_ip_value = boundedCString(config.sta_ip, sizeof(config.sta_ip));
+    model.sta_netmask_value = boundedCString(config.sta_netmask, sizeof(config.sta_netmask));
+    model.sta_gateway_value = boundedCString(config.sta_gateway, sizeof(config.sta_gateway));
+    model.sta_dns_value = boundedCString(config.sta_dns, sizeof(config.sta_dns));
 
     return model;
 }
@@ -1414,11 +1431,35 @@ std::string renderSensorsPage(
         body);
 }
 
+bool isValidIpv4(const std::string& s) {
+    if (s.size() < 7U || s.size() > 15U) {
+        return false;
+    }
+    int a = 0;
+    int b = 0;
+    int c = 0;
+    int d = 0;
+    if (std::sscanf(s.c_str(), "%d.%d.%d.%d", &a, &b, &c, &d) != 4) {
+        return false;
+    }
+    if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255 || d < 0 || d > 255) {
+        return false;
+    }
+    char rebuilt[16];
+    std::snprintf(rebuilt, sizeof(rebuilt), "%d.%d.%d.%d", a, b, c, d);
+    return s == rebuilt;
+}
+
 bool validateConfigForm(
     const std::string& device_name,
     const std::string& wifi_ssid,
     const std::string& wifi_password,
     const std::string& sntp_server,
+    bool sta_use_static_ip,
+    const std::string& sta_ip,
+    const std::string& sta_netmask,
+    const std::string& sta_gateway,
+    const std::string& sta_dns,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -1447,6 +1488,24 @@ bool validateConfigForm(
     for (const char ch : sntp_server) {
         if (ch <= ' ' || ch > '~') {
             error = "SNTP server contains invalid characters.";
+            return false;
+        }
+    }
+    if (sta_use_static_ip) {
+        if (!isValidIpv4(sta_ip)) {
+            error = "IP address is not a valid IPv4 address.";
+            return false;
+        }
+        if (!isValidIpv4(sta_netmask)) {
+            error = "Subnet mask is not a valid IPv4 address.";
+            return false;
+        }
+        if (!isValidIpv4(sta_gateway)) {
+            error = "Gateway is not a valid IPv4 address.";
+            return false;
+        }
+        if (!sta_dns.empty() && !isValidIpv4(sta_dns)) {
+            error = "DNS server is not a valid IPv4 address.";
             return false;
         }
     }
@@ -2139,6 +2198,11 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string wifi_ssid = findFormValue(fields, "wifi_ssid");
     const std::string wifi_password = findFormValue(fields, "wifi_password");
     const std::string sntp_server = findFormValue(fields, "sntp_server");
+    const bool sta_use_static_ip = (findFormValue(fields, "sta_use_static_ip") == "1");
+    const std::string sta_ip = sta_use_static_ip ? findFormValue(fields, "sta_ip") : "";
+    const std::string sta_netmask = sta_use_static_ip ? findFormValue(fields, "sta_netmask") : "";
+    const std::string sta_gateway = sta_use_static_ip ? findFormValue(fields, "sta_gateway") : "";
+    const std::string sta_dns = sta_use_static_ip ? findFormValue(fields, "sta_dns") : "";
 
     std::string validation_error;
     if (!validateConfigForm(
@@ -2146,12 +2210,22 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             wifi_ssid,
             wifi_password,
             sntp_server,
+            sta_use_static_ip,
+            sta_ip,
+            sta_netmask,
+            sta_gateway,
+            sta_dns,
             validation_error)) {
         DeviceConfig preview = *server->config_;
         copyString(preview.device_name, sizeof(preview.device_name), device_name);
         copyString(preview.wifi_sta_ssid, sizeof(preview.wifi_sta_ssid), wifi_ssid);
         copyString(preview.wifi_sta_password, sizeof(preview.wifi_sta_password), wifi_password);
         copyString(preview.sntp_server, sizeof(preview.sntp_server), sntp_server);
+        preview.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
+        copyString(preview.sta_ip, sizeof(preview.sta_ip), sta_ip);
+        copyString(preview.sta_netmask, sizeof(preview.sta_netmask), sta_netmask);
+        copyString(preview.sta_gateway, sizeof(preview.sta_gateway), sta_gateway);
+        copyString(preview.sta_dns, sizeof(preview.sta_dns), sta_dns);
 
         const std::string html = renderConfigPage(
             preview,
@@ -2170,6 +2244,11 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     copyString(updated.wifi_sta_ssid, sizeof(updated.wifi_sta_ssid), wifi_ssid);
     copyString(updated.wifi_sta_password, sizeof(updated.wifi_sta_password), wifi_password);
     copyString(updated.sntp_server, sizeof(updated.sntp_server), sntp_server);
+    updated.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
+    copyString(updated.sta_ip, sizeof(updated.sta_ip), sta_ip);
+    copyString(updated.sta_netmask, sizeof(updated.sta_netmask), sta_netmask);
+    copyString(updated.sta_gateway, sizeof(updated.sta_gateway), sta_gateway);
+    copyString(updated.sta_dns, sizeof(updated.sta_dns), sta_dns);
 
     const esp_err_t save_err = server->config_repository_->save(updated);
     if (save_err != ESP_OK) {

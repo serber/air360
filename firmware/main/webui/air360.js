@@ -225,6 +225,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function syncStaticIpFields(form) {
+    const toggle = form.querySelector("[data-static-ip-toggle]");
+    const fieldset = form.querySelector("[data-static-ip-fields]");
+    if (!(toggle instanceof HTMLInputElement) || !(fieldset instanceof HTMLFieldSetElement)) {
+      return;
+    }
+    fieldset.disabled = !toggle.checked;
+  }
+
   function syncBackendCard(panel) {
     const checkbox = panel.querySelector("[data-backend-enabled-toggle]");
     if (!(checkbox instanceof HTMLInputElement)) {
@@ -303,6 +312,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ssidInput instanceof HTMLInputElement) {
       ssidInput.addEventListener("input", () => {
         syncConfigForm(form);
+      });
+    }
+
+    syncStaticIpFields(form);
+    const staticIpToggle = form.querySelector("[data-static-ip-toggle]");
+    if (staticIpToggle instanceof HTMLInputElement) {
+      staticIpToggle.addEventListener("change", () => {
+        syncStaticIpFields(form);
       });
     }
 

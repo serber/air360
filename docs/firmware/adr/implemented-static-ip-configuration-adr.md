@@ -2,9 +2,7 @@
 
 ## Status
 
-Proposed.
-
-This document records a planned firmware feature. It is not a description of already implemented behavior.
+Implemented.
 
 ## Decision Summary
 

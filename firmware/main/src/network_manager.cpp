@@ -345,6 +345,41 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
         return err;
     }
 
+    if (config.sta_use_static_ip != 0U && config.sta_ip[0] != '\0') {
+        err = esp_netif_dhcpc_stop(context.sta_netif);
+        if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+            setStateError(state_, esp_err_to_name(err));
+            return err;
+        }
+
+        esp_netif_ip_info_t ip_info{};
+        ip4addr_aton(config.sta_ip, reinterpret_cast<ip4_addr_t*>(&ip_info.ip));
+        ip4addr_aton(config.sta_netmask, reinterpret_cast<ip4_addr_t*>(&ip_info.netmask));
+        ip4addr_aton(config.sta_gateway, reinterpret_cast<ip4_addr_t*>(&ip_info.gw));
+        err = esp_netif_set_ip_info(context.sta_netif, &ip_info);
+        if (err != ESP_OK) {
+            setStateError(state_, esp_err_to_name(err));
+            return err;
+        }
+
+        if (config.sta_dns[0] != '\0') {
+            esp_netif_dns_info_t dns_info{};
+            ip4addr_aton(
+                config.sta_dns,
+                reinterpret_cast<ip4_addr_t*>(&dns_info.ip.u_addr.ip4));
+            dns_info.ip.type = ESP_IPADDR_TYPE_V4;
+            esp_netif_set_dns_info(context.sta_netif, ESP_NETIF_DNS_MAIN, &dns_info);
+        }
+
+        ESP_LOGI(
+            kTag,
+            "Static IP: ip=%s netmask=%s gw=%s dns=%s",
+            config.sta_ip,
+            config.sta_netmask,
+            config.sta_gateway,
+            config.sta_dns);
+    }
+
     xEventGroupClearBits(context.station_events, kStationConnectedBit | kStationFailedBit);
 
     esp_event_handler_instance_t wifi_handler = nullptr;
