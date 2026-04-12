@@ -67,7 +67,7 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
-constexpr std::size_t kHttpServerMaxUriHandlers = 12U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 13U;
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 
 void copyString(char* destination, std::size_t destination_size, const std::string& source) {
@@ -318,6 +318,7 @@ struct ConfigPageViewModel {
     std::string wifi_password_value;
     std::string wifi_ssid_options_html;
     std::string wifi_ssid_select_hidden_attr;
+    std::string sntp_server_value;
 };
 
 struct BackendCardViewModel {
@@ -461,6 +462,7 @@ std::string renderConfigPage(
             {"WIFI_PASSWORD_VALUE", htmlEscape(model.wifi_password_value)},
             {"WIFI_SSID_OPTIONS", model.wifi_ssid_options_html},
             {"WIFI_SSID_SELECT_HIDDEN", model.wifi_ssid_select_hidden_attr},
+            {"SNTP_SERVER_VALUE", htmlEscape(model.sntp_server_value)},
         });
 
     return renderPageDocument(
@@ -882,6 +884,7 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.wifi_ssid_value = config.wifi_sta_ssid;
     model.wifi_password_value = config.wifi_sta_password;
     model.wifi_ssid_select_hidden_attr = "hidden";
+    model.sntp_server_value = boundedCString(config.sntp_server, sizeof(config.sntp_server));
 
     if (network_state.mode == NetworkMode::kSetupAp) {
         model.wifi_ssid_select_hidden_attr.clear();
@@ -1415,6 +1418,7 @@ bool validateConfigForm(
     const std::string& device_name,
     const std::string& wifi_ssid,
     const std::string& wifi_password,
+    const std::string& sntp_server,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -1435,6 +1439,16 @@ bool validateConfigForm(
     if (!wifi_password.empty() && wifi_password.size() < 8U) {
         error = "Wi-Fi password must be empty or at least 8 characters.";
         return false;
+    }
+    if (sntp_server.size() > 63U) {
+        error = "SNTP server name is too long (max 63 characters).";
+        return false;
+    }
+    for (const char ch : sntp_server) {
+        if (ch <= ' ' || ch > '~') {
+            error = "SNTP server contains invalid characters.";
+            return false;
+        }
     }
     error.clear();
     return true;
@@ -1611,6 +1625,17 @@ esp_err_t WebServer::start(
     backends_post_uri.handler = &WebServer::handleBackends;
     backends_post_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &backends_post_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t check_sntp_uri{};
+    check_sntp_uri.uri = "/check-sntp";
+    check_sntp_uri.method = HTTP_POST;
+    check_sntp_uri.handler = &WebServer::handleCheckSntp;
+    check_sntp_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &check_sntp_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -2113,17 +2138,20 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string device_name = findFormValue(fields, "device_name");
     const std::string wifi_ssid = findFormValue(fields, "wifi_ssid");
     const std::string wifi_password = findFormValue(fields, "wifi_password");
+    const std::string sntp_server = findFormValue(fields, "sntp_server");
 
     std::string validation_error;
     if (!validateConfigForm(
             device_name,
             wifi_ssid,
             wifi_password,
+            sntp_server,
             validation_error)) {
         DeviceConfig preview = *server->config_;
         copyString(preview.device_name, sizeof(preview.device_name), device_name);
         copyString(preview.wifi_sta_ssid, sizeof(preview.wifi_sta_ssid), wifi_ssid);
         copyString(preview.wifi_sta_password, sizeof(preview.wifi_sta_password), wifi_password);
+        copyString(preview.sntp_server, sizeof(preview.sntp_server), sntp_server);
 
         const std::string html = renderConfigPage(
             preview,
@@ -2141,6 +2169,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     copyString(updated.device_name, sizeof(updated.device_name), device_name);
     copyString(updated.wifi_sta_ssid, sizeof(updated.wifi_sta_ssid), wifi_ssid);
     copyString(updated.wifi_sta_password, sizeof(updated.wifi_sta_password), wifi_password);
+    copyString(updated.sntp_server, sizeof(updated.sntp_server), sntp_server);
 
     const esp_err_t save_err = server->config_repository_->save(updated);
     if (save_err != ESP_OK) {
@@ -2166,6 +2195,31 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         scheduleRestart();
     }
     return response_err;
+}
+
+esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "application/json");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+
+    std::string body;
+    if (readRequestBody(request, body) != ESP_OK) {
+        return httpd_resp_sendstr(request, "{\"success\":false,\"error\":\"sync_failed\"}");
+    }
+
+    const FormFields fields = parseFormBody(body);
+    const std::string sntp_server = findFormValue(fields, "server");
+
+    const SntpCheckResult result = server->network_manager_->checkSntp(sntp_server);
+
+    if (result.success) {
+        return httpd_resp_sendstr(request, "{\"success\":true}");
+    }
+
+    std::string response = "{\"success\":false,\"error\":\"";
+    response += jsonEscape(result.error);
+    response += "\"}";
+    return httpd_resp_sendstr(request, response.c_str());
 }
 
 }  // namespace air360

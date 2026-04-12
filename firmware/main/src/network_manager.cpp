@@ -1,6 +1,7 @@
 #include "air360/network_manager.hpp"
 
 #include <cctype>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -193,7 +194,10 @@ esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
 
     esp_err_t err = ESP_OK;
     if (!context.sntp_initialized) {
-        esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG(kDefaultSntpServer);
+        const char* server =
+            configured_sntp_server_.empty() ? kDefaultSntpServer : configured_sntp_server_.c_str();
+        esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server);
+        ESP_LOGI(kTag, "Initializing SNTP with server: %s", server);
         err = esp_netif_sntp_init(&sntp_config);
         if (err == ESP_OK) {
             context.sntp_initialized = true;
@@ -311,6 +315,8 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     state_.station_connect_attempted = true;
     state_.station_ssid = config.wifi_sta_ssid;
     state_.lab_ap_ssid = config.lab_ap_ssid;
+    configured_sntp_server_ =
+        (config.sntp_server[0] != '\0') ? std::string(config.sntp_server) : std::string();
 
     if (!state_.station_config_present) {
         setStateError(state_, "missing station configuration");
@@ -621,6 +627,70 @@ esp_err_t NetworkManager::scanAvailableNetworks() {
     last_scan_error_.clear();
     last_scan_uptime_ms_ = air360::uptimeMilliseconds();
     return ESP_OK;
+}
+
+SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32_t timeout_ms) {
+    SntpCheckResult result;
+
+    if (server.empty() || server.size() > 63U) {
+        result.error = "invalid_input";
+        return result;
+    }
+
+    for (const char ch : server) {
+        if (ch <= ' ' || ch > '~') {
+            result.error = "invalid_input";
+            return result;
+        }
+    }
+
+    if (!state_.station_connected) {
+        result.error = "not_connected";
+        return result;
+    }
+
+    RuntimeContext& context = runtimeContext();
+
+    if (context.sntp_initialized) {
+        esp_netif_sntp_deinit();
+        context.sntp_initialized = false;
+    }
+
+    esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server.c_str());
+    const esp_err_t init_err = esp_netif_sntp_init(&sntp_config);
+    if (init_err != ESP_OK) {
+        result.error = "sync_failed";
+        ESP_LOGW(kTag, "Check SNTP init failed for '%s': %s", server.c_str(), esp_err_to_name(init_err));
+        return result;
+    }
+    context.sntp_initialized = true;
+
+    ESP_LOGI(kTag, "Checking SNTP server: %s (timeout %" PRIu32 " ms)", server.c_str(), timeout_ms);
+    const std::int64_t started_ms = uptimeMilliseconds();
+    bool synced = false;
+    while ((uptimeMilliseconds() - started_ms) < timeout_ms) {
+        const esp_err_t wait_err = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(kSntpPollIntervalMs));
+        if (wait_err == ESP_OK) {
+            synced = true;
+            break;
+        }
+        resetCurrentTaskWatchdogIfSubscribed();
+    }
+
+    if (synced) {
+        result.success = true;
+        state_.time_synchronized = true;
+        state_.time_sync_error.clear();
+        state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+        ESP_LOGI(kTag, "SNTP check succeeded for server: %s", server.c_str());
+    } else {
+        result.error = "sync_failed";
+        ESP_LOGW(kTag, "SNTP check timed out for server: %s", server.c_str());
+        esp_netif_sntp_deinit();
+        context.sntp_initialized = false;
+    }
+
+    return result;
 }
 
 esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {

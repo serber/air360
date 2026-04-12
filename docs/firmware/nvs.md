@@ -27,7 +27,7 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 
 | Struct | Magic | Schema version |
 |--------|-------|----------------|
-| `DeviceConfig` | `0x41333630` ("A360") | 2 |
+| `DeviceConfig` | `0x41333630` ("A360") | 3 |
 | `SensorConfigList` | `0x41333631` ("A361") | 3 |
 | `BackendConfigList` | `0x41333632` ("A362") | 3 |
 
@@ -40,7 +40,7 @@ Device identity and network credentials.
 ```cpp
 struct DeviceConfig {
     uint32_t magic;               // 0x41333630
-    uint16_t schema_version;      // 2
+    uint16_t schema_version;      // 3
     uint16_t record_size;
     uint16_t http_port;           // default: 80
     uint8_t  lab_ap_enabled;      // 0 or 1
@@ -51,6 +51,7 @@ struct DeviceConfig {
     char     wifi_sta_password[65];
     char     lab_ap_ssid[33];     // default: "air360"
     char     lab_ap_password[65]; // default: "air360password"
+    char     sntp_server[64];     // default: "" (use pool.ntp.org)
 };
 ```
 
@@ -63,6 +64,7 @@ struct DeviceConfig {
 | `wifi_sta_ssid` | `""` | Empty string means no station credentials |
 | `lab_ap_ssid` | `"air360"` | From `CONFIG_AIR360_LAB_AP_SSID` |
 | `lab_ap_password` | `"air360password"` | From `CONFIG_AIR360_LAB_AP_PASSWORD` |
+| `sntp_server` | `""` | Empty means use firmware default (`pool.ntp.org`) |
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
 

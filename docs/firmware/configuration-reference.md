@@ -72,6 +72,7 @@ Struct: `DeviceConfig`
 | `wifi_sta_password` | `char[65]` | `""` | 0–63 chars |
 | `lab_ap_ssid` | `char[33]` | `"air360"` | 1–32 chars, non-empty |
 | `lab_ap_password` | `char[65]` | `"air360password"` | 0 chars (open) or 8–63 chars |
+| `sntp_server` | `char[64]` | `""` | 0–63 printable ASCII chars; empty = use default (`pool.ntp.org`) |
 
 ### Validation rules (`ConfigRepository::isValid`)
 
@@ -82,12 +83,14 @@ Struct: `DeviceConfig`
 - `wifi_sta_password` length ≤ 63.
 - `lab_ap_ssid` must be 1–32 characters.
 - `lab_ap_password`: either empty (open AP) or 8–63 characters (WPA2-PSK).
+- `sntp_server`: null-terminated within its buffer; 0–63 printable ASCII chars (no spaces or control characters); empty is valid and means "use firmware default".
 
 ### Notes
 
 - `device_name` is used as the DHCP hostname: lowercased, non-alphanumeric characters replaced with `-`, trailing hyphens stripped. Falls back to `"air360"` if the result is empty.
 - `lab_ap_enabled` is stored but the current firmware always starts the AP when station connection fails, regardless of this field.
 - `local_auth_enabled` is reserved; the web server does not enforce it.
+- `sntp_server`: when empty, `NetworkManager` uses `kDefaultSntpServer` (`pool.ntp.org`). When non-empty, the stored value is used as the NTP hostname on the next boot. The value is validated for printable ASCII before save; DNS resolution and reachability are tested via `POST /check-sntp` before committing.
 
 ---
 

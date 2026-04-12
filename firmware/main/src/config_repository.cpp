@@ -58,6 +58,7 @@ DeviceConfig makeDefaultDeviceConfig() {
         sizeof(config.lab_ap_password),
         CONFIG_AIR360_LAB_AP_PASSWORD);
 #endif
+    config.sntp_server[0] = '\0';
     return config;
 }
 
@@ -74,7 +75,8 @@ bool ConfigRepository::isValid(const DeviceConfig& config) const {
         config.wifi_sta_ssid[sizeof(config.wifi_sta_ssid) - 1U] != '\0' ||
         config.wifi_sta_password[sizeof(config.wifi_sta_password) - 1U] != '\0' ||
         config.lab_ap_ssid[sizeof(config.lab_ap_ssid) - 1U] != '\0' ||
-        config.lab_ap_password[sizeof(config.lab_ap_password) - 1U] != '\0') {
+        config.lab_ap_password[sizeof(config.lab_ap_password) - 1U] != '\0' ||
+        config.sntp_server[sizeof(config.sntp_server) - 1U] != '\0') {
         return false;
     }
 
