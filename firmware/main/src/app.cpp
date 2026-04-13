@@ -226,6 +226,7 @@ void App::run() {
         cellular_config.enabled ? "enabled" : "disabled");
 
     cellular_manager.init(network_manager);
+    cellular_manager.start(cellular_config);
 
     sensor_config_list = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;

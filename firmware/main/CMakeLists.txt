@@ -5,6 +5,7 @@ idf_component_register(
         "src/build_info.cpp"
         "src/cellular_config_repository.cpp"
         "src/cellular_manager.cpp"
+        "src/modem_gpio.cpp"
         "src/config_repository.cpp"
         "src/connectivity_checker.cpp"
         "src/network_manager.cpp"
