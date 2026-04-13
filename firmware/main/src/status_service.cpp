@@ -265,6 +265,7 @@ struct RuntimeOverviewViewModel {
     std::string ip_address;
     std::string network_error_html;
     std::size_t degraded_backend_count = 0U;
+    std::string cellular_block_html;
     std::string backend_block_html;
     std::string sensor_block_html;
 };
@@ -613,10 +614,50 @@ std::string renderSensorOverviewBlock(
     return html;
 }
 
+std::string renderCellularOverviewBlock(const CellularState& state) {
+    if (!state.enabled) {
+        return "<p class='muted'>Cellular uplink is disabled.</p>";
+    }
+
+    std::string details_block;
+    if (state.ppp_connected) {
+        if (!state.ip_address.empty()) {
+            details_block += "<span class='pill'>IP ";
+            details_block += htmlEscape(state.ip_address);
+            details_block += "</span>";
+        }
+        if (!state.connectivity_check_skipped) {
+            details_block += "<span class='pill'>connectivity ";
+            details_block += state.connectivity_ok ? "ok" : "failed";
+            details_block += "</span>";
+        }
+    }
+    if (!state.last_error.empty()) {
+        details_block += "<span class='pill'>error: ";
+        details_block += htmlEscape(state.last_error);
+        details_block += "</span>";
+    }
+
+    std::string html;
+    html += "<div class='list'>";
+    html += "<article class='list-card list-card--backend'>";
+    html += "<div class='list-card__title'>SIM7600E</div>";
+    html += "<div class='meta'>";
+    html += "<span class='pill'>";
+    html += state.ppp_connected ? "connected" : "disconnected";
+    html += "</span>";
+    html += details_block;
+    html += "</div>";
+    html += "</article>";
+    html += "</div>";
+    return html;
+}
+
 RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     const BuildInfo& build_info,
     const DeviceConfig& config,
     const NetworkState& network_state,
+    const CellularState& cellular_state,
     std::uint32_t boot_count,
     esp_reset_reason_t reset_reason,
     bool config_loaded_from_storage,
@@ -661,6 +702,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
         build_info.esp_mac_id.empty() ? "unavailable" : formatMacForDisplay(build_info.esp_mac_id);
     model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
     model.degraded_backend_count = upload_manager != nullptr ? upload_manager->degradedCount() : 0U;
+    model.cellular_block_html = renderCellularOverviewBlock(cellular_state);
     model.backend_block_html = renderBackendOverviewBlock(
         backends,
         upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U);
@@ -704,6 +746,10 @@ void StatusService::setNetworkState(const NetworkState& state) {
     network_state_ = state;
 }
 
+void StatusService::setCellularState(const CellularState& state) {
+    cellular_state_ = state;
+}
+
 void StatusService::setSensors(const SensorManager& sensor_manager) {
     sensor_manager_ = &sensor_manager;
 }
@@ -730,6 +776,7 @@ std::string StatusService::renderRootHtml() const {
         build_info_,
         config_,
         network_state_,
+        cellular_state_,
         boot_count_,
         reset_reason_,
         config_loaded_from_storage_,
@@ -763,6 +810,7 @@ std::string StatusService::renderRootHtml() const {
             {"ESP_MAC_ID", htmlEscape(model.esp_mac_id)},
             {"IP_ADDRESS", htmlEscape(model.ip_address)},
             {"NETWORK_ERROR", model.network_error_html},
+            {"CELLULAR_BLOCK", model.cellular_block_html},
             {"DEGRADED_BACKEND_COUNT", std::to_string(model.degraded_backend_count)},
             {"BACKEND_BLOCK", model.backend_block_html},
             {"SENSOR_BLOCK", model.sensor_block_html},
@@ -865,6 +913,18 @@ std::string StatusService::renderStatusJson() const {
     json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
     json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
     json += "\"time_sync_error\":\"" + jsonEscape(network_state_.time_sync_error) + "\",";
+    json += "\"cellular\":{";
+    json += "\"enabled\":";
+    json += boolString(cellular_state_.enabled);
+    json += ",\"ppp_connected\":";
+    json += boolString(cellular_state_.ppp_connected);
+    json += ",\"ip_address\":\"" + jsonEscape(cellular_state_.ip_address) + "\",";
+    json += "\"connectivity_ok\":";
+    json += boolString(cellular_state_.connectivity_ok);
+    json += ",\"connectivity_check_skipped\":";
+    json += boolString(cellular_state_.connectivity_check_skipped);
+    json += ",\"last_error\":\"" + jsonEscape(cellular_state_.last_error) + "\"";
+    json += "},";
     json += "\"configured_sensors_count\":" + std::to_string(sensors.size()) + ",";
     json += "\"enabled_backends_count\":";
     json += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);

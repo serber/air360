@@ -335,6 +335,7 @@ void App::run() {
         }
     }
     status_service.setNetworkState(network_manager.state());
+    status_service.setCellularState(cellular_manager.state());
 
     ESP_LOGI(kTag, "Boot step 8/9: start upload manager");
     upload_manager.start(build_info, config, sensor_manager, measurement_store, network_manager);
@@ -387,6 +388,7 @@ void App::run() {
         }
 
         status_service.setNetworkState(network_manager.state());
+        status_service.setCellularState(cellular_manager.state());
         vTaskDelay(kRuntimeMaintenanceDelay);
     }
 }
