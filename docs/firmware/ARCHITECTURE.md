@@ -69,6 +69,7 @@ Full startup order with dependencies:
 ```
 NVS
  └─ ConfigRepository          (device_cfg, boot_count)
+ └─ CellularConfigRepository  (cellular_cfg)
  └─ SensorConfigRepository    (sensor_cfg)
      └─ SensorManager         → builds drivers, starts air360_sensor task
          └─ I2cBusManager     (shared I2C buses)
@@ -80,7 +81,9 @@ NVS
              └─ Air360ApiUploader
              └─ SensorCommunityUploader
 NetworkManager                (station join or Lab AP)
- └─ SNTP synchronization      (pool.ntp.org)
+ └─ SNTP synchronization      (pool.ntp.org or configured server)
+CellularManager               (PPP modem; spawned only when enabled)
+ └─ ConnectivityChecker       (ICMP ping after PPP up)
 WebServer                     (esp_http_server on port 80)
 StatusService                 (HTML/JSON rendering for web routes)
 ```
@@ -89,15 +92,16 @@ StatusService                 (HTML/JSON rendering for web routes)
 
 ## Runtime model
 
-After startup the firmware runs three concurrent execution contexts:
+After startup the firmware runs four concurrent execution contexts:
 
 | Context | Name | Type | Stack | Priority |
 |---------|------|------|-------|----------|
 | Main app loop | `app_main` task | FreeRTOS task (IDF main) | 8192 B | default |
 | Sensor polling | `air360_sensor` | FreeRTOS task | 6144 B | 5 |
 | Upload scheduling | `air360_upload` | FreeRTOS task | 7168 B | 4 |
+| Cellular modem | `air360_cellular` | FreeRTOS task | 8192 B | 5 |
 
-HTTP request handling runs on the internal `esp_http_server` thread pool.
+The cellular task is spawned only when `CellularConfig.enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
 
 Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. The only FreeRTOS synchronization primitive used above the driver level is an event group inside `NetworkManager` for station connect/fail signalling.
 
@@ -115,26 +119,60 @@ Top-level runtime controller. Owns the startup sequence, boot LEDs, watchdog, an
 
 ### `ConfigRepository` — `config_repository.cpp`
 
-Manages the `DeviceConfig` NVS blob.
+Manages the `DeviceConfig` NVS blob (schema version 4).
 
 **`DeviceConfig` fields:**
 
 | Field | Type | Notes |
 |-------|------|-------|
 | magic | `uint32_t` | `0x41333630` ("A360") |
-| schema_version | `uint8_t` | Current: 2 |
+| schema_version | `uint16_t` | Current: 4 |
 | device_name | `char[32]` | Default: `air360` |
 | http_port | `uint16_t` | Default: 80 |
-| station_ssid | `char[33]` | Wi-Fi SSID |
-| station_password | `char[65]` | Wi-Fi password |
+| wifi_sta_ssid | `char[33]` | Wi-Fi station SSID |
+| wifi_sta_password | `char[65]` | Wi-Fi station password |
 | lab_ap_ssid | `char[33]` | Lab AP SSID |
 | lab_ap_password | `char[65]` | Lab AP password |
-| lab_ap_enabled | `bool` | Default: true |
-| local_auth | `bool` | Reserved, not yet enforced |
+| lab_ap_enabled | `uint8_t` | Default: 1 |
+| local_auth_enabled | `uint8_t` | Reserved, not enforced |
+| sntp_server | `char[64]` | Empty = use `pool.ntp.org` |
+| sta_use_static_ip | `uint8_t` | 0=DHCP, 1=static |
+| sta_ip | `char[16]` | Static IP address |
+| sta_netmask | `char[16]` | Static subnet mask |
+| sta_gateway | `char[16]` | Static gateway |
+| sta_dns | `char[16]` | Static DNS; empty = use gateway |
 
-On load: magic and schema version mismatch triggers replacement with defaults. Blob size mismatch triggers replacement with defaults.
+On load: magic, schema version, or blob size mismatch triggers replacement with defaults (no migration).
 
 **Log tag:** `air360.config`
+
+---
+
+### `CellularConfigRepository` — `cellular_config_repository.cpp`
+
+Manages the `CellularConfig` NVS blob (schema version 1). Independent of `DeviceConfig` — versioned separately under the same `air360` NVS namespace.
+
+**`CellularConfig` fields:**
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| magic | `uint32_t` | `0x43454C4C` ("CELL") | |
+| enabled | `uint8_t` | 0 | 1 = cellular uplink active |
+| uart_port | `uint8_t` | 1 | UART port for modem DTE |
+| uart_rx_gpio | `uint8_t` | 18 | ESP32 RX (modem TX) |
+| uart_tx_gpio | `uint8_t` | 17 | ESP32 TX (modem RX) |
+| uart_baud | `uint32_t` | 115200 | |
+| pwrkey_gpio | `uint8_t` | 12 | 0xFF = not wired |
+| sleep_gpio | `uint8_t` | 21 | DTR/sleep; 0xFF = not wired |
+| reset_gpio | `uint8_t` | 0xFF | Hardware reset; 0xFF = not wired |
+| wifi_debug_window_s | `uint16_t` | 600 | Wi-Fi stays up N seconds alongside cellular |
+| apn | `char[64]` | `""` | Required when enabled |
+| username | `char[32]` | `""` | Optional PAP credential |
+| password | `char[64]` | `""` | Optional PAP credential |
+| sim_pin | `char[8]` | `""` | Optional SIM PIN |
+| connectivity_check_host | `char[64]` | `"8.8.8.8"` | ICMP ping target; empty = skip |
+
+**Log tag:** `air360.cellular_cfg`
 
 ---
 
@@ -171,6 +209,50 @@ Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
 **Synchronization:** Static FreeRTOS event group `station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
 
 **Log tag:** `air360.net`
+
+---
+
+### `CellularManager` — `cellular_manager.cpp`
+
+Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled = 1`.
+
+**`air360_cellular` FreeRTOS task:**
+- Stack: 8192 bytes
+- Priority: 5
+- Runs an indefinite reconnect loop
+
+**Connect sequence (`attemptConnect`):**
+1. Allocate PPP netif
+2. Configure DTE (UART, buffers)
+3. Create SIM7600E DCE
+4. Set APN (PDP context)
+5. Unlock SIM PIN if configured
+6. Poll signal quality until registered (up to 60 s, 2 s intervals)
+7. Set PPP PAP auth if username/password configured
+8. Enter PPP data mode
+9. Wait for IP event; run connectivity check if host configured
+10. Block until PPP session drops, then tear down
+
+**Reconnect backoff:** exponential from 10 s, capped at 5 min. After 5 consecutive failures, performs PWRKEY hardware reset before next attempt.
+
+**Wi-Fi debug window:** after PPP is up, the task schedules a call to `NetworkManager` to stop the Wi-Fi station after `wifi_debug_window_s` seconds.
+
+**Runtime state (`CellularState`):**
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Whether cellular is configured |
+| `modem_detected` | DTE/DCE created successfully |
+| `sim_ready` | SIM not locked |
+| `registered` | Network registration complete |
+| `ppp_connected` | Active PPP session |
+| `ip_address` | Assigned PPP IP |
+| `rssi_dbm` | Signal strength in dBm (from AT+CSQ) |
+| `connectivity_ok` | Last ICMP ping result |
+| `connectivity_check_skipped` | True when check host is empty |
+| `last_error` | Last failure reason string |
+
+**Log tag:** `air360.cellular`
 
 ---
 
@@ -383,7 +465,7 @@ Manages the upload cycle and per-backend runtime state.
 - Backlog drain interval: 5 s (applied when upload succeeded and pending > 0)
 
 **Upload preconditions (checked every cycle):**
-- Station mode connected
+- Network uplink active (Wi-Fi station connected **or** cellular PPP connected)
 - Valid SNTP unix time (`unix_ms > 0`)
 
 **Upload cycle:**
@@ -541,16 +623,23 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 | `CONFIG_AIR360_LAB_AP_PASSWORD` | `air360password` | Lab AP password |
 | `CONFIG_AIR360_LAB_AP_CHANNEL` | 1 | AP Wi-Fi channel |
 | `CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS` | 4 | AP max stations |
+| `CONFIG_AIR360_CELLULAR_DEFAULT_UART` | 1 | Modem UART port |
+| `CONFIG_AIR360_CELLULAR_DEFAULT_RX_GPIO` | 18 | Modem RX GPIO |
+| `CONFIG_AIR360_CELLULAR_DEFAULT_TX_GPIO` | 17 | Modem TX GPIO |
+| `CONFIG_AIR360_CELLULAR_DEFAULT_PWRKEY_GPIO` | 12 | Modem PWRKEY GPIO |
+| `CONFIG_AIR360_CELLULAR_DEFAULT_SLEEP_GPIO` | 21 | Modem SLEEP/DTR GPIO |
+| `CONFIG_AIR360_CELLULAR_WIFI_DEBUG_WINDOW_S` | 600 | Wi-Fi stays up N s after PPP connects |
 
 AP channel and max connections remain compile-time constants. All other options become defaults in the first persisted `DeviceConfig`.
 
 ### Runtime (NVS)
 
-Three independent NVS blobs under namespace `air360`:
+Four independent NVS blobs under namespace `air360`:
 
 | Key | Structure | Description |
 |-----|-----------|-------------|
-| `device_cfg` | `DeviceConfig` (246 bytes) | Device name, Wi-Fi creds, HTTP port |
+| `device_cfg` | `DeviceConfig` | Device name, Wi-Fi creds, SNTP, static IP, HTTP port |
+| `cellular_cfg` | `CellularConfig` | Modem UART/GPIO, carrier APN, credentials |
 | `sensor_cfg` | `SensorConfigList` (up to 8 entries) | Sensor inventory |
 | `backend_cfg` | `BackendConfigList` (up to 2 entries) | Backend targets and upload interval |
 | `boot_count` | `uint32_t` | Incremented on every boot |
@@ -579,19 +668,21 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 
 ### GPIO allocation
 
-| GPIO | Role |
-|------|------|
-| 8 | I2C bus 0 SDA |
-| 9 | I2C bus 0 SCL |
-| 10 | Red boot LED |
-| 11 | Green boot LED |
-| 17 | GPS TX (default) |
-| 18 | GPS RX (default) |
-| 4 | GPIO sensor slot 0 |
-| 5 | GPIO sensor slot 1 |
-| 6 | GPIO sensor slot 2 |
+| GPIO | Role | Configurable |
+|------|------|-------------|
+| 4 | GPIO sensor slot 0 | Kconfig |
+| 5 | GPIO sensor slot 1 | Kconfig |
+| 6 | GPIO sensor slot 2 | Kconfig |
+| 8 | I2C bus 0 SDA | Kconfig |
+| 9 | I2C bus 0 SCL | Kconfig |
+| 10 | Red boot LED | No |
+| 11 | Green boot LED | No |
+| 12 | Modem PWRKEY (default) | Kconfig / CellularConfig |
+| 17 | GPS TX / Modem TX (shared default) | Kconfig |
+| 18 | GPS RX / Modem RX (shared default) | Kconfig |
+| 21 | Modem SLEEP/DTR (default) | Kconfig / CellularConfig |
 
-All GPIO mappings are configurable via `Kconfig.projbuild`.
+> **GPIO17/18 conflict:** GPS (NMEA) and the SIM7600E modem share the same default UART1 pins. They cannot be used simultaneously. If both are needed, reconfigure one via Kconfig before building.
 
 ### I2C
 
@@ -602,9 +693,13 @@ All GPIO mappings are configurable via `Kconfig.projbuild`.
 
 ### UART
 
-- UART1: GPS (RX=GPIO18, TX=GPIO17, 9600 baud, RX buffer 4096 B)
-- UART2: available for additional sensors
-- UART0 reserved for console
+| Port | Default assignment | Baud | RX buffer |
+|------|--------------------|------|-----------|
+| UART0 | Console (reserved) | — | — |
+| UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
+| UART2 | Available for additional sensors | — | — |
+
+The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 
 ### GPIO / Analog
 
