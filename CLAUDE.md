@@ -43,6 +43,14 @@ docs/
 
 ### Firmware (ESP-IDF)
 
+**`idf.py` is NOT on PATH by default.** Always source the environment first:
+
+```bash
+source ~/.espressif/v6.0/esp-idf/export.sh && idf.py build
+```
+
+Common commands (all require the `export.sh` prefix above):
+
 ```bash
 idf.py build                  # compile
 idf.py flash                  # flash to connected ESP32-S3
@@ -54,6 +62,7 @@ idf.py fullclean              # wipe build directory
 ```
 
 Target chip: **ESP32-S3** (`idf_target=esp32s3` in sdkconfig.defaults).
+IDF installation: `~/.espressif/v6.0/esp-idf/`.
 
 ### Backend
 
