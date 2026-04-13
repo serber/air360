@@ -1,13 +1,22 @@
 #include "air360/cellular_manager.hpp"
 
 #include <cinttypes>
+#include <cstdio>
 
 #include "air360/connectivity_checker.hpp"
 #include "air360/modem_gpio.hpp"
 #include "air360/network_manager.hpp"
+#include "esp_event.h"
 #include "esp_log.h"
+// esp_modem_api.h (C API) uses PdpContext from the C++ layer — pull it in first.
+#include "cxx_include/esp_modem_types.hpp"
+using namespace esp_modem;  // NOLINT(google-build-using-namespace)
+#include "esp_modem_api.h"
+#include "esp_netif.h"
+#include "esp_netif_ppp.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 
 namespace air360 {
@@ -16,7 +25,7 @@ namespace {
 
 constexpr char kTag[] = "air360.cellular";
 constexpr std::uint32_t kCheckTimeoutMs = 5000U;
-constexpr std::uint32_t kCheckRetries = 3U;
+constexpr std::uint32_t kCheckRetries   = 3U;
 
 }  // namespace
 
@@ -34,7 +43,7 @@ void CellularManager::start(const CellularConfig& config) {
         return;
     }
 
-    config_ = config;
+    config_        = config;
     state_.enabled = (config.enabled != 0U);
 
     initModemGpios(config);
@@ -45,12 +54,7 @@ void CellularManager::start(const CellularConfig& config) {
     }
 
     const BaseType_t res = xTaskCreate(
-        taskEntry,
-        "cellular",
-        kTaskStackBytes,
-        this,
-        kTaskPriority,
-        &task_handle_);
+        taskEntry, "cellular", kTaskStackBytes, this, kTaskPriority, &task_handle_);
 
     if (res != pdPASS) {
         ESP_LOGE(kTag, "Failed to create cellular task");
@@ -78,33 +82,31 @@ void CellularManager::taskBody() {
     ESP_LOGI(kTag, "Cellular task running");
 
     for (;;) {
-        // Ensure the modem is awake before each connection attempt.
+        // Ensure the modem is awake before connecting.
         setModemSleepPin(config_.sleep_gpio, false);
 
-        const bool connected = attemptConnect();
+        // attemptConnect() blocks until the session is fully over
+        // (either never established, or established then dropped).
+        const bool was_connected = attemptConnect();
 
-        if (connected) {
-            // PPP is up.  Block here until onPppDisconnected() clears the flag.
-            while (state_.ppp_connected) {
-                vTaskDelay(pdMS_TO_TICKS(1000U));
-            }
-            // Clean reconnect — reset backoff counter.
-            state_.reconnect_attempts = 0U;
+        if (was_connected) {
+            // Clean disconnect — reset backoff counter for next cycle.
+            state_.reconnect_attempts     = 0U;
             state_.next_reconnect_uptime_ms = 0U;
             continue;
         }
 
-        // Attempt failed.
+        // Setup failure — apply backoff.
         state_.reconnect_attempts++;
-        ESP_LOGW(kTag, "Connection attempt %" PRIu32 " failed", state_.reconnect_attempts);
+        ESP_LOGW(kTag, "Attempt %" PRIu32 " failed", state_.reconnect_attempts);
 
         if (state_.reconnect_attempts >= kMaxReconnectAttempts) {
-            ESP_LOGW(kTag, "Max attempts reached — performing hardware reset");
+            ESP_LOGW(kTag, "Max attempts reached — hardware reset");
             doHardwareReset();
-            state_.reconnect_attempts = 0U;
+            state_.reconnect_attempts      = 0U;
             state_.next_reconnect_uptime_ms = 0U;
-            // doHardwareReset() already waits for the modem to boot; go
-            // straight to the next attempt without an additional backoff sleep.
+            // doHardwareReset() already waits for modem boot — go straight to
+            // next attempt without an extra backoff sleep.
             continue;
         }
 
@@ -113,9 +115,8 @@ void CellularManager::taskBody() {
             static_cast<std::uint64_t>(esp_timer_get_time()) / 1000ULL;
         state_.next_reconnect_uptime_ms = now_ms + backoff_ms;
 
-        ESP_LOGI(kTag, "Reconnect backoff: %" PRIu32 " ms", backoff_ms);
+        ESP_LOGI(kTag, "Backoff %" PRIu32 " ms", backoff_ms);
 
-        // Assert sleep/DTR during the wait to conserve modem power.
         setModemSleepPin(config_.sleep_gpio, true);
         vTaskDelay(pdMS_TO_TICKS(backoff_ms));
         setModemSleepPin(config_.sleep_gpio, false);
@@ -123,28 +124,237 @@ void CellularManager::taskBody() {
 }
 
 // ---------------------------------------------------------------------------
-// Private helpers
+// PPP session lifecycle
 // ---------------------------------------------------------------------------
 
 bool CellularManager::attemptConnect() {
-    // Phase 1 placeholder — real esp_modem bring-up replaces this body.
-    ESP_LOGI(kTag, "attemptConnect: stub (Phase 1 not yet implemented)");
-    return false;
+    state_.last_error.clear();
+
+    // --- 1. PPP netif -------------------------------------------------------
+    esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_PPP();
+    ppp_netif_ = esp_netif_new(&netif_cfg);
+    if (ppp_netif_ == nullptr) {
+        state_.last_error = "netif alloc failed";
+        return false;
+    }
+
+    // --- 2. DTE config ------------------------------------------------------
+    esp_modem_dte_config_t dte_cfg = ESP_MODEM_DTE_DEFAULT_CONFIG();
+    dte_cfg.uart_config.port_num   = static_cast<uart_port_t>(config_.uart_port);
+    dte_cfg.uart_config.baud_rate  = static_cast<int>(config_.uart_baud);
+    dte_cfg.uart_config.tx_io_num  = config_.uart_tx_gpio;
+    dte_cfg.uart_config.rx_io_num  = config_.uart_rx_gpio;
+    dte_cfg.uart_config.rts_io_num = -1;  // no hardware flow control
+    dte_cfg.uart_config.cts_io_num = -1;
+
+    // --- 3. DCE config and device creation ----------------------------------
+    esp_modem_dce_config_t dce_cfg = ESP_MODEM_DCE_DEFAULT_CONFIG(config_.apn);
+
+    dce_ = esp_modem_new_dev(
+        ESP_MODEM_DCE_SIM7600, &dte_cfg, &dce_cfg,
+        static_cast<esp_netif_t*>(ppp_netif_));
+    if (dce_ == nullptr) {
+        state_.last_error = "DCE creation failed";
+        teardownModem();
+        return false;
+    }
+
+    // --- 4. Event group and event handlers ----------------------------------
+    ppp_event_group_ = xEventGroupCreate();
+    if (ppp_event_group_ == nullptr) {
+        state_.last_error = "event group alloc failed";
+        teardownModem();
+        return false;
+    }
+
+    {
+        esp_event_handler_instance_t h;
+        esp_event_handler_instance_register(
+            IP_EVENT, IP_EVENT_PPP_GOT_IP, onGotIpEvent, this, &h);
+        ip_got_handler_ = h;
+    }
+    {
+        esp_event_handler_instance_t h;
+        esp_event_handler_instance_register(
+            IP_EVENT, IP_EVENT_PPP_LOST_IP, onLostIpEvent, this, &h);
+        ip_lost_handler_ = h;
+    }
+
+    auto* dce = static_cast<esp_modem_dce_t*>(dce_);
+
+    // --- 5. SIM PIN unlock --------------------------------------------------
+    if (config_.sim_pin[0] != '\0') {
+        bool pin_needed = false;
+        if (esp_modem_read_pin(dce, pin_needed) == ESP_OK && pin_needed) {
+            ESP_LOGI(kTag, "Unlocking SIM PIN");
+            if (esp_modem_set_pin(dce, std::string(config_.sim_pin)) != ESP_OK) {
+                state_.last_error = "SIM PIN unlock failed";
+                teardownModem();
+                return false;
+            }
+            vTaskDelay(pdMS_TO_TICKS(3000U));
+        }
+    }
+
+    // --- 6. Wait for network registration -----------------------------------
+    // Poll signal quality; rssi == 99 means "no signal / not registered".
+    {
+        bool registered = false;
+        for (std::uint32_t waited = 0U; waited < kRegMaxWaitMs; waited += kRegPollMs) {
+            int rssi = 99;
+            int ber  = 0;
+            if (esp_modem_get_signal_quality(dce, rssi, ber) == ESP_OK && rssi != 99) {
+                // Convert AT+CSQ rssi value to dBm: 0 = -113 dBm, step 2 dBm
+                state_.rssi_dbm  = (rssi == 0) ? -113 : (-113 + 2 * rssi);
+                state_.registered = true;
+                registered = true;
+                ESP_LOGI(kTag, "Network registered, RSSI %d dBm", state_.rssi_dbm);
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(kRegPollMs));
+        }
+        if (!registered) {
+            state_.last_error = "Network registration timeout";
+            teardownModem();
+            return false;
+        }
+    }
+
+    // --- 7. PPP authentication (username/password) --------------------------
+    // Requires CONFIG_LWIP_PPP_PAP_SUPPORT=y in sdkconfig when a password is set.
+    if (config_.username[0] != '\0') {
+        esp_netif_ppp_set_auth(
+            static_cast<esp_netif_t*>(ppp_netif_),
+            NETIF_PPP_AUTHTYPE_PAP,
+            config_.username,
+            config_.password);
+    }
+
+    // --- 8. Enter PPP / data mode -------------------------------------------
+    if (esp_modem_set_mode(dce, ESP_MODEM_MODE_DATA) != ESP_OK) {
+        state_.last_error = "Failed to enter PPP data mode";
+        teardownModem();
+        return false;
+    }
+
+    // --- 9. Wait for IP assignment ------------------------------------------
+    EventBits_t bits = xEventGroupWaitBits(
+        ppp_event_group_,
+        kGotIpBit | kLostIpBit,
+        pdTRUE, pdFALSE,
+        pdMS_TO_TICKS(kPppIpTimeoutMs));
+
+    if (!(bits & kGotIpBit)) {
+        state_.last_error = "PPP IP assignment timeout";
+        // Return to command mode so the UART DTE can be destroyed cleanly.
+        esp_modem_set_mode(dce, ESP_MODEM_MODE_COMMAND);
+        teardownModem();
+        return false;
+    }
+
+    // --- 10. PPP is up ------------------------------------------------------
+    // Use PPP netif as default so SNTP resolves through the cellular link.
+    esp_netif_set_default_netif(static_cast<esp_netif_t*>(ppp_netif_));
+
+    onPppConnected(pending_ip_, config_.connectivity_check_host);
+
+    // --- 11. Block until PPP drops ------------------------------------------
+    xEventGroupWaitBits(
+        ppp_event_group_, kLostIpBit, pdTRUE, pdFALSE, portMAX_DELAY);
+
+    // onPppDisconnected() was already called by the onLostIpEvent handler.
+    // Restore WiFi station as default netif if it is available.
+    {
+        esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta != nullptr) {
+            esp_netif_set_default_netif(sta);
+        }
+    }
+
+    teardownModem();
+    return true;
 }
 
+void CellularManager::teardownModem() {
+    // Unregister event handlers first so no callbacks fire during teardown.
+    if (ip_got_handler_ != nullptr) {
+        esp_event_handler_instance_unregister(
+            IP_EVENT, IP_EVENT_PPP_GOT_IP,
+            static_cast<esp_event_handler_instance_t>(ip_got_handler_));
+        ip_got_handler_ = nullptr;
+    }
+    if (ip_lost_handler_ != nullptr) {
+        esp_event_handler_instance_unregister(
+            IP_EVENT, IP_EVENT_PPP_LOST_IP,
+            static_cast<esp_event_handler_instance_t>(ip_lost_handler_));
+        ip_lost_handler_ = nullptr;
+    }
+    if (ppp_event_group_ != nullptr) {
+        vEventGroupDelete(ppp_event_group_);
+        ppp_event_group_ = nullptr;
+    }
+    if (dce_ != nullptr) {
+        // Best-effort: try to exit data mode before destroying the DTE/DCE.
+        esp_modem_set_mode(static_cast<esp_modem_dce_t*>(dce_), ESP_MODEM_MODE_COMMAND);
+        vTaskDelay(pdMS_TO_TICKS(500U));
+        esp_modem_destroy(static_cast<esp_modem_dce_t*>(dce_));
+        dce_ = nullptr;
+    }
+    if (ppp_netif_ != nullptr) {
+        esp_netif_destroy(static_cast<esp_netif_t*>(ppp_netif_));
+        ppp_netif_ = nullptr;
+    }
+
+    // Clear transient registration state so it is re-evaluated on next attempt.
+    state_.registered  = false;
+    state_.rssi_dbm    = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Static event handlers
+// ---------------------------------------------------------------------------
+
+// static
+void CellularManager::onGotIpEvent(
+    void* arg, esp_event_base_t /*base*/, int32_t /*id*/, void* event_data) {
+    auto* self = static_cast<CellularManager*>(arg);
+    const auto* ev = static_cast<ip_event_got_ip_t*>(event_data);
+
+    esp_ip4addr_ntoa(&ev->ip_info.ip, self->pending_ip_, sizeof(self->pending_ip_));
+
+    xEventGroupSetBits(self->ppp_event_group_, kGotIpBit);
+}
+
+// static
+void CellularManager::onLostIpEvent(
+    void* arg, esp_event_base_t /*base*/, int32_t /*id*/, void* /*event_data*/) {
+    auto* self = static_cast<CellularManager*>(arg);
+
+    // Notify NetworkManager immediately so uplinkStatus() reflects the loss.
+    self->onPppDisconnected("PPP link lost");
+
+    xEventGroupSetBits(self->ppp_event_group_, kLostIpBit);
+}
+
+// ---------------------------------------------------------------------------
+// Hardware reset
+// ---------------------------------------------------------------------------
+
 void CellularManager::doHardwareReset() {
-    ESP_LOGI(kTag, "Hardware reset: asserting power-off pulse (%" PRIu32 " ms)",
-             kPwrkeyPowerOffMs);
+    ESP_LOGI(kTag, "HW reset: power-off pulse (%" PRIu32 " ms)", kPwrkeyPowerOffMs);
     pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOffMs);
     vTaskDelay(pdMS_TO_TICKS(kModemShutdownWaitMs));
 
-    ESP_LOGI(kTag, "Hardware reset: asserting power-on pulse (%" PRIu32 " ms)",
-             kPwrkeyPowerOnMs);
+    ESP_LOGI(kTag, "HW reset: power-on pulse (%" PRIu32 " ms)", kPwrkeyPowerOnMs);
     pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOnMs);
     vTaskDelay(pdMS_TO_TICKS(kModemBootWaitMs));
 
-    ESP_LOGI(kTag, "Hardware reset complete");
+    ESP_LOGI(kTag, "HW reset complete");
 }
+
+// ---------------------------------------------------------------------------
+// Backoff
+// ---------------------------------------------------------------------------
 
 // static
 std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
@@ -156,12 +366,12 @@ std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
 }
 
 // ---------------------------------------------------------------------------
-// PPP session callbacks (called from the cellular task, Phase 1)
+// PPP session callbacks
 // ---------------------------------------------------------------------------
 
 void CellularManager::onPppConnected(const char* ip_address, const char* check_host) {
     state_.ppp_connected = true;
-    state_.ip_address = (ip_address != nullptr) ? ip_address : "";
+    state_.ip_address    = (ip_address != nullptr) ? ip_address : "";
     state_.last_error.clear();
 
     if (network_manager_ != nullptr) {
@@ -176,27 +386,25 @@ void CellularManager::onPppConnected(const char* ip_address, const char* check_h
     switch (result) {
         case ConnectivityCheckResult::kSkipped:
             state_.connectivity_check_skipped = true;
-            state_.connectivity_ok = false;
+            state_.connectivity_ok            = false;
             ESP_LOGI(kTag, "Connectivity check skipped (no host configured)");
             break;
         case ConnectivityCheckResult::kOk:
-            state_.connectivity_ok = true;
+            state_.connectivity_ok            = true;
             state_.connectivity_check_skipped = false;
             ESP_LOGI(kTag, "Connectivity check OK (%s)", check_host);
             break;
         case ConnectivityCheckResult::kFailed:
-            state_.connectivity_ok = false;
+            state_.connectivity_ok            = false;
             state_.connectivity_check_skipped = false;
-            ESP_LOGW(
-                kTag,
-                "Connectivity check failed (%s)",
-                (check_host != nullptr) ? check_host : "");
+            ESP_LOGW(kTag, "Connectivity check failed (%s)",
+                     (check_host != nullptr) ? check_host : "");
             break;
     }
 }
 
 void CellularManager::onPppDisconnected(const char* reason) {
-    state_.ppp_connected = false;
+    state_.ppp_connected  = false;
     state_.connectivity_ok = false;
     state_.ip_address.clear();
 
