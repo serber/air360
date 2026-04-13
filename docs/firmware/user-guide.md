@@ -244,21 +244,31 @@ All categories except **Gas** allow only one configured sensor at a time.
 
 ### Default transport bindings
 
-| Sensor | Transport | Default address / pin |
-|--------|-----------|----------------------|
-| BME280 | I2C bus 0 | `0x76` |
-| BME680 | I2C bus 0 | `0x77` |
-| SHT4X | I2C bus 0 | `0x44` |
-| HTU2X | I2C bus 0 | `0x40` |
-| SCD30 | I2C bus 0 | `0x61` |
-| VEML7700 | I2C bus 0 | `0x10` |
-| SPS30 | I2C bus 0 | `0x69` |
-| GPS (NMEA) | UART1 | GPIO18 (RX), GPIO17 (TX) |
+| Sensor | Transport | Pins |
+|--------|-----------|------|
+| BME280 | I2C at 0x76 | SDA=GPIO8, SCL=GPIO9 |
+| BME680 | I2C at 0x77 | SDA=GPIO8, SCL=GPIO9 |
+| SHT4X | I2C at 0x44 | SDA=GPIO8, SCL=GPIO9 |
+| HTU2X | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
+| SCD30 | I2C at 0x61 | SDA=GPIO8, SCL=GPIO9 |
+| VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
+| SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
+| GPS (NMEA) | UART1 at 9600 baud | RX=GPIO18, TX=GPIO17 |
 | DHT11, DHT22 | GPIO | GPIO4, GPIO5, or GPIO6 |
 | DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
 | ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
 
 I2C sensors allow an optional address override if your module uses a non-default address. GPIO and analog sensors require selecting one of the three available board pins.
+
+### Cellular modem (SIM7600E)
+
+The modem is not configured on the Sensors page — it is managed on the Device page. Its default pin assignment is listed here for reference when planning your wiring.
+
+| Device | Transport | Pins |
+|--------|-----------|------|
+| SIM7600E | UART1 at 115200 baud | RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21 |
+
+> **Note:** GPS (NMEA) and the SIM7600E share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on the default configuration. If you need both, change the pin assignment for one of them before building the firmware.
 
 ### Adding a sensor
 
