@@ -18,15 +18,14 @@ Decisions that are reflected in the current codebase.
   Aggregated device health summary for the `Overview` page and `/status`.
 - [`implemented-measurement-store-sensor-index-adr.md`](implemented-measurement-store-sensor-index-adr.md)
   O(1) per-sensor counter map in `MeasurementStore` replacing O(n) linear scans.
-
----
-
-## Planned
-
-Decisions that have been accepted but are not yet implemented.
-
-- [`planned-sim7600e-mobile-uplink-adr.md`](planned-sim7600e-mobile-uplink-adr.md)
-  Cellular uplink support using `SIM7600E`.
+- [`implemented-mutex-constructor-init-adr.md`](implemented-mutex-constructor-init-adr.md)
+  Fix the racy lazy `ensureMutex()` pattern — initialize mutexes in constructors.
+- [`implemented-configurable-sntp-server-adr.md`](implemented-configurable-sntp-server-adr.md)
+  User-configurable SNTP server with a runtime `Check SNTP` action on the Device page.
+- [`implemented-static-ip-configuration-adr.md`](implemented-static-ip-configuration-adr.md)
+  Optional static IPv4 configuration for Wi-Fi station mode.
+- [`implemented-cellular-uplink-adr.md`](implemented-cellular-uplink-adr.md)
+  Cellular uplink abstractions — `CellularManager`, `CellularConfig`, network bearer integration.
 
 ---
 
@@ -34,8 +33,6 @@ Decisions that have been accepted but are not yet implemented.
 
 Refactoring and correctness improvements to the existing codebase.
 
-- [`implemented-mutex-constructor-init-adr.md`](implemented-mutex-constructor-init-adr.md)
-  Fix the racy lazy `ensureMutex()` pattern — initialize mutexes in constructors.
 - [`proposed-web-server-handler-split-adr.md`](proposed-web-server-handler-split-adr.md)
   Split `web_server.cpp` (79 KB) and `status_service.cpp` (36 KB) into focused files.
 - [`proposed-upload-retry-backoff-adr.md`](proposed-upload-retry-backoff-adr.md)
@@ -57,10 +54,6 @@ New capabilities not present in the current firmware.
   Persist the upload queue to SPIFFS so queued samples survive reboot.
 - [`proposed-wifi-auto-reconnect-adr.md`](proposed-wifi-auto-reconnect-adr.md)
   Automatic Wi-Fi reconnection with exponential backoff after station disconnect.
-- [`proposed-configurable-sntp-server-adr.md`](proposed-configurable-sntp-server-adr.md)
-  User-configurable SNTP server with a runtime `Check SNTP` action on the Device page.
-- [`proposed-static-ip-configuration-adr.md`](proposed-static-ip-configuration-adr.md)
-  Optional static IPv4 configuration for Wi-Fi station mode.
 - [`proposed-host-unit-tests-adr.md`](proposed-host-unit-tests-adr.md)
   Host-compiled Unity test suite for `MeasurementStore`, sensor state machine, and config validation.
 - [`proposed-gpio-factory-reset-adr.md`](proposed-gpio-factory-reset-adr.md)
