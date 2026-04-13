@@ -100,7 +100,7 @@ The navigation bar contains five sections:
 | Section | Purpose |
 |---------|---------|
 | **Overview** | Runtime dashboard: health, identity, sensors, backends |
-| **Device** | Device name and station Wi-Fi credentials |
+| **Device** | Network credentials, static IP, and cellular modem settings |
 | **Sensors** | Sensor inventory — add, configure, remove |
 | **Backends** | Upload targets — enable, configure, monitor |
 | **Status JSON** | Raw machine-readable runtime state at `/status` |
@@ -113,24 +113,24 @@ The Overview page is the main runtime dashboard.
 
 ![Runtime Overview](images/firmware_overview.png)
 
-The top of the page shows a **Health** bar with quick-glance status for time sync, sensors, uplink, and backends.
+A **Health pill** (`Healthy` / `Unhealthy`) is shown inline under the page heading.
 
-Below the health bar:
+The stats bar shows four values:
 
 | Field | Description |
 |-------|-------------|
 | Mode | Current network mode (`station` or `setup AP`) |
-| Device | Device name |
-| Sensors | Number of configured sensors |
-| Backends | Number of enabled backends |
+| Uplink | Active uplink: `wifi`, `cellular`, `cellular (connecting)`, or `offline`. Cellular is always the primary uplink when enabled. |
 | Uptime | Time since last boot |
 | Boot count | Total number of boots since first flash |
 
-### Identity block
+### Connection block
 
-Shows the chip ID, Short ID, MAC address, chip type, detected features, crystal frequency, current UTC date and time, last reset reason, and current IP address.
+Shows the current network connection state:
 
-The **Short ID** is the identifier used by Sensor.Community. Note it here when registering the device on the Sensor.Community portal.
+- **Date** — current UTC date and time (from SNTP when synced).
+- **Wi-Fi** — SSID and current IP address, or `not connected`.
+- **Cellular** (shown only when cellular is enabled) — PPP IP address, signal strength in dBm, and ping status (`ping ok` / `ping failed`).
 
 ### Backend cards
 
@@ -151,7 +151,7 @@ Each configured sensor shows:
 
 ## Device Page
 
-The Device page manages the device name and station Wi-Fi credentials.
+The Device page manages network credentials, static IP, and cellular modem settings.
 
 ![Device Configuration](images/firmware_device.png)
 
@@ -162,10 +162,19 @@ Available fields:
 | Device name | Logical name shown in the UI and used as the DHCP hostname |
 | Wi-Fi SSID | Station network to join |
 | Wi-Fi password | Station network password |
+| SNTP server | NTP hostname; leave empty to use `pool.ntp.org` |
+| Use static IP | When checked, the device uses the configured address instead of DHCP |
+| IP / Mask / Gateway / DNS | Static IP parameters; pre-filled from current DHCP lease when not yet configured |
+| Enable cellular uplink | Enables the SIM7600E modem as the primary uplink |
+| APN | Carrier APN; pre-filled with `internet` when empty |
+| Username / Password | Optional PAP credentials |
+| SIM PIN | Optional SIM PIN; leave empty if the SIM has no lock |
+| Connectivity check host | IPv4 address to ping after PPP connects; leave empty to skip |
+| Wi-Fi debug window | Seconds Wi-Fi stays active alongside cellular after boot; `0` = disabled |
 
 **Saving device settings reboots the device.**
 
-This page is available in both setup AP mode and station mode. In station mode it is useful when moving the device to a different Wi-Fi network.
+This page is available in both setup AP mode and station mode. In station mode it is useful when moving the device to a different Wi-Fi network or enabling cellular.
 
 ---
 

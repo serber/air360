@@ -20,6 +20,7 @@
 #include "air360/web_assets.hpp"
 #include "air360/web_ui.hpp"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -944,9 +945,38 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.sta_gateway_value = boundedCString(config.sta_gateway, sizeof(config.sta_gateway));
     model.sta_dns_value = boundedCString(config.sta_dns, sizeof(config.sta_dns));
 
+    // Pre-fill static IP fields from the current DHCP lease when not yet configured.
+    if (model.sta_ip_value.empty() && network_state.station_connected) {
+        esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta != nullptr) {
+            esp_netif_ip_info_t ip_info{};
+            if (esp_netif_get_ip_info(sta, &ip_info) == ESP_OK) {
+                char buf[16];
+                std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&ip_info.ip));
+                model.sta_ip_value = buf;
+                std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&ip_info.netmask));
+                model.sta_netmask_value = buf;
+                std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&ip_info.gw));
+                model.sta_gateway_value = buf;
+            }
+            if (model.sta_dns_value.empty()) {
+                esp_netif_dns_info_t dns_info{};
+                if (esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_info) == ESP_OK &&
+                    dns_info.ip.u_addr.ip4.addr != 0U) {
+                    char buf[16];
+                    std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+                    model.sta_dns_value = buf;
+                }
+            }
+        }
+    }
+
     model.cellular_enabled = cellular_config.enabled != 0U;
     model.cellular_apn_value =
         boundedCString(cellular_config.apn, sizeof(cellular_config.apn));
+    if (model.cellular_apn_value.empty()) {
+        model.cellular_apn_value = "internet";
+    }
     model.cellular_username_value =
         boundedCString(cellular_config.username, sizeof(cellular_config.username));
     model.cellular_password_value =
@@ -956,6 +986,9 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.cellular_connectivity_check_host_value = boundedCString(
         cellular_config.connectivity_check_host,
         sizeof(cellular_config.connectivity_check_host));
+    if (model.cellular_connectivity_check_host_value.empty()) {
+        model.cellular_connectivity_check_host_value = "8.8.8.8";
+    }
     model.cellular_wifi_debug_window_s_value =
         std::to_string(cellular_config.wifi_debug_window_s);
 

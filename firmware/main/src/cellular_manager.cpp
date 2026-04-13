@@ -146,6 +146,7 @@ bool CellularManager::attemptConnect() {
     dte_cfg.uart_config.rx_io_num  = config_.uart_rx_gpio;
     dte_cfg.uart_config.rts_io_num = -1;  // no hardware flow control
     dte_cfg.uart_config.cts_io_num = -1;
+    dte_cfg.uart_config.rx_buffer_size = 4096;
 
     // --- 3. DCE config and device creation ----------------------------------
     esp_modem_dce_config_t dce_cfg = ESP_MODEM_DCE_DEFAULT_CONFIG(config_.apn);

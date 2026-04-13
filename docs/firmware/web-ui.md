@@ -46,11 +46,21 @@ When the device is in `kSetupAp` mode (no station credentials, or station connec
 
 Displays a read-only dashboard. Refreshed on every page load (no auto-refresh).
 
-**Health section** — aggregated health status pill (ok / warning / error) with per-check breakdown.
+**Health pill** — aggregated status (`Healthy` / `Unhealthy`) rendered inline under the page heading. No separate panel.
 
-**Stats bar** — network mode, device name, sensor count, backend count, uptime, boot count.
+**Stats bar** — four cells:
 
-**Identity section** — chip ID, short ID, MAC ID, chip type, features, crystal frequency, current datetime (from SNTP), reset reason, IP address.
+| Stat | Content |
+|------|---------|
+| Mode | Network mode (`kStation` / `kSetupAp`) |
+| Uplink | `wifi`, `cellular`, `cellular (connecting)`, or `offline`. When cellular is enabled it is always the primary uplink regardless of Wi-Fi state. |
+| Uptime | Human-readable uptime since last boot |
+| Boot Count | Total boot count from NVS |
+
+**Connection section** — current connection details:
+- Current date and time (UTC; shown from SNTP if synced, otherwise best-effort uptime-based estimate).
+- Wi-Fi: SSID and current IP address (or `not connected`).
+- Cellular (shown only when `cellular_enabled = 1`): PPP IP address, RSSI in dBm, and ping status (`ping ok` / `ping failed`). RSSI and ping are omitted when not available.
 
 **Backends section** — one row per configured backend showing type, enabled state, last upload result, and last upload time.
 
@@ -60,9 +70,9 @@ Displays a read-only dashboard. Refreshed on every page load (no auto-refresh).
 
 ## Page: Device Configuration (`/config`)
 
-Form for network credentials and device identity. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
+Form for network credentials, device identity, static IP, and cellular modem settings. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
 
-**Fields:**
+**Network and identity fields:**
 
 | Field | Input | Notes |
 |-------|-------|-------|
@@ -75,9 +85,33 @@ In `kSetupAp` mode, the SSID field also shows a **network selector** dropdown po
 
 The **Check SNTP** button fires `POST /check-sntp` with the current input value and displays the result inline below the field. It does not submit the form.
 
+**Static IP fields** (collapsed unless `Use static IP` is checked):
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Use static IP | `<input type=checkbox>` | Enables the fieldset; toggles disabled state via JS |
+| IP address | `<input maxlength=15>` | `sta_ip` in `DeviceConfig`; placeholder `192.168.1.100` |
+| Subnet mask | `<input maxlength=15>` | `sta_netmask`; placeholder `255.255.255.0` |
+| Gateway | `<input maxlength=15>` | `sta_gateway`; placeholder `192.168.1.1` |
+| DNS server | `<input maxlength=15>` | `sta_dns`; placeholder `8.8.8.8`; empty = use gateway |
+
+When `sta_ip` is not yet stored and the device is currently connected via DHCP, the IP, netmask, and gateway fields are **pre-filled from the current DHCP lease** (`esp_netif_get_ip_info` on `WIFI_STA_DEF`) to make it easier to convert an existing lease to a static assignment. DNS is pre-filled from the primary DNS server if available.
+
+**Mobile Uplink fields** (collapsed unless `Enable cellular uplink` is checked):
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Enable cellular | `<input type=checkbox>` | Stored as `cellular_enabled` in `CellularConfig`; enables the fieldset |
+| APN | `<input maxlength=63>` | Required; pre-filled with `internet` when empty |
+| Username | `<input maxlength=31>` | Optional; leave empty if carrier does not require it |
+| Password | `<input type=password maxlength=63>` | Optional; Show/Hide toggle |
+| SIM PIN | `<input type=password maxlength=7>` | Optional; leave empty if SIM has no PIN lock |
+| Connectivity check host | `<input maxlength=63>` | IPv4 address to ping after PPP connects; pre-filled with `8.8.8.8` when empty; leave empty to skip |
+| Wi-Fi debug window | `<input type=number min=0 max=3600>` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
+
 **Submit action:** `POST /config`
 - Validates field lengths, password constraints, and SNTP server characters server-side.
-- Saves to NVS via `ConfigRepository::save()`.
+- Saves `DeviceConfig` via `ConfigRepository::save()` and `CellularConfig` via `CellularConfigRepository::save()`.
 - Responds with "Configuration saved. Device is rebooting now." and calls `esp_restart()`.
 - On validation failure, re-renders the form with the submitted values preserved and an error notice.
 

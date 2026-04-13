@@ -23,8 +23,6 @@ struct CellularState {
     bool connectivity_ok = false;
     bool connectivity_check_skipped = false;
     std::string ip_address;
-    std::string operator_name;
-    std::string rat;            // radio access technology, e.g. "LTE"
     int rssi_dbm = 0;
     std::string last_error;
     // Reconnect tracking (Phase 7)
