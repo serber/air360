@@ -22,6 +22,14 @@ There is also no distinction between:
 - Transient failures (`503 Service Unavailable`, network timeout) — should retry soon
 - Permanent failures (invalid API key `403`, bad endpoint URL) — should back off aggressively
 
+This ADR also sits inside a broader reliability problem identified in the ecosystem review:
+
+- one failing backend can still dominate device behavior
+- the current delivery model remains effectively all-or-nothing for an upload window
+- users need clearer runtime distinction between transport errors, auth errors, and remote HTTP failures
+
+The larger fault-isolation work is captured separately in [proposed-backend-fault-isolation-adr.md](proposed-backend-fault-isolation-adr.md). This ADR keeps the narrower decision about retry timing.
+
 ## Goals
 
 - Reduce wasted upload attempts when a backend is persistently unavailable.
@@ -83,6 +91,14 @@ Low implementation complexity (add one counter, change one formula). Significant
 ### Option C. Jitter + exponential backoff
 
 Adds randomness to prevent thundering herd if many devices share the same backend. Useful at scale but unnecessary for single-device deployments. Defer to a follow-up.
+
+## Reference Links
+
+- [Sensor.Community ecosystem review for Air360](../../ecosystem/sensor-community-issues-prs-review-2026-04-14.md)
+- [Measurement Pipeline](../measurement-pipeline.md)
+- [Upload Adapters](../upload-adapters.md)
+- [Proposed backend fault isolation ADR](proposed-backend-fault-isolation-adr.md)
+- [#912 Crash and reboot when API reply is too big](https://github.com/opendata-stuttgart/sensors-software/issues/912)
 
 ## Practical Conclusion
 

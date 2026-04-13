@@ -37,6 +37,8 @@ Refactoring and correctness improvements to the existing codebase.
   Split `web_server.cpp` (79 KB) and `status_service.cpp` (36 KB) into focused files.
 - [`proposed-upload-retry-backoff-adr.md`](proposed-upload-retry-backoff-adr.md)
   Replace fixed retry interval with capped exponential backoff per backend.
+- [`proposed-backend-fault-isolation-adr.md`](proposed-backend-fault-isolation-adr.md)
+  Stop one failing backend from blocking delivery to healthy backends; bound oversized or malformed responses.
 - [`proposed-sensor-log-state-transitions-adr.md`](proposed-sensor-log-state-transitions-adr.md)
   Log sensor errors on state transitions only, not on every 250 ms poll iteration.
 - [`proposed-non-blocking-sensor-init-adr.md`](proposed-non-blocking-sensor-init-adr.md)
@@ -53,7 +55,21 @@ New capabilities not present in the current firmware.
 - [`proposed-measurement-queue-persistence-adr.md`](proposed-measurement-queue-persistence-adr.md)
   Persist the upload queue to SPIFFS so queued samples survive reboot.
 - [`proposed-wifi-auto-reconnect-adr.md`](proposed-wifi-auto-reconnect-adr.md)
-  Automatic Wi-Fi reconnection with exponential backoff after station disconnect.
+  Automatic Wi-Fi reconnection, setup-AP retry behavior, and better recovery diagnostics.
+- [`proposed-sensor-correction-layer-adr.md`](proposed-sensor-correction-layer-adr.md)
+  Unified per-sensor correction layer for climate measurements such as temperature, humidity, and pressure.
+- [`proposed-pressure-normalization-adr.md`](proposed-pressure-normalization-adr.md)
+  Keep raw station pressure and derive sea-level-normalized pressure from configured altitude.
+- [`proposed-scd30-calibration-controls-adr.md`](proposed-scd30-calibration-controls-adr.md)
+  Expose SCD30 self-calibration and compensation controls in sensor configuration.
+- [`proposed-authenticated-backends-adr.md`](proposed-authenticated-backends-adr.md)
+  Make authenticated backends first-class and add openSenseMap and InfluxDB 2 as initial targets.
+- [`proposed-local-history-and-diagnostics-adr.md`](proposed-local-history-and-diagnostics-adr.md)
+  Local recent-sample history plus queue-health diagnostics for the web UI and status API.
+- [`proposed-battery-power-telemetry-adr.md`](proposed-battery-power-telemetry-adr.md)
+  Optional battery and power telemetry, starting with INA219-based monitoring.
+- [`proposed-targeted-sensor-expansion-adr.md`](proposed-targeted-sensor-expansion-adr.md)
+  Expand sensor support selectively where the new device fits the existing Air360 measurement model.
 - [`proposed-host-unit-tests-adr.md`](proposed-host-unit-tests-adr.md)
   Host-compiled Unity test suite for `MeasurementStore`, sensor state machine, and config validation.
 - [`proposed-gpio-factory-reset-adr.md`](proposed-gpio-factory-reset-adr.md)
