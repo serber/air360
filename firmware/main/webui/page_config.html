@@ -1,10 +1,5 @@
 <div class='stack stack--scene'>
-    <section class='stats'>
-        <div class='stat'><div class='stat__label'>Network Mode</div><div class='stat__value'><code>{{NETWORK_MODE}}</code></div></div>
-        <div class='stat'><div class='stat__label'>IP Address</div><div class='stat__value'><code>{{IP_ADDRESS}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Device Name</div><div class='stat__value'><code>{{DEVICE_NAME}}</code></div></div>
-    </section>
-    {{NOTICE}}
+{{NOTICE}}
     <section class='stack'>
         <div class='panel panel--form stack'>
             <h2>Network and Device Settings</h2>
@@ -43,6 +38,81 @@
                     <p class='hint'>Leave empty to use the default server (pool.ntp.org).</p>
                     <p class='hint' data-check-sntp-status hidden></p>
                 </div>
+                <hr>
+                <h3>Static IP</h3>
+                <p class='muted'>When enabled, the device uses the configured address instead of DHCP. Applies to station mode only; setup AP is unaffected.</p>
+                <div class='field'>
+                    <label class='label--inline'>
+                        <input type='checkbox' name='sta_use_static_ip' value='1' {{STA_USE_STATIC_IP_CHECKED}} data-static-ip-toggle>
+                        Use static IP
+                    </label>
+                </div>
+                <fieldset class='stack' data-static-ip-fields {{STA_STATIC_IP_FIELDSET_DISABLED}}>
+                    <div class='field'>
+                        <label for='sta_ip'>IP address</label>
+                        <input class='input' id='sta_ip' name='sta_ip' maxlength='15' placeholder='192.168.1.100' value='{{STA_IP_VALUE}}'>
+                    </div>
+                    <div class='field'>
+                        <label for='sta_netmask'>Subnet mask</label>
+                        <input class='input' id='sta_netmask' name='sta_netmask' maxlength='15' placeholder='255.255.255.0' value='{{STA_NETMASK_VALUE}}'>
+                    </div>
+                    <div class='field'>
+                        <label for='sta_gateway'>Gateway</label>
+                        <input class='input' id='sta_gateway' name='sta_gateway' maxlength='15' placeholder='192.168.1.1' value='{{STA_GATEWAY_VALUE}}'>
+                    </div>
+                    <div class='field'>
+                        <label for='sta_dns'>DNS server</label>
+                        <input class='input' id='sta_dns' name='sta_dns' maxlength='15' placeholder='8.8.8.8' value='{{STA_DNS_VALUE}}'>
+                        <p class='hint'>Leave empty to use the gateway as DNS.</p>
+                    </div>
+                </fieldset>
+                <hr>
+                <h3>Mobile Uplink</h3>
+                <p class='muted'>When enabled, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for a configurable debug window after boot, then stops automatically.</p>
+                <div class='field'>
+                    <label class='label--inline'>
+                        <input type='checkbox' name='cellular_enabled' value='1' {{CELLULAR_ENABLED_CHECKED}} data-cellular-toggle>
+                        Enable cellular uplink (SIM7600E)
+                    </label>
+                </div>
+                <fieldset class='stack' data-cellular-fields {{CELLULAR_FIELDSET_DISABLED}}>
+                    <div class='field'>
+                        <label for='cellular_apn'>APN</label>
+                        <input class='input' id='cellular_apn' name='cellular_apn' maxlength='63' placeholder='internet' value='{{CELLULAR_APN_VALUE}}'>
+                        <p class='hint'>Required. Provided by your carrier (e.g. "internet", "hologram").</p>
+                    </div>
+                    <div class='field'>
+                        <label for='cellular_username'>Username</label>
+                        <input class='input' id='cellular_username' name='cellular_username' maxlength='31' value='{{CELLULAR_USERNAME_VALUE}}'>
+                        <p class='hint'>Leave empty if not required by the carrier.</p>
+                    </div>
+                    <div class='field'>
+                        <label for='cellular_password'>Password</label>
+                        <div class='secret-row'>
+                            <input class='input' id='cellular_password' name='cellular_password' type='password' maxlength='63' value='{{CELLULAR_PASSWORD_VALUE}}' autocomplete='new-password'>
+                            <button class='button button--ghost' type='button' data-secret-toggle='cellular_password'>Show</button>
+                        </div>
+                        <p class='hint'>Leave empty if not required by the carrier.</p>
+                    </div>
+                    <div class='field'>
+                        <label for='cellular_sim_pin'>SIM PIN</label>
+                        <div class='secret-row'>
+                            <input class='input' id='cellular_sim_pin' name='cellular_sim_pin' type='password' maxlength='7' value='{{CELLULAR_SIM_PIN_VALUE}}' autocomplete='new-password'>
+                            <button class='button button--ghost' type='button' data-secret-toggle='cellular_sim_pin'>Show</button>
+                        </div>
+                        <p class='hint'>Leave empty if the SIM has no PIN lock.</p>
+                    </div>
+                    <div class='field'>
+                        <label for='cellular_connectivity_check_host'>Connectivity check host</label>
+                        <input class='input' id='cellular_connectivity_check_host' name='cellular_connectivity_check_host' maxlength='63' placeholder='8.8.8.8' value='{{CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE}}'>
+                        <p class='hint'>IPv4 address to ping after PPP connects. Leave empty to skip.</p>
+                    </div>
+                    <div class='field'>
+                        <label for='cellular_wifi_debug_window_s'>Wi-Fi debug window (seconds)</label>
+                        <input class='input' id='cellular_wifi_debug_window_s' name='cellular_wifi_debug_window_s' type='number' min='0' max='3600' value='{{CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE}}'>
+                        <p class='hint'>How long Wi-Fi station stays active alongside cellular after boot. 0 = disabled.</p>
+                    </div>
+                </fieldset>
                 <div class='split-actions'>
                     <button class='button button--ghost' type='button' data-check-sntp>Check SNTP</button>
                     <button class='button' type='submit'>Save and reboot</button>

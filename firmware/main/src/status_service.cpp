@@ -91,23 +91,6 @@ std::string formatFloat(float value, int precision) {
     return buffer;
 }
 
-std::string formatMacForDisplay(std::string_view mac) {
-    if (mac.size() != 12U) {
-        return std::string(mac);
-    }
-
-    std::string formatted;
-    formatted.reserve(17U);
-    for (std::size_t index = 0; index < mac.size(); ++index) {
-        const unsigned char ch = static_cast<unsigned char>(mac[index]);
-        formatted.push_back(static_cast<char>(std::toupper(ch)));
-        if ((index % 2U) == 1U && (index + 1U) < mac.size()) {
-            formatted.push_back('-');
-        }
-    }
-
-    return formatted;
-}
 
 std::string formatMeasurementValue(const SensorValue& value) {
     std::string text = sensorValueKindLabel(value.kind);
@@ -243,28 +226,12 @@ const char* resetReasonLabel(esp_reset_reason_t reason) {
 
 struct RuntimeOverviewViewModel {
     std::string health_status_pill_html;
-    std::string health_summary_html;
-    std::string health_checks_html;
     std::string network_mode;
-    std::string device_name;
-    std::size_t sensor_count = 0U;
-    std::size_t backend_count = 0U;
+    std::string uplink_stat;
     std::string uptime;
     std::uint32_t boot_count = 0U;
-    std::string board_name;
-    std::string chip_name;
-    std::string chip_revision;
-    std::string chip_type;
-    std::string chip_features;
-    std::string crystal_frequency;
-    std::string current_datetime;
-    std::string reset_reason_label;
-    std::string chip_id;
-    std::string short_chip_id;
-    std::string esp_mac_id;
-    std::string ip_address;
-    std::string network_error_html;
-    std::size_t degraded_backend_count = 0U;
+    std::string connection_block_html;
+    std::size_t sensor_count = 0U;
     std::string backend_block_html;
     std::string sensor_block_html;
 };
@@ -308,23 +275,6 @@ const char* healthStatusKey(HealthStatus status) {
     }
 }
 
-const char* healthStatusLabel(HealthStatus status) {
-    switch (status) {
-        case HealthStatus::kHealthy:
-            return "Healthy";
-        case HealthStatus::kDegraded:
-            return "Degraded";
-        case HealthStatus::kOffline:
-            return "Offline";
-        case HealthStatus::kSetupRequired:
-        default:
-            return "Setup Required";
-    }
-}
-
-const char* healthStatusPillClass(HealthStatus status) {
-    return status == HealthStatus::kHealthy ? "pill pill--ok" : "pill pill--danger";
-}
 
 std::uint64_t sensorFreshnessThresholdMs(std::uint32_t poll_interval_ms) {
     constexpr std::uint64_t kMinimumFreshnessThresholdMs = 15000ULL;
@@ -391,15 +341,6 @@ bool backendIsHealthy(const BackendStatusSnapshot& backend) {
     }
 }
 
-std::string renderHealthChecksHtml(const std::vector<HealthCheckViewModel>& checks) {
-    std::string html;
-    for (const auto& check : checks) {
-        html += "<span class='pill'>";
-        html += htmlEscape(check.pill_text);
-        html += "</span>";
-    }
-    return html;
-}
 
 HealthViewModel buildHealthViewModel(
     const NetworkState& network_state,
@@ -613,10 +554,59 @@ std::string renderSensorOverviewBlock(
     return html;
 }
 
+std::string renderConnectionBlock(
+    const NetworkState& network_state,
+    const CellularState& cellular_state) {
+    std::string html;
+
+    // Current date
+    html += "<p>Date: <code>";
+    html += htmlEscape(currentUtcDateTimeLabel());
+    html += "</code></p>";
+
+    // Wi-Fi
+    html += "<p>Wi-Fi";
+    if (!network_state.station_ssid.empty()) {
+        html += " <code>";
+        html += htmlEscape(network_state.station_ssid);
+        html += "</code>";
+    }
+    html += ": <code>";
+    html += network_state.station_connected
+                ? htmlEscape(network_state.ip_address.empty() ? "connected" : network_state.ip_address)
+                : std::string("not connected");
+    html += "</code></p>";
+
+    // Cellular — only if enabled
+    if (cellular_state.enabled) {
+        html += "<p>Cellular: <code>";
+        if (cellular_state.ppp_connected && !cellular_state.ip_address.empty()) {
+            html += htmlEscape(cellular_state.ip_address);
+        } else {
+            html += cellular_state.ppp_connected ? "connected" : "not connected";
+        }
+        html += "</code>";
+        if (cellular_state.rssi_dbm != 0) {
+            html += " · <code>";
+            html += std::to_string(cellular_state.rssi_dbm);
+            html += " dBm</code>";
+        }
+        if (cellular_state.ppp_connected && !cellular_state.connectivity_check_skipped) {
+            html += " · <code>ping ";
+            html += cellular_state.connectivity_ok ? "ok" : "failed";
+            html += "</code>";
+        }
+        html += "</p>";
+    }
+
+    return html;
+}
+
 RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     const BuildInfo& build_info,
     const DeviceConfig& config,
     const NetworkState& network_state,
+    const CellularState& cellular_state,
     std::uint32_t boot_count,
     esp_reset_reason_t reset_reason,
     bool config_loaded_from_storage,
@@ -627,50 +617,31 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     RuntimeOverviewViewModel model;
     const HealthViewModel health =
         buildHealthViewModel(network_state, sensors, backends, measurement_store);
+    const bool healthy = (health.status == HealthStatus::kHealthy);
     model.health_status_pill_html = "<span class='";
-    model.health_status_pill_html += healthStatusPillClass(health.status);
+    model.health_status_pill_html += healthy ? "pill pill--ok" : "pill pill--danger";
     model.health_status_pill_html += "'>";
-    model.health_status_pill_html += htmlEscape(healthStatusLabel(health.status));
+    model.health_status_pill_html += healthy ? "Healthy" : "Unhealthy";
     model.health_status_pill_html += "</span>";
-    if (!health.summary.empty() && health.status != HealthStatus::kHealthy) {
-        model.health_summary_html = "<p class='muted'>";
-        model.health_summary_html += htmlEscape(health.summary);
-        model.health_summary_html += "</p>";
+
+    // Uplink stat: cellular is primary when enabled; Wi-Fi is fallback/debug only.
+    if (cellular_state.enabled) {
+        model.uplink_stat = cellular_state.ppp_connected ? "cellular" : "cellular (connecting)";
+    } else if (network_state.station_connected) {
+        model.uplink_stat = "wifi";
+    } else {
+        model.uplink_stat = "offline";
     }
-    model.health_checks_html = renderHealthChecksHtml(health.checks);
+
     model.network_mode = networkModeString(network_state.mode);
-    model.device_name = config.device_name;
-    model.sensor_count = sensors.size();
-    model.backend_count = upload_manager != nullptr ? upload_manager->enabledCount() : 0U;
     model.uptime = formatUptimeCompact(uptimeMilliseconds());
     model.boot_count = boot_count;
-    model.board_name = build_info.board_name;
-    model.chip_name = build_info.chip_name;
-    model.chip_revision = build_info.chip_revision;
-    model.chip_type = build_info.chip_type.empty() ? "unavailable" : build_info.chip_type;
-    model.chip_features =
-        build_info.chip_features.empty() ? "unavailable" : build_info.chip_features;
-    model.crystal_frequency =
-        build_info.crystal_frequency.empty() ? "unavailable" : build_info.crystal_frequency;
-    model.current_datetime = currentUtcDateTimeLabel();
-    model.reset_reason_label = resetReasonLabel(reset_reason);
-    model.chip_id = build_info.chip_id.empty() ? "unavailable" : build_info.chip_id;
-    model.short_chip_id =
-        build_info.short_chip_id.empty() ? "unavailable" : build_info.short_chip_id;
-    model.esp_mac_id =
-        build_info.esp_mac_id.empty() ? "unavailable" : formatMacForDisplay(build_info.esp_mac_id);
-    model.ip_address = network_state.ip_address.empty() ? "unavailable" : network_state.ip_address;
-    model.degraded_backend_count = upload_manager != nullptr ? upload_manager->degradedCount() : 0U;
+    model.connection_block_html = renderConnectionBlock(network_state, cellular_state);
+    model.sensor_count = sensors.size();
     model.backend_block_html = renderBackendOverviewBlock(
         backends,
         upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U);
     model.sensor_block_html = renderSensorOverviewBlock(sensors, measurement_store);
-
-    if (!network_state.last_error.empty()) {
-        model.network_error_html += " · Last network error: <code>";
-        model.network_error_html += htmlEscape(network_state.last_error);
-        model.network_error_html += "</code>";
-    }
 
     return model;
 }
@@ -704,6 +675,10 @@ void StatusService::setNetworkState(const NetworkState& state) {
     network_state_ = state;
 }
 
+void StatusService::setCellularState(const CellularState& state) {
+    cellular_state_ = state;
+}
+
 void StatusService::setSensors(const SensorManager& sensor_manager) {
     sensor_manager_ = &sensor_manager;
 }
@@ -730,6 +705,7 @@ std::string StatusService::renderRootHtml() const {
         build_info_,
         config_,
         network_state_,
+        cellular_state_,
         boot_count_,
         reset_reason_,
         config_loaded_from_storage_,
@@ -741,29 +717,12 @@ std::string StatusService::renderRootHtml() const {
     const std::string body = renderPageTemplate(
         WebTemplateKey::kHome,
         WebTemplateBindings{
-            {"HEALTH_STATUS_PILL", model.health_status_pill_html},
-            {"HEALTH_SUMMARY_BLOCK", model.health_summary_html},
-            {"HEALTH_CHECKS", model.health_checks_html},
             {"NETWORK_MODE", htmlEscape(model.network_mode)},
-            {"DEVICE_NAME", htmlEscape(model.device_name)},
-            {"SENSOR_COUNT", std::to_string(model.sensor_count)},
-            {"BACKEND_COUNT", std::to_string(model.backend_count)},
+            {"UPLINK_STAT", htmlEscape(model.uplink_stat)},
             {"UPTIME", htmlEscape(model.uptime)},
             {"BOOT_COUNT", std::to_string(model.boot_count)},
-            {"BOARD_NAME", htmlEscape(model.board_name)},
-            {"CHIP_NAME", htmlEscape(model.chip_name)},
-            {"CHIP_REVISION", htmlEscape(model.chip_revision)},
-            {"CHIP_TYPE", htmlEscape(model.chip_type)},
-            {"CHIP_FEATURES", htmlEscape(model.chip_features)},
-            {"CRYSTAL_FREQUENCY", htmlEscape(model.crystal_frequency)},
-            {"CURRENT_DATETIME", htmlEscape(model.current_datetime)},
-            {"RESET_REASON_LABEL", htmlEscape(model.reset_reason_label)},
-            {"CHIP_ID", htmlEscape(model.chip_id)},
-            {"SHORT_CHIP_ID", htmlEscape(model.short_chip_id)},
-            {"ESP_MAC_ID", htmlEscape(model.esp_mac_id)},
-            {"IP_ADDRESS", htmlEscape(model.ip_address)},
-            {"NETWORK_ERROR", model.network_error_html},
-            {"DEGRADED_BACKEND_COUNT", std::to_string(model.degraded_backend_count)},
+            {"CONNECTION_BLOCK", model.connection_block_html},
+            {"SENSOR_COUNT", std::to_string(model.sensor_count)},
             {"BACKEND_BLOCK", model.backend_block_html},
             {"SENSOR_BLOCK", model.sensor_block_html},
         });
@@ -772,7 +731,7 @@ std::string StatusService::renderRootHtml() const {
         WebPageKey::kHome,
         "Air 360 runtime overview",
         "Runtime Overview",
-        "Live device overview, sensor state, upload state, and runtime metadata.",
+        model.health_status_pill_html,
         body,
         true);
 }
@@ -865,6 +824,18 @@ std::string StatusService::renderStatusJson() const {
     json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
     json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
     json += "\"time_sync_error\":\"" + jsonEscape(network_state_.time_sync_error) + "\",";
+    json += "\"cellular\":{";
+    json += "\"enabled\":";
+    json += boolString(cellular_state_.enabled);
+    json += ",\"ppp_connected\":";
+    json += boolString(cellular_state_.ppp_connected);
+    json += ",\"ip_address\":\"" + jsonEscape(cellular_state_.ip_address) + "\",";
+    json += "\"connectivity_ok\":";
+    json += boolString(cellular_state_.connectivity_ok);
+    json += ",\"connectivity_check_skipped\":";
+    json += boolString(cellular_state_.connectivity_check_skipped);
+    json += ",\"last_error\":\"" + jsonEscape(cellular_state_.last_error) + "\"";
+    json += "},";
     json += "\"configured_sensors_count\":" + std::to_string(sensors.size()) + ",";
     json += "\"enabled_backends_count\":";
     json += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);

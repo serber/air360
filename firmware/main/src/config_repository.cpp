@@ -76,7 +76,11 @@ bool ConfigRepository::isValid(const DeviceConfig& config) const {
         config.wifi_sta_password[sizeof(config.wifi_sta_password) - 1U] != '\0' ||
         config.lab_ap_ssid[sizeof(config.lab_ap_ssid) - 1U] != '\0' ||
         config.lab_ap_password[sizeof(config.lab_ap_password) - 1U] != '\0' ||
-        config.sntp_server[sizeof(config.sntp_server) - 1U] != '\0') {
+        config.sntp_server[sizeof(config.sntp_server) - 1U] != '\0' ||
+        config.sta_ip[sizeof(config.sta_ip) - 1U] != '\0' ||
+        config.sta_netmask[sizeof(config.sta_netmask) - 1U] != '\0' ||
+        config.sta_gateway[sizeof(config.sta_gateway) - 1U] != '\0' ||
+        config.sta_dns[sizeof(config.sta_dns) - 1U] != '\0') {
         return false;
     }
 

@@ -5,6 +5,7 @@
 
 # Directory metadata
 .directory
+.cache
 
 .vscode/
 **/.vscode/*
@@ -18,6 +19,8 @@
 *.swo
 *.bak
 *.tmp
+
+*.local.json
 
 # Log files
 *.log

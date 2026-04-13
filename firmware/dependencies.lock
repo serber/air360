@@ -247,6 +247,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 0.3.1
+  espressif/esp_modem:
+    component_hash: 40af7f39c6c8c0c85c98014721fca8d9d2186f18f70645c66b94548192cf1e03
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.4.2
   espressif/i2c_bus:
     component_hash: 804ec068d163570fd367b279a310ca383484630d2310c586b50def0bcf21de13
     dependencies:
@@ -285,6 +295,7 @@ direct_dependencies:
 - esp-idf-lib/veml7700
 - espressif/bme280
 - espressif/ds18b20
-manifest_hash: b03f28fcd00353f18ab3b617eb0b1f7a454f127a72587f5e52e65d7d4873b681
+- espressif/esp_modem
+manifest_hash: dcb8ef25ffb90346b0479d2aa92de4cf92ffe4f6d4a1ac52065d33fdfa8d42fb
 target: esp32s3
 version: 3.0.0

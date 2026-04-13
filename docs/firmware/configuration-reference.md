@@ -8,11 +8,12 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 
 ## Configuration domains
 
-| Domain | NVS key | What it controls |
-|--------|---------|-----------------|
-| Device | `device_cfg` | Network credentials, device identity, web server port |
-| Sensors | `sensor_cfg` | Which sensors are active and how each is polled |
-| Backends | `backend_cfg` | Upload destinations and upload interval |
+| Domain | NVS key | Struct | What it controls |
+|--------|---------|--------|-----------------|
+| Device | `device_cfg` | `DeviceConfig` | Network credentials, device identity, static IP, web server port |
+| Cellular | `cellular_cfg` | `CellularConfig` | SIM7600E modem settings, carrier provisioning, cellular uplink |
+| Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
+| Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
 All three are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values.
 
@@ -73,6 +74,11 @@ Struct: `DeviceConfig`
 | `lab_ap_ssid` | `char[33]` | `"air360"` | 1–32 chars, non-empty |
 | `lab_ap_password` | `char[65]` | `"air360password"` | 0 chars (open) or 8–63 chars |
 | `sntp_server` | `char[64]` | `""` | 0–63 printable ASCII chars; empty = use default (`pool.ntp.org`) |
+| `sta_use_static_ip` | `uint8_t` | `0` | 0 = DHCP; 1 = static IP |
+| `sta_ip` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars; required when static IP enabled |
+| `sta_netmask` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars |
+| `sta_gateway` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars |
+| `sta_dns` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars; empty = use gateway |
 
 ### Validation rules (`ConfigRepository::isValid`)
 
@@ -91,6 +97,42 @@ Struct: `DeviceConfig`
 - `lab_ap_enabled` is stored but the current firmware always starts the AP when station connection fails, regardless of this field.
 - `local_auth_enabled` is reserved; the web server does not enforce it.
 - `sntp_server`: when empty, `NetworkManager` uses `kDefaultSntpServer` (`pool.ntp.org`). When non-empty, the stored value is used as the NTP hostname on the next boot. The value is validated for printable ASCII before save; DNS resolution and reachability are tested via `POST /check-sntp` before committing.
+- `sta_use_static_ip`: when `1`, `NetworkManager` applies the stored address/netmask/gateway/DNS to the `WIFI_STA_DEF` netif instead of using DHCP. Applies to station mode only; the setup AP is unaffected. When the config page is loaded and `sta_ip` is empty, the form pre-fills these fields from the current DHCP lease to make conversion easier.
+
+---
+
+## Cellular configuration (`cellular_cfg`)
+
+Struct: `CellularConfig`  
+NVS key: `cellular_cfg` (namespace `air360`) — stored independently of `device_cfg`.  
+Schema version: 1.
+
+### Fields
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `enabled` | `uint8_t` | `0` | `0` = disabled; `1` = cellular uplink active |
+| `uart_port` | `uint8_t` | `1` | UART port number for modem DTE |
+| `uart_rx_gpio` | `uint8_t` | — | ESP32 RX pin (receives from modem TX) |
+| `uart_tx_gpio` | `uint8_t` | — | ESP32 TX pin (transmits to modem RX) |
+| `uart_baud` | `uint32_t` | `115200` | UART baud rate |
+| `pwrkey_gpio` | `uint8_t` | `0xFF` | PWRKEY GPIO; `0xFF` = not wired |
+| `sleep_gpio` | `uint8_t` | `0xFF` | DTR/sleep GPIO; `0xFF` = not wired |
+| `reset_gpio` | `uint8_t` | `0xFF` | Hardware reset GPIO; `0xFF` = not wired |
+| `wifi_debug_window_s` | `uint16_t` | `0` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
+| `apn` | `char[64]` | `""` | PDP context APN; required when `enabled = 1` |
+| `username` | `char[32]` | `""` | Optional PAP/CHAP username; empty if not required by carrier |
+| `password` | `char[64]` | `""` | Optional PAP/CHAP password |
+| `sim_pin` | `char[8]` | `""` | Optional SIM PIN; empty if SIM has no PIN lock |
+| `connectivity_check_host` | `char[64]` | `""` | IPv4 address to ICMP-ping after PPP connects; empty = skip check |
+
+### Notes
+
+- `CellularConfig` is versioned separately from `DeviceConfig` with its own magic (`0x43454C4C`) and schema version. An integrity failure resets only the cellular config to defaults.
+- When `enabled = 1`, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
+- When `apn` is empty on the config page, the form pre-fills it with `"internet"`. When `connectivity_check_host` is empty, the form pre-fills `"8.8.8.8"`. These are display-time defaults only — neither is written to NVS until the user saves.
+- `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
+- `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.
 
 ---
 

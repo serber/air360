@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "air360/cellular_config_repository.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
 #include "air360/status_service.hpp"
@@ -29,6 +30,8 @@ class WebServer {
         BackendConfigRepository& backend_config_repository,
         BackendConfigList& backend_config_list,
         UploadManager& upload_manager,
+        CellularConfigRepository& cellular_config_repository,
+        CellularConfig& cellular_config,
         std::uint16_t port);
     void stop();
 
@@ -54,6 +57,8 @@ class WebServer {
     BackendConfigRepository* backend_config_repository_ = nullptr;
     BackendConfigList* backend_config_list_ = nullptr;
     UploadManager* upload_manager_ = nullptr;
+    CellularConfigRepository* cellular_config_repository_ = nullptr;
+    CellularConfig* cellular_config_ = nullptr;
     SensorConfigList staged_sensor_config_{};
     bool has_pending_sensor_changes_ = false;
 };

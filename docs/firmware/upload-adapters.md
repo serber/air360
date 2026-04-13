@@ -48,22 +48,22 @@ POST http://api.sensor.community/v1/push-sensor-data/
 
 The batch may contain points from multiple sensors. Sensor.Community expects **one POST per physical sensor**, identified by a `X-PIN` header. The adapter groups batch points by `sensor_id + pin` and emits one request per group.
 
-**Pin mapping:**
+**Pin mapping (complete list of sensor types currently registered in firmware):**
 
-| Sensor type | X-PIN | Notes |
-|-------------|-------|-------|
-| BME280 | 11 | |
-| BME680 | 11 | Same pin as BME280 |
-| DHT11 | 7 | |
-| DHT22 | 7 | |
-| DS18B20 | 7 | |
-| GPS (NMEA) | 9 | |
-| SPS30 | 1 | |
-| SCD30 | — | Not supported, skipped |
-| HTU2X | — | Not supported, skipped |
-| SHT4X | — | Not supported, skipped |
-| VEML7700 | — | Not supported, skipped |
-| ME3-NO2 | — | Not supported, skipped |
+| Sensor type | Transport | X-PIN | Sensor.Community handling |
+|-------------|-----------|-------|---------------------------|
+| BME280 | I2C | 11 | Sent as climate data |
+| BME680 | I2C | 11 | Sent as climate data; gas resistance is skipped |
+| SHT4X | I2C | 7 | Sent as temperature + humidity |
+| HTU2X | I2C | 7 | Sent as temperature + humidity |
+| DHT11 | GPIO | 7 | Sent as temperature + humidity |
+| DHT22 | GPIO | 7 | Sent as temperature + humidity |
+| DS18B20 | GPIO (1-Wire) | 7 | Sent as temperature only |
+| SCD30 | I2C | 17 | Sent as temperature + humidity + CO2 |
+| VEML7700 | I2C | — | Not supported, skipped |
+| SPS30 | I2C | 1 | Sent as particulate matter data |
+| GPS (NMEA) | UART | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
+| ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
 
 Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `buildRequests()` returns `true` with an empty request list — the upload manager treats this as `kNoData`.
 
@@ -80,12 +80,33 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 | `kHumidityPercent` | `"humidity"` |
 | `kGasResistanceOhms` | skipped |
 
-**DHT11 / DHT22 / DS18B20 (pin 7):**
+**DHT11 / DHT22 (pin 7):**
 
 | ValueKind | value_type |
 |-----------|-----------|
 | `kTemperatureC` | `"temperature"` |
 | `kHumidityPercent` | `"humidity"` |
+
+**HTU2X / SHT4X (pin 7):**
+
+| ValueKind | value_type |
+|-----------|-----------|
+| `kTemperatureC` | `"temperature"` |
+| `kHumidityPercent` | `"humidity"` |
+
+**DS18B20 (pin 7):**
+
+| ValueKind | value_type |
+|-----------|-----------|
+| `kTemperatureC` | `"temperature"` |
+
+**SCD30 (pin 17):**
+
+| ValueKind | value_type |
+|-----------|-----------|
+| `kTemperatureC` | `"temperature"` |
+| `kHumidityPercent` | `"humidity"` |
+| `kCo2Ppm` | `"co2_ppm"` |
 
 **GPS (pin 9):**
 

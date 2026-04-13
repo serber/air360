@@ -99,8 +99,8 @@ The navigation bar contains five sections:
 
 | Section | Purpose |
 |---------|---------|
-| **Overview** | Runtime dashboard: health, identity, sensors, backends |
-| **Device** | Device name and station Wi-Fi credentials |
+| **Overview** | Runtime dashboard: uplink state, connection details, sensors, backends |
+| **Device** | Network credentials, SNTP, static IP, and cellular modem settings |
 | **Sensors** | Sensor inventory — add, configure, remove |
 | **Backends** | Upload targets — enable, configure, monitor |
 | **Status JSON** | Raw machine-readable runtime state at `/status` |
@@ -113,24 +113,24 @@ The Overview page is the main runtime dashboard.
 
 ![Runtime Overview](images/firmware_overview.png)
 
-The top of the page shows a **Health** bar with quick-glance status for time sync, sensors, uplink, and backends.
+A **Health pill** (`Healthy` / `Unhealthy`) is shown inline under the page heading.
 
-Below the health bar:
+The stats bar shows four values:
 
 | Field | Description |
 |-------|-------------|
 | Mode | Current network mode (`station` or `setup AP`) |
-| Device | Device name |
-| Sensors | Number of configured sensors |
-| Backends | Number of enabled backends |
+| Uplink | Active uplink: `wifi`, `cellular`, `cellular (connecting)`, or `offline`. Cellular is always the primary uplink when enabled. |
 | Uptime | Time since last boot |
 | Boot count | Total number of boots since first flash |
 
-### Identity block
+### Connection block
 
-Shows the chip ID, Short ID, MAC address, chip type, detected features, crystal frequency, current UTC date and time, last reset reason, and current IP address.
+Shows the current network connection state:
 
-The **Short ID** is the identifier used by Sensor.Community. Note it here when registering the device on the Sensor.Community portal.
+- **Date** — current UTC date and time (from SNTP when synced).
+- **Wi-Fi** — SSID and current IP address, or `not connected`.
+- **Cellular** (shown only when cellular is enabled) — PPP IP address, signal strength in dBm, and ping status (`ping ok` / `ping failed`).
 
 ### Backend cards
 
@@ -151,7 +151,7 @@ Each configured sensor shows:
 
 ## Device Page
 
-The Device page manages the device name and station Wi-Fi credentials.
+The Device page manages network credentials, static IP, and cellular modem settings.
 
 ![Device Configuration](images/firmware_device.png)
 
@@ -162,10 +162,62 @@ Available fields:
 | Device name | Logical name shown in the UI and used as the DHCP hostname |
 | Wi-Fi SSID | Station network to join |
 | Wi-Fi password | Station network password |
+| SNTP server | NTP hostname; leave empty to use `pool.ntp.org` |
+| Use static IP | When checked, the device uses the configured address instead of DHCP |
+| IP / Mask / Gateway / DNS | Static IP parameters; pre-filled from current DHCP lease when not yet configured |
+| Enable cellular uplink | Enables the SIM7600E modem as the primary uplink |
+| APN | Carrier APN; pre-filled with `internet` when empty |
+| Username / Password | Optional PAP credentials |
+| SIM PIN | Optional SIM PIN; leave empty if the SIM has no lock |
+| Connectivity check host | IPv4 address to ping after PPP connects; leave empty to skip |
+| Wi-Fi debug window | Seconds Wi-Fi stays active alongside cellular after boot; `0` = disabled |
 
 **Saving device settings reboots the device.**
 
-This page is available in both setup AP mode and station mode. In station mode it is useful when moving the device to a different Wi-Fi network.
+This page is available in both setup AP mode and station mode.
+
+### SNTP Server
+
+Leave the **SNTP server** field empty to use the default (`pool.ntp.org`). To use a custom NTP server, enter the hostname and press **Check SNTP** to test reachability before saving. The check runs immediately without submitting the form.
+
+### Static IP
+
+By default the device uses DHCP. To assign a fixed address:
+
+1. Make sure the device is connected to your network (so the current lease can be pre-filled).
+2. Open **Device**.
+3. Check **Use static IP** — the IP, mask, gateway, and DNS fields will be pre-filled from the current DHCP lease.
+4. Adjust the values if needed.
+5. Press **Save and reboot**.
+
+To return to DHCP, uncheck **Use static IP** and save.
+
+> Static IP applies to station mode only. The setup AP address (`192.168.4.1`) is fixed and unaffected.
+
+### Cellular Uplink (SIM7600E)
+
+When cellular is enabled it becomes the primary uplink — the device connects to the mobile network via PPP and sends all uploads and SNTP traffic through the modem. Wi-Fi station remains available for web UI access during a configurable debug window after boot, then stops automatically.
+
+**To enable:**
+
+1. Check **Enable cellular uplink (SIM7600E)**.
+2. Enter the **APN** provided by your carrier (e.g. `internet`, `hologram`).
+3. Enter **Username** and **Password** if your carrier requires PAP authentication. Leave empty otherwise.
+4. Enter the **SIM PIN** if the SIM card has a PIN lock. Leave empty otherwise.
+5. Optionally enter a **Connectivity check host** (an IPv4 address to ping after PPP connects — useful for verifying the session is working end-to-end). Leave empty to skip the check.
+6. Set **Wi-Fi debug window** to the number of seconds Wi-Fi should stay up alongside cellular after boot. Set to `0` to disable Wi-Fi immediately when PPP is up.
+7. Press **Save and reboot**.
+
+**After reboot:**
+
+- The modem initialises, registers on the network, and connects via PPP.
+- The **Overview** page Uplink stat shows `cellular` (connected) or `cellular (connecting)` (still registering).
+- The Connection block shows the PPP IP address, signal strength (RSSI in dBm), and ping result if a connectivity check host is configured.
+- Uploads and SNTP proceed through the cellular link.
+
+**Reconnect behaviour:** if the PPP session drops, the firmware reconnects automatically with exponential backoff (10 s → up to 5 min). After 5 consecutive failures the modem is power-cycled via PWRKEY before the next attempt.
+
+**To disable cellular**, uncheck **Enable cellular uplink** and save.
 
 ---
 
@@ -249,14 +301,14 @@ The **Upload interval** field at the top of the page controls how often the devi
 
 To use Sensor.Community:
 
-1. Open **Overview** and note the **Short ID**.
+1. Open `http://<device-ip>/status` and find the `short_chip_id` field — this is the ID you register on the Sensor.Community portal.
 2. Register your device at `https://devices.sensor.community/` using that Short ID.
 3. Return to the firmware **Backends** page.
 4. Enable Sensor.Community.
 5. Leave **Device ID override** at its default value unless you need a different ID for debugging.
 6. Press **Save**.
 
-> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the Short ID. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
+> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the Short ID from `/status`. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
 
 ### Air360 API
 
@@ -293,14 +345,15 @@ This endpoint is useful for advanced troubleshooting and external integrations. 
 
 ## Time Synchronization And Upload Timing
 
-Uploads require valid UTC time. The firmware synchronizes time via SNTP after joining the station network.
+Uploads require valid UTC time. The firmware synchronizes time via SNTP after the uplink is ready — either the Wi-Fi station connection or the cellular PPP session.
 
 What this means in practice:
 
 - It is normal for uploads to not start immediately when the web UI first becomes reachable.
-- The **Overview** page shows the current UTC date once time is synchronized. Before sync the date field shows `1970`.
-- The **Health** bar shows `time ok` once time sync succeeds.
-- The firmware retries time synchronization continuously while in station mode.
+- The **Overview** Connection block shows the current UTC date once time is synchronized. Before sync the date shows `1970-01-01`.
+- The **Health** pill turns `Healthy` once time sync and other checks pass.
+- The firmware retries SNTP continuously while the uplink is active.
+- SNTP works over both Wi-Fi and cellular — no separate configuration is needed for cellular.
 
 ---
 
@@ -325,11 +378,28 @@ What this means in practice:
 
 ### Enabling Sensor.Community upload
 
-1. Open **Overview** → note the Short ID.
+1. Open `http://<device-ip>/status` → find `short_chip_id`.
 2. Register the device at `https://devices.sensor.community/`.
 3. Open **Backends** → enable Sensor.Community → press **Save**.
 4. Set the upload interval as needed.
 5. Monitor upload status on **Overview** or **Backends**.
+
+### Assigning a static IP
+
+1. Connect the device to your network (DHCP must give it an address first).
+2. Open **Device** → check **Use static IP**.
+3. The IP, mask, gateway, and DNS fields are pre-filled from the current lease — adjust if needed.
+4. Press **Save and reboot**.
+
+### Setting up cellular
+
+1. Insert a SIM card and connect the SIM7600E modem.
+2. Open **Device** → check **Enable cellular uplink**.
+3. Enter APN (and credentials if required by your carrier).
+4. Optionally enter a connectivity check host (e.g. `8.8.8.8`).
+5. Set **Wi-Fi debug window** to how long you want Wi-Fi to stay active after boot for web UI access.
+6. Press **Save and reboot**.
+7. Watch the **Uplink** stat on **Overview** — it will change from `cellular (connecting)` to `cellular` once the PPP session is up.
 
 ---
 
@@ -370,14 +440,35 @@ If the queued sample count on a sensor card keeps increasing without going down:
 
 Open **Device**, update the SSID and password, and press **Save and reboot**. The device will attempt to join the new network.
 
+### Cellular Uplink stat stays at `cellular (connecting)`
+
+The modem is not reaching the network. Check:
+
+- SIM card is inserted correctly and the carrier has signal at the device location.
+- APN is correct for your carrier.
+- SIM PIN is configured if the SIM has a PIN lock.
+- PAP username/password are correct if your carrier requires them.
+- Serial monitor logs from the modem task (`air360.cellular`) may show the exact failure reason.
+
+The firmware retries automatically with backoff. After 5 failures the modem is power-cycled — you do not need to reboot the device manually.
+
+### Cellular connected but uploads are not going through
+
+Check:
+
+- The connectivity check result in the Connection block (`ping ok` / `ping failed`). A failed ping means PPP is up but there is no working route — verify APN and carrier data plan.
+- Backend cards show the last HTTP status code and error — check for DNS or connection errors.
+- UTC date on **Overview** must not show `1970` — SNTP must sync before uploads start.
+
 ---
 
 ## Current Limitations
 
-- Device name and Wi-Fi changes require a reboot.
+- Device name, network, and cellular changes require a reboot.
 - Sensor changes require explicitly pressing **Apply now** — staging alone does not persist.
 - Setup AP mode exposes only the Device page.
 - The upload interval is global — it applies to all enabled backends.
 - Sensor poll interval cannot be set below 5000 ms (2000 ms for DHT11/DHT22).
+- When cellular is enabled, the web UI is only accessible during the Wi-Fi debug window after boot. Set the debug window to a non-zero value to retain web access for configuration.
 - The `storage` partition is reserved but not currently used.
 - OTA firmware update is not yet implemented.

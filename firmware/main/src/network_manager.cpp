@@ -345,6 +345,41 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
         return err;
     }
 
+    if (config.sta_use_static_ip != 0U && config.sta_ip[0] != '\0') {
+        err = esp_netif_dhcpc_stop(context.sta_netif);
+        if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+            setStateError(state_, esp_err_to_name(err));
+            return err;
+        }
+
+        esp_netif_ip_info_t ip_info{};
+        ip4addr_aton(config.sta_ip, reinterpret_cast<ip4_addr_t*>(&ip_info.ip));
+        ip4addr_aton(config.sta_netmask, reinterpret_cast<ip4_addr_t*>(&ip_info.netmask));
+        ip4addr_aton(config.sta_gateway, reinterpret_cast<ip4_addr_t*>(&ip_info.gw));
+        err = esp_netif_set_ip_info(context.sta_netif, &ip_info);
+        if (err != ESP_OK) {
+            setStateError(state_, esp_err_to_name(err));
+            return err;
+        }
+
+        if (config.sta_dns[0] != '\0') {
+            esp_netif_dns_info_t dns_info{};
+            ip4addr_aton(
+                config.sta_dns,
+                reinterpret_cast<ip4_addr_t*>(&dns_info.ip.u_addr.ip4));
+            dns_info.ip.type = ESP_IPADDR_TYPE_V4;
+            esp_netif_set_dns_info(context.sta_netif, ESP_NETIF_DNS_MAIN, &dns_info);
+        }
+
+        ESP_LOGI(
+            kTag,
+            "Static IP: ip=%s netmask=%s gw=%s dns=%s",
+            config.sta_ip,
+            config.sta_netmask,
+            config.sta_gateway,
+            config.sta_dns);
+    }
+
     xEventGroupClearBits(context.station_events, kStationConnectedBit | kStationFailedBit);
 
     esp_event_handler_instance_t wifi_handler = nullptr;
@@ -708,6 +743,56 @@ esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
     }
 
     return synchronizeTime(timeout_ms);
+}
+
+UplinkStatus NetworkManager::uplinkStatus() const {
+    UplinkStatus status;
+    // Cellular bearer takes priority.  Populated by CellularManager via
+    // setCellularStatus() after PPP connects.
+    if (!state_.cellular_ip.empty() && hasValidUnixTime()) {
+        status.uplink_ready = true;
+        status.active_bearer = UplinkBearer::kCellular;
+        return status;
+    }
+    // Wi-Fi station bearer — unchanged behavior when cellular is absent.
+    if (state_.mode == NetworkMode::kStation &&
+        state_.station_connected &&
+        hasValidUnixTime()) {
+        status.uplink_ready = true;
+        status.active_bearer = UplinkBearer::kWifi;
+    }
+    return status;
+}
+
+void NetworkManager::setCellularStatus(bool ppp_connected, const char* ip_address) {
+    if (ppp_connected && ip_address != nullptr && ip_address[0] != '\0') {
+        state_.cellular_ip = ip_address;
+    } else {
+        state_.cellular_ip.clear();
+    }
+}
+
+esp_err_t NetworkManager::stopStation() {
+    esp_err_t err = esp_wifi_disconnect();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED &&
+        err != ESP_ERR_WIFI_NOT_CONNECT) {
+        ESP_LOGW(kTag, "esp_wifi_disconnect on stop: %s", esp_err_to_name(err));
+    }
+
+    err = esp_wifi_stop();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
+        ESP_LOGW(kTag, "esp_wifi_stop: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    state_.station_connected = false;
+    state_.ip_address.clear();
+    if (state_.mode == NetworkMode::kStation) {
+        state_.mode = NetworkMode::kOffline;
+    }
+
+    ESP_LOGI(kTag, "Wi-Fi station stopped");
+    return ESP_OK;
 }
 
 const NetworkState& NetworkManager::state() const {

@@ -98,6 +98,9 @@ bool mapMeasurement(
             }
         case SensorType::kDht11:
         case SensorType::kDht22:
+        case SensorType::kHtu2x:
+        case SensorType::kSht4x:
+        case SensorType::kDs18b20:
             out_pin = 7U;
             switch (point.value_kind) {
                 case SensorValueKind::kTemperatureC:
@@ -109,11 +112,17 @@ bool mapMeasurement(
                 default:
                     return false;
             }
-        case SensorType::kDs18b20:
-            out_pin = 7U;
+        case SensorType::kScd30:
+            out_pin = 17U;
             switch (point.value_kind) {
                 case SensorValueKind::kTemperatureC:
                     out_value_type = "temperature";
+                    return true;
+                case SensorValueKind::kHumidityPercent:
+                    out_value_type = "humidity";
+                    return true;
+                case SensorValueKind::kCo2Ppm:
+                    out_value_type = "co2_ppm";
                     return true;
                 default:
                     return false;
@@ -170,9 +179,6 @@ bool mapMeasurement(
                     return false;
             }
         case SensorType::kUnknown:
-        case SensorType::kScd30:
-        case SensorType::kHtu2x:
-        case SensorType::kSht4x:
         case SensorType::kMe3No2:
         case SensorType::kVeml7700:
         default:
