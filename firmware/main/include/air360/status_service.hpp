@@ -4,6 +4,7 @@
 #include <string>
 
 #include "air360/build_info.hpp"
+#include "air360/cellular_manager.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
 #include "air360/sensors/sensor_manager.hpp"
@@ -25,6 +26,7 @@ class StatusService {
         bool wrote_defaults);
     void setBootCount(std::uint32_t boot_count);
     void setNetworkState(const NetworkState& state);
+    void setCellularState(const CellularState& state);
     void setSensors(const SensorManager& sensor_manager);
     void setMeasurements(const MeasurementStore& measurement_store);
     void setUploads(const UploadManager& upload_manager);
@@ -39,6 +41,7 @@ class StatusService {
     BuildInfo build_info_;
     DeviceConfig config_{};
     NetworkState network_state_{};
+    CellularState cellular_state_{};
     const SensorManager* sensor_manager_ = nullptr;
     const MeasurementStore* measurement_store_ = nullptr;
     const UploadManager* upload_manager_ = nullptr;

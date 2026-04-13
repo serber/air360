@@ -84,4 +84,48 @@ config AIR360_LAB_AP_MAX_CONNECTIONS
     range 1 8
     default 4
 
+menu "Cellular uplink (SIM7600E)"
+
+config AIR360_CELLULAR_DEFAULT_UART
+    int "Modem UART port"
+    range 1 2
+    default 1
+
+config AIR360_CELLULAR_DEFAULT_RX_GPIO
+    int "Modem RX GPIO (ESP32 receives from modem TX)"
+    range 0 48
+    default 18
+
+config AIR360_CELLULAR_DEFAULT_TX_GPIO
+    int "Modem TX GPIO (ESP32 transmits to modem RX)"
+    range 0 48
+    default 17
+
+config AIR360_CELLULAR_DEFAULT_PWRKEY_GPIO
+    int "Modem PWRKEY GPIO (0xFF = not wired)"
+    range 0 255
+    default 12
+
+config AIR360_CELLULAR_DEFAULT_SLEEP_GPIO
+    int "Modem SLEEP/DTR GPIO (0xFF = not wired)"
+    range 0 255
+    default 21
+
+config AIR360_CELLULAR_MAX_RECONNECT_ATTEMPTS
+    int "PPP reconnect attempts before uplink fallback cascade"
+    range 1 20
+    default 4
+
+config AIR360_CELLULAR_RECONNECT_BACKOFF_MAX_S
+    int "Maximum backoff between PPP reconnect attempts (seconds)"
+    range 5 300
+    default 60
+
+config AIR360_CELLULAR_WIFI_DEBUG_WINDOW_S
+    int "Wi-Fi debug window duration when cellular is the uplink (seconds)"
+    range 0 3600
+    default 600
+
+endmenu
+
 endmenu

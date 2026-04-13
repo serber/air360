@@ -20,6 +20,8 @@
 *.bak
 *.tmp
 
+*.local.json
+
 # Log files
 *.log
 

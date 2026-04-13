@@ -1,28 +1,14 @@
 <div class='stack stack--scene'>
-    <section class='panel panel--overview stack'>
-        <h2>Health</h2>
-        <div class='meta'>{{HEALTH_STATUS_PILL}}{{HEALTH_CHECKS}}</div>
-        {{HEALTH_SUMMARY_BLOCK}}
-    </section>
-
     <section class='stats'>
         <div class='stat'><div class='stat__label'>Mode</div><div class='stat__value'><code>{{NETWORK_MODE}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Device</div><div class='stat__value'><code>{{DEVICE_NAME}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Sensors</div><div class='stat__value'>{{SENSOR_COUNT}}</div></div>
-        <div class='stat'><div class='stat__label'>Backends</div><div class='stat__value'>{{BACKEND_COUNT}}</div></div>
+        <div class='stat'><div class='stat__label'>Uplink</div><div class='stat__value'><code>{{UPLINK_STAT}}</code></div></div>
         <div class='stat'><div class='stat__label'>Uptime</div><div class='stat__value'>{{UPTIME}}</div></div>
         <div class='stat'><div class='stat__label'>Boot Count</div><div class='stat__value'>{{BOOT_COUNT}}</div></div>
     </section>
 
     <section class='panel panel--identity stack'>
-        <h2>Identity</h2>
-        <p>Chip ID: <code>{{CHIP_ID}}</code> · Short ID: <code>{{SHORT_CHIP_ID}}</code> · MAC ID: <code>{{ESP_MAC_ID}}</code></p>
-        <p>Chip type: <code>{{CHIP_TYPE}}</code></p>
-        <p>Features: <code>{{CHIP_FEATURES}}</code></p>
-        <p>Crystal frequency: <code>{{CRYSTAL_FREQUENCY}}</code></p>
-        <p>Current date: <code>{{CURRENT_DATETIME}}</code></p>
-        <p>Reset reason: <code>{{RESET_REASON_LABEL}}</code></p>
-        <p>IP address: <code>{{IP_ADDRESS}}</code>{{NETWORK_ERROR}}</p>
+        <h2>Connection</h2>
+        {{CONNECTION_BLOCK}}
     </section>
 
     <section class='panel panel--overview stack'>

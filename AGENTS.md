@@ -1,5 +1,19 @@
 # Air360 project guidance
 
+## Build commands
+
+### Firmware — how to compile
+
+`idf.py` is NOT on PATH. The only working invocation:
+
+```bash
+source ~/.espressif/v6.0/esp-idf/export.sh && idf.py build
+```
+
+Do not try `which idf.py`, do not search for it, do not try other paths. Use the line above verbatim from the `firmware/` directory.
+
+---
+
 ## Repository structure
 
 - `docs/` contains architecture, analysis, planning, and project context documents.

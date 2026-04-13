@@ -1,6 +1,7 @@
 #include "air360/web_server.hpp"
 
 #include <cinttypes>
+#include <cstdint>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -19,6 +20,7 @@
 #include "air360/web_assets.hpp"
 #include "air360/web_ui.hpp"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -324,6 +326,14 @@ struct ConfigPageViewModel {
     std::string sta_netmask_value;
     std::string sta_gateway_value;
     std::string sta_dns_value;
+    // Cellular
+    bool cellular_enabled = false;
+    std::string cellular_apn_value;
+    std::string cellular_username_value;
+    std::string cellular_password_value;
+    std::string cellular_sim_pin_value;
+    std::string cellular_connectivity_check_host_value;
+    std::string cellular_wifi_debug_window_s_value;
 };
 
 struct BackendCardViewModel {
@@ -421,6 +431,7 @@ struct SensorsPageViewModel {
 
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
+    const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
     const std::string& notice,
@@ -447,12 +458,14 @@ const BackendRecord* findBackendRecordForDescriptor(
 
 std::string renderConfigPage(
     const DeviceConfig& config,
+    const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
     const std::string& notice,
     bool error_notice) {
     const ConfigPageViewModel model =
-        buildConfigPageViewModel(config, network_state, network_manager, notice, error_notice);
+        buildConfigPageViewModel(
+            config, cellular_config, network_state, network_manager, notice, error_notice);
 
     const std::string body = renderPageTemplate(
         WebTemplateKey::kConfig,
@@ -474,6 +487,15 @@ std::string renderConfigPage(
             {"STA_NETMASK_VALUE", htmlEscape(model.sta_netmask_value)},
             {"STA_GATEWAY_VALUE", htmlEscape(model.sta_gateway_value)},
             {"STA_DNS_VALUE", htmlEscape(model.sta_dns_value)},
+            {"CELLULAR_ENABLED_CHECKED", model.cellular_enabled ? "checked" : ""},
+            {"CELLULAR_FIELDSET_DISABLED", model.cellular_enabled ? "" : "disabled"},
+            {"CELLULAR_APN_VALUE", htmlEscape(model.cellular_apn_value)},
+            {"CELLULAR_USERNAME_VALUE", htmlEscape(model.cellular_username_value)},
+            {"CELLULAR_PASSWORD_VALUE", htmlEscape(model.cellular_password_value)},
+            {"CELLULAR_SIM_PIN_VALUE", htmlEscape(model.cellular_sim_pin_value)},
+            {"CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE",
+             htmlEscape(model.cellular_connectivity_check_host_value)},
+            {"CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE", model.cellular_wifi_debug_window_s_value},
         });
 
     return renderPageDocument(
@@ -883,6 +905,7 @@ std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
 
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
+    const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
     const std::string& notice,
@@ -921,6 +944,53 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.sta_netmask_value = boundedCString(config.sta_netmask, sizeof(config.sta_netmask));
     model.sta_gateway_value = boundedCString(config.sta_gateway, sizeof(config.sta_gateway));
     model.sta_dns_value = boundedCString(config.sta_dns, sizeof(config.sta_dns));
+
+    // Pre-fill static IP fields from the current DHCP lease when not yet configured.
+    if (model.sta_ip_value.empty() && network_state.station_connected) {
+        esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta != nullptr) {
+            esp_netif_ip_info_t ip_info{};
+            if (esp_netif_get_ip_info(sta, &ip_info) == ESP_OK) {
+                char buf[16];
+                std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&ip_info.ip));
+                model.sta_ip_value = buf;
+                std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&ip_info.netmask));
+                model.sta_netmask_value = buf;
+                std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&ip_info.gw));
+                model.sta_gateway_value = buf;
+            }
+            if (model.sta_dns_value.empty()) {
+                esp_netif_dns_info_t dns_info{};
+                if (esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_info) == ESP_OK &&
+                    dns_info.ip.u_addr.ip4.addr != 0U) {
+                    char buf[16];
+                    std::snprintf(buf, sizeof(buf), IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+                    model.sta_dns_value = buf;
+                }
+            }
+        }
+    }
+
+    model.cellular_enabled = cellular_config.enabled != 0U;
+    model.cellular_apn_value =
+        boundedCString(cellular_config.apn, sizeof(cellular_config.apn));
+    if (model.cellular_apn_value.empty()) {
+        model.cellular_apn_value = "internet";
+    }
+    model.cellular_username_value =
+        boundedCString(cellular_config.username, sizeof(cellular_config.username));
+    model.cellular_password_value =
+        boundedCString(cellular_config.password, sizeof(cellular_config.password));
+    model.cellular_sim_pin_value =
+        boundedCString(cellular_config.sim_pin, sizeof(cellular_config.sim_pin));
+    model.cellular_connectivity_check_host_value = boundedCString(
+        cellular_config.connectivity_check_host,
+        sizeof(cellular_config.connectivity_check_host));
+    if (model.cellular_connectivity_check_host_value.empty()) {
+        model.cellular_connectivity_check_host_value = "8.8.8.8";
+    }
+    model.cellular_wifi_debug_window_s_value =
+        std::to_string(cellular_config.wifi_debug_window_s);
 
     return model;
 }
@@ -1460,6 +1530,13 @@ bool validateConfigForm(
     const std::string& sta_netmask,
     const std::string& sta_gateway,
     const std::string& sta_dns,
+    bool cellular_enabled,
+    const std::string& cellular_apn,
+    const std::string& cellular_username,
+    const std::string& cellular_password,
+    const std::string& cellular_sim_pin,
+    const std::string& cellular_connectivity_check_host,
+    unsigned long cellular_wifi_debug_window_s,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -1509,6 +1586,42 @@ bool validateConfigForm(
             return false;
         }
     }
+    if (cellular_enabled) {
+        if (cellular_apn.empty()) {
+            error = "APN is required when cellular uplink is enabled.";
+            return false;
+        }
+        if (cellular_apn.size() > 63U) {
+            error = "APN is too long (max 63 characters).";
+            return false;
+        }
+    }
+    if (cellular_username.size() > 31U) {
+        error = "Cellular username is too long (max 31 characters).";
+        return false;
+    }
+    if (cellular_password.size() > 63U) {
+        error = "Cellular password is too long (max 63 characters).";
+        return false;
+    }
+    if (cellular_sim_pin.size() > 7U) {
+        error = "SIM PIN is too long (max 7 characters).";
+        return false;
+    }
+    for (const char ch : cellular_sim_pin) {
+        if (ch < '0' || ch > '9') {
+            error = "SIM PIN must contain digits only.";
+            return false;
+        }
+    }
+    if (cellular_connectivity_check_host.size() > 63U) {
+        error = "Connectivity check host is too long (max 63 characters).";
+        return false;
+    }
+    if (cellular_wifi_debug_window_s > 3600UL) {
+        error = "Wi-Fi debug window must be 0–3600 seconds.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -1549,6 +1662,8 @@ esp_err_t WebServer::start(
     BackendConfigRepository& backend_config_repository,
     BackendConfigList& backend_config_list,
     UploadManager& upload_manager,
+    CellularConfigRepository& cellular_config_repository,
+    CellularConfig& cellular_config,
     std::uint16_t port) {
     if (handle_ != nullptr) {
         return ESP_ERR_INVALID_STATE;
@@ -1565,6 +1680,8 @@ esp_err_t WebServer::start(
     backend_config_repository_ = &backend_config_repository;
     backend_config_list_ = &backend_config_list;
     upload_manager_ = &upload_manager;
+    cellular_config_repository_ = &cellular_config_repository;
+    cellular_config_ = &cellular_config;
     staged_sensor_config_ = sensor_config_list;
     has_pending_sensor_changes_ = false;
 
@@ -2175,6 +2292,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     if (request->method == HTTP_GET) {
         const std::string html = renderConfigPage(
             *server->config_,
+            *server->cellular_config_,
             server->status_service_->networkState(),
             *server->network_manager_,
             "",
@@ -2186,6 +2304,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     if (readRequestBody(request, body) != ESP_OK) {
         const std::string html = renderConfigPage(
             *server->config_,
+            *server->cellular_config_,
             server->status_service_->networkState(),
             *server->network_manager_,
             "Failed to read form body.",
@@ -2194,6 +2313,8 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     }
 
     const FormFields fields = parseFormBody(body);
+
+    // --- DeviceConfig fields ---
     const std::string device_name = findFormValue(fields, "device_name");
     const std::string wifi_ssid = findFormValue(fields, "wifi_ssid");
     const std::string wifi_password = findFormValue(fields, "wifi_password");
@@ -2204,6 +2325,21 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string sta_gateway = sta_use_static_ip ? findFormValue(fields, "sta_gateway") : "";
     const std::string sta_dns = sta_use_static_ip ? findFormValue(fields, "sta_dns") : "";
 
+    // --- CellularConfig fields ---
+    const bool cellular_enabled = (findFormValue(fields, "cellular_enabled") == "1");
+    const std::string cellular_apn =
+        cellular_enabled ? findFormValue(fields, "cellular_apn") : "";
+    const std::string cellular_username = findFormValue(fields, "cellular_username");
+    const std::string cellular_password = findFormValue(fields, "cellular_password");
+    const std::string cellular_sim_pin = findFormValue(fields, "cellular_sim_pin");
+    const std::string cellular_connectivity_check_host =
+        findFormValue(fields, "cellular_connectivity_check_host");
+
+    unsigned long cellular_wifi_debug_window_s = server->cellular_config_->wifi_debug_window_s;
+    parseUnsignedLong(findFormValue(fields, "cellular_wifi_debug_window_s"),
+                      cellular_wifi_debug_window_s);
+
+    // --- Validate ---
     std::string validation_error;
     if (!validateConfigForm(
             device_name,
@@ -2215,6 +2351,13 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             sta_netmask,
             sta_gateway,
             sta_dns,
+            cellular_enabled,
+            cellular_apn,
+            cellular_username,
+            cellular_password,
+            cellular_sim_pin,
+            cellular_connectivity_check_host,
+            cellular_wifi_debug_window_s,
             validation_error)) {
         DeviceConfig preview = *server->config_;
         copyString(preview.device_name, sizeof(preview.device_name), device_name);
@@ -2227,8 +2370,21 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         copyString(preview.sta_gateway, sizeof(preview.sta_gateway), sta_gateway);
         copyString(preview.sta_dns, sizeof(preview.sta_dns), sta_dns);
 
+        CellularConfig preview_cellular = *server->cellular_config_;
+        preview_cellular.enabled = cellular_enabled ? 1U : 0U;
+        copyString(preview_cellular.apn, sizeof(preview_cellular.apn), cellular_apn);
+        copyString(preview_cellular.username, sizeof(preview_cellular.username), cellular_username);
+        copyString(preview_cellular.password, sizeof(preview_cellular.password), cellular_password);
+        copyString(preview_cellular.sim_pin, sizeof(preview_cellular.sim_pin), cellular_sim_pin);
+        copyString(preview_cellular.connectivity_check_host,
+                   sizeof(preview_cellular.connectivity_check_host),
+                   cellular_connectivity_check_host);
+        preview_cellular.wifi_debug_window_s =
+            static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
+
         const std::string html = renderConfigPage(
             preview,
+            preview_cellular,
             server->status_service_->networkState(),
             *server->network_manager_,
             validation_error,
@@ -2236,6 +2392,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         return httpd_resp_send(request, html.c_str(), html.size());
     }
 
+    // --- Build and save DeviceConfig ---
     DeviceConfig updated = *server->config_;
     updated.magic = kDeviceConfigMagic;
     updated.schema_version = kDeviceConfigSchemaVersion;
@@ -2254,17 +2411,50 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     if (save_err != ESP_OK) {
         const std::string html = renderConfigPage(
             updated,
+            *server->cellular_config_,
             server->status_service_->networkState(),
             *server->network_manager_,
-            std::string("Failed to save configuration: ") + esp_err_to_name(save_err),
+            std::string("Failed to save device configuration: ") + esp_err_to_name(save_err),
+            true);
+        return httpd_resp_send(request, html.c_str(), html.size());
+    }
+
+    // --- Build and save CellularConfig ---
+    CellularConfig updated_cellular = *server->cellular_config_;
+    updated_cellular.magic = kCellularConfigMagic;
+    updated_cellular.schema_version = kCellularConfigSchemaVersion;
+    updated_cellular.record_size = static_cast<std::uint16_t>(sizeof(CellularConfig));
+    updated_cellular.enabled = cellular_enabled ? 1U : 0U;
+    copyString(updated_cellular.apn, sizeof(updated_cellular.apn), cellular_apn);
+    copyString(updated_cellular.username, sizeof(updated_cellular.username), cellular_username);
+    copyString(updated_cellular.password, sizeof(updated_cellular.password), cellular_password);
+    copyString(updated_cellular.sim_pin, sizeof(updated_cellular.sim_pin), cellular_sim_pin);
+    copyString(updated_cellular.connectivity_check_host,
+               sizeof(updated_cellular.connectivity_check_host),
+               cellular_connectivity_check_host);
+    updated_cellular.wifi_debug_window_s =
+        static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
+
+    const esp_err_t cellular_save_err =
+        server->cellular_config_repository_->save(updated_cellular);
+    if (cellular_save_err != ESP_OK) {
+        const std::string html = renderConfigPage(
+            updated,
+            updated_cellular,
+            server->status_service_->networkState(),
+            *server->network_manager_,
+            std::string("Failed to save cellular configuration: ") +
+                esp_err_to_name(cellular_save_err),
             true);
         return httpd_resp_send(request, html.c_str(), html.size());
     }
 
     *server->config_ = updated;
+    *server->cellular_config_ = updated_cellular;
     server->status_service_->setConfig(updated, true, false);
     const std::string html = renderConfigPage(
         updated,
+        updated_cellular,
         server->status_service_->networkState(),
         *server->network_manager_,
         "Configuration saved. Device is rebooting now.",
