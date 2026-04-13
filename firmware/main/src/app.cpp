@@ -348,13 +348,15 @@ void App::run() {
             network_manager,
             config_repository,
             config,
-        sensor_config_repository,
-        sensor_config_list,
-        sensor_manager,
-        measurement_store,
-        backend_config_repository,
-        backend_config_list,
-        upload_manager,
+            sensor_config_repository,
+            sensor_config_list,
+            sensor_manager,
+            measurement_store,
+            backend_config_repository,
+            backend_config_list,
+            upload_manager,
+            cellular_config_repository,
+            cellular_config,
             config.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
