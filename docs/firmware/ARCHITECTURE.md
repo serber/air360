@@ -52,7 +52,7 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs a stati
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | Boot LED init | GPIO 11 = green, GPIO 10 = red |
+| 1 | RGB LED init | WS2812 on GPIO48 — blue while booting |
 | 2 | Watchdog arm | 10-second timeout, panic disabled |
 | 3 | NVS flash init | Auto-erase on partition mismatch |
 | 4 | Network core init | `esp_netif_init()`, default event loop |
@@ -111,7 +111,7 @@ Modules are not event-driven at the application layer. Inter-module communicatio
 
 ### `App` — `app.cpp` / `app_main.cpp`
 
-Top-level runtime controller. Owns the startup sequence, boot LEDs, watchdog, and the 10-second maintenance loop. Constructs all other modules as static locals. No persistent state of its own.
+Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, and the 10-second maintenance loop. Constructs all other modules as static locals. No persistent state of its own.
 
 **Log tag:** `air360.app`
 
@@ -675,8 +675,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | 6 | GPIO sensor slot 2 | Kconfig |
 | 8 | I2C bus 0 SDA | Kconfig |
 | 9 | I2C bus 0 SCL | Kconfig |
-| 10 | Red boot LED | No |
-| 11 | Green boot LED | No |
+| 48 | RGB status LED (WS2812, built-in) | No |
 | 12 | Modem PWRKEY (default) | Kconfig / CellularConfig |
 | 17 | GPS TX / Modem TX (shared default) | Kconfig |
 | 18 | GPS RX / Modem RX (shared default) | Kconfig |
