@@ -704,7 +704,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
 | UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
-| UART2 | SDS011 (RX=GPIO38, TX=GPIO39) | 9600 | 4096 B |
+| UART2 | SDS011 (RX=GPIO39, TX=GPIO38) | 9600 | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 

@@ -18,7 +18,7 @@ This README replaces the former `supported-sensors.md` and combines both roles:
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
-| [sds011.md](sds011.md) | SDS011 | UART | UART2, RX=`GPIO38`, TX=`GPIO39`, `9600` baud | PM2.5, PM10 |
+| [sds011.md](sds011.md) | SDS011 | UART | UART2, RX=`GPIO39`, TX=`GPIO38`, `9600` baud | PM2.5, PM10 |
 | [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud | Latitude, longitude, altitude, satellites, speed, course, HDOP |
 | [dht.md](dht.md) | DHT11 / DHT22 | GPIO | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature |

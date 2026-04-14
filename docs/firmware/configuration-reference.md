@@ -178,7 +178,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | HTU2X | I2C | `0x40` (fixed) | 5 000 ms | — |
 | SHT4X | I2C | `0x44` (fixed) | 5 000 ms | — |
 | GPS (NMEA) | UART1 | RX=GPIO18, TX=GPIO17 | 5 000 ms | Port, RX, TX must match Kconfig constants |
-| SDS011 | UART2 | RX=GPIO38, TX=GPIO39 | 5 000 ms | Port, RX, TX must match Kconfig constants; baud must be 9600 |
+| SDS011 | UART2 | RX=GPIO39, TX=GPIO38 | 5 000 ms | Port, RX, TX must match Kconfig constants; baud must be 9600 |
 | DHT11 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DHT22 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DS18B20 | GPIO (1-Wire) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
