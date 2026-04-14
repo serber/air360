@@ -376,8 +376,9 @@ void App::run() {
     esp_task_wdt_delete(nullptr);
 
     for (;;) {
-        if (network_manager.state().mode == NetworkMode::kStation &&
-            network_manager.state().station_connected &&
+        const NetworkState network_state = network_manager.state();
+        if (network_state.mode == NetworkMode::kStation &&
+            network_state.station_connected &&
             !network_manager.hasValidTime()) {
             const esp_err_t time_err = network_manager.ensureStationTime(10000U);
             if (time_err != ESP_OK) {

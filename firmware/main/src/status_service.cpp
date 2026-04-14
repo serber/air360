@@ -85,6 +85,18 @@ std::string formatUptimeCompact(std::uint64_t uptime_ms) {
     return std::to_string(seconds) + "s";
 }
 
+std::string formatDelayFromNow(std::uint64_t target_uptime_ms, std::uint64_t now_uptime_ms) {
+    if (target_uptime_ms == 0U) {
+        return "not scheduled";
+    }
+
+    if (target_uptime_ms <= now_uptime_ms) {
+        return "now";
+    }
+
+    return formatUptimeCompact(target_uptime_ms - now_uptime_ms);
+}
+
 std::string formatFloat(float value, int precision) {
     char buffer[32];
     std::snprintf(buffer, sizeof(buffer), "%.*f", precision, static_cast<double>(value));
@@ -348,8 +360,9 @@ HealthViewModel buildHealthViewModel(
     const std::vector<BackendStatusSnapshot>& backends,
     const MeasurementStore* measurement_store) {
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
-    const bool setup_required =
-        network_state.mode == NetworkMode::kSetupAp || !network_state.station_config_present;
+    const bool setup_required = !network_state.station_config_present;
+    const bool setup_ap_recovery =
+        network_state.mode == NetworkMode::kSetupAp && network_state.station_config_present;
     const bool uplink_available = network_state.station_connected;
     const bool time_synced = network_state.time_synchronized;
 
@@ -408,9 +421,14 @@ HealthViewModel buildHealthViewModel(
             "uplink_available",
             "Uplink available",
             uplink_available,
-            setup_required ? "Station setup is not complete."
-                           : (uplink_available ? "Station uplink connected."
-                                               : "Station uplink unavailable."),
+            setup_required
+                ? "Station setup is not complete."
+                : (setup_ap_recovery
+                       ? (network_state.setup_ap_retry_active
+                              ? "Setup AP fallback is active and station retry is scheduled."
+                              : "Setup AP fallback is active while station recovery is pending.")
+                       : (uplink_available ? "Station uplink connected."
+                                           : "Station uplink unavailable.")),
             uplink_available ? "uplink ok" : "uplink down",
         },
         {
@@ -430,6 +448,11 @@ HealthViewModel buildHealthViewModel(
     if (setup_required) {
         model.status = HealthStatus::kSetupRequired;
         model.summary = "Device is in setup mode. Configure station Wi-Fi to enter normal operation.";
+    } else if (setup_ap_recovery) {
+        model.status = HealthStatus::kOffline;
+        model.summary = network_state.setup_ap_retry_active
+                            ? "Setup AP is active while the device keeps retrying upstream Wi-Fi."
+                            : "Setup AP is active after station failure.";
     } else if (!uplink_available || !time_synced) {
         model.status = HealthStatus::kOffline;
         if (!uplink_available && !time_synced) {
@@ -558,6 +581,7 @@ std::string renderConnectionBlock(
     const NetworkState& network_state,
     const CellularState& cellular_state) {
     std::string html;
+    const std::uint64_t now_uptime_ms = uptimeMilliseconds();
 
     // Current date
     html += "<p>Date: <code>";
@@ -576,6 +600,28 @@ std::string renderConnectionBlock(
                 ? htmlEscape(network_state.ip_address.empty() ? "connected" : network_state.ip_address)
                 : std::string("not connected");
     html += "</code></p>";
+
+    if (network_state.reconnect_backoff_active) {
+        html += "<p>Wi-Fi recovery: <code>retry ";
+        html += std::to_string(network_state.reconnect_attempt_count);
+        html += " in ";
+        html += htmlEscape(formatDelayFromNow(
+            network_state.next_reconnect_uptime_ms,
+            now_uptime_ms));
+        html += "</code></p>";
+    } else if (network_state.setup_ap_retry_active) {
+        html += "<p>Wi-Fi recovery: <code>setup AP retry in ";
+        html += htmlEscape(formatDelayFromNow(
+            network_state.next_setup_ap_retry_uptime_ms,
+            now_uptime_ms));
+        html += "</code></p>";
+    }
+
+    if (!network_state.last_error.empty()) {
+        html += "<p>Wi-Fi error: <code>";
+        html += htmlEscape(network_state.last_error);
+        html += "</code></p>";
+    }
 
     // Cellular — only if enabled
     if (cellular_state.enabled) {
@@ -823,6 +869,21 @@ std::string StatusService::renderStatusJson() const {
     json += "\"active_setup_ap_ssid\":\"" + jsonEscape(network_state_.lab_ap_ssid) + "\",";
     json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
     json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
+    json += "\"last_disconnect_reason\":";
+    json += std::to_string(network_state_.last_disconnect_reason);
+    json += ",\"last_disconnect_reason_label\":\"";
+    json += jsonEscape(network_state_.last_disconnect_reason_label);
+    json += "\",\"wifi_reconnect_backoff_active\":";
+    json += boolString(network_state_.reconnect_backoff_active);
+    json += ",\"wifi_reconnect_attempt_count\":";
+    json += std::to_string(network_state_.reconnect_attempt_count);
+    json += ",\"wifi_next_reconnect_uptime_ms\":";
+    json += std::to_string(network_state_.next_reconnect_uptime_ms);
+    json += ",\"wifi_setup_ap_retry_active\":";
+    json += boolString(network_state_.setup_ap_retry_active);
+    json += ",\"wifi_next_setup_ap_retry_uptime_ms\":";
+    json += std::to_string(network_state_.next_setup_ap_retry_uptime_ms);
+    json += ",";
     json += "\"time_sync_error\":\"" + jsonEscape(network_state_.time_sync_error) + "\",";
     json += "\"cellular\":{";
     json += "\"enabled\":";
