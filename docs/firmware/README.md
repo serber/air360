@@ -47,8 +47,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 
 | Document | Description |
 |----------|-------------|
-| [sensors/supported-sensors.md](sensors/supported-sensors.md) | Supported sensors: category, transport, address/pin |
-| [sensors/README.md](sensors/README.md) | Per-driver documentation index |
+| [sensors/README.md](sensors/README.md) | Supported sensors, hardware reference, and per-driver documentation index |
 | [transport-binding.md](transport-binding.md) | I2C bus manager and UART port manager used by all sensor drivers |
 
 ### Sensor drivers
