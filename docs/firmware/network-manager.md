@@ -14,7 +14,7 @@ enum class NetworkMode : uint8_t {
 };
 ```
 
-`NetworkState` carries the current Wi-Fi/runtime status that is exposed to the web UI and `/status`:
+`NetworkState` carries the current Wi-Fi/runtime status that is exposed to the web UI and the Diagnostics raw JSON dump:
 
 ```cpp
 struct NetworkState {
@@ -185,7 +185,7 @@ The AP remains the recovery surface even after a failed boot-time station join.
 
 ---
 
-## Wi-Fi diagnostics surfaced to UI and `/status`
+## Wi-Fi diagnostics surfaced to UI and Diagnostics raw JSON
 
 The runtime now exposes:
 
@@ -204,7 +204,7 @@ The Overview page uses these fields to show whether the device is:
 - waiting for reconnect backoff to expire
 - sitting in setup AP while periodic station retry is armed
 
-`/status` exposes the same fields as JSON.
+The Diagnostics page raw JSON dump exposes the same fields in machine-readable form.
 
 ---
 

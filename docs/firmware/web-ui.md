@@ -74,10 +74,12 @@ Read-only troubleshooting page with runtime internals that are useful when the d
 
 The page currently shows:
 
-- **Memory**: free heap, minimum free heap seen since boot, and largest free block for both 8-bit heap and internal heap
+- **Stats bar**: total available 8-bit heap, current free heap, minimum free heap seen since boot, and largest free block
+- **Memory**: free/minimum/largest block for both 8-bit heap and internal heap
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error and cellular reconnect counters
-- **Raw Status JSON**: a read-only console-style dump with build, health, sensor, backend, and diagnostics fields
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, and diagnostics fields
+- **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.
 

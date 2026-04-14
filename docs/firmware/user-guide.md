@@ -343,17 +343,15 @@ Each backend card shows:
 
 ## Diagnostics
 
-The Diagnostics page includes a raw runtime JSON dump at the bottom:
-
-```
-http://<device-ip>/diagnostics
-```
+The Diagnostics page includes a formatted raw runtime JSON dump at the bottom:
 
 This page is useful for advanced troubleshooting. The raw dump includes build information, boot count, reset reason, network state, sensor runtime state with latest measurements and queued sample counts, and backend runtime state.
 
-The JSON also includes a top-level `diagnostics` object with heap headroom, largest free block, task stack high watermarks, and measurement queue counters.
+The JSON also includes a top-level `diagnostics` object with heap totals, heap headroom, largest free block, task stack high watermarks, and measurement queue counters.
 
 ### Diagnostics page
+
+![Diagnostics](images/firmware_diagnostics.png)
 
 Open:
 
@@ -363,12 +361,27 @@ http://<device-ip>/diagnostics
 
 This page summarizes the same troubleshooting-oriented runtime metrics in human-readable form:
 
+- total available 8-bit heap
 - current and minimum free heap
 - largest free heap block
 - internal heap headroom
 - task stack high watermarks
-- queued / inflight / dropped measurements
 - current Wi-Fi and cellular error state
+
+The page also has a **Copy JSON** button next to the raw dump, so the formatted diagnostics payload can be copied without manual selection in browsers that support clipboard access.
+
+### Memory metrics
+
+The memory stats at the top of Diagnostics are meant to answer different questions:
+
+- **Total Available**: total 8-bit heap currently available to the allocator
+- **Free Heap**: total free 8-bit heap right now
+- **Min Heap**: the lowest free 8-bit heap value seen since boot
+- **Largest Block**: the largest single contiguous block that can be allocated right now
+
+If `Free Heap` is high but `Largest Block` is much smaller, that usually means fragmentation rather than simple low-memory pressure.
+
+If the board boots with PSRAM enabled and detected, the **8-bit heap** values should be larger than the **Internal heap** values. If they are identical, the device is effectively running without PSRAM-backed heap.
 
 ---
 
