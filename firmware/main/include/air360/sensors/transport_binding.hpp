@@ -61,6 +61,10 @@ class UartPortManager {
         std::uint8_t* buffer,
         std::size_t buffer_size,
         TickType_t timeout_ticks);
+    int write(
+        std::uint8_t port_id,
+        const std::uint8_t* data,
+        std::size_t size);
     esp_err_t flush(std::uint8_t port_id);
     void shutdown();
 

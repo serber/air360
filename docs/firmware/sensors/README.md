@@ -18,6 +18,7 @@ This README replaces the former `supported-sensors.md` and combines both roles:
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
+| [sds011.md](sds011.md) | SDS011 | UART | UART2, RX=`GPIO38`, TX=`GPIO39`, `9600` baud | PM2.5, PM10 |
 | [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud | Latitude, longitude, altitude, satellites, speed, course, HDOP |
 | [dht.md](dht.md) | DHT11 / DHT22 | GPIO | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
@@ -169,6 +170,19 @@ GPIO sensor slots (`GPIO4` / `GPIO5` / `GPIO6`) are shared across DHT11, DHT22, 
 | Accuracy | PM1 / PM2.5 mass concentration `+-[5 ug/m3 + 5 % m.v.]` from `0..100 ug/m3`, then `+-10 % m.v.` from `100..1000 ug/m3`; PM4 / PM10 are specified less tightly (`+-25 ug/m3` or `+-25 % m.v.` depending on range) |
 | Maximum current | `80 mA` max during the first `200 ms` fan start; `65 mA` max in measurement mode |
 | Reference links | [Sensirion SPS30 datasheet](https://sensirion.com/media/documents/8600FF88/64A3B8D6/Sensirion_PM_Sensors_Datasheet_SPS30.pdf) |
+
+### SDS011
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Nova Fitness Co., Ltd. |
+| Air360 measurements | PM2.5, PM10 mass concentration |
+| Declared service life | `>8000 hours` (laser lifetime per Nova Fitness datasheet) |
+| Operating temperature | `-20..50 deg C` |
+| Supply voltage | `4.7..5.3 V` (5 V nominal) |
+| Accuracy | PM2.5 `+-15 ug/m3` or `+-15 % m.v.` (whichever is larger); PM10 `+-15 % m.v.` |
+| Maximum current | `100 mA` during fan operation |
+| Reference links | [Nova Fitness product page](https://www.inovafitness.com/en/a/chanpinzhongxin/95.html), [SDS011 datasheet](https://cdn-reichelt.de/documents/datenblatt/X200/SDS011-DATASHEET.pdf) |
 
 ### GPS (NMEA)
 

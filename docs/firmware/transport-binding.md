@@ -61,7 +61,12 @@ Pin constants are defined once in `transport_binding.cpp`. No driver duplicates 
 
 ## `UartPortManager`
 
-Manages UART ports for sensors that use serial communication. Currently only GPS (NMEA) uses UART transport.
+Manages UART ports for sensors that use serial communication. Current UART sensor assignments:
+
+| Sensor | Port | RX | TX | Baud |
+|--------|------|----|----|------|
+| GPS (NMEA) | UART1 | GPIO18 | GPIO17 | 9600 |
+| SDS011 | UART2 | GPIO38 | GPIO39 | 9600 |
 
 ### Port mapping
 
@@ -91,15 +96,6 @@ Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_bau
 ### Lazy initialisation
 
 `open()` calls `ensurePort()` which installs the UART driver and configures pins on first call. If the port is already initialised with the **same** baud rate and pins, subsequent calls return `ESP_OK` immediately. If the port is already initialised but with **different** parameters, `ESP_ERR_INVALID_STATE` is returned — re-configuration is not supported.
-
-### Console pin conflict warning
-
-If the requested RX/TX pins match GPIO 44/43 (the default ESP32-S3 console UART pins) and the configured UART port is not the console port, a warning is logged:
-
-```
-UART1 is being mapped to GPIO 18/17, which overlap the default console pins;
-serial logs may disappear after sensor init
-```
 
 ### Public API
 

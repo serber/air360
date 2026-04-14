@@ -24,6 +24,7 @@ idf_component_register(
         "src/sensors/drivers/dht_sensor.cpp"
         "src/sensors/drivers/ds18b20_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
+        "src/sensors/drivers/sds011_sensor.cpp"
         "src/sensors/drivers/htu2x_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/scd30_sensor.cpp"

@@ -207,6 +207,25 @@ int UartPortManager::read(
         timeout_ticks);
 }
 
+int UartPortManager::write(
+    std::uint8_t port_id,
+    const std::uint8_t* data,
+    std::size_t size) {
+    if (data == nullptr || size == 0U || port_id == 0U || port_id > ports_.size()) {
+        return -1;
+    }
+
+    PortState& port = ports_[port_id - 1U];
+    if (!port.initialized) {
+        return -1;
+    }
+
+    return uart_write_bytes(
+        static_cast<uart_port_t>(port.port_number),
+        data,
+        size);
+}
+
 esp_err_t UartPortManager::flush(std::uint8_t port_id) {
     if (port_id == 0U || port_id > ports_.size()) {
         return ESP_ERR_INVALID_ARG;

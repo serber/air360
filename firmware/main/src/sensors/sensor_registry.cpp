@@ -7,6 +7,7 @@
 #include "air360/sensors/drivers/dht_sensor.hpp"
 #include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
+#include "air360/sensors/drivers/sds011_sensor.hpp"
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
@@ -29,6 +30,22 @@
 
 #ifndef CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
 #define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_UART_PORT
+#define CONFIG_AIR360_SDS011_DEFAULT_UART_PORT 2
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO 38
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO 39
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE
+#define CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE 9600
 #endif
 
 #ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
@@ -216,6 +233,31 @@ bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
 
     if (record.i2c_address != 0x44U) {
         error = "SHT4X I2C address must be 0x44.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateSds011Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "SDS011 currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_port_id != CONFIG_AIR360_SDS011_DEFAULT_UART_PORT ||
+        record.uart_rx_gpio_pin != CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO ||
+        record.uart_tx_gpio_pin != CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO) {
+        error = "SDS011 UART binding must match the fixed board wiring.";
+        return false;
+    }
+
+    if (record.uart_baud_rate != 9600U) {
+        error = "SDS011 baud rate must be 9600.";
         return false;
     }
 
@@ -415,6 +457,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateVeml7700Record,
         &createVeml7700Sensor,
+    },
+    {
+        SensorType::kSds011,
+        "sds011",
+        "SDS011 (PM2.5/PM10)",
+        false,
+        false,
+        true,
+        false,
+        true,
+        5000U,
+        0U,
+        0x00U,
+        CONFIG_AIR360_SDS011_DEFAULT_UART_PORT,
+        CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO,
+        CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO,
+        CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE,
+        &validateSds011Record,
+        &createSds011Sensor,
     },
     {
         SensorType::kGpsNmea,

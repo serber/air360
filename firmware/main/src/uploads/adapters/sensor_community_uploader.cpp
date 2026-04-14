@@ -178,6 +178,18 @@ bool mapMeasurement(
                 default:
                     return false;
             }
+        case SensorType::kSds011:
+            out_pin = 1U;
+            switch (point.value_kind) {
+                case SensorValueKind::kPm2_5UgM3:
+                    out_value_type = "P2";
+                    return true;
+                case SensorValueKind::kPm10_0UgM3:
+                    out_value_type = "P1";
+                    return true;
+                default:
+                    return false;
+            }
         case SensorType::kUnknown:
         case SensorType::kMe3No2:
         case SensorType::kVeml7700:
