@@ -107,6 +107,22 @@ void appendFeature(std::string& features, const std::string& feature) {
     features += feature;
 }
 
+std::string formatMemorySizeLabel(std::size_t bytes) {
+    if (bytes == 0U) {
+        return "";
+    }
+
+    if ((bytes % (1024U * 1024U)) == 0U) {
+        return std::to_string(bytes / (1024U * 1024U)) + "MB";
+    }
+
+    if ((bytes % 1024U) == 0U) {
+        return std::to_string(bytes / 1024U) + "KB";
+    }
+
+    return std::to_string(bytes) + "B";
+}
+
 std::string chipTypeLabel(const esp_chip_info_t& chip_info) {
     std::string label = chipModelName(chip_info.model);
     const std::string package_name = chipPackageName(chip_info.model);
