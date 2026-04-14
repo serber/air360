@@ -214,6 +214,14 @@ pre {
     border-bottom: 1px solid rgba(185, 200, 212, 0.42);
 }
 
+.pagehead__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.8rem 1rem;
+}
+
 .pagehead h1 {
     margin: 0.18rem 0 0;
     font-family: var(--font-display);
@@ -229,6 +237,12 @@ pre {
     margin: 0.72rem 0 0;
     color: var(--muted);
     font-size: 1rem;
+}
+
+.pagehead__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
 }
 
 .stack > * + * {

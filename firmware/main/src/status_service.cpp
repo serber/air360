@@ -337,6 +337,7 @@ struct RuntimeOverviewViewModel {
 };
 
 struct RuntimeDiagnosticsSnapshot {
+    std::size_t total_heap_bytes = 0U;
     std::size_t free_heap_bytes = 0U;
     std::size_t min_free_heap_bytes = 0U;
     std::size_t largest_heap_block_bytes = 0U;
@@ -767,6 +768,7 @@ RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
     const UploadManager* upload_manager,
     const CellularManager* cellular_manager) {
     RuntimeDiagnosticsSnapshot snapshot;
+    snapshot.total_heap_bytes = heap_caps_get_total_size(MALLOC_CAP_8BIT);
     snapshot.free_heap_bytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     snapshot.min_free_heap_bytes = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
     snapshot.largest_heap_block_bytes = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
@@ -1008,6 +1010,7 @@ std::string StatusService::renderDiagnosticsHtml() const {
     const std::string body = renderPageTemplate(
         WebTemplateKey::kDiagnostics,
         WebTemplateBindings{
+            {"TOTAL_HEAP", htmlEscape(formatBytesCompact(diagnostics.total_heap_bytes))},
             {"FREE_HEAP", htmlEscape(formatBytesCompact(diagnostics.free_heap_bytes))},
             {"MIN_HEAP", htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes))},
             {"LARGEST_BLOCK", htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes))},
@@ -1145,6 +1148,9 @@ std::string StatusService::renderStatusJson() const {
     json += std::to_string(
         upload_manager_ != nullptr ? upload_manager_->lastOverallAttemptUnixMs() : 0);
     json += ",\"diagnostics\":{";
+    json += "\"heap_total_bytes\":";
+    json += std::to_string(diagnostics.total_heap_bytes);
+    json += ",";
     json += "\"heap_free_bytes\":";
     json += std::to_string(diagnostics.free_heap_bytes);
     json += ",\"heap_min_free_bytes\":";

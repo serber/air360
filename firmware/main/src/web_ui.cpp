@@ -253,13 +253,21 @@ std::string renderPageDocument(
     }
 
     html += "</nav></header><main class='page'><section class='pagehead'>";
-    html += "<h1>";
-    html += htmlEscape(heading);
-    html += "</h1>";
-    if (!lead_html.empty()) {
-        html += "<p class='lead'>";
+    if (active_page == WebPageKey::kHome && !lead_html.empty()) {
+        html += "<div class='pagehead__row'><h1>";
+        html += htmlEscape(heading);
+        html += "</h1><div class='pagehead__meta'>";
         html += lead_html;
-        html += "</p>";
+        html += "</div></div>";
+    } else {
+        html += "<h1>";
+        html += htmlEscape(heading);
+        html += "</h1>";
+        if (!lead_html.empty()) {
+            html += "<p class='lead'>";
+            html += lead_html;
+            html += "</p>";
+        }
     }
     html += "</section>";
     html += body_html;

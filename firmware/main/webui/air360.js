@@ -245,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (statusNode instanceof HTMLElement) {
-        statusNode.textContent = "Copied.";
+        statusNode.textContent = "Copied";
       }
     } catch {
       if (statusNode instanceof HTMLElement) {
