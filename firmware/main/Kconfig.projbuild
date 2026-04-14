@@ -31,12 +31,12 @@ config AIR360_GPS_DEFAULT_UART_PORT
 config AIR360_GPS_DEFAULT_RX_GPIO
     int "GPS default RX GPIO"
     range 0 48
-    default 44
+    default 18
 
 config AIR360_GPS_DEFAULT_TX_GPIO
     int "GPS default TX GPIO"
     range 0 48
-    default 43
+    default 17
 
 config AIR360_GPS_DEFAULT_BAUD_RATE
     int "GPS default UART baud rate"

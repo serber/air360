@@ -5,14 +5,11 @@
 #include <cstring>
 
 #include "driver/uart.h"
-#include "esp_log.h"
 #include "sdkconfig.h"
 
 namespace air360 {
 
 namespace {
-
-constexpr char kTag[] = "air360.transport";
 
 #ifndef CONFIG_AIR360_I2C0_SDA_GPIO
 #define CONFIG_AIR360_I2C0_SDA_GPIO 8
@@ -27,10 +24,6 @@ constexpr std::uint32_t kDefaultI2cClockHz = 100000U;
 
 constexpr int kUartRxBufferSize = 4096;
 constexpr int kUartTxBufferSize = 0;
-#if CONFIG_ESP_CONSOLE_UART && CONFIG_ESP_CONSOLE_UART_DEFAULT
-constexpr int kDefaultConsoleRxPin = 44;
-constexpr int kDefaultConsoleTxPin = 43;
-#endif
 
 }  // namespace
 
@@ -145,19 +138,6 @@ esp_err_t UartPortManager::ensurePort(
         return ESP_ERR_NOT_SUPPORTED;
     }
     const uart_port_t port = static_cast<uart_port_t>(port_number);
-
-#if CONFIG_ESP_CONSOLE_UART && CONFIG_ESP_CONSOLE_UART_DEFAULT
-    if (port_number != CONFIG_ESP_CONSOLE_UART_NUM &&
-        ((rx_pin == kDefaultConsoleRxPin && tx_pin == kDefaultConsoleTxPin) ||
-         (rx_pin == kDefaultConsoleTxPin && tx_pin == kDefaultConsoleRxPin))) {
-        ESP_LOGW(
-            kTag,
-            "UART%u is being mapped to GPIO %d/%d, which overlap the default console pins; serial logs may disappear after sensor init",
-            static_cast<unsigned>(port_id),
-            static_cast<int>(rx_pin),
-            static_cast<int>(tx_pin));
-    }
-#endif
 
     uart_config_t config{};
     config.baud_rate = static_cast<int>(baud_rate);
