@@ -26,6 +26,8 @@ Decisions that are reflected in the current codebase.
   Optional static IPv4 configuration for Wi-Fi station mode.
 - [`implemented-cellular-uplink-adr.md`](implemented-cellular-uplink-adr.md)
   Cellular uplink abstractions — `CellularManager`, `CellularConfig`, network bearer integration.
+- [`implemented-wifi-auto-reconnect-adr.md`](implemented-wifi-auto-reconnect-adr.md)
+  Automatic Wi-Fi reconnection, setup-AP retry behavior, and better recovery diagnostics.
 
 ---
 
@@ -54,8 +56,6 @@ New capabilities not present in the current firmware.
   OTA firmware update via the web UI using ESP-IDF native OTA API.
 - [`proposed-measurement-queue-persistence-adr.md`](proposed-measurement-queue-persistence-adr.md)
   Persist the upload queue to SPIFFS so queued samples survive reboot.
-- [`proposed-wifi-auto-reconnect-adr.md`](proposed-wifi-auto-reconnect-adr.md)
-  Automatic Wi-Fi reconnection, setup-AP retry behavior, and better recovery diagnostics.
 - [`proposed-sensor-correction-layer-adr.md`](proposed-sensor-correction-layer-adr.md)
   Unified per-sensor correction layer for climate measurements such as temperature, humidity, and pressure.
 - [`proposed-pressure-normalization-adr.md`](proposed-pressure-normalization-adr.md)

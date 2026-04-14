@@ -177,7 +177,7 @@ wifi_sta_ssid non-empty?
 
 **`connectStation(config, timeout_ms=15000)`:**
 - Creates Wi-Fi STA netif
-- Registers WIFI_EVENT and IP_EVENT handlers on the default event loop
+- Ensures persistent WIFI/IP event handlers and recovery timers are registered
 - Sets the DHCP hostname from `device_name` (lowercased, alphanumeric)
 - Starts Wi-Fi and waits for an IP address (up to 15 seconds), resetting the watchdog while waiting
 - On success: calls `synchronizeTime()` — polls SNTP for up to 15 seconds, resetting the watchdog
@@ -187,12 +187,13 @@ wifi_sta_ssid non-empty?
 - Assigns static IP `192.168.4.1 / 255.255.255.0`
 - Starts DHCP server on `192.168.4.0/24`
 - Optionally scans for available networks (stored for the `/wifi-scan` endpoint)
+- If station credentials exist, arms a background station retry loop while setup AP stays available
 
 Network failures at this step are **non-fatal** — the device continues booting without a network connection.
 
 `StatusService` is updated with the current network state.
 
-The full connection sequence, event handler lifecycle, SNTP synchronisation logic, and state transition diagram are in [network-manager.md](network-manager.md).
+The full connection sequence, reconnect backoff behavior, setup-AP retry path, SNTP synchronisation logic, and state transition diagram are in [network-manager.md](network-manager.md).
 
 ---
 

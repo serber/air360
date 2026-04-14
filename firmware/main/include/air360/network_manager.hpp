@@ -8,6 +8,8 @@
 #include "esp_err.h"
 #include "esp_event_base.h"
 #include "esp_wifi_types_generic.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 namespace air360 {
 
@@ -41,6 +43,13 @@ struct NetworkState {
     std::string ip_address;
     std::string cellular_ip;  // populated by CellularManager in Phase 1
     std::string last_error;
+    std::int32_t last_disconnect_reason = -1;
+    std::string last_disconnect_reason_label;
+    bool reconnect_backoff_active = false;
+    std::uint32_t reconnect_attempt_count = 0U;
+    std::uint64_t next_reconnect_uptime_ms = 0U;
+    bool setup_ap_retry_active = false;
+    std::uint64_t next_setup_ap_retry_uptime_ms = 0U;
     std::string time_sync_error;
     std::int64_t last_time_sync_unix_ms = 0;
 };
@@ -58,6 +67,8 @@ struct SntpCheckResult {
 
 class NetworkManager {
   public:
+    NetworkManager();
+
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
     esp_err_t stopStation();
@@ -68,7 +79,7 @@ class NetworkManager {
     esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
     SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
     UplinkStatus uplinkStatus() const;
-    const NetworkState& state() const;
+    NetworkState state() const;
     const std::vector<WifiNetworkRecord>& availableNetworks() const;
     const std::string& lastScanError() const;
     std::uint64_t lastScanUptimeMs() const;
@@ -76,6 +87,12 @@ class NetworkManager {
     std::int64_t currentUnixMilliseconds() const;
 
   private:
+    enum class ConnectAttemptKind : std::uint8_t {
+        kInitial = 0U,
+        kRuntimeReconnect,
+        kSetupApRetry,
+    };
+
     static void handleWifiEvent(
         void* arg,
         esp_event_base_t event_base,
@@ -86,11 +103,23 @@ class NetworkManager {
         esp_event_base_t event_base,
         int32_t event_id,
         void* event_data);
+    static void reconnectTimerCallback(TimerHandle_t timer);
+    static void setupApRetryTimerCallback(TimerHandle_t timer);
+    static void connectAttemptTask(void* arg);
 
     esp_err_t ensureWifiInit();
+    esp_err_t attemptStationConnect(
+        const DeviceConfig& config,
+        std::uint32_t timeout_ms,
+        ConnectAttemptKind kind);
     esp_err_t synchronizeTime(std::uint32_t timeout_ms = 15000U);
-    void resetState();
+    void lock() const;
+    void unlock() const;
 
+    mutable StaticSemaphore_t mutex_buffer_{};
+    mutable SemaphoreHandle_t mutex_ = nullptr;
+    DeviceConfig last_config_{};
+    bool has_last_config_ = false;
     NetworkState state_{};
     std::vector<WifiNetworkRecord> available_networks_{};
     std::string last_scan_error_{};
