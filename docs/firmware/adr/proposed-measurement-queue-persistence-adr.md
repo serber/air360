@@ -16,6 +16,8 @@ For deployments with intermittent network access or unreliable power, this means
 
 Rough capacity: 256 samples × ~100 bytes each ≈ 25 KB. The SPIFFS partition can hold the full queue with significant margin.
 
+This ADR is intentionally narrower than the broader “local history and diagnostics” problem. User-visible history endpoints and queue visibility are captured separately in [proposed-local-history-and-diagnostics-adr.md](proposed-local-history-and-diagnostics-adr.md).
+
 ## Goals
 
 - Survive device reboot without losing queued measurements.
@@ -88,6 +90,15 @@ Maximum durability. SPIFFS write on every 250 ms poll cycle is too aggressive �
 ### Option C. Periodic flush (accepted)
 
 Good balance: bounded data loss (at most N samples), low write frequency, no impact on sensor polling timing, SPIFFS endurance remains healthy.
+
+## Reference Links
+
+- [Sensor.Community ecosystem review for Air360](../../ecosystem/sensor-community-issues-prs-review-2026-04-14.md)
+- [Measurement Pipeline](../measurement-pipeline.md)
+- [Project Structure](../PROJECT_STRUCTURE.md)
+- [Proposed local history and diagnostics ADR](proposed-local-history-and-diagnostics-adr.md)
+- [#112 Improve in case of WiFi down - cache some of the values](https://github.com/opendata-stuttgart/sensors-software/issues/112)
+- [#940 Store the last 40 measurements in JSON file](https://github.com/opendata-stuttgart/sensors-software/issues/940)
 
 ## Practical Conclusion
 
