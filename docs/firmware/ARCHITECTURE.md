@@ -552,7 +552,7 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 | Route | Description |
 |-------|-------------|
 | `GET /` | Overview page (HTML) |
-| `GET /status` | JSON runtime status |
+| `GET /diagnostics` | Diagnostics page (HTML with raw status JSON dump) |
 | `GET /config` | Device config page (HTML) |
 | `POST /config` | Save device config |
 | `GET /sensors` | Sensor management page (HTML) |
@@ -580,7 +580,7 @@ Produces HTML and JSON payloads for web routes. Aggregates runtime state from al
 - Backend statuses with last result, duration, retry count
 - Health checks (time sync, sensor freshness, uplink, backend health)
 
-The `/status` JSON response includes `health_status`, `health_summary`, and `health_checks`.
+The raw status JSON rendered inside the Diagnostics page includes `health_status`, `health_summary`, and `health_checks`.
 
 ---
 
@@ -830,7 +830,7 @@ No application-level queues. `MeasurementStore` uses vector swap under mutex for
 - Server-rendered web UI with 5 HTML pages and embedded CSS/JS
 - Lab AP mode at `192.168.4.1` with `/wifi-scan` endpoint
 - SNTP synchronization gating upload start
-- Health check aggregation in `/status` JSON
+- Health check aggregation in the Diagnostics raw JSON dump
 
 ### Planned or reserved but not yet implemented
 

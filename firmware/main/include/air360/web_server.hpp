@@ -38,7 +38,7 @@ class WebServer {
   private:
     static esp_err_t handleAsset(httpd_req_t* request);
     static esp_err_t handleRoot(httpd_req_t* request);
-    static esp_err_t handleStatus(httpd_req_t* request);
+    static esp_err_t handleDiagnostics(httpd_req_t* request);
     static esp_err_t handleWifiScan(httpd_req_t* request);
     static esp_err_t handleConfig(httpd_req_t* request);
     static esp_err_t handleCheckSntp(httpd_req_t* request);

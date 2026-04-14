@@ -68,6 +68,15 @@ const CellularState& CellularManager::state() const {
     return state_;
 }
 
+std::size_t CellularManager::taskStackHighWaterMarkBytes() const {
+    if (task_handle_ == nullptr) {
+        return 0U;
+    }
+
+    return static_cast<std::size_t>(uxTaskGetStackHighWaterMark(task_handle_)) *
+           sizeof(StackType_t);
+}
+
 // ---------------------------------------------------------------------------
 // FreeRTOS task
 // ---------------------------------------------------------------------------

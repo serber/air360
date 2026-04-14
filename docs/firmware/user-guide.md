@@ -100,10 +100,10 @@ The navigation bar contains five sections:
 | Section | Purpose |
 |---------|---------|
 | **Overview** | Runtime dashboard: uplink state, connection details, sensors, backends |
+| **Diagnostics** | Memory, task, recovery details, and raw status dump |
 | **Device** | Network credentials, SNTP, static IP, and cellular modem settings |
 | **Sensors** | Sensor inventory — add, configure, remove |
 | **Backends** | Upload targets — enable, configure, monitor |
-| **Status JSON** | Raw machine-readable runtime state at `/status` |
 
 ---
 
@@ -311,14 +311,14 @@ The **Upload interval** field at the top of the page controls how often the devi
 
 To use Sensor.Community:
 
-1. Open `http://<device-ip>/status` and find the `short_chip_id` field — this is the ID you register on the Sensor.Community portal.
+1. Open **Diagnostics** and find `short_chip_id` in the raw status dump — this is the ID you register on the Sensor.Community portal.
 2. Register your device at `https://devices.sensor.community/` using that Short ID.
 3. Return to the firmware **Backends** page.
 4. Enable Sensor.Community.
 5. Leave **Device ID override** at its default value unless you need a different ID for debugging.
 6. Press **Save**.
 
-> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the Short ID from `/status`. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
+> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the `short_chip_id` from the Diagnostics page raw status dump. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
 
 ### Air360 API
 
@@ -341,15 +341,34 @@ Each backend card shows:
 
 ---
 
-## Status JSON
+## Diagnostics
 
-The raw runtime endpoint is available at:
+The Diagnostics page includes a raw runtime JSON dump at the bottom:
 
 ```
-http://<device-ip>/status
+http://<device-ip>/diagnostics
 ```
 
-This endpoint is useful for advanced troubleshooting and external integrations. It includes build information, boot count, reset reason, network state, sensor runtime state with latest measurements and queued sample counts, and backend runtime state.
+This page is useful for advanced troubleshooting. The raw dump includes build information, boot count, reset reason, network state, sensor runtime state with latest measurements and queued sample counts, and backend runtime state.
+
+The JSON also includes a top-level `diagnostics` object with heap headroom, largest free block, task stack high watermarks, and measurement queue counters.
+
+### Diagnostics page
+
+Open:
+
+```
+http://<device-ip>/diagnostics
+```
+
+This page summarizes the same troubleshooting-oriented runtime metrics in human-readable form:
+
+- current and minimum free heap
+- largest free heap block
+- internal heap headroom
+- task stack high watermarks
+- queued / inflight / dropped measurements
+- current Wi-Fi and cellular error state
 
 ---
 
@@ -388,7 +407,7 @@ What this means in practice:
 
 ### Enabling Sensor.Community upload
 
-1. Open `http://<device-ip>/status` → find `short_chip_id`.
+1. Open **Diagnostics** → find `short_chip_id` in the raw status dump.
 2. Register the device at `https://devices.sensor.community/`.
 3. Open **Backends** → enable Sensor.Community → press **Save**.
 4. Set the upload interval as needed.

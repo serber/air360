@@ -49,10 +49,10 @@ firmware/
 - `main/src/build_info.cpp` — build metadata and device identity (chip_id, short_chip_id, esp_mac_id)
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
-- `main/src/status_service.cpp` — HTML and JSON status rendering for `/` and `/status`
+- `main/src/status_service.cpp` — HTML rendering for `/` and `/diagnostics`, plus raw status JSON generation for the diagnostics page
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
-- `main/src/web_server.cpp` — `esp_http_server` routes: `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/assets/*`
+- `main/src/web_server.cpp` — `esp_http_server` routes: `/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/assets/*`
 - `main/webui/` — hand-authored frontend assets embedded into the firmware image (`air360.css`, `air360.js`, page body templates)
 
 ### Public headers
@@ -122,7 +122,7 @@ Sources: `main/src/uploads/`
 | Route | Description |
 |-------|-------------|
 | `GET /` | Runtime overview (HTML). Redirects to `/config` in setup AP mode. |
-| `GET /status` | JSON: build, network, sensors, backends, health checks, reset reason |
+| `GET /diagnostics` | HTML: memory, task, network recovery, and raw status JSON dump |
 | `GET /config` | Device and Wi-Fi config form. Shows SSID scan dropdown in AP mode. |
 | `POST /config` | Save device config |
 | `GET /sensors` | Category-based sensor config page with staged apply/discard |

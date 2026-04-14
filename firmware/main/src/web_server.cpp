@@ -1718,12 +1718,12 @@ esp_err_t WebServer::start(
         return err;
     }
 
-    httpd_uri_t status_uri{};
-    status_uri.uri = "/status";
-    status_uri.method = HTTP_GET;
-    status_uri.handler = &WebServer::handleStatus;
-    status_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &status_uri);
+    httpd_uri_t diagnostics_uri{};
+    diagnostics_uri.uri = "/diagnostics";
+    diagnostics_uri.method = HTTP_GET;
+    diagnostics_uri.handler = &WebServer::handleDiagnostics;
+    diagnostics_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &diagnostics_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -2241,12 +2241,12 @@ esp_err_t WebServer::handleRoot(httpd_req_t* request) {
     return httpd_resp_send(request, html.c_str(), html.size());
 }
 
-esp_err_t WebServer::handleStatus(httpd_req_t* request) {
+esp_err_t WebServer::handleDiagnostics(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
-    const std::string json = server->status_service_->renderStatusJson();
-    httpd_resp_set_type(request, "application/json");
+    const std::string html = server->status_service_->renderDiagnosticsHtml();
+    httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, json.c_str(), json.size());
+    return httpd_resp_send(request, html.c_str(), html.size());
 }
 
 esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {

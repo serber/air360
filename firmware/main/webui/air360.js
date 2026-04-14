@@ -225,6 +225,37 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function copyRuntimeDump(button, textarea, statusNode) {
+    const text = textarea.value;
+    button.disabled = true;
+    if (statusNode instanceof HTMLElement) {
+      statusNode.textContent = "Copying...";
+    }
+
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(text);
+      } else {
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        if (!document.execCommand("copy")) {
+          throw new Error("copy_failed");
+        }
+      }
+
+      if (statusNode instanceof HTMLElement) {
+        statusNode.textContent = "Copied.";
+      }
+    } catch {
+      if (statusNode instanceof HTMLElement) {
+        statusNode.textContent = "Copy failed. Use manual selection.";
+      }
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function syncStaticIpFields(form) {
     const toggle = form.querySelector("[data-static-ip-toggle]");
     const fieldset = form.querySelector("[data-static-ip-fields]");
@@ -372,6 +403,23 @@ document.addEventListener("DOMContentLoaded", () => {
         syncBackendCard(panel);
       });
     }
+  }
+
+  for (const button of document.querySelectorAll("[data-copy-runtime-dump]")) {
+    if (!(button instanceof HTMLButtonElement)) {
+      continue;
+    }
+
+    const panel = button.closest(".runtime-dump");
+    const textarea = panel?.querySelector(".runtime-dump__console");
+    const statusNode = panel?.querySelector("[data-copy-runtime-dump-status]");
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      continue;
+    }
+
+    button.addEventListener("click", () => {
+      copyRuntimeDump(button, textarea, statusNode);
+    });
   }
 
   for (const form of document.querySelectorAll("form[data-confirm]")) {

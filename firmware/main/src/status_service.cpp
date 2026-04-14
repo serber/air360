@@ -10,6 +10,7 @@
 
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/web_ui.hpp"
+#include "esp_heap_caps.h"
 #include "esp_timer.h"
 
 namespace air360 {
@@ -85,10 +86,109 @@ std::string formatUptimeCompact(std::uint64_t uptime_ms) {
     return std::to_string(seconds) + "s";
 }
 
+std::string formatDelayFromNow(std::uint64_t target_uptime_ms, std::uint64_t now_uptime_ms) {
+    if (target_uptime_ms == 0U) {
+        return "not scheduled";
+    }
+
+    if (target_uptime_ms <= now_uptime_ms) {
+        return "now";
+    }
+
+    return formatUptimeCompact(target_uptime_ms - now_uptime_ms);
+}
+
 std::string formatFloat(float value, int precision) {
     char buffer[32];
     std::snprintf(buffer, sizeof(buffer), "%.*f", precision, static_cast<double>(value));
     return buffer;
+}
+
+std::string formatBytesCompact(std::size_t bytes) {
+    char buffer[32];
+    if (bytes >= (1024U * 1024U)) {
+        std::snprintf(
+            buffer,
+            sizeof(buffer),
+            "%.2f MB",
+            static_cast<double>(bytes) / (1024.0 * 1024.0));
+    } else if (bytes >= 1024U) {
+        std::snprintf(buffer, sizeof(buffer), "%.1f KB", static_cast<double>(bytes) / 1024.0);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%zu B", bytes);
+    }
+    return buffer;
+}
+
+std::string prettyPrintJson(std::string_view json) {
+    std::string formatted;
+    formatted.reserve(json.size() + json.size() / 2U);
+
+    constexpr char kIndentUnit[] = "  ";
+    int indent_level = 0;
+    bool in_string = false;
+    bool escaped = false;
+
+    const auto appendIndent = [&formatted, &indent_level, &kIndentUnit]() {
+        for (int level = 0; level < indent_level; ++level) {
+            formatted += kIndentUnit;
+        }
+    };
+
+    for (const char ch : json) {
+        if (in_string) {
+            formatted.push_back(ch);
+            if (escaped) {
+                escaped = false;
+            } else if (ch == '\\') {
+                escaped = true;
+            } else if (ch == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+
+        switch (ch) {
+            case '"':
+                in_string = true;
+                formatted.push_back(ch);
+                break;
+            case '{':
+            case '[':
+                formatted.push_back(ch);
+                formatted.push_back('\n');
+                ++indent_level;
+                appendIndent();
+                break;
+            case '}':
+            case ']':
+                formatted.push_back('\n');
+                if (indent_level > 0) {
+                    --indent_level;
+                }
+                appendIndent();
+                formatted.push_back(ch);
+                break;
+            case ',':
+                formatted.push_back(ch);
+                formatted.push_back('\n');
+                appendIndent();
+                break;
+            case ':':
+                formatted += ": ";
+                break;
+            case ' ':
+            case '\n':
+            case '\r':
+            case '\t':
+                break;
+            default:
+                formatted.push_back(ch);
+                break;
+        }
+    }
+
+    return formatted;
 }
 
 
@@ -234,6 +334,21 @@ struct RuntimeOverviewViewModel {
     std::size_t sensor_count = 0U;
     std::string backend_block_html;
     std::string sensor_block_html;
+};
+
+struct RuntimeDiagnosticsSnapshot {
+    std::size_t free_heap_bytes = 0U;
+    std::size_t min_free_heap_bytes = 0U;
+    std::size_t largest_heap_block_bytes = 0U;
+    std::size_t free_internal_heap_bytes = 0U;
+    std::size_t min_free_internal_heap_bytes = 0U;
+    std::size_t largest_internal_heap_block_bytes = 0U;
+    std::size_t sensor_task_stack_free_bytes = 0U;
+    std::size_t upload_task_stack_free_bytes = 0U;
+    std::size_t cellular_task_stack_free_bytes = 0U;
+    std::size_t queue_pending_count = 0U;
+    std::size_t queue_inflight_count = 0U;
+    std::uint32_t queue_dropped_count = 0U;
 };
 
 enum class HealthStatus : std::uint8_t {
@@ -646,6 +761,148 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     return model;
 }
 
+RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
+    const MeasurementStore* measurement_store,
+    const SensorManager* sensor_manager,
+    const UploadManager* upload_manager,
+    const CellularManager* cellular_manager) {
+    RuntimeDiagnosticsSnapshot snapshot;
+    snapshot.free_heap_bytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    snapshot.min_free_heap_bytes = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
+    snapshot.largest_heap_block_bytes = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+
+    constexpr std::uint32_t kInternal8BitCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    snapshot.free_internal_heap_bytes = heap_caps_get_free_size(kInternal8BitCaps);
+    snapshot.min_free_internal_heap_bytes = heap_caps_get_minimum_free_size(kInternal8BitCaps);
+    snapshot.largest_internal_heap_block_bytes =
+        heap_caps_get_largest_free_block(kInternal8BitCaps);
+
+    if (measurement_store != nullptr) {
+        snapshot.queue_pending_count = measurement_store->pendingCount();
+        snapshot.queue_inflight_count = measurement_store->inflightCount();
+        snapshot.queue_dropped_count = measurement_store->droppedSampleCount();
+    }
+
+    if (sensor_manager != nullptr) {
+        snapshot.sensor_task_stack_free_bytes = sensor_manager->taskStackHighWaterMarkBytes();
+    }
+
+    if (upload_manager != nullptr) {
+        snapshot.upload_task_stack_free_bytes = upload_manager->taskStackHighWaterMarkBytes();
+    }
+
+    if (cellular_manager != nullptr) {
+        snapshot.cellular_task_stack_free_bytes = cellular_manager->taskStackHighWaterMarkBytes();
+    }
+
+    return snapshot;
+}
+
+std::string renderDiagnosticsMemoryBlock(const RuntimeDiagnosticsSnapshot& diagnostics) {
+    std::string html;
+    html += "<div class='list'>";
+    html += "<div class='list-card stack'><h3 class='list-card__title'>8-bit heap</h3><div class='meta'>";
+    html += "<span class='pill'>free ";
+    html += htmlEscape(formatBytesCompact(diagnostics.free_heap_bytes));
+    html += "</span><span class='pill'>minimum ";
+    html += htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes));
+    html += "</span><span class='pill'>largest block ";
+    html += htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes));
+    html += "</span></div></div>";
+    html += "<div class='list-card stack'><h3 class='list-card__title'>Internal heap</h3><div class='meta'>";
+    html += "<span class='pill'>free ";
+    html += htmlEscape(formatBytesCompact(diagnostics.free_internal_heap_bytes));
+    html += "</span><span class='pill'>minimum ";
+    html += htmlEscape(formatBytesCompact(diagnostics.min_free_internal_heap_bytes));
+    html += "</span><span class='pill'>largest block ";
+    html += htmlEscape(formatBytesCompact(diagnostics.largest_internal_heap_block_bytes));
+    html += "</span></div><p class='muted'>The minimum free value shows the worst-case headroom since boot. The largest block helps spot fragmentation.</p></div>";
+    html += "</div>";
+    return html;
+}
+
+std::string renderDiagnosticsTaskBlock(const RuntimeDiagnosticsSnapshot& diagnostics) {
+    const auto taskCard = [](const char* title, std::size_t free_stack_bytes) {
+        std::string html;
+        html += "<div class='list-card stack'><h3 class='list-card__title'>";
+        html += htmlEscape(title);
+        html += "</h3><div class='meta'><span class='pill'>";
+        if (free_stack_bytes > 0U) {
+            html += "high watermark ";
+            html += htmlEscape(formatBytesCompact(free_stack_bytes));
+            html += " free";
+        } else {
+            html += "task inactive";
+        }
+        html += "</span></div></div>";
+        return html;
+    };
+
+    std::string html;
+    html += "<div class='list'>";
+    html += taskCard("Sensor Task", diagnostics.sensor_task_stack_free_bytes);
+    html += taskCard("Upload Task", diagnostics.upload_task_stack_free_bytes);
+    html += taskCard("Cellular Task", diagnostics.cellular_task_stack_free_bytes);
+    html += "</div>";
+    return html;
+}
+
+std::string renderDiagnosticsNetworkBlock(
+    const NetworkState& network_state,
+    const CellularState& cellular_state) {
+    std::string html;
+    const std::uint64_t now_uptime_ms = uptimeMilliseconds();
+
+    html += "<div class='list'>";
+    html += "<div class='list-card stack'><h3 class='list-card__title'>Wi-Fi</h3><div class='meta'>";
+    html += "<span class='pill'>mode ";
+    html += htmlEscape(networkModeString(network_state.mode));
+    html += "</span><span class='pill'>";
+    html += network_state.station_connected ? "station connected" : "station down";
+    html += "</span>";
+    html += "</div>";
+    if (!network_state.last_error.empty()) {
+        html += "<p>Last Wi-Fi error: <code>";
+        html += htmlEscape(network_state.last_error);
+        html += "</code></p>";
+    }
+    if (!network_state.time_sync_error.empty()) {
+        html += "<p>Time sync error: <code>";
+        html += htmlEscape(network_state.time_sync_error);
+        html += "</code></p>";
+    }
+    html += "</div>";
+
+    html += "<div class='list-card stack'><h3 class='list-card__title'>Cellular</h3><div class='meta'>";
+    html += "<span class='pill'>";
+    html += cellular_state.enabled ? "enabled" : "disabled";
+    html += "</span><span class='pill'>";
+    html += cellular_state.ppp_connected ? "PPP connected" : "PPP down";
+    html += "</span>";
+    if (cellular_state.enabled) {
+        html += "<span class='pill'>retry attempts ";
+        html += std::to_string(cellular_state.reconnect_attempts);
+        html += "</span>";
+        if (!cellular_state.ppp_connected &&
+            cellular_state.next_reconnect_uptime_ms > now_uptime_ms) {
+            html += "<span class='pill'>next retry in ";
+            html += htmlEscape(formatDelayFromNow(
+                cellular_state.next_reconnect_uptime_ms,
+                now_uptime_ms));
+            html += "</span>";
+        }
+    }
+    html += "</div>";
+    if (!cellular_state.last_error.empty()) {
+        html += "<p>Last cellular error: <code>";
+        html += htmlEscape(cellular_state.last_error);
+        html += "</code></p>";
+    }
+    html += "</div>";
+    html += "</div>";
+    return html;
+}
+
 }  // namespace
 
 StatusService::StatusService(BuildInfo build_info) : build_info_(std::move(build_info)) {}
@@ -677,6 +934,10 @@ void StatusService::setNetworkState(const NetworkState& state) {
 
 void StatusService::setCellularState(const CellularState& state) {
     cellular_state_ = state;
+}
+
+void StatusService::setCellularManager(const CellularManager& cellular_manager) {
+    cellular_manager_ = &cellular_manager;
 }
 
 void StatusService::setSensors(const SensorManager& sensor_manager) {
@@ -736,6 +997,35 @@ std::string StatusService::renderRootHtml() const {
         true);
 }
 
+std::string StatusService::renderDiagnosticsHtml() const {
+    const RuntimeDiagnosticsSnapshot diagnostics = buildRuntimeDiagnosticsSnapshot(
+        measurement_store_,
+        sensor_manager_,
+        upload_manager_,
+        cellular_manager_);
+    const std::string status_json = prettyPrintJson(renderStatusJson());
+
+    const std::string body = renderPageTemplate(
+        WebTemplateKey::kDiagnostics,
+        WebTemplateBindings{
+            {"FREE_HEAP", htmlEscape(formatBytesCompact(diagnostics.free_heap_bytes))},
+            {"MIN_HEAP", htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes))},
+            {"LARGEST_BLOCK", htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes))},
+            {"MEMORY_BLOCK", renderDiagnosticsMemoryBlock(diagnostics)},
+            {"TASK_BLOCK", renderDiagnosticsTaskBlock(diagnostics)},
+            {"NETWORK_BLOCK", renderDiagnosticsNetworkBlock(network_state_, cellular_state_)},
+            {"STATUS_JSON_DUMP", htmlEscape(status_json)},
+        });
+
+    return renderPageDocument(
+        WebPageKey::kDiagnostics,
+        "Air 360 diagnostics",
+        "Diagnostics",
+        "Runtime memory, task, network recovery, and raw status output for troubleshooting.",
+        body,
+        true);
+}
+
 std::string StatusService::renderStatusJson() const {
     const std::vector<SensorRuntimeInfo> sensors =
         sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
@@ -744,6 +1034,11 @@ std::string StatusService::renderStatusJson() const {
                                    : std::vector<BackendStatusSnapshot>{};
     const HealthViewModel health =
         buildHealthViewModel(network_state_, sensors, backends, measurement_store_);
+    const RuntimeDiagnosticsSnapshot diagnostics = buildRuntimeDiagnosticsSnapshot(
+        measurement_store_,
+        sensor_manager_,
+        upload_manager_,
+        cellular_manager_);
 
     std::string json;
     json.reserve(8192);
@@ -849,6 +1144,32 @@ std::string StatusService::renderStatusJson() const {
     json += ",\"last_upload_attempt_unix_ms\":";
     json += std::to_string(
         upload_manager_ != nullptr ? upload_manager_->lastOverallAttemptUnixMs() : 0);
+    json += ",\"diagnostics\":{";
+    json += "\"heap_free_bytes\":";
+    json += std::to_string(diagnostics.free_heap_bytes);
+    json += ",\"heap_min_free_bytes\":";
+    json += std::to_string(diagnostics.min_free_heap_bytes);
+    json += ",\"heap_largest_block_bytes\":";
+    json += std::to_string(diagnostics.largest_heap_block_bytes);
+    json += ",\"internal_heap_free_bytes\":";
+    json += std::to_string(diagnostics.free_internal_heap_bytes);
+    json += ",\"internal_heap_min_free_bytes\":";
+    json += std::to_string(diagnostics.min_free_internal_heap_bytes);
+    json += ",\"internal_heap_largest_block_bytes\":";
+    json += std::to_string(diagnostics.largest_internal_heap_block_bytes);
+    json += ",\"sensor_task_stack_high_watermark_bytes\":";
+    json += std::to_string(diagnostics.sensor_task_stack_free_bytes);
+    json += ",\"upload_task_stack_high_watermark_bytes\":";
+    json += std::to_string(diagnostics.upload_task_stack_free_bytes);
+    json += ",\"cellular_task_stack_high_watermark_bytes\":";
+    json += std::to_string(diagnostics.cellular_task_stack_free_bytes);
+    json += ",\"measurement_queue_pending_count\":";
+    json += std::to_string(diagnostics.queue_pending_count);
+    json += ",\"measurement_queue_inflight_count\":";
+    json += std::to_string(diagnostics.queue_inflight_count);
+    json += ",\"measurement_queue_dropped_count\":";
+    json += std::to_string(diagnostics.queue_dropped_count);
+    json += "}";
     json += ",\"backends\":[";
     for (std::size_t index = 0; index < backends.size(); ++index) {
         const auto& backend = backends[index];

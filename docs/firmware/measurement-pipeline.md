@@ -14,7 +14,7 @@ air360_sensor task (250 ms loop)
   │
   └─ MeasurementStore::recordMeasurement()
        │
-       ├─ latest_by_sensor_   ← always updated (for web UI / /status)
+       ├─ latest_by_sensor_   ← always updated (for web UI / diagnostics raw dump)
        │
        └─ pending_            ← appended only when unix_ms > 0
             │
@@ -91,7 +91,7 @@ measurement_store_->recordMeasurement(
 
 ### 2a — Update `latest_by_sensor_`
 
-An unbounded list of `LatestMeasurementEntry` (one entry per sensor ID). Always updated regardless of unix time. Used by the web UI (`/` and `/status`) to show the most recent reading for each sensor.
+An unbounded list of `LatestMeasurementEntry` (one entry per sensor ID). Always updated regardless of unix time. Used by the web UI (`/`) and the Diagnostics page raw dump to show the most recent reading for each sensor.
 
 ```cpp
 struct LatestMeasurementEntry {
@@ -155,7 +155,7 @@ if (pending_.size() > kMaxQueuedSamples) {
 }
 ```
 
-`dropped_sample_count_` is a monotonic counter — visible in `/status` JSON.
+`dropped_sample_count_` is a monotonic counter — visible in the Diagnostics page raw JSON dump.
 
 ### When the queue fills up
 

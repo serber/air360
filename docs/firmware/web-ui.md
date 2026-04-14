@@ -24,8 +24,8 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 | Method | Path | Handler |
 |--------|------|---------|
 | `GET` | `/` | Overview page |
+| `GET` | `/diagnostics` | Diagnostics page |
 | `GET` | `/assets/*` | Static assets (CSS, JS) |
-| `GET` | `/status` | JSON status endpoint |
 | `GET` | `/wifi-scan` | JSON Wi-Fi scan results |
 | `GET` / `POST` | `/config` | Device configuration page |
 | `POST` | `/check-sntp` | SNTP server reachability check |
@@ -65,6 +65,21 @@ Displays a read-only dashboard. Refreshed on every page load (no auto-refresh).
 **Backends section** — one row per configured backend showing type, enabled state, last upload result, and last upload time.
 
 **Sensors section** — one row per configured sensor showing sensor type, runtime state, transport summary, and the latest reading values.
+
+---
+
+## Page: Diagnostics (`/diagnostics`)
+
+Read-only troubleshooting page with runtime internals that are useful when the device appears unstable or memory-constrained.
+
+The page currently shows:
+
+- **Memory**: free heap, minimum free heap seen since boot, and largest free block for both 8-bit heap and internal heap
+- **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
+- **Network Recovery**: current Wi-Fi mode / last Wi-Fi error and cellular reconnect counters
+- **Raw Status JSON**: a read-only console-style dump with build, health, sensor, backend, and diagnostics fields
+
+This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.
 
 ---
 
@@ -179,12 +194,6 @@ A single form containing upload settings and one card per backend type.
 - Reads enabled state from checkboxes (unchecked = absent from form body = `enabled = 0`).
 - Calls `applyBackendStaticDefaults()` to rewrite `endpoint_url` from the compiled-in default (endpoint URL is not user-editable via the web UI).
 - Saves to NVS and calls `UploadManager::applyConfig()` — takes effect immediately without a reboot.
-
----
-
-## Endpoint: `/status`
-
-`GET /status` returns a JSON document with full device state. Available in all network modes. Used for integration and debugging.
 
 ---
 

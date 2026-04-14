@@ -82,6 +82,7 @@ idf_component_register(
         "webui/page_config.html"
         "webui/page_sensors.html"
         "webui/page_backends.html"
+        "webui/page_diagnostics.html"
         "webui/card_backend.html"
         "webui/card_sensor.html"
         "webui/item_overview_backend.html"

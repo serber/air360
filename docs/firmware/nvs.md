@@ -189,7 +189,7 @@ Endpoint URLs are written into the record when defaults are applied. They are st
 
 ## `boot_count` — `uint32_t`
 
-Incremented on every boot via `nvs_get_u32` / `nvs_set_u32`. If the key does not exist yet (first boot), starts from 0 and writes 1. Shown on the Overview page and included in `/status` JSON.
+Incremented on every boot via `nvs_get_u32` / `nvs_set_u32`. If the key does not exist yet (first boot), starts from 0 and writes 1. Shown on the Overview page and included in the Diagnostics raw JSON dump.
 
 ---
 

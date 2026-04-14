@@ -49,6 +49,7 @@ class CellularManager {
     void start(const CellularConfig& config);
 
     const CellularState& state() const;
+    std::size_t taskStackHighWaterMarkBytes() const;
 
     // Called internally once PPP is up and an IP has been assigned.
     void onPppConnected(const char* ip_address, const char* check_host);

@@ -306,6 +306,18 @@ std::int64_t UploadManager::lastOverallAttemptUnixMs() const {
     return value;
 }
 
+std::size_t UploadManager::taskStackHighWaterMarkBytes() const {
+    lock();
+    const TaskHandle_t task = task_;
+    unlock();
+
+    if (task == nullptr) {
+        return 0U;
+    }
+
+    return static_cast<std::size_t>(uxTaskGetStackHighWaterMark(task)) * sizeof(StackType_t);
+}
+
 void UploadManager::lock() const {
     xSemaphoreTake(mutex_, portMAX_DELAY);
 }

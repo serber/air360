@@ -269,6 +269,18 @@ std::size_t SensorManager::enabledCount() const {
     return count;
 }
 
+std::size_t SensorManager::taskStackHighWaterMarkBytes() const {
+    lock();
+    const TaskHandle_t task = task_;
+    unlock();
+
+    if (task == nullptr) {
+        return 0U;
+    }
+
+    return static_cast<std::size_t>(uxTaskGetStackHighWaterMark(task)) * sizeof(StackType_t);
+}
+
 void SensorManager::lock() const {
     xSemaphoreTake(mutex_, portMAX_DELAY);
 }

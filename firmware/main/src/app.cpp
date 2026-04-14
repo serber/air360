@@ -227,6 +227,7 @@ void App::run() {
 
     cellular_manager.init(network_manager);
     cellular_manager.start(cellular_config);
+    status_service.setCellularManager(cellular_manager);
 
     sensor_config_list = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;

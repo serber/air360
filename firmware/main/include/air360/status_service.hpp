@@ -27,12 +27,14 @@ class StatusService {
     void setBootCount(std::uint32_t boot_count);
     void setNetworkState(const NetworkState& state);
     void setCellularState(const CellularState& state);
+    void setCellularManager(const CellularManager& cellular_manager);
     void setSensors(const SensorManager& sensor_manager);
     void setMeasurements(const MeasurementStore& measurement_store);
     void setUploads(const UploadManager& upload_manager);
     void setWebServerStarted(bool started);
 
     std::string renderRootHtml() const;
+    std::string renderDiagnosticsHtml() const;
     std::string renderStatusJson() const;
     const NetworkState& networkState() const;
     const BuildInfo& buildInfo() const;
@@ -42,6 +44,7 @@ class StatusService {
     DeviceConfig config_{};
     NetworkState network_state_{};
     CellularState cellular_state_{};
+    const CellularManager* cellular_manager_ = nullptr;
     const SensorManager* sensor_manager_ = nullptr;
     const MeasurementStore* measurement_store_ = nullptr;
     const UploadManager* upload_manager_ = nullptr;

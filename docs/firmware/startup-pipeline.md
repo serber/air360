@@ -218,7 +218,7 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 - Stack size: 10 240 bytes
 - Max URI handlers: 12
 
-All ten HTTP routes are registered (`/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/assets/*`, etc.). The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
+All nine HTTP routes are registered (`/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/assets/*`, etc.). The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
 
 Failure is **fatal** — sets red LED, returns from `run()`.
 

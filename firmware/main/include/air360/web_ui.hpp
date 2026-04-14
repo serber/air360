@@ -12,6 +12,7 @@ enum class WebPageKey {
     kConfig = 2,
     kSensors = 3,
     kBackends = 4,
+    kDiagnostics = 5,
 };
 
 enum class WebTemplateKey {
@@ -19,10 +20,11 @@ enum class WebTemplateKey {
     kConfig = 2,
     kSensors = 3,
     kBackends = 4,
-    kBackendCard = 5,
-    kSensorCard = 6,
-    kOverviewBackendItem = 7,
-    kOverviewSensorItem = 8,
+    kDiagnostics = 5,
+    kBackendCard = 6,
+    kSensorCard = 7,
+    kOverviewBackendItem = 8,
+    kOverviewSensorItem = 9,
 };
 
 using WebTemplateBindings = std::vector<std::pair<std::string, std::string>>;
