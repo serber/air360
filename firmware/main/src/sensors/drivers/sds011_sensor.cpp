@@ -42,28 +42,42 @@ constexpr std::size_t  kFrameLen  = 10U;
 // with room to spare.
 constexpr std::size_t kReadBufLen = 128U;
 
-// Commands for query/control mode (19-byte SDS011 command frame).
+// SDS011 control command frame (19 bytes):
 // [0]  0xAA  head
 // [1]  0xB4  command id
-// [2]  byte 1  (sub-command)
-// [3]  byte 2
-// ...
-// [17] 0xFF  device ID high byte (broadcast)
+// [2]  sub-command byte 1
+// [3]  sub-command byte 2 (set=0x01 / query=0x00)
+// [4]  sub-command byte 3 (data value)
+// [5..14] 0x00  reserved
+// [15] 0xFF  device ID low  (0xFFFF = broadcast)
+// [16] 0xFF  device ID high
+// [17] checksum = (byte[2]+byte[3]+byte[4] + 0xFF+0xFF) & 0xFF
+//              = (byte[2]+byte[3]+byte[4] - 2) & 0xFF
 // [18] 0xAB  tail
-//
-// Wakeup: set working state (byte2=0x06), data=1 (working), ID=FF FF
+
+// Wake up: set working state = 1 (working/awake).
+// checksum = (0x06 + 0x01 + 0x01 - 2) & 0xFF = 0x06
 constexpr std::uint8_t kWakeupCmd[19] = {
     0xAAU, 0xB4U, 0x06U, 0x01U, 0x01U,
     0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
     0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
-    0xFFU, 0xFFU, 0x05U, 0xABU
+    0xFFU, 0xFFU, 0x06U, 0xABU
 };
-// Continuous (active) reporting mode: set reporting mode (byte2=0x02), data=0 (active), ID=FF FF
-constexpr std::uint8_t kContinuousModeCmd[19] = {
+// Set work period = 0 (continuous output, not periodic).
+// checksum = (0x08 + 0x01 + 0x00 - 2) & 0xFF = 0x07
+constexpr std::uint8_t kWorkPeriodCmd[19] = {
+    0xAAU, 0xB4U, 0x08U, 0x01U, 0x00U,
+    0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
+    0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
+    0xFFU, 0xFFU, 0x07U, 0xABU
+};
+// Set reporting mode = active (sensor pushes one frame per second).
+// checksum = (0x02 + 0x01 + 0x00 - 2) & 0xFF = 0x01
+constexpr std::uint8_t kActiveModeCmd[19] = {
     0xAAU, 0xB4U, 0x02U, 0x01U, 0x00U,
     0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
     0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
-    0xFFU, 0xFFU, 0x02U, 0xABU
+    0xFFU, 0xFFU, 0x01U, 0xABU
 };
 
 // Validate and decode one 10-byte frame.  Returns true on success.
@@ -121,12 +135,13 @@ esp_err_t Sds011Sensor::init(
 
     uart_port_manager_->flush(record_.uart_port_id);
 
-    // Wake the sensor and ensure it is in active (continuous) reporting mode.
-    // These are no-ops if the sensor is already awake and in active mode.
+    // Wake the sensor, then put it into continuous active-reporting mode.
+    // Matches the reference airrohr/Sensor.Community init sequence.
     uart_port_manager_->write(record_.uart_port_id, kWakeupCmd, sizeof(kWakeupCmd));
     vTaskDelay(pdMS_TO_TICKS(100U));
-    uart_port_manager_->write(
-        record_.uart_port_id, kContinuousModeCmd, sizeof(kContinuousModeCmd));
+    uart_port_manager_->write(record_.uart_port_id, kWorkPeriodCmd, sizeof(kWorkPeriodCmd));
+    vTaskDelay(pdMS_TO_TICKS(100U));
+    uart_port_manager_->write(record_.uart_port_id, kActiveModeCmd, sizeof(kActiveModeCmd));
     vTaskDelay(pdMS_TO_TICKS(100U));
     uart_port_manager_->flush(record_.uart_port_id);
 

@@ -51,6 +51,10 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | `17` | GPS TX (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_UART_PORT` | `1` | GPS UART port (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | `9600` | GPS baud rate (stored in sensor record) |
+| `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO` | `39` | SDS011 RX (stored in sensor record) |
+| `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO` | `38` | SDS011 TX (stored in sensor record) |
+| `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT` | `2` | SDS011 UART port (stored in sensor record) |
+| `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE` | `9600` | SDS011 baud rate (stored in sensor record) |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0/1/2` | `4` / `5` / `6` | Valid GPIO slots for GPIO/analog sensors |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.

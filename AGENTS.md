@@ -39,10 +39,13 @@ Key entry points:
 | Goal | Document |
 |------|----------|
 | Understand the system at a glance | [docs/firmware/ARCHITECTURE.md](docs/firmware/ARCHITECTURE.md) |
+| Navigate the source tree | [docs/firmware/PROJECT_STRUCTURE.md](docs/firmware/PROJECT_STRUCTURE.md) |
 | Trace the boot sequence | [docs/firmware/startup-pipeline.md](docs/firmware/startup-pipeline.md) |
 | Understand config storage | [docs/firmware/nvs.md](docs/firmware/nvs.md) + [docs/firmware/configuration-reference.md](docs/firmware/configuration-reference.md) |
 | Understand Wi-Fi / SNTP | [docs/firmware/network-manager.md](docs/firmware/network-manager.md) + [docs/firmware/time.md](docs/firmware/time.md) |
+| Understand cellular modem | [docs/firmware/cellular-manager.md](docs/firmware/cellular-manager.md) |
 | Understand sensor → upload flow | [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md) |
+| Understand sensor hardware buses | [docs/firmware/transport-binding.md](docs/firmware/transport-binding.md) |
 | Understand a specific sensor driver | [docs/firmware/sensors/README.md](docs/firmware/sensors/README.md) |
 | Understand the web UI routes | [docs/firmware/web-ui.md](docs/firmware/web-ui.md) |
 | Understand upload adapters / HTTP | [docs/firmware/upload-adapters.md](docs/firmware/upload-adapters.md) + [docs/firmware/upload-transport.md](docs/firmware/upload-transport.md) |

@@ -1,12 +1,13 @@
 # NVS Storage
 
-The firmware uses a single NVS namespace `"air360"` for all persistent state. There are four keys stored under that namespace.
+The firmware uses a single NVS namespace `"air360"` for all persistent state. There are five keys stored under that namespace.
 
 ## Namespace and keys
 
 | Key | NVS type | Stored structure | Written by |
 |-----|----------|-----------------|------------|
 | `device_cfg` | blob | `DeviceConfig` | `ConfigRepository` |
+| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository` |
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
 | `boot_count` | u32 | `uint32_t` | `ConfigRepository` |
@@ -28,6 +29,7 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 | Struct | Magic | Schema version |
 |--------|-------|----------------|
 | `DeviceConfig` | `0x41333630` ("A360") | 3 |
+| `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
 | `SensorConfigList` | `0x41333631` ("A361") | 3 |
 | `BackendConfigList` | `0x41333632` ("A362") | 3 |
 
@@ -67,6 +69,50 @@ struct DeviceConfig {
 | `sntp_server` | `""` | Empty means use firmware default (`pool.ntp.org`) |
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
+
+---
+
+## `cellular_cfg` — `CellularConfig`
+
+SIM7600E modem configuration. Versioned independently of `DeviceConfig` — an integrity failure resets only this blob.
+
+```cpp
+struct CellularConfig {
+    uint32_t magic;              // 0x43454C4C ("CELL")
+    uint16_t schema_version;     // 1
+    uint16_t record_size;
+    uint8_t  enabled;            // 0 = disabled; non-zero = cellular uplink active
+    uint8_t  uart_port;          // UART port number (1 or 2)
+    uint8_t  uart_rx_gpio;       // ESP32 RX pin
+    uint8_t  uart_tx_gpio;       // ESP32 TX pin
+    uint32_t uart_baud;          // default: 115200
+    uint8_t  pwrkey_gpio;        // 0xFF = not wired
+    uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
+    uint8_t  reset_gpio;         // 0xFF = not wired
+    uint8_t  reserved0;
+    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; 0 = disabled
+    uint16_t reserved1;
+    char     apn[64];             // PDP context APN; required when enabled
+    char     username[32];        // optional PAP/CHAP username; empty if not required
+    char     password[64];        // optional PAP/CHAP password
+    char     sim_pin[8];          // optional SIM PIN; empty if SIM has no PIN lock
+    char     connectivity_check_host[64]; // IPv4 address for ICMP check; empty = skip
+};
+```
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| `enabled` | `0` | Non-zero enables cellular uplink and spawns the reconnect task |
+| `uart_port` | `1` (UART1) | UART port for modem DTE |
+| `uart_rx_gpio` | `18` | ESP32 RX pin (receives from modem TX) |
+| `uart_tx_gpio` | `17` | ESP32 TX pin (transmits to modem RX) |
+| `uart_baud` | `115200` | — |
+| `pwrkey_gpio` | `0xFF` | `0xFF` = not wired; used for hardware power-cycle |
+| `sleep_gpio` | `0xFF` | `0xFF` = not wired; asserted during reconnect backoff |
+| `reset_gpio` | `0xFF` | `0xFF` = not wired; reserved, not actively used |
+| `wifi_debug_window_s` | `0` | `0` = Wi-Fi station stops immediately when cellular is active |
+| `apn` | `""` | Must be non-empty when `enabled != 0` |
+| `connectivity_check_host` | `""` | Must be an IPv4 address (not a hostname); empty skips the check |
 
 ---
 
@@ -116,14 +162,13 @@ struct SensorRecord {
 | 4 | DHT22 |
 | 5 | BME680 |
 | 6 | SPS30 |
+| 7 | SDS011 |
 | 8 | ME3-NO2 |
 | 9 | VEML7700 |
 | 10 | DS18B20 |
 | 11 | SCD30 |
 | 12 | HTU2X |
 | 13 | SHT4X |
-
-Note: value `7` is not assigned (was ENS160, removed).
 
 ### `TransportKind` enum values
 

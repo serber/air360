@@ -36,7 +36,7 @@ firmware/
 - `main/Kconfig.projbuild` — project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom partition table (nvs, otadata, phy_init, factory, storage)
-- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus)
+- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
 
 ---
 
@@ -49,10 +49,14 @@ firmware/
 - `main/src/build_info.cpp` — build metadata and device identity (chip_id, short_chip_id, esp_mac_id)
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
+- `main/src/cellular_config_repository.cpp` — NVS-backed `CellularConfig` persistence (independent schema version)
+- `main/src/cellular_manager.cpp` — SIM7600E modem lifecycle: PPP session, reconnect task, exponential backoff, hardware reset
+- `main/src/connectivity_checker.cpp` — post-PPP ICMP ping check via `esp_ping`
+- `main/src/modem_gpio.cpp` — PWRKEY / SLEEP / RESET GPIO helpers for the SIM7600E
 - `main/src/status_service.cpp` — HTML rendering for `/` and `/diagnostics`, plus raw status JSON generation for the diagnostics page
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
-- `main/src/web_server.cpp` — `esp_http_server` routes: `/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/assets/*`
+- `main/src/web_server.cpp` — `esp_http_server` routes: `/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/check-sntp`, `/assets/*`
 - `main/webui/` — hand-authored frontend assets embedded into the firmware image (`air360.css`, `air360.js`, page body templates)
 
 ### Public headers
@@ -60,7 +64,8 @@ firmware/
 Headers under `main/include/air360/` define the public C++ interfaces used inside the component:
 
 - `app.hpp`, `build_info.hpp`, `config_repository.hpp`, `network_manager.hpp`
-- `status_service.hpp`, `web_server.hpp`, `web_assets.hpp`, `web_ui.hpp`
+- `cellular_config_repository.hpp`, `cellular_manager.hpp`, `connectivity_checker.hpp`, `modem_gpio.hpp`
+- `status_service.hpp`, `time_utils.hpp`, `web_server.hpp`, `web_assets.hpp`, `web_ui.hpp`
 - `sensors/` — sensor types, registry, transport, config, driver interface
 - `uploads/` — backend config, measurement store, upload transport, uploader interfaces
 
@@ -90,6 +95,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` (managed component) |
 | `htu2x_sensor.cpp` | HTU2X / Si7021 | `esp-idf-lib__si7021` (managed component) |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` (managed component) |
+| `sds011_sensor.cpp` | SDS011 | UART (direct binary protocol, no library) |
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` (managed component) |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` (managed component) |
@@ -123,13 +129,14 @@ Sources: `main/src/uploads/`
 |-------|-------------|
 | `GET /` | Runtime overview (HTML). Redirects to `/config` in setup AP mode. |
 | `GET /diagnostics` | HTML: memory, task, network recovery, and raw status JSON dump |
-| `GET /config` | Device and Wi-Fi config form. Shows SSID scan dropdown in AP mode. |
-| `POST /config` | Save device config |
+| `GET /config` | Device, Wi-Fi, and cellular config form. Shows SSID scan dropdown in AP mode. |
+| `POST /config` | Save device and cellular config |
 | `GET /sensors` | Category-based sensor config page with staged apply/discard |
 | `POST /sensors` | Stage or apply sensor config |
 | `GET /backends` | Backend config form |
 | `POST /backends` | Save backend config |
 | `GET /wifi-scan` | JSON: cached SSID scan list (AP mode only) |
+| `POST /check-sntp` | Test SNTP server reachability before saving |
 | `GET /assets/*` | Embedded CSS and JS (`air360.css`, `air360.js`) |
 
 ---
@@ -153,6 +160,7 @@ VS Code: open `firmware/` directly or `firmware/firmware.code-workspace` with th
 - **Boot order** → `main/src/app.cpp`
 - **Web routes and UI** → `main/src/web_server.cpp`, `status_service.cpp`, `web_ui.cpp`
 - **Device persistence** → `main/src/config_repository.cpp`
+- **Cellular modem** → `main/src/cellular_manager.cpp` (lifecycle), `cellular_config_repository.cpp` (persistence)
 - **Sensor catalog** → `main/src/sensors/sensor_registry.cpp` (read before any driver)
 - **Sensor config persistence** → `main/src/sensors/sensor_config_repository.cpp`
 - **Measurement ownership and queueing** → `main/src/uploads/measurement_store.cpp`

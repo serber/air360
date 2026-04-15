@@ -133,9 +133,11 @@ Full implementation documentation lives in [`docs/firmware/`](docs/firmware/READ
 |----------|----------------|
 | [docs/firmware/README.md](docs/firmware/README.md) | Documentation index and cross-reference map |
 | [docs/firmware/ARCHITECTURE.md](docs/firmware/ARCHITECTURE.md) | System overview, task model, data flow, GPIO allocation |
+| [docs/firmware/PROJECT_STRUCTURE.md](docs/firmware/PROJECT_STRUCTURE.md) | Directory layout, key source files, third-party components |
 | [docs/firmware/startup-pipeline.md](docs/firmware/startup-pipeline.md) | 9-step boot sequence, long-lived tasks, failure modes |
 | [docs/firmware/configuration-reference.md](docs/firmware/configuration-reference.md) | All NVS config fields: defaults, ranges, validation |
 | [docs/firmware/network-manager.md](docs/firmware/network-manager.md) | Wi-Fi station / AP modes, SNTP, state transitions |
+| [docs/firmware/cellular-manager.md](docs/firmware/cellular-manager.md) | SIM7600E modem lifecycle, PPP session, reconnect logic |
 | [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md) | Sensor polling → queue → upload cycle |
 | [docs/firmware/nvs.md](docs/firmware/nvs.md) | NVS storage format and integrity guards |
 | [docs/firmware/web-ui.md](docs/firmware/web-ui.md) | HTTP routes, pages, JS behaviour |
