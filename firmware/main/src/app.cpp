@@ -15,8 +15,8 @@
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "air360/web_server.hpp"
-#include "driver/gpio.h"
 #include "esp_err.h"
+#include "led_strip.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -31,31 +31,43 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.app";
-constexpr gpio_num_t kGreenLedGpio = GPIO_NUM_11;
-constexpr gpio_num_t kRedLedGpio = GPIO_NUM_10;
 constexpr TickType_t kRuntimeMaintenanceDelay = pdMS_TO_TICKS(10000);
+// GPIO48: built-in WS2812 RGB LED on ESP32-S3-DevKitC-1.
+constexpr int kRgbLedGpio = 48;
+constexpr std::uint8_t kLedBrightness = 16U;  // dim — WS2812 full range is 255
 
-void setBootLedState(bool green_on, bool red_on) {
-    gpio_set_level(kGreenLedGpio, green_on ? 1 : 0);
-    gpio_set_level(kRedLedGpio, red_on ? 1 : 0);
+led_strip_handle_t g_led_strip = nullptr;
+
+void setLedColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    if (g_led_strip == nullptr) {
+        return;
+    }
+    if (r == 0U && g == 0U && b == 0U) {
+        led_strip_clear(g_led_strip);
+    } else {
+        led_strip_set_pixel(g_led_strip, 0, r, g, b);
+        led_strip_refresh(g_led_strip);
+    }
 }
 
-esp_err_t initBootLeds() {
-    gpio_config_t config{};
-    config.pin_bit_mask =
-        (1ULL << static_cast<unsigned>(kGreenLedGpio)) |
-        (1ULL << static_cast<unsigned>(kRedLedGpio));
-    config.mode = GPIO_MODE_OUTPUT;
-    config.pull_up_en = GPIO_PULLUP_DISABLE;
-    config.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    config.intr_type = GPIO_INTR_DISABLE;
+esp_err_t initRgbLed() {
+    led_strip_config_t strip_config{};
+    strip_config.strip_gpio_num = kRgbLedGpio;
+    strip_config.max_leds = 1;
+    strip_config.led_model = LED_MODEL_WS2812;
 
-    const esp_err_t err = gpio_config(&config);
+    led_strip_rmt_config_t rmt_config{};
+    rmt_config.resolution_hz = 10U * 1000U * 1000U;  // 10 MHz
+
+    const esp_err_t err =
+        led_strip_new_rmt_device(&strip_config, &rmt_config, &g_led_strip);
     if (err != ESP_OK) {
         return err;
     }
 
-    setBootLedState(false, false);
+    // Blue while booting.
+    led_strip_set_pixel(g_led_strip, 0, 0U, 0U, kLedBrightness);
+    led_strip_refresh(g_led_strip);
     return ESP_OK;
 }
 
@@ -143,9 +155,9 @@ void App::run() {
     static WebServer web_server;
     static esp_timer_handle_t debug_window_timer = nullptr;
 
-    const esp_err_t leds_err = initBootLeds();
+    const esp_err_t leds_err = initRgbLed();
     if (leds_err != ESP_OK) {
-        ESP_LOGW(kTag, "Boot LED setup failed: %s", esp_err_to_name(leds_err));
+        ESP_LOGW(kTag, "RGB LED setup failed: %s", esp_err_to_name(leds_err));
     }
 
     ESP_LOGI(kTag, "Boot step 1/9: arm task watchdog");
@@ -158,7 +170,7 @@ void App::run() {
     const esp_err_t storage_err = initStorage();
     if (storage_err != ESP_OK) {
         ESP_LOGE(kTag, "NVS init failed: %s", esp_err_to_name(storage_err));
-        setBootLedState(false, true);
+        setLedColor(kLedBrightness, 0U, 0U);
         return;
     }
 
@@ -169,7 +181,7 @@ void App::run() {
             kTag,
             "Network core init failed: %s",
             esp_err_to_name(network_core_err));
-        setBootLedState(false, true);
+        setLedColor(kLedBrightness, 0U, 0U);
         return;
     }
 
@@ -363,7 +375,7 @@ void App::run() {
             config.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
-        setBootLedState(false, true);
+        setLedColor(kLedBrightness, 0U, 0U);
         return;
     }
     status_service.setWebServerStarted(true);
@@ -372,7 +384,11 @@ void App::run() {
         kTag,
         "Runtime ready on port %" PRIu16,
         config.http_port);
-    setBootLedState(true, false);
+    if (network_manager.state().mode == NetworkMode::kSetupAp) {
+        setLedColor(kLedBrightness, 0U, kLedBrightness / 2U);  // pink — AP mode
+    } else {
+        setLedColor(0U, kLedBrightness, 0U);  // green — station mode
+    }
 
     esp_task_wdt_delete(nullptr);
 

@@ -50,6 +50,19 @@ In **station mode** the full UI is available.
 
 ---
 
+## Status LED
+
+The board has a built-in RGB LED that shows the current device state:
+
+| Color | Meaning |
+|-------|---------|
+| Blue | Booting |
+| Green | Ready — joined your Wi-Fi network (station mode) |
+| Pink | Ready — running in setup AP mode (no station credentials, or join failed) |
+| Red | Fatal error — NVS failure or web server failed to start; check serial logs |
+
+---
+
 ## First Boot: Setup AP Mode
 
 When no Wi-Fi credentials are configured, the device starts in setup AP mode.

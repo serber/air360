@@ -70,7 +70,7 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 
 | Step | Action | Fatal? | Side effect |
 |------|--------|--------|-------------|
-| pre | Init boot LEDs (GPIO 10/11) | No | Both LEDs off |
+| pre | Init RGB LED (GPIO48 WS2812) | No | LED turns blue |
 | 1/9 | Arm task watchdog (10 s, no panic) | No | Main task subscribed to TWDT |
 | 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | Red LED on failure |
 | 3/9 | Initialize network core (`netif` + event loop) | **Yes** | Red LED on failure |
@@ -79,19 +79,20 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | 6/9 | Load or create `backend_cfg` | No | — |
 | 7/9 | Resolve network mode (station or setup AP) | No | `StatusService` updated with network state |
 | 8/9 | Start upload manager; apply backend config | No | **`air360_upload` task spawned** |
-| 9/9 | Start web server | **Yes** | Green LED on success; WDT removed from main task |
+| 9/9 | Start web server | **Yes** | Green or pink LED on success; WDT removed from main task |
 
 ---
 
-### Boot LEDs (pre-step)
+### RGB Status LED (pre-step)
 
-GPIO 10 (red) and GPIO 11 (green) are configured as outputs and both set low. The LED state is used as a coarse boot indicator:
+The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via the `espressif/led_strip` component using the RMT peripheral. It shows boot and network state at a glance:
 
-| State | Meaning |
+| Color | Meaning |
 |-------|---------|
-| Both off | Booting |
-| Green on, red off | Boot completed successfully |
-| Red on, green off | Fatal error (NVS init failed or web server failed to start) |
+| Blue | Booting |
+| Green | Boot completed — joined Wi-Fi station |
+| Pink | Boot completed — running in setup AP mode |
+| Red | Fatal error (NVS init failed or web server failed to start) |
 
 ---
 
@@ -225,7 +226,7 @@ Failure is **fatal** — sets red LED, returns from `run()`.
 
 On success:
 - `StatusService` is updated (web server started flag)
-- Green LED is set on
+- LED turns green (station mode) or pink (setup AP mode)
 - Main task **removes itself from the watchdog**
 
 ---
