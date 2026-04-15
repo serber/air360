@@ -39,6 +39,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Document | Description |
 |----------|-------------|
 | [network-manager.md](network-manager.md) | Wi-Fi station / setup AP modes, SNTP time sync, state transitions |
+| [cellular-manager.md](cellular-manager.md) | SIM7600E modem lifecycle, PPP session, reconnect logic, hardware GPIO control |
 | [time.md](time.md) | Uptime vs Unix time, SNTP sync sequence, time validity threshold, where time gates the system |
 
 ---
@@ -104,6 +105,9 @@ upload-adapters
 
 network-manager
   └─ time                    (SNTP sync sequence, validity threshold)
+
+cellular-manager
+  └─ network-manager         (setCellularStatus uplink bearer sink)
 
 measurement-pipeline
   └─ time                    (why samples are blocked before SNTP)

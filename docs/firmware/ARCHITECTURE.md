@@ -158,7 +158,7 @@ Manages the `CellularConfig` NVS blob (schema version 1). Independent of `Device
 |-------|------|---------|-------|
 | magic | `uint32_t` | `0x43454C4C` ("CELL") | |
 | enabled | `uint8_t` | 0 | 1 = cellular uplink active |
-| uart_port | `uint8_t` | 1 | UART port for modem DTE |
+| uart_port | `uint8_t` | 1 (UART1) | UART port for modem DTE |
 | uart_rx_gpio | `uint8_t` | 18 | ESP32 RX (modem TX) |
 | uart_tx_gpio | `uint8_t` | 17 | ESP32 TX (modem RX) |
 | uart_baud | `uint32_t` | 115200 | |
@@ -303,7 +303,8 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | VEML7700 | I2C | 0x10 | 5 s |
 | HTU2X | I2C | 0x40 | 5 s |
 | SHT4X | I2C | 0x44 | 5 s |
-| GPS (NMEA) | UART | — | 5 s |
+| SDS011 | UART2 | — | 5 s |
+| GPS (NMEA) | UART1 | — | 5 s |
 | DHT11 | GPIO | — | 2 s |
 | DHT22 | GPIO | — | 2 s |
 | DS18B20 | GPIO (1-Wire) | — | 5 s |
@@ -615,6 +616,10 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 | `CONFIG_AIR360_GPS_DEFAULT_RX_GPIO` | 18 | GPS RX pin |
 | `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | 17 | GPS TX pin |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | 9600 | GPS baud |
+| `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT` | UART2 | SDS011 UART port |
+| `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO` | 38 | SDS011 RX pin |
+| `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO` | 39 | SDS011 TX pin |
+| `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE` | 9600 | SDS011 baud |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0` | GPIO4 | Slot 0 pin |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_1` | GPIO5 | Slot 1 pin |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_2` | GPIO6 | Slot 2 pin |
@@ -680,6 +685,8 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | 17 | GPS TX / Modem TX (shared default) | Kconfig |
 | 18 | GPS RX / Modem RX (shared default) | Kconfig |
 | 21 | Modem SLEEP/DTR (default) | Kconfig / CellularConfig |
+| 38 | SDS011 RX (default) | Kconfig |
+| 39 | SDS011 TX (default) | Kconfig |
 
 > **GPIO17/18 conflict:** GPS (NMEA) and the SIM7600E modem share the same default UART1 pins. They cannot be used simultaneously. If both are needed, reconfigure one via Kconfig before building.
 
@@ -696,7 +703,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
 | UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
-| UART2 | Available for additional sensors | — | — |
+| UART2 | SDS011 (RX=GPIO39, TX=GPIO38) | 9600 | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 

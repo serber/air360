@@ -43,6 +43,14 @@
 #define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
 #endif
 
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO 39
+#endif
+
+#ifndef CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO
+#define CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO 38
+#endif
+
 #ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
 #define CONFIG_AIR360_GPIO_SENSOR_PIN_0 4
 #endif
@@ -601,6 +609,7 @@ constexpr SensorType kLightSensorTypes[] = {
 
 constexpr SensorType kParticulateMatterSensorTypes[] = {
     SensorType::kSps30,
+    SensorType::kSds011,
 };
 
 constexpr SensorType kLocationSensorTypes[] = {
@@ -675,6 +684,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kVeml7700:
             return SensorCategory::kLight;
         case SensorType::kSps30:
+        case SensorType::kSds011:
             return SensorCategory::kParticulateMatter;
         case SensorType::kGpsNmea:
             return SensorCategory::kLocation;
@@ -829,6 +839,14 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x77. Gas resistance is reported when the heater run is valid.";
         case SensorType::kSps30:
             return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
+        case SensorType::kSds011: {
+            std::string hint = "Defaults: fixed UART2 RX=GPIO";
+            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO);
+            hint += " TX=GPIO";
+            hint += std::to_string(CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO);
+            hint += " @ 9600 baud. Reports PM2.5 and PM10.";
+            return hint;
+        }
         case SensorType::kScd30:
             return "Defaults: I2C bus 0 at address 0x61. Reports CO2, temperature, and humidity.";
         case SensorType::kVeml7700:

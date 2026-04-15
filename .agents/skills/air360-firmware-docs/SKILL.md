@@ -197,13 +197,49 @@ Use this structure by default:
 
 ### 3. Firmware doc audit
 
-When updating existing docs, compare:
+**Direction: code → docs, not docs → code.**
 
-- current firmware docs
-- current firmware source structure
-- actual configuration files
+When auditing or updating existing docs, always build an inventory of what exists in the source tree first, then check whether each item is documented. Do not start from the doc and compare to memory.
 
-Then produce a focused update rather than rewriting everything by default.
+#### Step 1 — Build source inventory
+
+Run the following checks before touching any doc:
+
+| What to inventory | How |
+|-------------------|-----|
+| All `.cpp` files | `ls firmware/main/src/` and `ls firmware/main/src/sensors/drivers/` |
+| All public headers | `ls firmware/main/include/air360/` |
+| All HTTP routes | `grep '\.uri\s*=' firmware/main/src/web_server.cpp` |
+| All NVS keys | `grep 'kConfigKey\|kNamespace\|nvs_set\|nvs_get' firmware/main/src/*.cpp` |
+| All NVS structs and their magic/schema | read `include/air360/*_config_repository.hpp` |
+| All `SensorType` enum values | read `include/air360/sensors/sensor_types.hpp` |
+| All Kconfig constants used as defaults | read `main/Kconfig.projbuild` and grep `CONFIG_AIR360_` in `src/sensors/sensor_registry.cpp` |
+| Sensor category membership | grep `kParticulateMatter\|kClimate\|kLight\|kGas\|kLocation` in `web_server.cpp` |
+| FreeRTOS task names, stacks, priorities | grep `xTaskCreate\|kTaskStack\|kTaskPriority` |
+| Managed components | `ls firmware/managed_components/` |
+
+#### Step 2 — Map inventory to docs
+
+Cross-reference each item against the relevant doc:
+
+| Item type | Doc to check |
+|-----------|-------------|
+| Source files | `PROJECT_STRUCTURE.md` |
+| HTTP routes | `web-ui.md` and `PROJECT_STRUCTURE.md` |
+| NVS keys and structs | `nvs.md` |
+| NVS struct fields and defaults | `configuration-reference.md` |
+| `SensorType` enum values | `nvs.md` (SensorType table) |
+| Kconfig constants | `configuration-reference.md` (compile-time defaults table) |
+| Sensor categories and membership | `web-ui.md` (sensor categories table) |
+| Per-sensor constraints | `configuration-reference.md` (per-sensor table) |
+| FreeRTOS tasks | `cellular-manager.md`, `network-manager.md`, or `ARCHITECTURE.md` as appropriate |
+| Managed components | `PROJECT_STRUCTURE.md` |
+
+#### Step 3 — Update only what is stale or missing
+
+Do not rewrite sections that are already accurate. Make targeted edits: add missing rows, correct wrong values, remove stale entries.
+
+After editing each doc, re-read the changed section and verify it matches the source exactly.
 
 ---
 
