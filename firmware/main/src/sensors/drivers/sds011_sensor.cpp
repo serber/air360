@@ -41,6 +41,8 @@ constexpr std::size_t  kFrameLen  = 10U;
 // UART buffer accumulates ~10 bytes/s; 128 bytes covers a 12-second backlog
 // with room to spare.
 constexpr std::size_t kReadBufLen = 128U;
+constexpr TickType_t  kWakeDelayTicks = pdMS_TO_TICKS(250U);
+constexpr TickType_t  kModeDelayTicks = pdMS_TO_TICKS(100U);
 
 // SDS011 control command frame (19 bytes):
 // [0]  0xAA  head
@@ -79,6 +81,43 @@ constexpr std::uint8_t kActiveModeCmd[19] = {
     0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
     0xFFU, 0xFFU, 0x01U, 0xABU
 };
+
+bool writeFullCommand(
+    UartPortManager* uart_port_manager,
+    std::uint8_t port_id,
+    const std::uint8_t* data,
+    std::size_t size,
+    const char* label) {
+    const int written = uart_port_manager->write(port_id, data, size);
+    if (written != static_cast<int>(size)) {
+        ESP_LOGW(
+            kTag,
+            "SDS011 %s command write incomplete: wrote %d of %u bytes",
+            label,
+            written,
+            static_cast<unsigned>(size));
+        return false;
+    }
+    return true;
+}
+
+bool configureActiveMode(UartPortManager* uart_port_manager, std::uint8_t port_id) {
+    uart_port_manager->flush(port_id);
+
+    bool ok = writeFullCommand(
+        uart_port_manager, port_id, kWakeupCmd, sizeof(kWakeupCmd), "wake");
+    vTaskDelay(kWakeDelayTicks);
+    ok = writeFullCommand(
+             uart_port_manager, port_id, kWorkPeriodCmd, sizeof(kWorkPeriodCmd), "work-period") &&
+         ok;
+    vTaskDelay(kModeDelayTicks);
+    ok = writeFullCommand(
+             uart_port_manager, port_id, kActiveModeCmd, sizeof(kActiveModeCmd), "active-mode") &&
+         ok;
+    vTaskDelay(kModeDelayTicks);
+    uart_port_manager->flush(port_id);
+    return ok;
+}
 
 // Validate and decode one 10-byte frame.  Returns true on success.
 bool decodeFrame(const std::uint8_t* f, float& pm25, float& pm10) {
@@ -133,17 +172,14 @@ esp_err_t Sds011Sensor::init(
         return err;
     }
 
-    uart_port_manager_->flush(record_.uart_port_id);
-
     // Wake the sensor, then put it into continuous active-reporting mode.
-    // Matches the reference airrohr/Sensor.Community init sequence.
-    uart_port_manager_->write(record_.uart_port_id, kWakeupCmd, sizeof(kWakeupCmd));
-    vTaskDelay(pdMS_TO_TICKS(100U));
-    uart_port_manager_->write(record_.uart_port_id, kWorkPeriodCmd, sizeof(kWorkPeriodCmd));
-    vTaskDelay(pdMS_TO_TICKS(100U));
-    uart_port_manager_->write(record_.uart_port_id, kActiveModeCmd, sizeof(kActiveModeCmd));
-    vTaskDelay(pdMS_TO_TICKS(100U));
-    uart_port_manager_->flush(record_.uart_port_id);
+    // Sensor.Community re-sends start commands during runtime; we do the same
+    // recovery sequence whenever SDS011 stays silent, so the first init may
+    // legitimately happen before the module is ready to accept commands.
+    const bool configured = configureActiveMode(uart_port_manager_, record_.uart_port_id);
+    if (!configured) {
+        ESP_LOGW(kTag, "Initial SDS011 command sequence was not fully written");
+    }
 
     initialized_ = true;
     return ESP_OK;
@@ -179,6 +215,7 @@ esp_err_t Sds011Sensor::poll() {
     }
 
     if (bytes_read < static_cast<int>(kFrameLen)) {
+        configureActiveMode(uart_port_manager_, record_.uart_port_id);
         setError("No SDS011 data received.");
         return ESP_OK;
     }
@@ -218,6 +255,7 @@ esp_err_t Sds011Sensor::poll() {
     }
 
     if (!got_frame) {
+        configureActiveMode(uart_port_manager_, record_.uart_port_id);
         setError("No valid SDS011 frame found in received data.");
         return ESP_OK;
     }

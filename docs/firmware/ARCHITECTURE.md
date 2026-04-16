@@ -617,8 +617,8 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 | `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | 17 | GPS TX pin |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | 9600 | GPS baud |
 | `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT` | UART2 | SDS011 UART port |
-| `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO` | 38 | SDS011 RX pin |
-| `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO` | 39 | SDS011 TX pin |
+| `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO` | 16 | SDS011 RX pin |
+| `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO` | 15 | SDS011 TX pin |
 | `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE` | 9600 | SDS011 baud |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0` | GPIO4 | Slot 0 pin |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_1` | GPIO5 | Slot 1 pin |
@@ -685,8 +685,8 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | 17 | GPS TX / Modem TX (shared default) | Kconfig |
 | 18 | GPS RX / Modem RX (shared default) | Kconfig |
 | 21 | Modem SLEEP/DTR (default) | Kconfig / CellularConfig |
-| 38 | SDS011 RX (default) | Kconfig |
-| 39 | SDS011 TX (default) | Kconfig |
+| 15 | SDS011 TX (default) | Kconfig |
+| 16 | SDS011 RX (default) | Kconfig |
 
 > **GPIO17/18 conflict:** GPS (NMEA) and the SIM7600E modem share the same default UART1 pins. They cannot be used simultaneously. If both are needed, reconfigure one via Kconfig before building.
 
@@ -703,7 +703,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
 | UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
-| UART2 | SDS011 (RX=GPIO39, TX=GPIO38) | 9600 | 4096 B |
+| UART2 | SDS011 (RX=GPIO16, TX=GPIO15) | 9600 | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 
