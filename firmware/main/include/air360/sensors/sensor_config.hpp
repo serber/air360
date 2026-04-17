@@ -8,7 +8,7 @@
 namespace air360 {
 
 constexpr std::uint32_t kSensorConfigMagic = 0x41333631U;
-constexpr std::uint16_t kSensorConfigSchemaVersion = 4U;
+constexpr std::uint16_t kSensorConfigSchemaVersion = 1U;
 
 struct SensorRecord {
     std::uint32_t id = 0U;

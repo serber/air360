@@ -7,7 +7,7 @@
 namespace air360 {
 
 constexpr std::uint32_t kDeviceConfigMagic = 0x41333630U;
-constexpr std::uint16_t kDeviceConfigSchemaVersion = 4U;
+constexpr std::uint16_t kDeviceConfigSchemaVersion = 1U;
 
 struct DeviceConfig {
     std::uint32_t magic;
