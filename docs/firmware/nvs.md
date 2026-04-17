@@ -24,14 +24,14 @@ All three blob structs share the same integrity guard pattern at the start of th
 | `schema_version` | `uint16_t` | Detects schema changes |
 | `record_size` | `uint16_t` | Detects struct size changes |
 
-On load, all three fields are validated. `DeviceConfig`, `CellularConfig`, and `BackendConfigList` replace invalid blobs with defaults. `SensorConfigList` additionally migrates schema `3` to `4` by removing deprecated `SDS011` records and preserving the rest of the inventory.
+On load, all three fields are validated. Any mismatch discards the stored blob and writes defaults in its place. There is no migration.
 
 | Struct | Magic | Schema version |
 |--------|-------|----------------|
-| `DeviceConfig` | `0x41333630` ("A360") | 3 |
+| `DeviceConfig` | `0x41333630` ("A360") | 1 |
 | `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
-| `SensorConfigList` | `0x41333631` ("A361") | 4 |
-| `BackendConfigList` | `0x41333632` ("A362") | 3 |
+| `SensorConfigList` | `0x41333631` ("A361") | 1 |
+| `BackendConfigList` | `0x41333632` ("A362") | 1 |
 
 ---
 
@@ -42,7 +42,7 @@ Device identity and network credentials.
 ```cpp
 struct DeviceConfig {
     uint32_t magic;               // 0x41333630
-    uint16_t schema_version;      // 3
+    uint16_t schema_version;      // 1
     uint16_t record_size;
     uint16_t http_port;           // default: 80
     uint8_t  lab_ap_enabled;      // 0 or 1
@@ -123,7 +123,7 @@ The active sensor inventory. Holds up to `kMaxConfiguredSensors` (8) sensor reco
 ```cpp
 struct SensorConfigList {
     uint32_t magic;           // 0x41333631
-    uint16_t schema_version;  // 4
+    uint16_t schema_version;  // 1
     uint16_t record_size;     // sizeof(SensorRecord)
     uint16_t sensor_count;    // number of valid records
     uint16_t reserved0;
@@ -189,7 +189,7 @@ Upload backend configuration. Holds up to `kMaxConfiguredBackends` (4) backend r
 ```cpp
 struct BackendConfigList {
     uint32_t magic;              // 0x41333632
-    uint16_t schema_version;     // 3
+    uint16_t schema_version;     // 1
     uint16_t record_size;        // sizeof(BackendRecord)
     uint16_t backend_count;
     uint16_t reserved0;

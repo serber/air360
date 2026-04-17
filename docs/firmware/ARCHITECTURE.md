@@ -119,14 +119,14 @@ Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdo
 
 ### `ConfigRepository` — `config_repository.cpp`
 
-Manages the `DeviceConfig` NVS blob (schema version 4).
+Manages the `DeviceConfig` NVS blob (schema version 1).
 
 **`DeviceConfig` fields:**
 
 | Field | Type | Notes |
 |-------|------|-------|
 | magic | `uint32_t` | `0x41333630` ("A360") |
-| schema_version | `uint16_t` | Current: 4 |
+| schema_version | `uint16_t` | Current: 1 |
 | device_name | `char[32]` | Default: `air360` |
 | http_port | `uint16_t` | Default: 80 |
 | wifi_sta_ssid | `char[33]` | Wi-Fi station SSID |
@@ -644,7 +644,7 @@ Four independent NVS blobs under namespace `air360`:
 | `backend_cfg` | `BackendConfigList` (up to 2 entries) | Backend targets and upload interval |
 | `boot_count` | `uint32_t` | Incremented on every boot |
 
-Schema version and magic number guard each blob. `SensorConfigList` additionally migrates schema `3` to `4` by dropping deprecated `SDS011` entries and preserving the remaining sensor inventory; other mismatches still fall back to defaults.
+Schema version and magic number guard each blob. Any mismatch triggers replacement with defaults; there is no migration.
 
 ---
 
