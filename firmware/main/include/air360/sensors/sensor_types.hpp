@@ -15,7 +15,7 @@ enum class SensorType : std::uint8_t {
     kDht22 = 4U,
     kBme680 = 5U,
     kSps30 = 6U,
-    kSds011 = 7U,
+    kSds011 = 7U,  // Reserved for removed SDS011 support.
     kMe3No2 = 8U,
     kVeml7700 = 9U,
     kDs18b20 = 10U,

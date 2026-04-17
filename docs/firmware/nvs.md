@@ -24,13 +24,13 @@ All three blob structs share the same integrity guard pattern at the start of th
 | `schema_version` | `uint16_t` | Detects schema changes |
 | `record_size` | `uint16_t` | Detects struct size changes |
 
-On load, all three fields are validated. Any mismatch discards the stored blob and writes defaults in its place. There is no migration — the stored value is replaced wholesale.
+On load, all three fields are validated. `DeviceConfig`, `CellularConfig`, and `BackendConfigList` replace invalid blobs with defaults. `SensorConfigList` additionally migrates schema `3` to `4` by removing deprecated `SDS011` records and preserving the rest of the inventory.
 
 | Struct | Magic | Schema version |
 |--------|-------|----------------|
 | `DeviceConfig` | `0x41333630` ("A360") | 3 |
 | `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
-| `SensorConfigList` | `0x41333631` ("A361") | 3 |
+| `SensorConfigList` | `0x41333631` ("A361") | 4 |
 | `BackendConfigList` | `0x41333632` ("A362") | 3 |
 
 ---
@@ -123,7 +123,7 @@ The active sensor inventory. Holds up to `kMaxConfiguredSensors` (8) sensor reco
 ```cpp
 struct SensorConfigList {
     uint32_t magic;           // 0x41333631
-    uint16_t schema_version;  // 3
+    uint16_t schema_version;  // 4
     uint16_t record_size;     // sizeof(SensorRecord)
     uint16_t sensor_count;    // number of valid records
     uint16_t reserved0;
@@ -162,7 +162,7 @@ struct SensorRecord {
 | 4 | DHT22 |
 | 5 | BME680 |
 | 6 | SPS30 |
-| 7 | SDS011 |
+| 7 | Reserved (removed SDS011 support) |
 | 8 | ME3-NO2 |
 | 9 | VEML7700 |
 | 10 | DS18B20 |

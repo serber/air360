@@ -95,7 +95,6 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` (managed component) |
 | `htu2x_sensor.cpp` | HTU2X / Si7021 | `esp-idf-lib__si7021` (managed component) |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` (managed component) |
-| `sds011_sensor.cpp` | SDS011 | UART (direct binary protocol, no library) |
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` (managed component) |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` (managed component) |

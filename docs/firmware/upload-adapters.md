@@ -62,7 +62,6 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | SCD30 | I2C | 17 | Sent as temperature + humidity + CO2 |
 | VEML7700 | I2C | — | Not supported, skipped |
 | SPS30 | I2C | 1 | Sent as particulate matter data |
-| SDS011 | UART2 | 1 | Sent as PM2.5 + PM10 |
 | GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
 | ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
 
@@ -132,13 +131,6 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 | `kNc4_0PerCm3` | `"N4"` |
 | `kNc10_0PerCm3` | `"N10"` |
 | `kTypicalParticleSizeUm` | `"TS"` |
-
-**SDS011 (pin 1):**
-
-| ValueKind | value_type |
-|-----------|-----------|
-| `kPm2_5UgM3` | `"P2"` |
-| `kPm10_0UgM3` | `"P1"` |
 
 Within a group, if the same `value_type` appears more than once (e.g., two temperature points for the same sensor in the same batch window), the **latest value wins** — it overwrites the previous one.
 
@@ -311,6 +303,6 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classi
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` |
 | Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` |
 | Authentication | None | None |
-| Supported sensors | BME280, BME680, DHT11/22, DS18B20, GPS, SPS30, SDS011 | All sensor types |
+| Supported sensors | BME280, BME680, DHT11/22, DS18B20, GPS, SPS30 | All sensor types |
 | Success HTTP codes | 200–208 | 200–208, 409 |
 | Extra preconditions | None | unix_ms > 0, chip_id non-empty |

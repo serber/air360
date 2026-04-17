@@ -150,7 +150,7 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 |----------|---------|-----------------|
 | Climate | BME280, BME680, DHT11, DHT22, DS18B20, HTU2X, SHT4X | No |
 | Light | VEML7700 | No |
-| Particulate Matter | SPS30, SDS011 | No |
+| Particulate Matter | SPS30 | No |
 | Location | GPS (NMEA) | No |
 | Gas / CO2 | SCD30, ME3-NO2 | Yes |
 

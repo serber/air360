@@ -51,10 +51,6 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | `17` | GPS TX (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_UART_PORT` | `1` | GPS UART port (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | `9600` | GPS baud rate (stored in sensor record) |
-| `CONFIG_AIR360_SDS011_DEFAULT_RX_GPIO` | `16` | SDS011 RX (stored in sensor record) |
-| `CONFIG_AIR360_SDS011_DEFAULT_TX_GPIO` | `15` | SDS011 TX (stored in sensor record) |
-| `CONFIG_AIR360_SDS011_DEFAULT_UART_PORT` | `2` | SDS011 UART port (stored in sensor record) |
-| `CONFIG_AIR360_SDS011_DEFAULT_BAUD_RATE` | `9600` | SDS011 baud rate (stored in sensor record) |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0/1/2` | `4` / `5` / `6` | Valid GPIO slots for GPIO/analog sensors |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.
@@ -164,7 +160,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `poll_interval_ms` | `uint32_t` | `10000` | 5 000–3 600 000 ms |
 | `i2c_bus_id` | `uint8_t` | `0` | Must be `0` (only one I2C bus) |
 | `i2c_address` | `uint8_t` | `0x77` | Sensor-specific; see table below |
-| `uart_port_id` | `uint8_t` | `1` | UART sensors only: must match Kconfig (GPS=1, SDS011=2) |
+| `uart_port_id` | `uint8_t` | `1` | UART sensors only: must match the fixed board binding for the selected sensor |
 | `uart_rx_gpio_pin` | `int16_t` | `-1` | UART sensors only; `-1` = unused |
 | `uart_tx_gpio_pin` | `int16_t` | `-1` | UART sensors only; `-1` = unused |
 | `uart_baud_rate` | `uint32_t` | `9600` | UART sensors: 1 200–115 200 |
@@ -182,7 +178,6 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | HTU2X | I2C | `0x40` (fixed) | 5 000 ms | — |
 | SHT4X | I2C | `0x44` (fixed) | 5 000 ms | — |
 | GPS (NMEA) | UART1 | RX=GPIO18, TX=GPIO17 | 5 000 ms | Port, RX, TX must match Kconfig constants |
-| SDS011 | UART2 | RX=GPIO16, TX=GPIO15 | 5 000 ms | Port, RX, TX must match Kconfig constants; baud must be 9600 |
 | DHT11 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DHT22 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DS18B20 | GPIO (1-Wire) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
