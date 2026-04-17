@@ -75,17 +75,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function syncConfigForm(form) {
-    const ssidInput = form.querySelector("[data-wifi-ssid-input]");
+    const ssidSelect = form.querySelector("[data-wifi-ssid-select]");
     const passwordField = form.querySelector("[data-wifi-password-field]");
     const hintNode = form.querySelector("[data-wifi-password-hint]");
     const passwordInput = form.querySelector("#wifi_password");
     const toggleButton = form.querySelector("[data-secret-toggle='wifi_password']");
 
-    if (!(ssidInput instanceof HTMLInputElement)) {
+    if (!(ssidSelect instanceof HTMLSelectElement)) {
       return;
     }
 
-    const hasStationConfig = ssidInput.value.trim().length > 0;
+    const hasStationConfig = ssidSelect.value.trim().length > 0;
 
     if (passwordField instanceof HTMLElement) {
       passwordField.classList.toggle("field--disabled", !hasStationConfig);
@@ -108,29 +108,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadWifiNetworks(form) {
     const networkMode = form.dataset.networkMode ?? "";
-    if (networkMode !== "setup_ap") {
+    if (networkMode !== "setup_ap" && networkMode !== "station") {
       return;
     }
 
-    const selectRow = form.querySelector("[data-wifi-ssid-select-row]");
     const select = form.querySelector("[data-wifi-ssid-select]");
     const statusNode = form.querySelector("[data-wifi-ssid-scan-status]");
-    const ssidInput = form.querySelector("[data-wifi-ssid-input]");
-    if (!(selectRow instanceof HTMLElement) || !(select instanceof HTMLSelectElement)) {
+    if (!(select instanceof HTMLSelectElement)) {
       return;
-    }
-
-    selectRow.hidden = false;
-
-    if (ssidInput instanceof HTMLInputElement) {
-      select.addEventListener("change", () => {
-        if (select.value.length === 0) {
-          return;
-        }
-        ssidInput.value = select.value;
-        syncConfigForm(form);
-        ssidInput.dispatchEvent(new Event("input", { bubbles: true }));
-      });
     }
 
     if (statusNode instanceof HTMLElement) {
@@ -146,41 +131,62 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const payload = await response.json();
       const networks = Array.isArray(payload?.networks) ? payload.networks : [];
+      const selectedValue = select.value.trim();
+      const selectedValuePresent = networks.some(
+        (network) => network && typeof network.ssid === "string" && network.ssid === selectedValue
+      );
+      const seenSsids = new Set();
 
       select.innerHTML = "";
       const placeholder = document.createElement("option");
       placeholder.value = "";
       placeholder.textContent = "Select network...";
+      placeholder.selected = selectedValue.length === 0;
       select.appendChild(placeholder);
+
+      const appendOption = (value, label, selected) => {
+        if (typeof value !== "string" || value.length === 0 || seenSsids.has(value)) {
+          return;
+        }
+
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.selected = selected;
+        select.appendChild(option);
+        seenSsids.add(value);
+      };
+
+      if (selectedValue.length > 0 && !selectedValuePresent) {
+        appendOption(selectedValue, `${selectedValue} (saved)`, true);
+      }
 
       for (const network of networks) {
         if (!network || typeof network.ssid !== "string" || network.ssid.length === 0) {
           continue;
         }
 
-        const option = document.createElement("option");
-        option.value = network.ssid;
-        option.textContent =
+        appendOption(
+          network.ssid,
           typeof network.rssi === "number"
             ? `${network.ssid} (${network.rssi} dBm)`
-            : network.ssid;
-        select.appendChild(option);
+            : network.ssid,
+          network.ssid === selectedValue
+        );
       }
 
       if (statusNode instanceof HTMLElement) {
         if (typeof payload?.last_scan_error === "string" && payload.last_scan_error.length > 0) {
           statusNode.textContent = `Wi-Fi scan error: ${payload.last_scan_error}`;
         } else if (networks.length > 0) {
-          statusNode.textContent =
-            `Available networks: ${networks.length}. You can also enter SSID manually.`;
+          statusNode.textContent = `Available networks: ${networks.length}.`;
         } else {
-          statusNode.textContent = "No Wi-Fi networks found. You can enter SSID manually.";
+          statusNode.textContent = "No Wi-Fi networks found.";
         }
       }
     } catch (error) {
       if (statusNode instanceof HTMLElement) {
-        statusNode.textContent =
-          "Failed to load available Wi-Fi networks. You can enter SSID manually.";
+        statusNode.textContent = "Failed to load available Wi-Fi networks.";
       }
     }
   }
@@ -256,22 +262,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function setGroupEnabled(group, enabled) {
+    group.classList.toggle("field--disabled", !enabled);
+    group.setAttribute("aria-disabled", enabled ? "false" : "true");
+
+    for (const control of group.querySelectorAll("input, select, textarea, button")) {
+      if (
+        control instanceof HTMLInputElement ||
+        control instanceof HTMLSelectElement ||
+        control instanceof HTMLTextAreaElement ||
+        control instanceof HTMLButtonElement
+      ) {
+        control.disabled = !enabled;
+      }
+    }
+  }
+
   function syncStaticIpFields(form) {
     const toggle = form.querySelector("[data-static-ip-toggle]");
-    const fieldset = form.querySelector("[data-static-ip-fields]");
-    if (!(toggle instanceof HTMLInputElement) || !(fieldset instanceof HTMLFieldSetElement)) {
+    const group = form.querySelector("[data-static-ip-fields]");
+    if (!(toggle instanceof HTMLInputElement) || !(group instanceof HTMLElement)) {
       return;
     }
-    fieldset.disabled = !toggle.checked;
+    setGroupEnabled(group, toggle.checked);
   }
 
   function syncCellularFields(form) {
     const toggle = form.querySelector("[data-cellular-toggle]");
-    const fieldset = form.querySelector("[data-cellular-fields]");
-    if (!(toggle instanceof HTMLInputElement) || !(fieldset instanceof HTMLFieldSetElement)) {
+    const group = form.querySelector("[data-cellular-fields]");
+    if (!(toggle instanceof HTMLInputElement) || !(group instanceof HTMLElement)) {
       return;
     }
-    fieldset.disabled = !toggle.checked;
+    setGroupEnabled(group, toggle.checked);
   }
 
   function syncBackendCard(panel) {
@@ -348,9 +370,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     syncConfigForm(form);
-    const ssidInput = form.querySelector("[data-wifi-ssid-input]");
-    if (ssidInput instanceof HTMLInputElement) {
-      ssidInput.addEventListener("input", () => {
+    const ssidSelect = form.querySelector("[data-wifi-ssid-select]");
+    if (ssidSelect instanceof HTMLSelectElement) {
+      ssidSelect.addEventListener("change", () => {
         syncConfigForm(form);
       });
     }
