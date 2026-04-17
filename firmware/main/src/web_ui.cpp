@@ -16,8 +16,9 @@ struct NavItem {
     const char* label;
 };
 
-constexpr std::array<NavItem, 4> kNavItems{{
+constexpr std::array<NavItem, 5> kNavItems{{
     {WebPageKey::kHome, "/", "Overview"},
+    {WebPageKey::kDiagnostics, "/diagnostics", "Diagnostics"},
     {WebPageKey::kConfig, "/config", "Device"},
     {WebPageKey::kSensors, "/sensors", "Sensors"},
     {WebPageKey::kBackends, "/backends", "Backends"},
@@ -36,6 +37,8 @@ extern const std::uint8_t page_sensors_html_start[] asm("_binary_page_sensors_ht
 extern const std::uint8_t page_sensors_html_end[] asm("_binary_page_sensors_html_end");
 extern const std::uint8_t page_backends_html_start[] asm("_binary_page_backends_html_start");
 extern const std::uint8_t page_backends_html_end[] asm("_binary_page_backends_html_end");
+extern const std::uint8_t page_diagnostics_html_start[] asm("_binary_page_diagnostics_html_start");
+extern const std::uint8_t page_diagnostics_html_end[] asm("_binary_page_diagnostics_html_end");
 extern const std::uint8_t card_backend_html_start[] asm("_binary_card_backend_html_start");
 extern const std::uint8_t card_backend_html_end[] asm("_binary_card_backend_html_end");
 extern const std::uint8_t card_sensor_html_start[] asm("_binary_card_sensor_html_start");
@@ -82,6 +85,8 @@ const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
         makeTemplateView(page_sensors_html_start, page_sensors_html_end);
     static const EmbeddedTemplateView kBackendsTemplate =
         makeTemplateView(page_backends_html_start, page_backends_html_end);
+    static const EmbeddedTemplateView kDiagnosticsTemplate =
+        makeTemplateView(page_diagnostics_html_start, page_diagnostics_html_end);
     static const EmbeddedTemplateView kBackendCardTemplate =
         makeTemplateView(card_backend_html_start, card_backend_html_end);
     static const EmbeddedTemplateView kSensorCardTemplate =
@@ -100,6 +105,8 @@ const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
             return &kSensorsTemplate;
         case WebTemplateKey::kBackends:
             return &kBackendsTemplate;
+        case WebTemplateKey::kDiagnostics:
+            return &kDiagnosticsTemplate;
         case WebTemplateKey::kBackendCard:
             return &kBackendCardTemplate;
         case WebTemplateKey::kSensorCard:
@@ -245,17 +252,22 @@ std::string renderPageDocument(
         html += "</a>";
     }
 
-    if (!device_only_navigation) {
-        html += "<a class='nav__link nav__link--muted' href='/status'>Status JSON</a>";
-    }
     html += "</nav></header><main class='page'><section class='pagehead'>";
-    html += "<h1>";
-    html += htmlEscape(heading);
-    html += "</h1>";
-    if (!lead_html.empty()) {
-        html += "<p class='lead'>";
+    if (active_page == WebPageKey::kHome && !lead_html.empty()) {
+        html += "<div class='pagehead__row'><h1>";
+        html += htmlEscape(heading);
+        html += "</h1><div class='pagehead__meta'>";
         html += lead_html;
-        html += "</p>";
+        html += "</div></div>";
+    } else {
+        html += "<h1>";
+        html += htmlEscape(heading);
+        html += "</h1>";
+        if (!lead_html.empty()) {
+            html += "<p class='lead'>";
+            html += lead_html;
+            html += "</p>";
+        }
     }
     html += "</section>";
     html += body_html;

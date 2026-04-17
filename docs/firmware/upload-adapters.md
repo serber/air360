@@ -62,7 +62,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | SCD30 | I2C | 17 | Sent as temperature + humidity + CO2 |
 | VEML7700 | I2C | — | Not supported, skipped |
 | SPS30 | I2C | 1 | Sent as particulate matter data |
-| GPS (NMEA) | UART | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
+| GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
 | ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
 
 Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `buildRequests()` returns `true` with an empty request list — the upload manager treats this as `kNoData`.

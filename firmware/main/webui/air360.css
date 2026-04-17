@@ -214,6 +214,14 @@ pre {
     border-bottom: 1px solid rgba(185, 200, 212, 0.42);
 }
 
+.pagehead__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.8rem 1rem;
+}
+
 .pagehead h1 {
     margin: 0.18rem 0 0;
     font-family: var(--font-display);
@@ -229,6 +237,12 @@ pre {
     margin: 0.72rem 0 0;
     color: var(--muted);
     font-size: 1rem;
+}
+
+.pagehead__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
 }
 
 .stack > * + * {
@@ -458,13 +472,13 @@ pre {
     border-color: var(--accent);
 }
 
-.secret-row {
+.input-action-row {
     display: flex;
     gap: 0.65rem;
     align-items: stretch;
 }
 
-.secret-row .input {
+.input-action-row .input {
     flex: 1 1 auto;
 }
 
@@ -569,9 +583,47 @@ pre {
     margin-top: 1rem;
 }
 
-.panel--runtime pre {
+.runtime-dump__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+}
+
+.runtime-dump__head h2 {
+    margin: 0;
+}
+
+.runtime-dump__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.runtime-dump__status {
+    min-height: 1.4rem;
+}
+
+.runtime-dump__console {
+    width: 100%;
+    min-height: 18rem;
+    resize: vertical;
+    padding: 1rem 1.1rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-lg);
+    background: #17201b;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    color: #f8faf7;
+    font: 0.88rem/1.45 "SFMono-Regular", "Menlo", "Consolas", monospace;
+    white-space: pre;
+    overflow: auto;
+}
+
+.runtime-dump__console:focus {
+    outline: 2px solid rgba(15, 118, 110, 0.24);
+    outline-offset: 2px;
 }
 
 @media (min-width: 860px) {
@@ -597,7 +649,7 @@ pre {
         padding-right: 1rem;
     }
 
-    .secret-row {
+    .input-action-row {
         flex-direction: column;
     }
 
@@ -616,5 +668,9 @@ pre {
 
     .split-actions > * {
         flex: 1 1 100%;
+    }
+
+    .runtime-dump__actions {
+        width: 100%;
     }
 }

@@ -1,6 +1,6 @@
 # Network Manager
 
-This document describes the `NetworkManager` class — how it initialises the Wi-Fi driver, transitions between operating modes, manages station connection and fallback AP, and synchronises system time via SNTP.
+This document describes the `NetworkManager` class — Wi-Fi station setup, setup AP fallback, runtime recovery after disconnects, and SNTP time synchronisation.
 
 ---
 
@@ -8,20 +8,20 @@ This document describes the `NetworkManager` class — how it initialises the Wi
 
 ```cpp
 enum class NetworkMode : uint8_t {
-    kOffline  = 0,   // Wi-Fi driver stopped or connection failed
-    kSetupAp  = 1,   // Setup AP active, waiting for configuration
-    kStation  = 2,   // Connected to upstream Wi-Fi, IP assigned
+    kOffline = 0,  // no active station uplink
+    kSetupAp,      // provisioning AP is active
+    kStation,      // upstream Wi-Fi connected and IP assigned
 };
 ```
 
-The current mode plus all derived state is held in `NetworkState`:
+`NetworkState` carries the current Wi-Fi/runtime status that is exposed to the web UI and the Diagnostics raw JSON dump:
 
 ```cpp
 struct NetworkState {
     NetworkMode mode;
-    bool station_config_present;      // wifi_sta_ssid is non-empty in NVS
+    bool station_config_present;
     bool station_connect_attempted;
-    bool station_connected;           // IP has been assigned
+    bool station_connected;
     bool time_sync_attempted;
     bool time_synchronized;
     bool lab_ap_active;
@@ -29,211 +29,266 @@ struct NetworkState {
     string lab_ap_ssid;
     string ip_address;
     string last_error;
+    int32_t last_disconnect_reason;
+    string last_disconnect_reason_label;
+    bool reconnect_backoff_active;
+    uint32_t reconnect_attempt_count;
+    uint64_t next_reconnect_uptime_ms;
+    bool setup_ap_retry_active;
+    uint64_t next_setup_ap_retry_uptime_ms;
     string time_sync_error;
     int64_t last_time_sync_unix_ms;
 };
 ```
 
----
-
-## Boot-time network selection (step 7/9)
-
-`App::run()` calls `NetworkManager` once during boot step 7 of the 9-step startup sequence (see [startup-pipeline.md](startup-pipeline.md)):
-
-```
-Station SSID in NVS?
-  ├─ Yes → connectStation()
-  │         ├─ Success → kStation, then synchronizeTime()
-  │         └─ Failure → startLabAp()  (fallback)
-  └─ No  → startLabAp()
-```
-
-Both outcomes are non-fatal. If `startLabAp()` also fails (logged at WARN level), the device starts with no network connectivity but the web server still starts on port 80.
+The state is guarded by a mutex inside `NetworkManager`; callers receive snapshots through `state()`.
 
 ---
 
-## Internal runtime context
+## Boot-time network selection
 
-A file-scope singleton `RuntimeContext` holds resources that must survive for the lifetime of the application:
+`App::run()` decides step 7 like this:
+
+```text
+wifi_sta_ssid non-empty?
+  ├─ YES → connectStation()
+  │          ├─ SUCCESS → kStation, then SNTP sync
+  │          └─ FAILURE → startLabAp() fallback
+  └─ NO  → startLabAp()
+```
+
+Boot-time station failure is non-fatal. The device falls back to setup AP and continues booting.
+
+---
+
+## Runtime context
+
+`NetworkManager` keeps long-lived Wi-Fi runtime resources in a file-scope `RuntimeContext`:
 
 ```cpp
 struct RuntimeContext {
-    EventGroupHandle_t station_events;  // BIT0=connected, BIT1=failed
-    esp_netif_t*       ap_netif;        // created once for AP interface
-    esp_netif_t*       sta_netif;       // created once for STA interface
-    bool               wifi_initialized;
-    bool               sntp_initialized;
+    EventGroupHandle_t station_events;   // BIT0=connected, BIT1=failed
+    esp_netif_t* ap_netif;
+    esp_netif_t* sta_netif;
+    TimerHandle_t reconnect_timer;
+    TimerHandle_t setup_ap_retry_timer;
+    TaskHandle_t connect_attempt_task;
+    esp_event_handler_instance_t wifi_handler;
+    esp_event_handler_instance_t ip_handler;
+    bool auto_connect_on_sta_start;
+    bool reconnect_cycle_active;
+    uint64_t ignore_disconnect_until_ms;
+    bool wifi_initialized;
+    bool sntp_initialized;
 };
 ```
 
-`ensureWifiInit()` is called from both `connectStation()` and `startLabAp()`. It initialises the Wi-Fi driver exactly once (`wifi_initialized` guard). Wi-Fi credentials are kept in RAM only — `WIFI_STORAGE_RAM` is set explicitly so the ESP-IDF driver does not write to its own NVS slot.
+`ensureWifiInit()` now does three things once for the lifetime of the app:
+
+1. initializes the Wi-Fi driver with `WIFI_STORAGE_RAM`
+2. creates the reconnect/setup-AP retry timers
+3. registers persistent `WIFI_EVENT` and `IP_EVENT_STA_GOT_IP` handlers
+
+The handlers stay active after `connectStation()` returns, which is what enables runtime recovery.
 
 ---
 
-## Station connection (`connectStation`)
+## Station connection
 
-Called with `timeout_ms = 15 000` ms by default.
+`connectStation(config, timeout_ms=15000)` performs a synchronous station join attempt:
 
-1. Calls `ensureWifiInit()` — creates event group, initialises Wi-Fi driver if needed.
-2. Creates `sta_netif` if it does not exist yet.
-3. Sets DHCP hostname: `device_name` from `DeviceConfig`, lowercased, non-alphanumeric characters replaced with `-`, trailing hyphens stripped. Falls back to `"air360"` if the result is empty.
-4. Registers per-call event handler instances for `WIFI_EVENT` (any ID) and `IP_EVENT_STA_GOT_IP`.
-5. Calls `esp_wifi_stop()` (tolerates not-started errors), then configures the driver:
-   - Mode: `WIFI_MODE_STA`
-   - Auth threshold: `WIFI_AUTH_OPEN` (connects to any security level)
-   - PMF: capable but not required
-   - Power save: `WIFI_PS_NONE` — disabled for lower upload latency
-6. Calls `esp_wifi_start()`, which triggers `WIFI_EVENT_STA_START` → the event handler calls `esp_wifi_connect()`.
-7. Polls the event group in 250 ms slices, resetting the task watchdog on each slice, until `kStationConnectedBit` or `kStationFailedBit` is set or the timeout expires.
-8. Unregisters both event handlers regardless of outcome.
+1. stores the latest station/AP config for future retry attempts
+2. creates `sta_netif` if needed
+3. applies hostname and optional static IPv4 settings
+4. clears the station event bits
+5. switches Wi-Fi to `WIFI_MODE_STA`
+6. applies STA credentials and starts Wi-Fi
+7. waits up to 15 seconds for `kStationConnectedBit` or `kStationFailedBit`
 
-| Outcome | Action | Return |
-|---------|--------|--------|
-| `kStationConnectedBit` set | Calls `synchronizeTime()` | `ESP_OK` |
-| `kStationFailedBit` set | Stops Wi-Fi | `ESP_FAIL` |
-| Timeout | Stops Wi-Fi | `ESP_ERR_TIMEOUT` |
+On success:
 
-On failure the caller (`App::run()`) falls back to `startLabAp()`.
+- `IP_EVENT_STA_GOT_IP` stores the station IP
+- `mode` becomes `kStation`
+- reconnect/setup-AP retry state is cleared
+- `synchronizeTime()` runs immediately
 
-### Wi-Fi event handlers
+On failure:
 
-`handleWifiEvent` and `handleIpEvent` are registered as per-call instances and unregistered before `connectStation()` returns. They run on the Wi-Fi system event task (not the main task).
+- `last_error` records either the disconnect reason or a station timeout
+- Wi-Fi is stopped
+- the caller may fall back to `startLabAp()`
 
-| Event | Handler action |
-|-------|---------------|
-| `WIFI_EVENT_STA_START` | `esp_wifi_connect()` |
-| `WIFI_EVENT_STA_DISCONNECTED` | `station_connected = false`, `mode = kOffline`, IP cleared, reason code written to `last_error`, `kStationFailedBit` set |
-| `IP_EVENT_STA_GOT_IP` | IP address saved, `mode = kStation`, `station_connected = true`, `lab_ap_active = false`, `kStationConnectedBit` set |
+Timeouts are reported as:
 
-**No automatic reconnect.** A disconnection during normal operation sets `mode = kOffline` and `station_connected = false`. The upload manager and maintenance loop detect this and pause; no reconnect attempt is made.
-
----
-
-## Setup AP (`startLabAp`)
-
-1. Calls `ensureWifiInit()`.
-2. Creates both `ap_netif` and `sta_netif` if absent. The STA interface is required even in AP-only mode because `scanAvailableNetworks()` needs it.
-3. Sets mode to `WIFI_MODE_APSTA` — the device acts as both an AP and a station simultaneously. This allows scanning for upstream networks while the AP is active.
-4. Configures a static IP for the AP interface: **`192.168.4.1/24`**, starts the DHCP server.
-5. Applies AP config:
-   - SSID and password from `DeviceConfig.lab_ap_ssid` / `lab_ap_password`
-   - Channel: `CONFIG_AIR360_LAB_AP_CHANNEL` (Kconfig)
-   - Max connections: `CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS` (Kconfig)
-   - Auth: `WIFI_AUTH_WPA2_PSK` if password is non-empty; `WIFI_AUTH_OPEN` otherwise
-   - PMF not required
-6. Calls `esp_wifi_start()`.
-7. Sets `mode = kSetupAp`, `lab_ap_active = true`, `ip_address = "192.168.4.1"`.
-8. Calls `scanAvailableNetworks()` immediately — the scan result is used by the web UI to populate the network selector. A scan failure is logged at WARN level and does not affect the AP startup result.
-
----
-
-## Wi-Fi scan (`scanAvailableNetworks`)
-
-Can be called at any time while Wi-Fi is in `WIFI_MODE_STA` or `WIFI_MODE_APSTA`. The scan is **blocking** (`esp_wifi_scan_start(..., true)`).
-
-Results are stored in `available_networks_` as `WifiNetworkRecord` entries:
-
-```cpp
-struct WifiNetworkRecord {
-    string ssid;
-    int    rssi;
-    wifi_auth_mode_t auth_mode;
-};
+```text
+station connect timeout (DHCP or IP assignment not completed)
 ```
 
-Duplicate SSIDs (multiple BSSIDs with the same name) are deduplicated — only the first entry in the scan result is kept. Hidden networks (empty SSID) are skipped. On error `available_networks_` is cleared and the error is stored in `last_scan_error_`.
+That is the current way the firmware distinguishes “joined Wi-Fi but never became usable” from explicit disconnect reasons such as auth failure or AP not found.
+
+---
+
+## Runtime recovery
+
+### Unexpected station disconnects
+
+Persistent `WIFI_EVENT_STA_DISCONNECTED` handling now drives automatic recovery:
+
+1. mark `station_connected = false`
+2. clear the current IP
+3. store `last_disconnect_reason` and `last_disconnect_reason_label`
+4. if this was an unexpected station loss, increment `reconnect_attempt_count`
+5. arm a one-shot reconnect timer with capped exponential backoff
+
+Backoff sequence:
+
+```text
+10 s → 20 s → 40 s → 80 s → 160 s → 300 s (cap)
+```
+
+When the timer fires, `NetworkManager` creates a dedicated FreeRTOS task and performs another blocking `attemptStationConnect(...)`. The shared FreeRTOS timer task itself is not blocked by the 15-second station wait.
+
+`IP_EVENT_STA_GOT_IP` resets the reconnect counter to zero and clears the backoff state.
+
+### Setup AP retry loop
+
+If setup AP is active and stored station credentials exist, the firmware now keeps retrying station mode in the background:
+
+- the setup AP remains available during the wait period
+- every 3 minutes a retry task attempts station association in `WIFI_MODE_APSTA`
+- on success the firmware switches back to `WIFI_MODE_STA`
+- on failure the AP stays up and the retry timer is armed again
+
+This covers the common “sensor boots faster than the router” case without needing a reboot.
+
+### Intentional stop guard
+
+`stopStation()` and internal mode reconfiguration operations temporarily suppress disconnect handling for a short window (`ignore_disconnect_until_ms`) so deliberate `esp_wifi_stop()` / `esp_wifi_disconnect()` calls do not accidentally arm reconnect logic.
+
+---
+
+## Setup AP
+
+`startLabAp(config)`:
+
+1. stores the latest config for future background retries
+2. creates both AP and STA netifs if needed
+3. switches Wi-Fi to `WIFI_MODE_APSTA`
+4. configures the setup AP on `192.168.4.1/24`
+5. optionally preloads STA credentials into the Wi-Fi driver if they exist
+6. starts Wi-Fi and disables power save
+7. sets `mode = kSetupAp`, `lab_ap_active = true`
+8. triggers an initial Wi-Fi scan for `/wifi-scan`
+9. if station credentials exist, arms the periodic setup-AP retry timer
+
+The AP remains the recovery surface even after a failed boot-time station join.
+
+---
+
+## Wi-Fi diagnostics surfaced to UI and Diagnostics raw JSON
+
+The runtime now exposes:
+
+- `last_error`
+- `last_disconnect_reason`
+- `last_disconnect_reason_label`
+- `reconnect_backoff_active`
+- `reconnect_attempt_count`
+- `next_reconnect_uptime_ms`
+- `setup_ap_retry_active`
+- `next_setup_ap_retry_uptime_ms`
+
+The Overview page uses these fields to show whether the device is:
+
+- normally connected
+- waiting for reconnect backoff to expire
+- sitting in setup AP while periodic station retry is armed
+
+The Diagnostics page raw JSON dump exposes the same fields in machine-readable form.
+
+---
+
+## Wi-Fi scan
+
+`scanAvailableNetworks()` remains blocking and still requires `WIFI_MODE_STA` or `WIFI_MODE_APSTA`.
+
+- hidden SSIDs are skipped
+- duplicate SSIDs are collapsed
+- failures clear `available_networks_` and populate `last_scan_error_`
 
 ---
 
 ## Time synchronisation
 
-> A full reference for both time domains (uptime vs Unix), the validity threshold, and all places in the system that gate on valid time is in [time.md](time.md). This section covers only the SNTP mechanics inside `NetworkManager`.
+`synchronizeTime()` still runs only when the station is connected:
 
-### `synchronizeTime()` (called internally)
+1. fail fast if `station_connected == false`
+2. skip work if Unix time is already valid
+3. initialize or restart SNTP
+4. poll for valid time in 250 ms slices up to the supplied timeout
+5. update `time_synchronized`, `time_sync_error`, and `last_time_sync_unix_ms`
 
-Called immediately after a successful station connection and from `ensureStationTime()`.
+`ensureStationTime(10000)` is still called from the maintenance loop when Wi-Fi is up but valid Unix time is not yet available.
 
-1. Requires `station_connected == true`; fails immediately otherwise.
-2. If `hasValidUnixTime()` is already true, skips SNTP and returns `ESP_OK`. This handles the case of a reboot with time already set by a previous run.
-3. On the first call: `esp_netif_sntp_init()` with the configured SNTP server — `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org` (`sntp_initialized = false → true`). The configured server is cached in `configured_sntp_server_` when `connectStation()` is called.
-4. On subsequent calls: `esp_netif_sntp_start()` (re-arms the already-initialised SNTP client).
-5. Polls `hasValidUnixTime()` every **250 ms** with task watchdog reset, up to `timeout_ms` (default 15 000 ms).
-6. Sets `time_synchronized = true` and records `last_time_sync_unix_ms` on success.
-
-### `checkSntp(server, timeout_ms)` (public)
-
-Runtime validation of a candidate SNTP server before it is saved. Used by `POST /check-sntp`.
-
-1. Validates `server` is non-empty, ≤ 63 chars, and contains only printable ASCII characters. Returns `error = "invalid_input"` on failure.
-2. Requires `station_connected == true`; returns `error = "not_connected"` otherwise.
-3. Deinitialises the existing SNTP client (`esp_netif_sntp_deinit()`) if already initialised.
-4. Initialises SNTP with the test server (`esp_netif_sntp_init()`).
-5. Waits for a sync notification from the SNTP driver (`esp_netif_sntp_sync_wait()`) in 250 ms slices with task watchdog reset, up to `timeout_ms` (default 10 000 ms).
-6. On success: returns `success = true`; the SNTP client stays running with the test server.
-7. On timeout: deinitialises SNTP, returns `error = "sync_failed"`. The maintenance loop will reinitialise SNTP with the configured server on its next retry.
-
-### Time validity threshold
-
-`hasValidUnixTime()` and `currentUnixMilliseconds()` compare the system clock against `kMinValidUnixTimeSeconds = 1700000000` (2023-11-14 UTC). Any value below this threshold is treated as not-yet-set and `currentUnixMilliseconds()` returns `0`.
-
-### `ensureStationTime()` (called from maintenance loop)
-
-Public method — used by `App::run()` to retry synchronisation if it failed during the initial connect. Only executes if `mode == kStation && station_connected == true` and time is not yet valid. Timeout: **10 000 ms**.
+SNTP is still not attempted in setup AP mode.
 
 ---
 
-## Maintenance loop (runtime)
+## Maintenance loop
 
-After all boot steps complete, `App::run()` enters an infinite loop:
+The main task still retries SNTP periodically:
 
 ```cpp
 for (;;) {
-    if (mode == kStation && station_connected && !hasValidTime()) {
-        ensureStationTime(10000);   // retry SNTP if not yet synchronized
+    const NetworkState network_state = network_manager.state();
+    if (network_state.mode == NetworkMode::kStation &&
+        network_state.station_connected &&
+        !network_manager.hasValidTime()) {
+        network_manager.ensureStationTime(10000);
     }
+
     status_service.setNetworkState(network_manager.state());
     vTaskDelay(kRuntimeMaintenanceDelay);
 }
 ```
 
-This periodically retries SNTP in case the first attempt timed out (e.g., NTP server temporarily unreachable right after boot).
+Wi-Fi reconnect itself no longer depends on this loop; it is driven by the persistent event handlers, timers, and retry task.
 
 ---
 
-## State transition diagram
+## State transition sketch
 
-```
-            boot: no STA config          boot: STA config, connect OK
-                   │                              │
-                   ▼                              ▼
-              kSetupAp ──────────────────────► kStation
-                                                  │
-                   ▲         DISCONNECTED event   │
-                   │  ◄───────────────────────────┘
-               kOffline
-                   │
-        (no reconnect — stays offline
-         until next reboot)
+```text
+kStation
+  │ unexpected disconnect
+  ▼
+kOffline + reconnect backoff
+  │ timer fires
+  ├─ success → kStation
+  └─ failure → kOffline + next backoff
+
+kSetupAp + stored station config
+  │ periodic retry timer
+  ├─ success → kStation
+  └─ failure → stay in kSetupAp + retry later
 ```
 
-`kOffline` is also the initial state before any Wi-Fi call. The firmware does not attempt automatic reconnection after a disconnect; the upload manager and sensor pipeline pause until the device is rebooted.
+If there is no stored station configuration, the firmware does not attempt automatic station recovery.
 
 ---
 
-## Summary of constants and defaults
+## Summary of constants
 
-| Parameter | Value | Source |
-|-----------|-------|--------|
-| Station connect timeout | 15 000 ms | `connectStation()` default |
-| Station wait poll slice | 250 ms | `kStationWaitSliceMs` |
-| SNTP server | `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org` | `kDefaultSntpServer` / `DeviceConfig` |
-| SNTP poll interval | 250 ms | `kSntpPollIntervalMs` |
-| SNTP timeout (initial) | 15 000 ms | `synchronizeTime()` default |
-| SNTP timeout (retry) | 10 000 ms | `ensureStationTime()` call |
-| Min valid Unix time | 1 700 000 000 s | `kMinValidUnixTimeSeconds` |
-| AP static IP | 192.168.4.1/24 | `startLabAp()` |
-| AP channel | Kconfig | `CONFIG_AIR360_LAB_AP_CHANNEL` |
-| AP max connections | Kconfig | `CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS` |
-| Wi-Fi storage | RAM only | `WIFI_STORAGE_RAM` |
-| Power save mode | disabled | `WIFI_PS_NONE` |
-| Log tag | `air360.net` | `kTag` |
+| Parameter | Value |
+|-----------|-------|
+| Station connect timeout | 15 000 ms |
+| Station wait poll slice | 250 ms |
+| Reconnect base delay | 10 s |
+| Reconnect cap | 300 s |
+| Setup-AP retry interval | 180 s |
+| SNTP poll interval | 250 ms |
+| SNTP timeout (initial) | 15 000 ms |
+| SNTP timeout (maintenance retry) | 10 000 ms |
+| AP static IP | 192.168.4.1/24 |
+| Wi-Fi storage | RAM only |
+| Power save mode | `WIFI_PS_NONE` |

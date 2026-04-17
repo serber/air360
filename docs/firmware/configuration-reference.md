@@ -112,9 +112,9 @@ Schema version: 1.
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `enabled` | `uint8_t` | `0` | `0` = disabled; `1` = cellular uplink active |
-| `uart_port` | `uint8_t` | `1` | UART port number for modem DTE |
-| `uart_rx_gpio` | `uint8_t` | — | ESP32 RX pin (receives from modem TX) |
-| `uart_tx_gpio` | `uint8_t` | — | ESP32 TX pin (transmits to modem RX) |
+| `uart_port` | `uint8_t` | `1` (UART1) | UART port number for modem DTE |
+| `uart_rx_gpio` | `uint8_t` | `18` | ESP32 RX pin (receives from modem TX) |
+| `uart_tx_gpio` | `uint8_t` | `17` | ESP32 TX pin (transmits to modem RX) |
 | `uart_baud` | `uint32_t` | `115200` | UART baud rate |
 | `pwrkey_gpio` | `uint8_t` | `0xFF` | PWRKEY GPIO; `0xFF` = not wired |
 | `sleep_gpio` | `uint8_t` | `0xFF` | DTR/sleep GPIO; `0xFF` = not wired |
@@ -160,10 +160,10 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `poll_interval_ms` | `uint32_t` | `10000` | 5 000–3 600 000 ms |
 | `i2c_bus_id` | `uint8_t` | `0` | Must be `0` (only one I2C bus) |
 | `i2c_address` | `uint8_t` | `0x77` | Sensor-specific; see table below |
-| `uart_port_id` | `uint8_t` | `1` | GPS only: must match Kconfig |
-| `uart_rx_gpio_pin` | `int16_t` | `-1` | GPS only; `-1` = unused |
-| `uart_tx_gpio_pin` | `int16_t` | `-1` | GPS only; `-1` = unused |
-| `uart_baud_rate` | `uint32_t` | `9600` | GPS: 1 200–115 200 |
+| `uart_port_id` | `uint8_t` | `1` | UART sensors only: must match the fixed board binding for the selected sensor |
+| `uart_rx_gpio_pin` | `int16_t` | `-1` | UART sensors only; `-1` = unused |
+| `uart_tx_gpio_pin` | `int16_t` | `-1` | UART sensors only; `-1` = unused |
+| `uart_baud_rate` | `uint32_t` | `9600` | UART sensors: 1 200–115 200 |
 | `analog_gpio_pin` | `int16_t` | `-1` | GPIO/analog sensors; `-1` = unused |
 
 ### Per-sensor constraints
@@ -177,7 +177,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | VEML7700 | I2C | `0x10` (fixed) | 5 000 ms | — |
 | HTU2X | I2C | `0x40` (fixed) | 5 000 ms | — |
 | SHT4X | I2C | `0x44` (fixed) | 5 000 ms | — |
-| GPS (NMEA) | UART | RX=18, TX=17, port=1 | 5 000 ms | Port, RX, TX must match Kconfig constants |
+| GPS (NMEA) | UART1 | RX=GPIO18, TX=GPIO17 | 5 000 ms | Port, RX, TX must match Kconfig constants |
 | DHT11 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DHT22 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DS18B20 | GPIO (1-Wire) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
@@ -185,7 +185,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 
 The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C address `0` is not valid for any sensor — it is a zero-init placeholder.
 
-GPS UART bindings (port ID, RX pin, TX pin) are validated against the Kconfig constants at save time. Changing the GPS pins requires a firmware rebuild, not a configuration edit.
+UART bindings (port ID, RX pin, TX pin) are validated against Kconfig constants at save time. Changing pins requires a firmware rebuild, not a configuration edit.
 
 ---
 

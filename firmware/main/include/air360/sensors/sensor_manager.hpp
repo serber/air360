@@ -41,6 +41,7 @@ class SensorManager {
     std::vector<SensorRuntimeInfo> sensors() const;
     std::size_t configuredCount() const;
     std::size_t enabledCount() const;
+    std::size_t taskStackHighWaterMarkBytes() const;
 
   private:
     struct ManagedSensor {

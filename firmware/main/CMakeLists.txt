@@ -47,6 +47,7 @@ idf_component_register(
         esp_common
         esp_event
         esp_driver_gpio
+        espressif__led_strip
         esp_http_client
         esp_http_server
         esp_driver_i2c
@@ -82,6 +83,7 @@ idf_component_register(
         "webui/page_config.html"
         "webui/page_sensors.html"
         "webui/page_backends.html"
+        "webui/page_diagnostics.html"
         "webui/card_backend.html"
         "webui/card_sensor.html"
         "webui/item_overview_backend.html"

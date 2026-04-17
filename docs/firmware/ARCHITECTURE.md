@@ -52,7 +52,7 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs a stati
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | Boot LED init | GPIO 11 = green, GPIO 10 = red |
+| 1 | RGB LED init | WS2812 on GPIO48 — blue while booting |
 | 2 | Watchdog arm | 10-second timeout, panic disabled |
 | 3 | NVS flash init | Auto-erase on partition mismatch |
 | 4 | Network core init | `esp_netif_init()`, default event loop |
@@ -111,7 +111,7 @@ Modules are not event-driven at the application layer. Inter-module communicatio
 
 ### `App` — `app.cpp` / `app_main.cpp`
 
-Top-level runtime controller. Owns the startup sequence, boot LEDs, watchdog, and the 10-second maintenance loop. Constructs all other modules as static locals. No persistent state of its own.
+Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, and the 10-second maintenance loop. Constructs all other modules as static locals. No persistent state of its own.
 
 **Log tag:** `air360.app`
 
@@ -158,7 +158,7 @@ Manages the `CellularConfig` NVS blob (schema version 1). Independent of `Device
 |-------|------|---------|-------|
 | magic | `uint32_t` | `0x43454C4C` ("CELL") | |
 | enabled | `uint8_t` | 0 | 1 = cellular uplink active |
-| uart_port | `uint8_t` | 1 | UART port for modem DTE |
+| uart_port | `uint8_t` | 1 (UART1) | UART port for modem DTE |
 | uart_rx_gpio | `uint8_t` | 18 | ESP32 RX (modem TX) |
 | uart_tx_gpio | `uint8_t` | 17 | ESP32 TX (modem RX) |
 | uart_baud | `uint32_t` | 115200 | |
@@ -303,7 +303,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | VEML7700 | I2C | 0x10 | 5 s |
 | HTU2X | I2C | 0x40 | 5 s |
 | SHT4X | I2C | 0x44 | 5 s |
-| GPS (NMEA) | UART | — | 5 s |
+| GPS (NMEA) | UART1 | — | 5 s |
 | DHT11 | GPIO | — | 2 s |
 | DHT22 | GPIO | — | 2 s |
 | DS18B20 | GPIO (1-Wire) | — | 5 s |
@@ -552,7 +552,7 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 | Route | Description |
 |-------|-------------|
 | `GET /` | Overview page (HTML) |
-| `GET /status` | JSON runtime status |
+| `GET /diagnostics` | Diagnostics page (HTML with raw status JSON dump) |
 | `GET /config` | Device config page (HTML) |
 | `POST /config` | Save device config |
 | `GET /sensors` | Sensor management page (HTML) |
@@ -580,7 +580,7 @@ Produces HTML and JSON payloads for web routes. Aggregates runtime state from al
 - Backend statuses with last result, duration, retry count
 - Health checks (time sync, sensor freshness, uplink, backend health)
 
-The `/status` JSON response includes `health_status`, `health_summary`, and `health_checks`.
+The raw status JSON rendered inside the Diagnostics page includes `health_status`, `health_summary`, and `health_checks`.
 
 ---
 
@@ -644,7 +644,7 @@ Four independent NVS blobs under namespace `air360`:
 | `backend_cfg` | `BackendConfigList` (up to 2 entries) | Backend targets and upload interval |
 | `boot_count` | `uint32_t` | Incremented on every boot |
 
-Schema version and magic number guard each blob. Mismatch triggers replacement with defaults (no migration).
+Schema version and magic number guard each blob. `SensorConfigList` additionally migrates schema `3` to `4` by dropping deprecated `SDS011` entries and preserving the remaining sensor inventory; other mismatches still fall back to defaults.
 
 ---
 
@@ -675,13 +675,11 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | 6 | GPIO sensor slot 2 | Kconfig |
 | 8 | I2C bus 0 SDA | Kconfig |
 | 9 | I2C bus 0 SCL | Kconfig |
-| 10 | Red boot LED | No |
-| 11 | Green boot LED | No |
+| 48 | RGB status LED (WS2812, built-in) | No |
 | 12 | Modem PWRKEY (default) | Kconfig / CellularConfig |
 | 17 | GPS TX / Modem TX (shared default) | Kconfig |
 | 18 | GPS RX / Modem RX (shared default) | Kconfig |
 | 21 | Modem SLEEP/DTR (default) | Kconfig / CellularConfig |
-
 > **GPIO17/18 conflict:** GPS (NMEA) and the SIM7600E modem share the same default UART1 pins. They cannot be used simultaneously. If both are needed, reconfigure one via Kconfig before building.
 
 ### I2C
@@ -697,7 +695,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
 | UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
-| UART2 | Available for additional sensors | — | — |
+| UART2 | Currently unused by built-in sensors | — | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 
@@ -830,7 +828,7 @@ No application-level queues. `MeasurementStore` uses vector swap under mutex for
 - Server-rendered web UI with 5 HTML pages and embedded CSS/JS
 - Lab AP mode at `192.168.4.1` with `/wifi-scan` endpoint
 - SNTP synchronization gating upload start
-- Health check aggregation in `/status` JSON
+- Health check aggregation in the Diagnostics raw JSON dump
 
 ### Planned or reserved but not yet implemented
 

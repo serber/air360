@@ -62,6 +62,7 @@ class UploadManager {
     std::uint32_t uploadIntervalMs() const;
     std::uint64_t lastOverallAttemptUptimeMs() const;
     std::int64_t lastOverallAttemptUnixMs() const;
+    std::size_t taskStackHighWaterMarkBytes() const;
 
   private:
     struct ManagedBackend {

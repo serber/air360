@@ -319,7 +319,6 @@ struct ConfigPageViewModel {
     std::string wifi_ssid_value;
     std::string wifi_password_value;
     std::string wifi_ssid_options_html;
-    std::string wifi_ssid_select_hidden_attr;
     std::string sntp_server_value;
     bool sta_use_static_ip = false;
     std::string sta_ip_value;
@@ -352,6 +351,22 @@ struct BackendCardViewModel {
     std::uint32_t last_response_time_ms = 0U;
     std::string last_error;
 };
+
+void appendWifiSsidOption(
+    std::string& html,
+    const std::string& value,
+    const std::string& label,
+    bool selected) {
+    html += "<option value='";
+    html += htmlEscape(value);
+    html += "'";
+    if (selected) {
+        html += " selected";
+    }
+    html += ">";
+    html += htmlEscape(label);
+    html += "</option>";
+}
 
 struct BackendsPageViewModel {
     std::size_t enabled_count = 0U;
@@ -479,16 +494,15 @@ std::string renderConfigPage(
             {"WIFI_SSID_VALUE", htmlEscape(model.wifi_ssid_value)},
             {"WIFI_PASSWORD_VALUE", htmlEscape(model.wifi_password_value)},
             {"WIFI_SSID_OPTIONS", model.wifi_ssid_options_html},
-            {"WIFI_SSID_SELECT_HIDDEN", model.wifi_ssid_select_hidden_attr},
             {"SNTP_SERVER_VALUE", htmlEscape(model.sntp_server_value)},
             {"STA_USE_STATIC_IP_CHECKED", model.sta_use_static_ip ? "checked" : ""},
-            {"STA_STATIC_IP_FIELDSET_DISABLED", model.sta_use_static_ip ? "" : "disabled"},
+            {"STA_STATIC_IP_GROUP_DISABLED_CLASS", model.sta_use_static_ip ? "" : "field--disabled"},
             {"STA_IP_VALUE", htmlEscape(model.sta_ip_value)},
             {"STA_NETMASK_VALUE", htmlEscape(model.sta_netmask_value)},
             {"STA_GATEWAY_VALUE", htmlEscape(model.sta_gateway_value)},
             {"STA_DNS_VALUE", htmlEscape(model.sta_dns_value)},
             {"CELLULAR_ENABLED_CHECKED", model.cellular_enabled ? "checked" : ""},
-            {"CELLULAR_FIELDSET_DISABLED", model.cellular_enabled ? "" : "disabled"},
+            {"CELLULAR_GROUP_DISABLED_CLASS", model.cellular_enabled ? "" : "field--disabled"},
             {"CELLULAR_APN_VALUE", htmlEscape(model.cellular_apn_value)},
             {"CELLULAR_USERNAME_VALUE", htmlEscape(model.cellular_username_value)},
             {"CELLULAR_PASSWORD_VALUE", htmlEscape(model.cellular_password_value)},
@@ -623,15 +637,6 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         sizeof(kClimateSensorTypes) / sizeof(kClimateSensorTypes[0]),
     },
     {
-        SensorCategory::kLight,
-        "light",
-        "Light",
-        "Ambient light and illuminance sensing.",
-        false,
-        kLightSensorTypes,
-        sizeof(kLightSensorTypes) / sizeof(kLightSensorTypes[0]),
-    },
-    {
         SensorCategory::kParticulateMatter,
         "particulate-matter",
         "Particulate Matter",
@@ -639,6 +644,15 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         false,
         kParticulateMatterSensorTypes,
         sizeof(kParticulateMatterSensorTypes) / sizeof(kParticulateMatterSensorTypes[0]),
+    },
+    {
+        SensorCategory::kLight,
+        "light",
+        "Light",
+        "Ambient light and illuminance sensing.",
+        false,
+        kLightSensorTypes,
+        sizeof(kLightSensorTypes) / sizeof(kLightSensorTypes[0]),
     },
     {
         SensorCategory::kLocation,
@@ -652,8 +666,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
     {
         SensorCategory::kGas,
         "gas",
-        "Gas / CO2",
-        "CO2 and electrochemical gas sensors. Multiple gas sensors are allowed.",
+        "Gas",
+        "Gas sensors. Multiple gas sensors are allowed.",
         true,
         kGasSensorTypes,
         sizeof(kGasSensorTypes) / sizeof(kGasSensorTypes[0]),
@@ -826,13 +840,13 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         case SensorType::kBme280:
             return "Defaults: I2C bus 0 at address 0x76.";
         case SensorType::kBme680:
-            return "Defaults: I2C bus 0 at address 0x77. Gas resistance is reported when the heater run is valid.";
+            return "Defaults: I2C bus 0 at address 0x77.";
         case SensorType::kSps30:
-            return "Defaults: I2C bus 0 at address 0x69. Reports PM mass, number concentration, and typical particle size.";
+            return "Defaults: I2C bus 0 at address 0x69.";
         case SensorType::kScd30:
-            return "Defaults: I2C bus 0 at address 0x61. Reports CO2, temperature, and humidity.";
+            return "Defaults: I2C bus 0 at address 0x61.";
         case SensorType::kVeml7700:
-            return "Defaults: I2C bus 0 at address 0x10. Reports ambient light in lux.";
+            return "Defaults: I2C bus 0 at address 0x10.";
         case SensorType::kGpsNmea: {
             std::string hint = "Defaults: fixed UART ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
@@ -849,13 +863,13 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         case SensorType::kDht22:
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
         case SensorType::kDs18b20:
-            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6). Uses the official ESP 1-Wire DS18B20 driver and expects a single probe on that bus.";
+            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
         case SensorType::kHtu2x:
-            return "Defaults: I2C bus 0 at address 0x40. Uses the esp-idf-lib SI7021 driver for HTU2x-compatible sensors.";
+            return "Defaults: I2C bus 0 at address 0x40.";
         case SensorType::kSht4x:
-            return "Defaults: I2C bus 0 at address 0x44. Uses the esp-idf-lib SHT4X driver for Sensirion SHT40/SHT41/SHT45 sensors.";
+            return "Defaults: I2C bus 0 at address 0x44.";
         case SensorType::kMe3No2:
-            return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6). Current driver reports raw ADC and calibrated voltage.";
+            return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6).";
         case SensorType::kUnknown:
         default:
             return "";
@@ -917,20 +931,35 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.notice_html = renderNotice(notice, error_notice);
     model.wifi_ssid_value = config.wifi_sta_ssid;
     model.wifi_password_value = config.wifi_sta_password;
-    model.wifi_ssid_select_hidden_attr = "hidden";
     model.sntp_server_value = boundedCString(config.sntp_server, sizeof(config.sntp_server));
 
-    if (network_state.mode == NetworkMode::kSetupAp) {
-        model.wifi_ssid_select_hidden_attr.clear();
-        for (const auto& network : network_manager.availableNetworks()) {
-            model.wifi_ssid_options_html += "<option value='";
-            model.wifi_ssid_options_html += htmlEscape(network.ssid);
-            model.wifi_ssid_options_html += "'>";
-            model.wifi_ssid_options_html += htmlEscape(network.ssid);
-            model.wifi_ssid_options_html += " (";
-            model.wifi_ssid_options_html += std::to_string(network.rssi);
-            model.wifi_ssid_options_html += " dBm)</option>";
+    appendWifiSsidOption(
+        model.wifi_ssid_options_html,
+        "",
+        "Select network...",
+        model.wifi_ssid_value.empty());
+
+    bool selected_network_present = false;
+    for (const auto& network : network_manager.availableNetworks()) {
+        if (network.ssid == model.wifi_ssid_value) {
+            selected_network_present = true;
         }
+    }
+
+    if (!model.wifi_ssid_value.empty() && !selected_network_present) {
+        appendWifiSsidOption(
+            model.wifi_ssid_options_html,
+            model.wifi_ssid_value,
+            model.wifi_ssid_value + " (saved)",
+            true);
+    }
+
+    for (const auto& network : network_manager.availableNetworks()) {
+        appendWifiSsidOption(
+            model.wifi_ssid_options_html,
+            network.ssid,
+            network.ssid + " (" + std::to_string(network.rssi) + " dBm)",
+            network.ssid == model.wifi_ssid_value);
     }
 
     if (!network_state.last_error.empty()) {
@@ -1718,12 +1747,12 @@ esp_err_t WebServer::start(
         return err;
     }
 
-    httpd_uri_t status_uri{};
-    status_uri.uri = "/status";
-    status_uri.method = HTTP_GET;
-    status_uri.handler = &WebServer::handleStatus;
-    status_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &status_uri);
+    httpd_uri_t diagnostics_uri{};
+    diagnostics_uri.uri = "/diagnostics";
+    diagnostics_uri.method = HTTP_GET;
+    diagnostics_uri.handler = &WebServer::handleDiagnostics;
+    diagnostics_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &diagnostics_uri);
     if (err != ESP_OK) {
         stop();
         return err;
@@ -2241,12 +2270,12 @@ esp_err_t WebServer::handleRoot(httpd_req_t* request) {
     return httpd_resp_send(request, html.c_str(), html.size());
 }
 
-esp_err_t WebServer::handleStatus(httpd_req_t* request) {
+esp_err_t WebServer::handleDiagnostics(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
-    const std::string json = server->status_service_->renderStatusJson();
-    httpd_resp_set_type(request, "application/json");
+    const std::string html = server->status_service_->renderDiagnosticsHtml();
+    httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, json.c_str(), json.size());
+    return httpd_resp_send(request, html.c_str(), html.size());
 }
 
 esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
@@ -2254,8 +2283,7 @@ esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
     httpd_resp_set_type(request, "application/json");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
 
-    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp &&
-        server->network_manager_->lastScanUptimeMs() == 0U) {
+    if (server->network_manager_->lastScanUptimeMs() == 0U) {
         server->network_manager_->scanAvailableNetworks();
     }
 

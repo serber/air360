@@ -5,14 +5,11 @@
 #include <cstring>
 
 #include "driver/uart.h"
-#include "esp_log.h"
 #include "sdkconfig.h"
 
 namespace air360 {
 
 namespace {
-
-constexpr char kTag[] = "air360.transport";
 
 #ifndef CONFIG_AIR360_I2C0_SDA_GPIO
 #define CONFIG_AIR360_I2C0_SDA_GPIO 8
@@ -27,10 +24,6 @@ constexpr std::uint32_t kDefaultI2cClockHz = 100000U;
 
 constexpr int kUartRxBufferSize = 4096;
 constexpr int kUartTxBufferSize = 0;
-#if CONFIG_ESP_CONSOLE_UART && CONFIG_ESP_CONSOLE_UART_DEFAULT
-constexpr int kDefaultConsoleRxPin = 44;
-constexpr int kDefaultConsoleTxPin = 43;
-#endif
 
 }  // namespace
 
@@ -146,19 +139,6 @@ esp_err_t UartPortManager::ensurePort(
     }
     const uart_port_t port = static_cast<uart_port_t>(port_number);
 
-#if CONFIG_ESP_CONSOLE_UART && CONFIG_ESP_CONSOLE_UART_DEFAULT
-    if (port_number != CONFIG_ESP_CONSOLE_UART_NUM &&
-        ((rx_pin == kDefaultConsoleRxPin && tx_pin == kDefaultConsoleTxPin) ||
-         (rx_pin == kDefaultConsoleTxPin && tx_pin == kDefaultConsoleRxPin))) {
-        ESP_LOGW(
-            kTag,
-            "UART%u is being mapped to GPIO %d/%d, which overlap the default console pins; serial logs may disappear after sensor init",
-            static_cast<unsigned>(port_id),
-            static_cast<int>(rx_pin),
-            static_cast<int>(tx_pin));
-    }
-#endif
-
     uart_config_t config{};
     config.baud_rate = static_cast<int>(baud_rate);
     config.data_bits = UART_DATA_8_BITS;
@@ -225,6 +205,25 @@ int UartPortManager::read(
         buffer,
         static_cast<uint32_t>(buffer_size),
         timeout_ticks);
+}
+
+int UartPortManager::write(
+    std::uint8_t port_id,
+    const std::uint8_t* data,
+    std::size_t size) {
+    if (data == nullptr || size == 0U || port_id == 0U || port_id > ports_.size()) {
+        return -1;
+    }
+
+    PortState& port = ports_[port_id - 1U];
+    if (!port.initialized) {
+        return -1;
+    }
+
+    return uart_write_bytes(
+        static_cast<uart_port_t>(port.port_number),
+        data,
+        size);
 }
 
 esp_err_t UartPortManager::flush(std::uint8_t port_id) {

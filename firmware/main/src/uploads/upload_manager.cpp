@@ -165,7 +165,7 @@ MeasurementBatch UploadManager::buildMeasurementBatch(
     batch.esp_mac_id = build_info_.esp_mac_id;
 
     if (network_manager_ != nullptr) {
-        const NetworkState& network = network_manager_->state();
+        const NetworkState network = network_manager_->state();
         batch.network_mode = network.mode;
         batch.station_connected = network.station_connected;
     }
@@ -199,7 +199,7 @@ bool UploadManager::hasNetworkForUpload(std::string& last_error) const {
     }
 
     // Bearer is up but time is not yet valid: provide a specific message.
-    const NetworkState& network = network_manager_->state();
+    const NetworkState network = network_manager_->state();
     const bool bearer_up = (network.mode == NetworkMode::kStation && network.station_connected);
     if (bearer_up) {
         if (!network.time_sync_error.empty()) {
@@ -304,6 +304,18 @@ std::int64_t UploadManager::lastOverallAttemptUnixMs() const {
     const std::int64_t value = last_overall_attempt_unix_ms_;
     unlock();
     return value;
+}
+
+std::size_t UploadManager::taskStackHighWaterMarkBytes() const {
+    lock();
+    const TaskHandle_t task = task_;
+    unlock();
+
+    if (task == nullptr) {
+        return 0U;
+    }
+
+    return static_cast<std::size_t>(uxTaskGetStackHighWaterMark(task)) * sizeof(StackType_t);
 }
 
 void UploadManager::lock() const {

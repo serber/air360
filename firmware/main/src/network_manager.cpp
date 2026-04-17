@@ -1,5 +1,6 @@
 #include "air360/network_manager.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cinttypes>
 #include <cstdio>
@@ -16,6 +17,8 @@
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
 #include "freertos/event_groups.h"
+#include "freertos/task.h"
+#include "freertos/timers.h"
 #include "lwip/ip4_addr.h"
 
 namespace air360 {
@@ -28,11 +31,28 @@ constexpr EventBits_t kStationFailedBit = BIT1;
 constexpr char kDefaultSntpServer[] = "pool.ntp.org";
 constexpr std::uint32_t kSntpPollIntervalMs = 250U;
 constexpr std::uint32_t kStationWaitSliceMs = 250U;
+constexpr std::uint32_t kReconnectBaseDelayMs = 10000U;
+constexpr std::uint32_t kReconnectMaxDelayMs = 300000U;
+constexpr std::uint32_t kSetupApRetryDelayMs = 180000U;
+constexpr std::uint32_t kDisconnectIgnoreWindowMs = 2000U;
+constexpr std::uint32_t kDefaultConnectTimeoutMs = 15000U;
+constexpr std::size_t kConnectAttemptTaskStackSize = 6144U;
+constexpr UBaseType_t kConnectAttemptTaskPriority = tskIDLE_PRIORITY + 2U;
 
 struct RuntimeContext {
     EventGroupHandle_t station_events = nullptr;
     esp_netif_t* ap_netif = nullptr;
     esp_netif_t* sta_netif = nullptr;
+    TimerHandle_t reconnect_timer = nullptr;
+    TimerHandle_t setup_ap_retry_timer = nullptr;
+    TaskHandle_t connect_attempt_task = nullptr;
+    esp_event_handler_instance_t wifi_handler = nullptr;
+    esp_event_handler_instance_t ip_handler = nullptr;
+    NetworkManager* manager = nullptr;
+    bool handlers_registered = false;
+    bool auto_connect_on_sta_start = false;
+    bool reconnect_cycle_active = false;
+    std::uint64_t ignore_disconnect_until_ms = 0U;
     bool wifi_initialized = false;
     bool sntp_initialized = false;
 };
@@ -40,6 +60,26 @@ struct RuntimeContext {
 RuntimeContext& runtimeContext() {
     static RuntimeContext context;
     return context;
+}
+
+TickType_t ticksFromMs(std::uint32_t value_ms) {
+    return pdMS_TO_TICKS(value_ms == 0U ? 1U : value_ms);
+}
+
+void stopTimerIfRunning(TimerHandle_t timer) {
+    if (timer != nullptr) {
+        xTimerStop(timer, 0U);
+    }
+}
+
+void armTimer(TimerHandle_t timer, std::uint32_t delay_ms) {
+    if (timer == nullptr) {
+        return;
+    }
+
+    xTimerStop(timer, 0U);
+    xTimerChangePeriod(timer, ticksFromMs(delay_ms), 0U);
+    xTimerStart(timer, 0U);
 }
 
 void copyString(char* destination, std::size_t destination_size, const char* source) {
@@ -91,6 +131,63 @@ std::string stationHostname(const DeviceConfig& config) {
     return hostname;
 }
 
+const char* disconnectReasonLabel(std::int32_t reason) {
+    switch (reason) {
+        case WIFI_REASON_AUTH_EXPIRE:
+            return "auth_expired";
+        case WIFI_REASON_AUTH_FAIL:
+            return "auth_failed";
+        case WIFI_REASON_ASSOC_FAIL:
+            return "association_failed";
+        case WIFI_REASON_HANDSHAKE_TIMEOUT:
+        case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+            return "handshake_timeout";
+        case WIFI_REASON_BEACON_TIMEOUT:
+            return "beacon_timeout";
+        case WIFI_REASON_TIMEOUT:
+            return "timeout";
+        case WIFI_REASON_NO_AP_FOUND:
+            return "ap_not_found";
+        case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
+            return "ap_security_incompatible";
+        case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:
+            return "ap_authmode_threshold";
+        case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:
+            return "ap_rssi_threshold";
+        case WIFI_REASON_CONNECTION_FAIL:
+            return "connection_failed";
+        case WIFI_REASON_ASSOC_LEAVE:
+            return "assoc_leave";
+        case WIFI_REASON_ROAMING:
+            return "roaming";
+        default:
+            return "unknown";
+    }
+}
+
+std::string disconnectSummary(std::int32_t reason) {
+    switch (reason) {
+        case WIFI_REASON_AUTH_EXPIRE:
+        case WIFI_REASON_AUTH_FAIL:
+        case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+        case WIFI_REASON_HANDSHAKE_TIMEOUT:
+            return "Wi-Fi authentication failed";
+        case WIFI_REASON_NO_AP_FOUND:
+        case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
+        case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:
+        case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:
+            return "Wi-Fi AP not found";
+        case WIFI_REASON_BEACON_TIMEOUT:
+        case WIFI_REASON_TIMEOUT:
+            return "Wi-Fi connection timed out";
+        case WIFI_REASON_ASSOC_FAIL:
+        case WIFI_REASON_CONNECTION_FAIL:
+            return "Wi-Fi association failed";
+        default:
+            return "Station disconnected";
+    }
+}
+
 void setStateError(NetworkState& state, const char* error) {
     state.last_error = error == nullptr ? "" : error;
 }
@@ -101,9 +198,7 @@ void resetCurrentTaskWatchdogIfSubscribed() {
     }
 }
 
-EventBits_t waitForStationResult(
-    EventGroupHandle_t station_events,
-    std::uint32_t timeout_ms) {
+EventBits_t waitForStationResult(EventGroupHandle_t station_events, std::uint32_t timeout_ms) {
     if (station_events == nullptr) {
         return 0U;
     }
@@ -132,14 +227,40 @@ EventBits_t waitForStationResult(
     return bits;
 }
 
+std::uint32_t reconnectDelayMs(std::uint32_t attempt_count) {
+    std::uint64_t delay_ms = kReconnectBaseDelayMs;
+    for (std::uint32_t attempt = 1U; attempt < attempt_count; ++attempt) {
+        delay_ms *= 2ULL;
+        if (delay_ms >= kReconnectMaxDelayMs) {
+            return kReconnectMaxDelayMs;
+        }
+    }
+
+    return static_cast<std::uint32_t>(delay_ms);
+}
+
 }  // namespace
 
-void NetworkManager::resetState() {
-    state_ = {};
+NetworkManager::NetworkManager() : last_config_(makeDefaultDeviceConfig()) {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
+void NetworkManager::lock() const {
+    if (mutex_ != nullptr) {
+        xSemaphoreTake(mutex_, portMAX_DELAY);
+    }
+}
+
+void NetworkManager::unlock() const {
+    if (mutex_ != nullptr) {
+        xSemaphoreGive(mutex_);
+    }
 }
 
 esp_err_t NetworkManager::ensureWifiInit() {
     RuntimeContext& context = runtimeContext();
+    context.manager = this;
+
     if (context.station_events == nullptr) {
         context.station_events = xEventGroupCreate();
         if (context.station_events == nullptr) {
@@ -147,26 +268,74 @@ esp_err_t NetworkManager::ensureWifiInit() {
         }
     }
 
-    if (context.wifi_initialized) {
-        return ESP_OK;
+    if (context.reconnect_timer == nullptr) {
+        context.reconnect_timer = xTimerCreate(
+            "wifi_rc",
+            ticksFromMs(kReconnectBaseDelayMs),
+            pdFALSE,
+            this,
+            &NetworkManager::reconnectTimerCallback);
+        if (context.reconnect_timer == nullptr) {
+            return ESP_ERR_NO_MEM;
+        }
     }
 
-    const wifi_init_config_t wifi_init = WIFI_INIT_CONFIG_DEFAULT();
-    esp_err_t err = esp_wifi_init(&wifi_init);
-    if (err == ESP_OK) {
-        context.wifi_initialized = true;
-    } else if (err == ESP_ERR_INVALID_STATE) {
-        context.wifi_initialized = true;
-        err = ESP_OK;
+    if (context.setup_ap_retry_timer == nullptr) {
+        context.setup_ap_retry_timer = xTimerCreate(
+            "wifi_ap_rc",
+            ticksFromMs(kSetupApRetryDelayMs),
+            pdFALSE,
+            this,
+            &NetworkManager::setupApRetryTimerCallback);
+        if (context.setup_ap_retry_timer == nullptr) {
+            return ESP_ERR_NO_MEM;
+        }
     }
 
-    if (err != ESP_OK) {
-        return err;
+    if (!context.wifi_initialized) {
+        const wifi_init_config_t wifi_init = WIFI_INIT_CONFIG_DEFAULT();
+        esp_err_t err = esp_wifi_init(&wifi_init);
+        if (err == ESP_OK) {
+            context.wifi_initialized = true;
+        } else if (err == ESP_ERR_INVALID_STATE) {
+            context.wifi_initialized = true;
+            err = ESP_OK;
+        }
+
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+        if (err != ESP_OK) {
+            return err;
+        }
     }
 
-    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    if (err != ESP_OK) {
-        return err;
+    if (!context.handlers_registered) {
+        esp_err_t err = esp_event_handler_instance_register(
+            WIFI_EVENT,
+            ESP_EVENT_ANY_ID,
+            &NetworkManager::handleWifiEvent,
+            this,
+            &context.wifi_handler);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        err = esp_event_handler_instance_register(
+            IP_EVENT,
+            IP_EVENT_STA_GOT_IP,
+            &NetworkManager::handleIpEvent,
+            this,
+            &context.ip_handler);
+        if (err != ESP_OK) {
+            esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, context.wifi_handler);
+            context.wifi_handler = nullptr;
+            return err;
+        }
+
+        context.handlers_registered = true;
     }
 
     return ESP_OK;
@@ -174,42 +343,51 @@ esp_err_t NetworkManager::ensureWifiInit() {
 
 esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
     RuntimeContext& context = runtimeContext();
+    std::string sntp_server;
 
+    lock();
     state_.time_sync_attempted = true;
     state_.time_synchronized = false;
     state_.time_sync_error.clear();
     state_.last_time_sync_unix_ms = 0;
-
     if (!state_.station_connected) {
         state_.time_sync_error = "station is not connected";
+        unlock();
         return ESP_ERR_INVALID_STATE;
     }
+    sntp_server = configured_sntp_server_;
+    unlock();
 
     if (hasValidUnixTime()) {
+        lock();
         state_.time_synchronized = true;
         state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+        unlock();
         ESP_LOGI(kTag, "System time already valid, skipping SNTP wait");
         return ESP_OK;
     }
 
     esp_err_t err = ESP_OK;
     if (!context.sntp_initialized) {
-        const char* server =
-            configured_sntp_server_.empty() ? kDefaultSntpServer : configured_sntp_server_.c_str();
+        const char* server = sntp_server.empty() ? kDefaultSntpServer : sntp_server.c_str();
         esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server);
         ESP_LOGI(kTag, "Initializing SNTP with server: %s", server);
         err = esp_netif_sntp_init(&sntp_config);
         if (err == ESP_OK) {
             context.sntp_initialized = true;
         } else {
+            lock();
             state_.time_sync_error = esp_err_to_name(err);
+            unlock();
             ESP_LOGW(kTag, "SNTP init failed: %s", esp_err_to_name(err));
             return err;
         }
     } else {
         err = esp_netif_sntp_start();
         if (err != ESP_OK) {
+            lock();
             state_.time_sync_error = esp_err_to_name(err);
+            unlock();
             ESP_LOGW(kTag, "SNTP start failed: %s", esp_err_to_name(err));
             return err;
         }
@@ -228,13 +406,19 @@ esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
     }
 
     if (!synchronized || !hasValidUnixTime()) {
+        lock();
         state_.time_sync_error = "time is still invalid after SNTP sync";
-        ESP_LOGW(kTag, "SNTP sync failed: %s", state_.time_sync_error.c_str());
+        const std::string error = state_.time_sync_error;
+        unlock();
+        ESP_LOGW(kTag, "SNTP sync failed: %s", error.c_str());
         return ESP_ERR_TIMEOUT;
     }
 
+    lock();
     state_.time_synchronized = true;
+    state_.time_sync_error.clear();
     state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+    unlock();
     ESP_LOGI(kTag, "SNTP time synchronized");
     return ESP_OK;
 }
@@ -256,25 +440,100 @@ void NetworkManager::handleWifiEvent(
 
     switch (event_id) {
         case WIFI_EVENT_STA_START:
-            esp_wifi_connect();
+            if (context.auto_connect_on_sta_start) {
+                ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
+            }
             break;
-        case WIFI_EVENT_STA_DISCONNECTED: {
-            manager->state_.station_connected = false;
-            manager->state_.mode = NetworkMode::kOffline;
-            manager->state_.ip_address.clear();
 
+        case WIFI_EVENT_STA_DISCONNECTED: {
             const auto* disconnected =
                 static_cast<const wifi_event_sta_disconnected_t*>(event_data);
-            char reason_buffer[64];
-            std::snprintf(
-                reason_buffer,
-                sizeof(reason_buffer),
-                "station disconnected (reason=%d)",
-                disconnected != nullptr ? static_cast<int>(disconnected->reason) : -1);
-            setStateError(manager->state_, reason_buffer);
+            const std::uint64_t now_ms = air360::uptimeMilliseconds();
+            const std::int32_t reason =
+                disconnected != nullptr ? static_cast<std::int32_t>(disconnected->reason) : -1;
+            const bool ignore_disconnect = now_ms <= context.ignore_disconnect_until_ms;
+
+            bool schedule_reconnect = false;
+            bool schedule_setup_ap_retry = false;
+            std::uint32_t reconnect_delay_ms = 0U;
+
+            manager->lock();
+            const bool was_connected = manager->state_.station_connected;
+            const bool setup_ap_active =
+                manager->state_.lab_ap_active || manager->state_.mode == NetworkMode::kSetupAp;
+
+            manager->state_.station_connected = false;
+            manager->state_.ip_address.clear();
+            manager->state_.last_disconnect_reason = reason;
+            manager->state_.last_disconnect_reason_label = disconnectReasonLabel(reason);
+
+            if (!ignore_disconnect) {
+                if (setup_ap_active) {
+                    manager->state_.mode = NetworkMode::kSetupAp;
+                    if (manager->state_.station_config_present) {
+                        manager->state_.setup_ap_retry_active = true;
+                        manager->state_.next_setup_ap_retry_uptime_ms =
+                            now_ms + kSetupApRetryDelayMs;
+                        schedule_setup_ap_retry = true;
+                    }
+                } else {
+                    manager->state_.mode = NetworkMode::kOffline;
+                    if (manager->state_.station_config_present &&
+                        (was_connected || context.reconnect_cycle_active)) {
+                        context.reconnect_cycle_active = true;
+                        manager->state_.reconnect_attempt_count += 1U;
+                        reconnect_delay_ms =
+                            reconnectDelayMs(manager->state_.reconnect_attempt_count);
+                        manager->state_.reconnect_backoff_active = true;
+                        manager->state_.next_reconnect_uptime_ms = now_ms + reconnect_delay_ms;
+                        manager->state_.setup_ap_retry_active = false;
+                        manager->state_.next_setup_ap_retry_uptime_ms = 0U;
+                        schedule_reconnect = true;
+                    } else {
+                        manager->state_.reconnect_backoff_active = false;
+                        manager->state_.next_reconnect_uptime_ms = 0U;
+                    }
+                }
+
+                char error_buffer[160];
+                std::snprintf(
+                    error_buffer,
+                    sizeof(error_buffer),
+                    "%s (%s, reason=%" PRId32 ")",
+                    disconnectSummary(reason).c_str(),
+                    disconnectReasonLabel(reason),
+                    reason);
+                manager->state_.last_error = error_buffer;
+            }
+            manager->unlock();
+
             xEventGroupSetBits(context.station_events, kStationFailedBit);
+
+            if (ignore_disconnect) {
+                break;
+            }
+
+            if (schedule_reconnect) {
+                armTimer(context.reconnect_timer, reconnect_delay_ms);
+                ESP_LOGW(
+                    kTag,
+                    "Station disconnected: %s (%" PRId32 "), reconnect attempt %lu in %" PRIu32 " ms",
+                    disconnectReasonLabel(reason),
+                    reason,
+                    static_cast<unsigned long>(manager->state().reconnect_attempt_count),
+                    reconnect_delay_ms);
+            } else if (schedule_setup_ap_retry) {
+                armTimer(context.setup_ap_retry_timer, kSetupApRetryDelayMs);
+                ESP_LOGW(
+                    kTag,
+                    "Station unavailable while setup AP is active: %s (%" PRId32 "), retry in %" PRIu32 " ms",
+                    disconnectReasonLabel(reason),
+                    reason,
+                    kSetupApRetryDelayMs);
+            }
             break;
         }
+
         default:
             break;
     }
@@ -296,44 +555,144 @@ void NetworkManager::handleIpEvent(
     }
 
     const auto* got_ip = static_cast<const ip_event_got_ip_t*>(event_data);
+    char ip_buffer[16] = "";
     if (got_ip != nullptr) {
-        char ip_buffer[16];
         std::snprintf(ip_buffer, sizeof(ip_buffer), IPSTR, IP2STR(&got_ip->ip_info.ip));
-        manager->state_.ip_address = ip_buffer;
     }
 
-    manager->state_.mode = NetworkMode::kStation;
+    stopTimerIfRunning(context.reconnect_timer);
+    stopTimerIfRunning(context.setup_ap_retry_timer);
+    context.reconnect_cycle_active = false;
+
+    manager->lock();
+    manager->state_.ip_address = ip_buffer;
+    if (!manager->state_.lab_ap_active) {
+        manager->state_.mode = NetworkMode::kStation;
+    }
     manager->state_.station_connected = true;
-    manager->state_.lab_ap_active = false;
     manager->state_.last_error.clear();
+    manager->state_.reconnect_backoff_active = false;
+    manager->state_.next_reconnect_uptime_ms = 0U;
+    manager->state_.reconnect_attempt_count = 0U;
+    manager->state_.setup_ap_retry_active = false;
+    manager->state_.next_setup_ap_retry_uptime_ms = 0U;
+    manager->unlock();
+
     xEventGroupSetBits(context.station_events, kStationConnectedBit);
 }
 
-esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32_t timeout_ms) {
-    resetState();
+void NetworkManager::reconnectTimerCallback(TimerHandle_t timer) {
+    static_cast<void>(timer);
+
+    RuntimeContext& context = runtimeContext();
+    if (context.manager == nullptr || context.connect_attempt_task != nullptr) {
+        return;
+    }
+
+    BaseType_t result = xTaskCreate(
+        &NetworkManager::connectAttemptTask,
+        "wifi_reconnect",
+        kConnectAttemptTaskStackSize,
+        reinterpret_cast<void*>(static_cast<std::uintptr_t>(ConnectAttemptKind::kRuntimeReconnect)),
+        kConnectAttemptTaskPriority,
+        &context.connect_attempt_task);
+    if (result != pdPASS) {
+        context.connect_attempt_task = nullptr;
+        ESP_LOGW(kTag, "Failed to create Wi-Fi reconnect task");
+    }
+}
+
+void NetworkManager::setupApRetryTimerCallback(TimerHandle_t timer) {
+    static_cast<void>(timer);
+
+    RuntimeContext& context = runtimeContext();
+    if (context.manager == nullptr || context.connect_attempt_task != nullptr) {
+        return;
+    }
+
+    BaseType_t result = xTaskCreate(
+        &NetworkManager::connectAttemptTask,
+        "wifi_ap_retry",
+        kConnectAttemptTaskStackSize,
+        reinterpret_cast<void*>(static_cast<std::uintptr_t>(ConnectAttemptKind::kSetupApRetry)),
+        kConnectAttemptTaskPriority,
+        &context.connect_attempt_task);
+    if (result != pdPASS) {
+        context.connect_attempt_task = nullptr;
+        ESP_LOGW(kTag, "Failed to create setup-AP Wi-Fi retry task");
+    }
+}
+
+void NetworkManager::connectAttemptTask(void* arg) {
+    RuntimeContext& context = runtimeContext();
+    auto* manager = context.manager;
+    const auto kind = static_cast<ConnectAttemptKind>(reinterpret_cast<std::uintptr_t>(arg));
+
+    if (manager != nullptr) {
+        DeviceConfig config = makeDefaultDeviceConfig();
+        bool has_config = false;
+        manager->lock();
+        config = manager->last_config_;
+        has_config = manager->has_last_config_;
+        manager->unlock();
+        if (has_config) {
+            static_cast<void>(manager->attemptStationConnect(config, kDefaultConnectTimeoutMs, kind));
+        }
+    }
+
+    context.connect_attempt_task = nullptr;
+    vTaskDelete(nullptr);
+}
+
+esp_err_t NetworkManager::attemptStationConnect(
+    const DeviceConfig& config,
+    std::uint32_t timeout_ms,
+    ConnectAttemptKind kind) {
+    const bool preserve_ap = (kind == ConnectAttemptKind::kSetupApRetry);
+    RuntimeContext& context = runtimeContext();
+
+    lock();
     state_.station_config_present = hasStationConfig(config);
     state_.station_connect_attempted = true;
     state_.station_ssid = config.wifi_sta_ssid;
     state_.lab_ap_ssid = config.lab_ap_ssid;
     configured_sntp_server_ =
         (config.sntp_server[0] != '\0') ? std::string(config.sntp_server) : std::string();
+    last_config_ = config;
+    has_last_config_ = true;
+    unlock();
 
-    if (!state_.station_config_present) {
+    if (!hasStationConfig(config)) {
+        lock();
         setStateError(state_, "missing station configuration");
+        unlock();
         return ESP_ERR_INVALID_ARG;
     }
 
-    RuntimeContext& context = runtimeContext();
     esp_err_t err = ensureWifiInit();
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
     if (context.sta_netif == nullptr) {
         context.sta_netif = esp_netif_create_default_wifi_sta();
         if (context.sta_netif == nullptr) {
+            lock();
             setStateError(state_, "failed to create station netif");
+            unlock();
+            return ESP_FAIL;
+        }
+    }
+
+    if (preserve_ap && context.ap_netif == nullptr) {
+        context.ap_netif = esp_netif_create_default_wifi_ap();
+        if (context.ap_netif == nullptr) {
+            lock();
+            setStateError(state_, "failed to create AP netif");
+            unlock();
             return ESP_FAIL;
         }
     }
@@ -341,14 +700,18 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     const std::string hostname = stationHostname(config);
     err = esp_netif_set_hostname(context.sta_netif, hostname.c_str());
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
     if (config.sta_use_static_ip != 0U && config.sta_ip[0] != '\0') {
         err = esp_netif_dhcpc_stop(context.sta_netif);
         if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+            lock();
             setStateError(state_, esp_err_to_name(err));
+            unlock();
             return err;
         }
 
@@ -358,7 +721,9 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
         ip4addr_aton(config.sta_gateway, reinterpret_cast<ip4_addr_t*>(&ip_info.gw));
         err = esp_netif_set_ip_info(context.sta_netif, &ip_info);
         if (err != ESP_OK) {
+            lock();
             setStateError(state_, esp_err_to_name(err));
+            unlock();
             return err;
         }
 
@@ -378,34 +743,17 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
             config.sta_netmask,
             config.sta_gateway,
             config.sta_dns);
+    } else {
+        err = esp_netif_dhcpc_start(context.sta_netif);
+        if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+            lock();
+            setStateError(state_, esp_err_to_name(err));
+            unlock();
+            return err;
+        }
     }
 
     xEventGroupClearBits(context.station_events, kStationConnectedBit | kStationFailedBit);
-
-    esp_event_handler_instance_t wifi_handler = nullptr;
-    esp_event_handler_instance_t ip_handler = nullptr;
-    err = esp_event_handler_instance_register(
-        WIFI_EVENT,
-        ESP_EVENT_ANY_ID,
-        &NetworkManager::handleWifiEvent,
-        this,
-        &wifi_handler);
-    if (err != ESP_OK) {
-        setStateError(state_, esp_err_to_name(err));
-        return err;
-    }
-
-    err = esp_event_handler_instance_register(
-        IP_EVENT,
-        IP_EVENT_STA_GOT_IP,
-        &NetworkManager::handleIpEvent,
-        this,
-        &ip_handler);
-    if (err != ESP_OK) {
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler);
-        setStateError(state_, esp_err_to_name(err));
-        return err;
-    }
 
     wifi_config_t wifi_config{};
     copyString(
@@ -420,39 +768,87 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     wifi_config.sta.pmf_cfg.capable = true;
     wifi_config.sta.pmf_cfg.required = false;
 
-    err = esp_wifi_stop();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
-        ESP_LOGW(kTag, "esp_wifi_stop before STA start failed: %s", esp_err_to_name(err));
+    if (kind == ConnectAttemptKind::kInitial) {
+        context.reconnect_cycle_active = false;
+    } else if (kind == ConnectAttemptKind::kRuntimeReconnect) {
+        context.reconnect_cycle_active = true;
     }
 
-    err = esp_wifi_set_mode(WIFI_MODE_STA);
-    if (err == ESP_OK) {
-        err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-    }
-    if (err == ESP_OK) {
-        err = esp_wifi_start();
-    }
-    if (err == ESP_OK) {
-        err = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (!preserve_ap) {
+        context.auto_connect_on_sta_start = true;
+        context.ignore_disconnect_until_ms =
+            air360::uptimeMilliseconds() + kDisconnectIgnoreWindowMs;
+
+        err = esp_wifi_stop();
+        if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
+            ESP_LOGW(kTag, "esp_wifi_stop before STA start failed: %s", esp_err_to_name(err));
+        }
+
+        err = esp_wifi_set_mode(WIFI_MODE_STA);
+        if (err == ESP_OK) {
+            err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+        }
+        if (err == ESP_OK) {
+            err = esp_wifi_start();
+        }
+        if (err == ESP_OK) {
+            err = esp_wifi_set_ps(WIFI_PS_NONE);
+        }
+    } else {
+        context.auto_connect_on_sta_start = false;
+
+        err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+        if (err == ESP_OK) {
+            err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+        }
+        if (err == ESP_OK) {
+            err = esp_wifi_set_ps(WIFI_PS_NONE);
+        }
+        if (err == ESP_OK) {
+            err = esp_wifi_disconnect();
+            if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED &&
+                err != ESP_ERR_WIFI_NOT_CONNECT) {
+                ESP_LOGW(kTag, "esp_wifi_disconnect before APSTA retry failed: %s", esp_err_to_name(err));
+            }
+            err = esp_wifi_connect();
+        }
     }
 
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_handler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler);
+        unlock();
         return err;
     }
 
     ESP_LOGI(kTag, "Station Wi-Fi power save disabled for lower upload latency");
     ESP_LOGI(kTag, "Station hostname: %s", hostname.c_str());
-    ESP_LOGI(kTag, "Attempting station join: ssid=%s", config.wifi_sta_ssid);
+    ESP_LOGI(
+        kTag,
+        "%s station join: ssid=%s",
+        preserve_ap ? "Retrying" : "Attempting",
+        config.wifi_sta_ssid);
 
     const EventBits_t bits = waitForStationResult(context.station_events, timeout_ms);
 
-    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_handler);
-    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_handler);
-
     if ((bits & kStationConnectedBit) != 0U) {
+        if (preserve_ap) {
+            err = esp_wifi_set_mode(WIFI_MODE_STA);
+            if (err != ESP_OK) {
+                lock();
+                setStateError(state_, esp_err_to_name(err));
+                unlock();
+                return err;
+            }
+
+            lock();
+            state_.mode = NetworkMode::kStation;
+            state_.lab_ap_active = false;
+            state_.setup_ap_retry_active = false;
+            state_.next_setup_ap_retry_uptime_ms = 0U;
+            unlock();
+        }
+
         const esp_err_t time_err = synchronizeTime();
         if (time_err != ESP_OK) {
             ESP_LOGW(kTag, "Time sync failed after station join: %s", esp_err_to_name(time_err));
@@ -461,36 +857,93 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
     }
 
     if ((bits & kStationFailedBit) == 0U) {
-        setStateError(state_, "station connect timeout");
-        err = ESP_ERR_TIMEOUT;
-    } else {
-        err = ESP_FAIL;
+        std::uint32_t reconnect_delay_ms = 0U;
+
+        lock();
+        setStateError(state_, "station connect timeout (DHCP or IP assignment not completed)");
+        state_.station_connected = false;
+        state_.ip_address.clear();
+        if (preserve_ap) {
+            state_.mode = NetworkMode::kSetupAp;
+            state_.setup_ap_retry_active = true;
+            state_.next_setup_ap_retry_uptime_ms =
+                air360::uptimeMilliseconds() + kSetupApRetryDelayMs;
+        } else {
+            state_.mode = NetworkMode::kOffline;
+            if (kind == ConnectAttemptKind::kRuntimeReconnect) {
+                context.reconnect_cycle_active = true;
+                state_.reconnect_attempt_count += 1U;
+                reconnect_delay_ms = reconnectDelayMs(state_.reconnect_attempt_count);
+                state_.reconnect_backoff_active = true;
+                state_.next_reconnect_uptime_ms =
+                    air360::uptimeMilliseconds() + reconnect_delay_ms;
+            }
+        }
+        unlock();
+
+        if (preserve_ap) {
+            armTimer(context.setup_ap_retry_timer, kSetupApRetryDelayMs);
+        } else {
+            context.ignore_disconnect_until_ms =
+                air360::uptimeMilliseconds() + kDisconnectIgnoreWindowMs;
+            const esp_err_t stop_err = esp_wifi_stop();
+            if (stop_err != ESP_OK && stop_err != ESP_ERR_WIFI_NOT_INIT &&
+                stop_err != ESP_ERR_WIFI_NOT_STARTED) {
+                ESP_LOGW(kTag, "esp_wifi_stop after STA timeout failed: %s", esp_err_to_name(stop_err));
+            }
+            if (kind == ConnectAttemptKind::kRuntimeReconnect && reconnect_delay_ms > 0U) {
+                armTimer(context.reconnect_timer, reconnect_delay_ms);
+            }
+        }
+
+        return ESP_ERR_TIMEOUT;
     }
 
-    err = esp_wifi_disconnect();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT) {
-        ESP_LOGW(kTag, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
-    }
-    err = esp_wifi_stop();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
-        ESP_LOGW(kTag, "esp_wifi_stop after STA failure failed: %s", esp_err_to_name(err));
+    if (!preserve_ap) {
+        context.ignore_disconnect_until_ms =
+            air360::uptimeMilliseconds() + kDisconnectIgnoreWindowMs;
+        const esp_err_t stop_err = esp_wifi_stop();
+        if (stop_err != ESP_OK && stop_err != ESP_ERR_WIFI_NOT_INIT &&
+            stop_err != ESP_ERR_WIFI_NOT_STARTED) {
+            ESP_LOGW(kTag, "esp_wifi_stop after STA failure failed: %s", esp_err_to_name(stop_err));
+        }
     }
 
-    return (bits & kStationFailedBit) == 0U ? ESP_ERR_TIMEOUT : ESP_FAIL;
+    return ESP_FAIL;
+}
+
+esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32_t timeout_ms) {
+    return attemptStationConnect(config, timeout_ms, ConnectAttemptKind::kInitial);
 }
 
 esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
     RuntimeContext& context = runtimeContext();
+
+    lock();
+    state_.station_config_present = hasStationConfig(config);
+    state_.station_connect_attempted = hasStationConfig(config);
+    state_.station_ssid = config.wifi_sta_ssid;
+    state_.lab_ap_ssid = config.lab_ap_ssid;
+    configured_sntp_server_ =
+        (config.sntp_server[0] != '\0') ? std::string(config.sntp_server) : std::string();
+    last_config_ = config;
+    has_last_config_ = true;
+    unlock();
+
     esp_err_t err = ensureWifiInit();
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
     if (context.ap_netif == nullptr) {
         context.ap_netif = esp_netif_create_default_wifi_ap();
         if (context.ap_netif == nullptr) {
+            lock();
             setStateError(state_, "failed to create AP netif");
+            unlock();
             return ESP_FAIL;
         }
     }
@@ -498,10 +951,18 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
     if (context.sta_netif == nullptr) {
         context.sta_netif = esp_netif_create_default_wifi_sta();
         if (context.sta_netif == nullptr) {
+            lock();
             setStateError(state_, "failed to create station netif for scanning");
+            unlock();
             return ESP_FAIL;
         }
     }
+
+    stopTimerIfRunning(context.reconnect_timer);
+    context.reconnect_cycle_active = false;
+    context.auto_connect_on_sta_start = false;
+    context.ignore_disconnect_until_ms =
+        air360::uptimeMilliseconds() + kDisconnectIgnoreWindowMs;
 
     err = esp_wifi_stop();
     if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED) {
@@ -510,17 +971,64 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
 
     err = esp_wifi_set_mode(WIFI_MODE_APSTA);
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
-    state_.station_config_present = hasStationConfig(config);
-    state_.station_ssid = config.wifi_sta_ssid;
-    state_.lab_ap_ssid = config.lab_ap_ssid;
+    wifi_config_t ap_config{};
+    copyString(
+        reinterpret_cast<char*>(ap_config.ap.ssid),
+        sizeof(ap_config.ap.ssid),
+        config.lab_ap_ssid);
+    copyString(
+        reinterpret_cast<char*>(ap_config.ap.password),
+        sizeof(ap_config.ap.password),
+        config.lab_ap_password);
+    ap_config.ap.ssid_len = std::strlen(config.lab_ap_ssid);
+    ap_config.ap.channel = CONFIG_AIR360_LAB_AP_CHANNEL;
+    ap_config.ap.max_connection = CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS;
+    ap_config.ap.authmode =
+        std::strlen(config.lab_ap_password) == 0U ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+    ap_config.ap.pmf_cfg.required = false;
+
+    err = esp_wifi_set_config(WIFI_IF_AP, &ap_config);
+    if (err != ESP_OK) {
+        lock();
+        setStateError(state_, esp_err_to_name(err));
+        unlock();
+        return err;
+    }
+
+    if (hasStationConfig(config)) {
+        wifi_config_t sta_config{};
+        copyString(
+            reinterpret_cast<char*>(sta_config.sta.ssid),
+            sizeof(sta_config.sta.ssid),
+            config.wifi_sta_ssid);
+        copyString(
+            reinterpret_cast<char*>(sta_config.sta.password),
+            sizeof(sta_config.sta.password),
+            config.wifi_sta_password);
+        sta_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
+        sta_config.sta.pmf_cfg.capable = true;
+        sta_config.sta.pmf_cfg.required = false;
+
+        err = esp_wifi_set_config(WIFI_IF_STA, &sta_config);
+        if (err != ESP_OK) {
+            lock();
+            setStateError(state_, esp_err_to_name(err));
+            unlock();
+            return err;
+        }
+    }
 
     err = esp_netif_dhcps_stop(context.ap_netif);
     if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
@@ -530,55 +1038,59 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
     err = esp_netif_set_ip_info(context.ap_netif, &ip_info);
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
     err = esp_netif_dhcps_start(context.ap_netif);
     if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
-        return err;
-    }
-
-    wifi_config_t wifi_config{};
-    copyString(
-        reinterpret_cast<char*>(wifi_config.ap.ssid),
-        sizeof(wifi_config.ap.ssid),
-        config.lab_ap_ssid);
-    copyString(
-        reinterpret_cast<char*>(wifi_config.ap.password),
-        sizeof(wifi_config.ap.password),
-        config.lab_ap_password);
-    wifi_config.ap.ssid_len = std::strlen(config.lab_ap_ssid);
-    wifi_config.ap.channel = CONFIG_AIR360_LAB_AP_CHANNEL;
-    wifi_config.ap.max_connection = CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS;
-    wifi_config.ap.authmode =
-        std::strlen(config.lab_ap_password) == 0U ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
-    wifi_config.ap.pmf_cfg.required = false;
-
-    err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
-    if (err != ESP_OK) {
-        setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
     err = esp_wifi_start();
     if (err != ESP_OK) {
+        lock();
         setStateError(state_, esp_err_to_name(err));
+        unlock();
+        return err;
+    }
+
+    err = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (err != ESP_OK) {
+        lock();
+        setStateError(state_, esp_err_to_name(err));
+        unlock();
         return err;
     }
 
     char ip_buffer[16];
     std::snprintf(ip_buffer, sizeof(ip_buffer), IPSTR, IP2STR(&ip_info.ip));
+
+    lock();
     state_.mode = NetworkMode::kSetupAp;
     state_.lab_ap_active = true;
+    state_.station_connected = false;
     state_.ip_address = ip_buffer;
+    state_.reconnect_backoff_active = false;
+    state_.next_reconnect_uptime_ms = 0U;
+    state_.reconnect_attempt_count = 0U;
+    state_.setup_ap_retry_active = hasStationConfig(config);
+    state_.next_setup_ap_retry_uptime_ms =
+        hasStationConfig(config) ? (air360::uptimeMilliseconds() + kSetupApRetryDelayMs) : 0U;
+    unlock();
 
-    ESP_LOGI(
-        kTag,
-        "Setup AP active: ssid=%s ip=%s",
-        config.lab_ap_ssid,
-        state_.ip_address.c_str());
+    if (hasStationConfig(config)) {
+        armTimer(context.setup_ap_retry_timer, kSetupApRetryDelayMs);
+    } else {
+        stopTimerIfRunning(context.setup_ap_retry_timer);
+    }
+
+    ESP_LOGI(kTag, "Setup AP active: ssid=%s ip=%s", config.lab_ap_ssid, ip_buffer);
 
     const esp_err_t scan_err = scanAvailableNetworks();
     if (scan_err != ESP_OK) {
@@ -595,7 +1107,8 @@ esp_err_t NetworkManager::scanAvailableNetworks() {
     const auto fail = [this](esp_err_t err, const char* message = nullptr) -> esp_err_t {
         available_networks_.clear();
         last_scan_uptime_ms_ = 0U;
-        last_scan_error_ = message != nullptr ? std::string(message) : std::string(esp_err_to_name(err));
+        last_scan_error_ =
+            message != nullptr ? std::string(message) : std::string(esp_err_to_name(err));
         return err;
     };
 
@@ -679,7 +1192,10 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
         }
     }
 
-    if (!state_.station_connected) {
+    lock();
+    const bool station_connected = state_.station_connected;
+    unlock();
+    if (!station_connected) {
         result.error = "not_connected";
         return result;
     }
@@ -695,7 +1211,11 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
     const esp_err_t init_err = esp_netif_sntp_init(&sntp_config);
     if (init_err != ESP_OK) {
         result.error = "sync_failed";
-        ESP_LOGW(kTag, "Check SNTP init failed for '%s': %s", server.c_str(), esp_err_to_name(init_err));
+        ESP_LOGW(
+            kTag,
+            "Check SNTP init failed for '%s': %s",
+            server.c_str(),
+            esp_err_to_name(init_err));
         return result;
     }
     context.sntp_initialized = true;
@@ -714,9 +1234,11 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
 
     if (synced) {
         result.success = true;
+        lock();
         state_.time_synchronized = true;
         state_.time_sync_error.clear();
         state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+        unlock();
         ESP_LOGI(kTag, "SNTP check succeeded for server: %s", server.c_str());
     } else {
         result.error = "sync_failed";
@@ -729,16 +1251,22 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
 }
 
 esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
-    if (state_.mode != NetworkMode::kStation || !state_.station_connected) {
+    lock();
+    const bool ready = (state_.mode == NetworkMode::kStation && state_.station_connected);
+    if (!ready) {
         state_.time_sync_error = "station is not connected";
+        unlock();
         return ESP_ERR_INVALID_STATE;
     }
+    unlock();
 
     if (hasValidUnixTime()) {
+        lock();
         state_.time_sync_attempted = true;
         state_.time_synchronized = true;
         state_.time_sync_error.clear();
         state_.last_time_sync_unix_ms = air360::currentUnixMilliseconds();
+        unlock();
         return ESP_OK;
     }
 
@@ -747,16 +1275,16 @@ esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
 
 UplinkStatus NetworkManager::uplinkStatus() const {
     UplinkStatus status;
-    // Cellular bearer takes priority.  Populated by CellularManager via
-    // setCellularStatus() after PPP connects.
-    if (!state_.cellular_ip.empty() && hasValidUnixTime()) {
+    const NetworkState snapshot = state();
+
+    if (!snapshot.cellular_ip.empty() && hasValidUnixTime()) {
         status.uplink_ready = true;
         status.active_bearer = UplinkBearer::kCellular;
         return status;
     }
-    // Wi-Fi station bearer — unchanged behavior when cellular is absent.
-    if (state_.mode == NetworkMode::kStation &&
-        state_.station_connected &&
+
+    if (snapshot.mode == NetworkMode::kStation &&
+        snapshot.station_connected &&
         hasValidUnixTime()) {
         status.uplink_ready = true;
         status.active_bearer = UplinkBearer::kWifi;
@@ -765,14 +1293,24 @@ UplinkStatus NetworkManager::uplinkStatus() const {
 }
 
 void NetworkManager::setCellularStatus(bool ppp_connected, const char* ip_address) {
+    lock();
     if (ppp_connected && ip_address != nullptr && ip_address[0] != '\0') {
         state_.cellular_ip = ip_address;
     } else {
         state_.cellular_ip.clear();
     }
+    unlock();
 }
 
 esp_err_t NetworkManager::stopStation() {
+    RuntimeContext& context = runtimeContext();
+    stopTimerIfRunning(context.reconnect_timer);
+    stopTimerIfRunning(context.setup_ap_retry_timer);
+    context.reconnect_cycle_active = false;
+    context.auto_connect_on_sta_start = false;
+    context.ignore_disconnect_until_ms =
+        air360::uptimeMilliseconds() + kDisconnectIgnoreWindowMs;
+
     esp_err_t err = esp_wifi_disconnect();
     if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT && err != ESP_ERR_WIFI_NOT_STARTED &&
         err != ESP_ERR_WIFI_NOT_CONNECT) {
@@ -785,18 +1323,27 @@ esp_err_t NetworkManager::stopStation() {
         return err;
     }
 
+    lock();
     state_.station_connected = false;
     state_.ip_address.clear();
+    state_.reconnect_backoff_active = false;
+    state_.next_reconnect_uptime_ms = 0U;
+    state_.setup_ap_retry_active = false;
+    state_.next_setup_ap_retry_uptime_ms = 0U;
     if (state_.mode == NetworkMode::kStation) {
         state_.mode = NetworkMode::kOffline;
     }
+    unlock();
 
     ESP_LOGI(kTag, "Wi-Fi station stopped");
     return ESP_OK;
 }
 
-const NetworkState& NetworkManager::state() const {
-    return state_;
+NetworkState NetworkManager::state() const {
+    lock();
+    const NetworkState snapshot = state_;
+    unlock();
+    return snapshot;
 }
 
 const std::vector<WifiNetworkRecord>& NetworkManager::availableNetworks() const {

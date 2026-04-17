@@ -1,0 +1,34 @@
+<div class='stack stack--scene'>
+    <section class='stats'>
+        <div class='stat'><div class='stat__label'>Total Available</div><div class='stat__value'><code>{{TOTAL_HEAP}}</code></div></div>
+        <div class='stat'><div class='stat__label'>Free Heap</div><div class='stat__value'><code>{{FREE_HEAP}}</code></div></div>
+        <div class='stat'><div class='stat__label'>Min Heap</div><div class='stat__value'><code>{{MIN_HEAP}}</code></div></div>
+        <div class='stat'><div class='stat__label'>Largest Block</div><div class='stat__value'><code>{{LARGEST_BLOCK}}</code></div></div>
+    </section>
+
+    <section class='panel panel--runtime stack'>
+        <h2>Memory</h2>
+        {{MEMORY_BLOCK}}
+    </section>
+
+    <section class='panel panel--runtime stack'>
+        <h2>Tasks</h2>
+        {{TASK_BLOCK}}
+    </section>
+
+    <section class='panel panel--runtime stack'>
+        <h2>Network Recovery</h2>
+        {{NETWORK_BLOCK}}
+    </section>
+
+    <section class='panel panel--runtime stack runtime-dump'>
+        <div class='runtime-dump__head'>
+            <h2>Raw Status JSON</h2>
+            <div class='runtime-dump__actions'>
+                <span class='muted runtime-dump__status' data-copy-runtime-dump-status aria-live='polite'></span>
+                <button type='button' class='button button--secondary' data-copy-runtime-dump>Copy JSON</button>
+            </div>
+        </div>
+        <textarea class='runtime-dump__console' readonly spellcheck='false'>{{STATUS_JSON_DUMP}}</textarea>
+    </section>
+</div>

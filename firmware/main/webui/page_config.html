@@ -12,19 +12,14 @@
                 </div>
                 <div class='field'>
                     <label for='wifi_ssid'>Wi-Fi SSID</label>
-                    <input class='input' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='{{WIFI_SSID_VALUE}}' autocomplete='off' data-wifi-ssid-input>
-                    <div class='field stack' data-wifi-ssid-select-row {{WIFI_SSID_SELECT_HIDDEN}}>
-                        <label for='wifi_ssid_select'>Available networks</label>
-                        <select class='select' id='wifi_ssid_select' data-wifi-ssid-select>
-                            <option value=''>Select network...</option>
-                            {{WIFI_SSID_OPTIONS}}
-                        </select>
-                    </div>
+                    <select class='select' id='wifi_ssid' name='wifi_ssid' data-wifi-ssid-select>
+                        {{WIFI_SSID_OPTIONS}}
+                    </select>
                     <p class='hint' data-wifi-ssid-scan-status hidden></p>
                 </div>
                 <div class='field' data-wifi-password-field>
                     <label for='wifi_password'>Wi-Fi password</label>
-                    <div class='secret-row'>
+                    <div class='input-action-row'>
                         <input class='input' id='wifi_password' name='wifi_password' type='password' maxlength='63' value='{{WIFI_PASSWORD_VALUE}}'>
                         <button class='button button--ghost' type='button' data-secret-toggle='wifi_password'>Show</button>
                     </div>
@@ -34,7 +29,10 @@
                 <h3>SNTP</h3>
                 <div class='field'>
                     <label for='sntp_server'>SNTP server</label>
-                    <input class='input' id='sntp_server' name='sntp_server' maxlength='63' placeholder='pool.ntp.org' value='{{SNTP_SERVER_VALUE}}'>
+                    <div class='input-action-row'>
+                        <input class='input' id='sntp_server' name='sntp_server' maxlength='63' placeholder='pool.ntp.org' value='{{SNTP_SERVER_VALUE}}'>
+                        <button class='button button--ghost' type='button' data-check-sntp>Check</button>
+                    </div>
                     <p class='hint'>Leave empty to use the default server (pool.ntp.org).</p>
                     <p class='hint' data-check-sntp-status hidden></p>
                 </div>
@@ -47,7 +45,7 @@
                         Use static IP
                     </label>
                 </div>
-                <fieldset class='stack' data-static-ip-fields {{STA_STATIC_IP_FIELDSET_DISABLED}}>
+                <div class='stack config-group {{STA_STATIC_IP_GROUP_DISABLED_CLASS}}' data-static-ip-fields>
                     <div class='field'>
                         <label for='sta_ip'>IP address</label>
                         <input class='input' id='sta_ip' name='sta_ip' maxlength='15' placeholder='192.168.1.100' value='{{STA_IP_VALUE}}'>
@@ -65,7 +63,7 @@
                         <input class='input' id='sta_dns' name='sta_dns' maxlength='15' placeholder='8.8.8.8' value='{{STA_DNS_VALUE}}'>
                         <p class='hint'>Leave empty to use the gateway as DNS.</p>
                     </div>
-                </fieldset>
+                </div>
                 <hr>
                 <h3>Mobile Uplink</h3>
                 <p class='muted'>When enabled, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for a configurable debug window after boot, then stops automatically.</p>
@@ -75,7 +73,7 @@
                         Enable cellular uplink (SIM7600E)
                     </label>
                 </div>
-                <fieldset class='stack' data-cellular-fields {{CELLULAR_FIELDSET_DISABLED}}>
+                <div class='stack config-group {{CELLULAR_GROUP_DISABLED_CLASS}}' data-cellular-fields>
                     <div class='field'>
                         <label for='cellular_apn'>APN</label>
                         <input class='input' id='cellular_apn' name='cellular_apn' maxlength='63' placeholder='internet' value='{{CELLULAR_APN_VALUE}}'>
@@ -88,7 +86,7 @@
                     </div>
                     <div class='field'>
                         <label for='cellular_password'>Password</label>
-                        <div class='secret-row'>
+                        <div class='input-action-row'>
                             <input class='input' id='cellular_password' name='cellular_password' type='password' maxlength='63' value='{{CELLULAR_PASSWORD_VALUE}}' autocomplete='new-password'>
                             <button class='button button--ghost' type='button' data-secret-toggle='cellular_password'>Show</button>
                         </div>
@@ -96,7 +94,7 @@
                     </div>
                     <div class='field'>
                         <label for='cellular_sim_pin'>SIM PIN</label>
-                        <div class='secret-row'>
+                        <div class='input-action-row'>
                             <input class='input' id='cellular_sim_pin' name='cellular_sim_pin' type='password' maxlength='7' value='{{CELLULAR_SIM_PIN_VALUE}}' autocomplete='new-password'>
                             <button class='button button--ghost' type='button' data-secret-toggle='cellular_sim_pin'>Show</button>
                         </div>
@@ -112,9 +110,8 @@
                         <input class='input' id='cellular_wifi_debug_window_s' name='cellular_wifi_debug_window_s' type='number' min='0' max='3600' value='{{CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE}}'>
                         <p class='hint'>How long Wi-Fi station stays active alongside cellular after boot. 0 = disabled.</p>
                     </div>
-                </fieldset>
+                </div>
                 <div class='split-actions'>
-                    <button class='button button--ghost' type='button' data-check-sntp>Check SNTP</button>
                     <button class='button' type='submit'>Save and reboot</button>
                 </div>
             </form>
