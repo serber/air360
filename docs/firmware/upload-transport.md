@@ -1,5 +1,23 @@
 # Upload Transport
 
+## Status
+
+Implemented. Keep this document aligned with the current HTTP execution layer shared by upload adapters.
+
+## Scope
+
+This document covers the low-level HTTP transport used by the firmware upload adapters: request execution, TLS setup, response capture, and transport-level error handling.
+
+## Source of truth in code
+
+- `firmware/main/src/uploads/upload_transport.cpp`
+- `firmware/main/include/air360/uploads/upload_transport.hpp`
+
+## Read next
+
+- [upload-adapters.md](upload-adapters.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+
 `UploadTransport` is the HTTP execution layer used by both upload adapters. It takes a fully-constructed `UploadRequestSpec` and returns an `UploadTransportResponse`. It has no state — the class is a stateless executor with a single `execute()` method.
 
 ---

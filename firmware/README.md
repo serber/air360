@@ -2,6 +2,8 @@
 
 This directory contains the ESP-IDF firmware project for Air360.
 
+For AI-agent task routing and co-change expectations inside this directory, start with [AGENTS.md](AGENTS.md).
+
 The current implementation is a Phase 3.2 runtime for `esp32s3` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device, sensor, and backend configuration, resolves whether the device should run in station mode or setup AP mode, synchronizes UTC time through SNTP when station uplink is available, exposes local HTTP endpoints at `/`, `/status`, `/config`, `/sensors`, and `/backends`, runs a background sensor manager for supported sensor drivers, and runs a background upload manager for supported remote backends.
 
 Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/).

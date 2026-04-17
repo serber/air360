@@ -1,5 +1,27 @@
 # Configuration Reference
 
+## Status
+
+Implemented. Keep this reference aligned with the current persisted config models, defaults, and save-time validation rules.
+
+## Scope
+
+This is the field-level reference for editable firmware configuration across device, sensor, backend, and cellular domains.
+
+## Source of truth in code
+
+- `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/sensors/sensor_config_repository.cpp`
+- `firmware/main/src/uploads/backend_config_repository.cpp`
+- `firmware/main/src/cellular_config_repository.cpp`
+- `firmware/main/src/web_server.cpp`
+
+## Read next
+
+- [nvs.md](nvs.md)
+- [web-ui.md](web-ui.md)
+- [network-manager.md](network-manager.md)
+
 The firmware stores all user-editable configuration in three NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
 
 For storage format details (magic numbers, schema versions, struct layouts) see [nvs.md](nvs.md).

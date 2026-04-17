@@ -1,5 +1,26 @@
 # Air360 Firmware Documentation
 
+## Status
+
+Implemented. Keep this index aligned with the current `firmware/` tree and the implementation docs under `docs/firmware/`.
+
+## Scope
+
+This is the top-level navigation map for firmware implementation documentation. It is written for maintainers and AI agents that need to find the right subsystem docs quickly.
+
+## Source of truth in code
+
+- `firmware/main/src/`
+- `firmware/main/include/air360/`
+- `firmware/main/Kconfig.projbuild`
+- `firmware/sdkconfig.defaults`
+
+## Read next
+
+- [../../AGENTS.md](../../AGENTS.md)
+- [../../firmware/AGENTS.md](../../firmware/AGENTS.md)
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+
 Documentation for the Air360 firmware — an ESP32-S3 air quality monitoring device built on ESP-IDF 6.x and FreeRTOS.
 
 The `firmware/` directory is the source of truth for all implemented behaviour described here.
@@ -12,6 +33,22 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 |----------|-------------|
 | [user-guide.md](user-guide.md) | End-user guide: flashing, first-time setup, web UI walkthrough |
 | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Directory layout, key source files, third-party components |
+| [change-impact-map.md](change-impact-map.md) | What else to review when a firmware file or subsystem changes |
+
+---
+
+## Task routes
+
+| I need to... | Read this first | Then read |
+|--------------|-----------------|-----------|
+| Understand startup and long-lived tasks | [startup-pipeline.md](startup-pipeline.md) | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Work on NVS-backed config | [nvs.md](nvs.md) | [configuration-reference.md](configuration-reference.md) |
+| Change Wi-Fi, setup AP, or SNTP | [network-manager.md](network-manager.md) | [time.md](time.md) |
+| Change cellular modem behavior | [cellular-manager.md](cellular-manager.md) | [sensors/sim7600e.md](sensors/sim7600e.md) |
+| Add or change a sensor driver | [sensors/adding-new-sensor.md](sensors/adding-new-sensor.md) | [sensors/supported-sensors.md](sensors/supported-sensors.md) + [transport-binding.md](transport-binding.md) |
+| Change web routes or forms | [web-ui.md](web-ui.md) | [configuration-reference.md](configuration-reference.md) |
+| Change upload behavior | [measurement-pipeline.md](measurement-pipeline.md) | [upload-adapters.md](upload-adapters.md) + [upload-transport.md](upload-transport.md) |
+| Estimate doc fallout before editing | [change-impact-map.md](change-impact-map.md) | [doc-template.md](doc-template.md) |
 
 ---
 
@@ -49,6 +86,8 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Document | Description |
 |----------|-------------|
 | [sensors/README.md](sensors/README.md) | Supported sensors, hardware reference, and per-driver documentation index |
+| [sensors/supported-sensors.md](sensors/supported-sensors.md) | Concise support matrix for all current sensor types |
+| [sensors/adding-new-sensor.md](sensors/adding-new-sensor.md) | Implementation and doc checklist for adding a new driver |
 | [transport-binding.md](transport-binding.md) | I2C bus manager and UART port manager used by all sensor drivers |
 
 ### Sensor drivers
@@ -82,6 +121,13 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 ## Architecture Decision Records
 
 See [adr/README.md](adr/README.md) for the full index grouped by status.
+
+---
+
+## Documentation conventions
+
+- Use [doc-template.md](doc-template.md) when creating or rewriting firmware implementation docs.
+- Use [change-impact-map.md](change-impact-map.md) before or during refactors to see which docs usually need to move together.
 
 ---
 

@@ -1,5 +1,27 @@
 # Air360 Firmware — Architecture
 
+## Status
+
+Implemented. Keep this document aligned with the current `firmware/` tree.
+
+## Scope
+
+This document is the high-level system map for the firmware: component boundaries, startup ownership, task model, storage surfaces, network layers, and major data flows.
+
+## Source of truth in code
+
+- `firmware/main/src/app.cpp`
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/web_server.cpp`
+- `firmware/main/src/sensors/sensor_manager.cpp`
+- `firmware/main/src/uploads/upload_manager.cpp`
+
+## Read next
+
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+- [startup-pipeline.md](startup-pipeline.md)
+- [configuration-reference.md](configuration-reference.md)
+
 ## Purpose
 
 Air360 is an air quality monitoring device built on the ESP32-S3. The firmware collects environmental measurements from attached sensors, exposes a local web interface for device configuration and status monitoring, and uploads batched measurement data to one or more remote backends.

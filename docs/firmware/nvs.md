@@ -1,5 +1,26 @@
 # NVS Storage
 
+## Status
+
+Implemented. Keep this document aligned with the current NVS blob layouts and keys used by the firmware.
+
+## Scope
+
+This document explains the persistent storage schema used by the firmware, including namespaces, keys, blob layouts, schema guards, and reset behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/sensors/sensor_config_repository.cpp`
+- `firmware/main/src/uploads/backend_config_repository.cpp`
+- `firmware/main/src/cellular_config_repository.cpp`
+
+## Read next
+
+- [configuration-reference.md](configuration-reference.md)
+- [startup-pipeline.md](startup-pipeline.md)
+- [cellular-manager.md](cellular-manager.md)
+
 The firmware uses a single NVS namespace `"air360"` for all persistent state. There are five keys stored under that namespace.
 
 ## Namespace and keys

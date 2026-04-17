@@ -1,5 +1,25 @@
 # ME3-NO2
 
+## Status
+
+Implemented. Keep this document aligned with the current ME3-NO2 driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 ME3-NO2 analog sensor path, including ADC binding, output fields, and current limitations.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/me3_no2_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/me3_no2_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [adding-new-sensor.md](adding-new-sensor.md)
+
 Analog electrochemical nitrogen dioxide (NO₂) sensor from the ME3 series. Connected via ADC.
 
 ## Transport

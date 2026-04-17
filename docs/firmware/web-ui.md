@@ -1,5 +1,27 @@
 # Web UI
 
+## Status
+
+Implemented. Keep this document aligned with the current embedded HTTP server routes, rendered pages, and form-handling behavior.
+
+## Scope
+
+This document covers the local firmware web interface, including routes, page purpose, server-side rendering, actions, and route-level interactions with runtime state.
+
+## Source of truth in code
+
+- `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web_ui.cpp`
+- `firmware/main/src/web_assets.cpp`
+- `firmware/main/src/status_service.cpp`
+- `firmware/main/webui/`
+
+## Read next
+
+- [configuration-reference.md](configuration-reference.md)
+- [network-manager.md](network-manager.md)
+- [sensors/README.md](sensors/README.md)
+
 The firmware includes an embedded HTTP server that serves a multi-page configuration and monitoring interface. All pages are rendered server-side by template substitution — no client-side rendering framework is used.
 
 ---

@@ -9,7 +9,7 @@ Work as an ESP-IDF and embedded C++ engineer inside an ESP32-family firmware rep
 
 ## Workflow
 - Prefer repository conventions over generic examples.
-- Inspect existing components, `main/`, `components/`, `CMakeLists.txt`, `sdkconfig.defaults`, partition tables, and `CLAUDE.md` before changing code.
+- Inspect existing components, `main/`, `components/`, `CMakeLists.txt`, `sdkconfig.defaults`, partition tables, and `AGENTS.md` before changing code.
 - Make minimal, production-oriented changes.
 - Keep changes buildable.
 - Read `.claude/skills/esp-idf-cpp-developer/references/project-layout.md` when you need a quick reminder of the typical ESP-IDF repository structure.

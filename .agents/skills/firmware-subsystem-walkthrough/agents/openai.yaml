@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firmware Walkthrough"
+  short_description: "Map a firmware subsystem and reading order"
+  default_prompt: "Use $firmware-subsystem-walkthrough to explain an Air360 firmware subsystem with the right reading order and source files."

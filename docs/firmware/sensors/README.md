@@ -1,11 +1,28 @@
 # Supported Sensors
 
+## Status
+
+Implemented. Keep this index aligned with the sensor types and driver files currently present in `firmware/`.
+
+## Scope
+
+This document is the detailed sensor documentation index and hardware reference for the Air360 firmware.
+
+## Source of truth in code
+
+- `firmware/main/include/air360/sensors/sensor_types.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+- `firmware/main/src/sensors/drivers/`
+
+## Read next
+
+- [supported-sensors.md](supported-sensors.md)
+- [adding-new-sensor.md](adding-new-sensor.md)
+- [../transport-binding.md](../transport-binding.md)
+
 Reference index for every sensor driver implemented in `firmware/main/src/sensors/drivers/`.
 
-This README replaces the former `supported-sensors.md` and combines both roles:
-
-- the driver documentation index
-- the hardware reference notes for each supported sensor
+Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [adding-new-sensor.md](adding-new-sensor.md) for the implementation checklist.
 
 ## Sensor Index
 

@@ -1,5 +1,25 @@
 # SHT4X
 
+## Status
+
+Implemented. Keep this document aligned with the current SHT4X driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 SHT4X family driver, including default I2C binding and measurement behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/sht4x_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/sht4x_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [../transport-binding.md](../transport-binding.md)
+
 High-accuracy temperature and humidity sensor from Sensirion (SHT40 / SHT41 / SHT45 family).
 
 ## Transport

@@ -1,5 +1,25 @@
 # GPS (NMEA)
 
+## Status
+
+Implemented. Keep this document aligned with the current GPS NMEA driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 GPS NMEA sensor path, including UART defaults, parsed output fields, and driver-level behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/gps_nmea_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/gps_nmea_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [../transport-binding.md](../transport-binding.md)
+
 UART GPS receiver with NMEA sentence parsing via the TinyGPSPlus library.
 
 ## Transport

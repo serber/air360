@@ -1,5 +1,25 @@
 # Upload Adapters
 
+## Status
+
+Implemented. Keep this document aligned with the currently supported backend adapters and payload mapping logic.
+
+## Scope
+
+This document covers the adapter-specific layer that turns Air360 measurements into backend requests and classifies backend responses.
+
+## Source of truth in code
+
+- `firmware/main/src/uploads/adapters/air360_api_uploader.cpp`
+- `firmware/main/src/uploads/adapters/sensor_community_uploader.cpp`
+- `firmware/main/src/uploads/backend_registry.cpp`
+
+## Read next
+
+- [upload-transport.md](upload-transport.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+- [configuration-reference.md](configuration-reference.md)
+
 This document describes the two backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
 
 ---

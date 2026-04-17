@@ -1,5 +1,26 @@
 # Air360 Firmware — Project Structure
 
+## Status
+
+Implemented. Keep this document aligned with the current `firmware/` tree.
+
+## Scope
+
+This document explains how the firmware project is laid out on disk and which directories and source files own each part of the runtime.
+
+## Source of truth in code
+
+- `firmware/CMakeLists.txt`
+- `firmware/main/CMakeLists.txt`
+- `firmware/main/include/air360/`
+- `firmware/main/src/`
+
+## Read next
+
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [startup-pipeline.md](startup-pipeline.md)
+- [change-impact-map.md](change-impact-map.md)
+
 ## Purpose
 
 This document explains how the ESP-IDF firmware project is laid out and how a contributor should navigate it.

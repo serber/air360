@@ -1,5 +1,25 @@
 # Network Manager
 
+## Status
+
+Implemented. Keep this document aligned with the current Wi-Fi and SNTP runtime behavior.
+
+## Scope
+
+This document covers station mode, setup AP fallback, reconnect logic, connectivity checks, and SNTP synchronization handled by `NetworkManager`.
+
+## Source of truth in code
+
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/connectivity_checker.cpp`
+- `firmware/main/include/air360/network_manager.hpp`
+
+## Read next
+
+- [time.md](time.md)
+- [startup-pipeline.md](startup-pipeline.md)
+- [cellular-manager.md](cellular-manager.md)
+
 This document describes the `NetworkManager` class — Wi-Fi station setup, setup AP fallback, runtime recovery after disconnects, and SNTP time synchronisation.
 
 ---

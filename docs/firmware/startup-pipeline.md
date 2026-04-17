@@ -1,5 +1,26 @@
 # Firmware Startup Sequence
 
+## Status
+
+Implemented. Keep this document aligned with the current `firmware/` startup code.
+
+## Scope
+
+This document covers the boot chain and application initialization order from `app_main()` through the point where the long-lived runtime services are active.
+
+## Source of truth in code
+
+- `firmware/main/src/app_main.cpp`
+- `firmware/main/src/app.cpp`
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/uploads/upload_manager.cpp`
+
+## Read next
+
+- [nvs.md](nvs.md)
+- [network-manager.md](network-manager.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+
 This document describes the full application startup process — from the ESP-IDF boot chain through each initialization step to the moment the device is ready and running.
 
 ---

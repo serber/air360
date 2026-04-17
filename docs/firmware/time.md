@@ -1,5 +1,25 @@
 # Time
 
+## Status
+
+Implemented. Keep this document aligned with the current uptime, SNTP, and time-validity logic used by the firmware.
+
+## Scope
+
+This document explains the two time domains used by the firmware and where time validity gates status, uploads, and user-visible behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/uploads/upload_manager.cpp`
+- `firmware/main/include/air360/time_utils.hpp`
+
+## Read next
+
+- [network-manager.md](network-manager.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+- [startup-pipeline.md](startup-pipeline.md)
+
 The firmware operates with two independent time domains: **uptime** and **wall clock (Unix time)**. They serve different purposes and have different availability guarantees.
 
 ---

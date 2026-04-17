@@ -1,5 +1,25 @@
 # DHT11 / DHT22
 
+## Status
+
+Implemented. Keep this document aligned with the current shared DHT driver and registry defaults.
+
+## Scope
+
+This document covers the shared Air360 driver for DHT11 and DHT22 class devices, including GPIO binding and model selection behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/dht_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/dht_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [adding-new-sensor.md](adding-new-sensor.md)
+
 Digital temperature and humidity sensors with a single-wire interface. One driver handles both variants — the model is selected at creation time via the sensor registry.
 
 ## Transport

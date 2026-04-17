@@ -1,5 +1,26 @@
 # SPS30
 
+## Status
+
+Implemented. Keep this document aligned with the current SPS30 driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 SPS30 driver, including default I2C binding, warm-up behavior, and output fields.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/sps30_sensor.cpp`
+- `firmware/main/src/sensors/drivers/sensirion_i2c_hal.cpp`
+- `firmware/main/include/air360/sensors/drivers/sps30_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [../transport-binding.md](../transport-binding.md)
+
 Laser particulate matter (PM) sensor from Sensirion. Measures mass and number concentrations across multiple size fractions, plus typical particle size.
 
 ## Transport

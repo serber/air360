@@ -1,5 +1,26 @@
 # Air360 Firmware User Guide
 
+## Status
+
+Implemented. Keep this guide aligned with the user-visible firmware behavior currently exposed by the device.
+
+## Scope
+
+This guide explains operational use of the device firmware from the perspective of a device user, not a firmware maintainer.
+
+## Source of truth in code
+
+- `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web_ui.cpp`
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/status_service.cpp`
+
+## Read next
+
+- [web-ui.md](web-ui.md)
+- [configuration-reference.md](configuration-reference.md)
+- [network-manager.md](network-manager.md)
+
 This guide explains how to use the Air360 firmware web interface — from first boot through sensor and backend configuration in normal operation.
 
 It is written for device users, not for firmware developers.

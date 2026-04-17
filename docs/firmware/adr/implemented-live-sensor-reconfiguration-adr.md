@@ -8,7 +8,7 @@ This document now records an implemented architecture decision for the firmware.
 
 ## Prerequisite
 
-This ADR assumes the direction described in [`measurement-runtime-separation-adr.md`](measurement-runtime-separation-adr.md):
+This ADR assumes the direction described in [`implemented-measurement-runtime-separation-adr.md`](implemented-measurement-runtime-separation-adr.md):
 
 - `SensorManager` owns driver lifecycle and polling
 - the measurement runtime owns latest values and the single bounded queue

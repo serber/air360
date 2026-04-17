@@ -1,5 +1,26 @@
 # Cellular Manager
 
+## Status
+
+Implemented. Keep this document aligned with the current modem runtime and cellular config model.
+
+## Scope
+
+This document covers SIM7600E modem bring-up, PPP lifecycle, modem GPIO control, reconnect behavior, and the cellular runtime state exposed by the firmware.
+
+## Source of truth in code
+
+- `firmware/main/src/cellular_manager.cpp`
+- `firmware/main/src/cellular_config_repository.cpp`
+- `firmware/main/src/modem_gpio.cpp`
+- `firmware/main/include/air360/cellular_manager.hpp`
+
+## Read next
+
+- [network-manager.md](network-manager.md)
+- [configuration-reference.md](configuration-reference.md)
+- [sensors/sim7600e.md](sensors/sim7600e.md)
+
 This document describes the `CellularManager` class — SIM7600E modem lifecycle, PPP session management, hardware GPIO control, runtime reconnect logic, and connectivity verification.
 
 ---

@@ -1,5 +1,26 @@
 # Measurement Pipeline
 
+## Status
+
+Implemented. Keep this document aligned with the current runtime queueing and upload flow.
+
+## Scope
+
+This document covers how sensor readings become queued measurements and how those queued samples are scheduled, batched, uploaded, acknowledged, or restored.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/sensor_manager.cpp`
+- `firmware/main/src/uploads/upload_manager.cpp`
+- `firmware/main/src/uploads/measurement_store.cpp`
+- `firmware/main/src/uploads/backend_registry.cpp`
+
+## Read next
+
+- [upload-adapters.md](upload-adapters.md)
+- [upload-transport.md](upload-transport.md)
+- [time.md](time.md)
+
 This document describes how sensor readings move from hardware acquisition through in-memory queuing to upload — covering the data structures, queue mechanics, upload window, and all the conditions that affect the flow.
 
 ---

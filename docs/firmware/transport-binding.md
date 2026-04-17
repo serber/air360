@@ -1,5 +1,25 @@
 # Transport Binding
 
+## Status
+
+Implemented. Keep this document aligned with the current transport abstractions and board-level pin defaults.
+
+## Scope
+
+This document covers the shared transport layer that sensor drivers use for I2C and UART access, including board-default pins and ownership boundaries.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/transport_binding.cpp`
+- `firmware/main/include/air360/sensors/transport_binding.hpp`
+- `firmware/main/include/air360/sensors/sensor_driver.hpp`
+
+## Read next
+
+- [sensors/README.md](sensors/README.md)
+- [sensors/adding-new-sensor.md](sensors/adding-new-sensor.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+
 This document covers `I2cBusManager` and `UartPortManager` — the two hardware transport abstractions shared across all sensor drivers. Both classes are owned by `SensorManager` and passed to each driver via `SensorDriverContext` at init time.
 
 ---
