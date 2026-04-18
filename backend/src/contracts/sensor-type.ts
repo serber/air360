@@ -1,12 +1,17 @@
 export const sensorTypes = [
   "bme280",
+  "bme680",
+  "sps30",
+  "scd30",
+  "veml7700",
   "gps_nmea",
   "dht11",
   "dht22",
-  "bme680",
-  "sps30",
-  "ens160",
+  "htu2x",
+  "sht4x",
+  "ds18b20",
   "me3_no2",
+  "ina219",
 ] as const;
 
 export type SensorType = (typeof sensorTypes)[number];
