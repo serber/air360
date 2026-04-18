@@ -256,7 +256,7 @@ const char* SensorCommunityUploader::backendKey() const {
 bool SensorCommunityUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    if (backendDefaultEndpointUrl(record.backend_type)[0] == '\0') {
+    if (record.endpoint_url[0] == '\0') {
         error = "Sensor.Community endpoint URL is empty.";
         return false;
     }
@@ -308,7 +308,7 @@ bool SensorCommunityUploader::buildRequests(
         UploadRequestSpec request;
         request.request_key =
             std::string("sensor_community:") + std::to_string(group.sensor_id);
-        request.url = backendDefaultEndpointUrl(record.backend_type);
+        request.url = record.endpoint_url;
         request.timeout_ms = 15000;
         request.headers.push_back({"Content-Type", "application/json"});
         request.headers.push_back({"X-Sensor", x_sensor});

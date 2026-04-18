@@ -298,11 +298,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function syncBackendCard(panel) {
     const checkbox = panel.querySelector("[data-backend-enabled-toggle]");
-    if (!(checkbox instanceof HTMLInputElement)) {
+    const group = panel.querySelector("[data-backend-fields]");
+    if (!(checkbox instanceof HTMLInputElement) || !(group instanceof HTMLElement)) {
       return;
     }
 
     panel.classList.toggle("panel--inactive", !checkbox.checked);
+    setGroupEnabled(group, checkbox.checked);
   }
 
   for (const button of document.querySelectorAll("[data-secret-toggle]")) {

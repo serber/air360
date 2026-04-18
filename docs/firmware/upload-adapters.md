@@ -61,8 +61,10 @@ struct UploadRequestSpec {
 ### Endpoint
 
 ```
-POST http://api.sensor.community/v1/push-sensor-data/
+POST {BackendRecord.endpoint_url}
 ```
+
+Default value: `https://api.sensor.community/v1/push-sensor-data/`
 
 ### Grouping — one request per sensor
 
@@ -200,13 +202,13 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 ### Endpoint
 
 ```
-PUT http://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}
+PUT {BackendRecord.endpoint_url}
 ```
 
 - `{chip_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
 - `{batch_id}` — unique `uint64_t` batch identifier from `MeasurementBatch`
-
-Trailing slashes are stripped from the base URL before constructing the path.
+- Default value: `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`
+- Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{chip_id}/batches/{batch_id}` for backward compatibility.
 
 ### One request per batch
 

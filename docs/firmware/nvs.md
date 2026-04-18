@@ -230,7 +230,7 @@ struct BackendRecord {
     uint16_t    reserved0;
     char        display_name[32];
     char        device_id_override[32]; // Sensor.Community: overrides Short ID
-    char        endpoint_url[160];      // static default per backend type
+    char        endpoint_url[160];      // full backend URL, including http/https
     char        bearer_token[160];      // reserved, not used in current firmware
     uint8_t     reserved1[8];
 };
@@ -248,10 +248,10 @@ struct BackendRecord {
 
 | Backend | Default `endpoint_url` |
 |---------|----------------------|
-| Sensor.Community | `http://api.sensor.community/v1/push-sensor-data/` |
-| Air360 API | `http://api.air360.ru` |
+| Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
+| Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
 
-Endpoint URLs are written into the record when defaults are applied. They are stored in NVS but the current UI does not expose them for editing.
+Endpoint URLs are written into the record when defaults are applied. They are stored in NVS as full URLs, while the Backends page displays the address without protocol and rebuilds the stored value from the per-backend `Use HTTPS` checkbox on save.
 
 ---
 

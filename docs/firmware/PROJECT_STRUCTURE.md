@@ -134,8 +134,8 @@ Sources: `main/src/uploads/`
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
 - `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle, backlog drain
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
-- `adapters/air360_api_uploader.cpp` — PUT to `http://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`
-- `adapters/sensor_community_uploader.cpp` — POST to `http://api.sensor.community/v1/push-sensor-data/`
+- `adapters/air360_api_uploader.cpp` — PUT to the configured Air360 backend URL (default `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`)
+- `adapters/sensor_community_uploader.cpp` — POST to the configured Sensor.Community URL (default `https://api.sensor.community/v1/push-sensor-data/`)
 
 ### Third-party sources
 

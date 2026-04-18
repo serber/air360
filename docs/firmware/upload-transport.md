@@ -102,7 +102,7 @@ See [upload-adapters.md](upload-adapters.md) for the per-adapter classification 
 Every request is logged at `INFO` level before execution:
 
 ```
-air360.http: HTTP request: method=POST url=http://api.sensor.community/... body_len=142
+air360.http: HTTP request: method=POST url=https://api.sensor.community/... body_len=142
 ```
 
 Log tag: `air360.http`.

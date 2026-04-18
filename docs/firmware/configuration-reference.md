@@ -241,17 +241,17 @@ Two backends are pre-configured by default — both **disabled**:
 | `backend_type` | `BackendType` (uint8_t) | — | Must be a recognised type |
 | `display_name` | `char[32]` | type name | 1–31 chars, non-empty |
 | `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short chip ID |
-| `endpoint_url` | `char[160]` | type default | Non-empty when `enabled == 1` |
+| `endpoint_url` | `char[160]` | type default | Full backend URL, non-empty when `enabled == 1` |
 | `bearer_token` | `char[160]` | `""` | Reserved; not used in current firmware |
 
 ### Default endpoint URLs
 
 | Backend type | Default `endpoint_url` |
 |-------------|----------------------|
-| Sensor.Community | `http://api.sensor.community/v1/push-sensor-data/` |
-| Air360 API | `http://api.air360.ru` |
+| Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
+| Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
 
-Endpoint URLs are written into the record when defaults are applied. The current web UI does not expose them for editing.
+Endpoint URLs are written into the record when defaults are applied. The Backends page shows the address without the protocol prefix and persists either `http://` or `https://` depending on the `Use HTTPS` checkbox.
 
 ### Validation rules
 

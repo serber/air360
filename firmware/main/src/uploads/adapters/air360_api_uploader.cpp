@@ -92,6 +92,18 @@ std::string trimTrailingSlash(const char* url) {
     return trimmed;
 }
 
+void replaceAll(std::string& value, const std::string& from, const std::string& to) {
+    if (from.empty()) {
+        return;
+    }
+
+    std::size_t position = 0U;
+    while ((position = value.find(from, position)) != std::string::npos) {
+        value.replace(position, from.size(), to);
+        position += to.size();
+    }
+}
+
 std::string formatValue(SensorValueKind kind, float value) {
     char buffer[48];
     std::snprintf(
@@ -116,8 +128,18 @@ SampleGroup* findGroup(
 }
 
 std::string buildUrl(const BackendRecord& record, const MeasurementBatch& batch) {
-    const std::string base = trimTrailingSlash(backendDefaultEndpointUrl(record.backend_type));
+    std::string url = record.endpoint_url[0] != '\0'
+                          ? std::string(record.endpoint_url)
+                          : std::string(backendDefaultEndpointUrl(record.backend_type));
     const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
+
+    if (url.find("{chip_id}") != std::string::npos || url.find("{batch_id}") != std::string::npos) {
+        replaceAll(url, "{chip_id}", chip_id);
+        replaceAll(url, "{batch_id}", std::to_string(batch.batch_id));
+        return url;
+    }
+
+    const std::string base = trimTrailingSlash(url.c_str());
     return base + "/v1/devices/" + chip_id + "/batches/" + std::to_string(batch.batch_id);
 }
 
@@ -187,7 +209,7 @@ const char* Air360ApiUploader::backendKey() const {
 bool Air360ApiUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    if (backendDefaultEndpointUrl(record.backend_type)[0] == '\0') {
+    if (record.endpoint_url[0] == '\0') {
         error = "Air360 API base URL is empty.";
         return false;
     }

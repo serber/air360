@@ -15,9 +15,9 @@ constexpr std::uint32_t kDefaultUploadIntervalMs = 145000U;
 inline const char* backendDefaultEndpointUrl(BackendType type) {
     switch (type) {
         case BackendType::kSensorCommunity:
-            return "http://api.sensor.community/v1/push-sensor-data/";
+            return "https://api.sensor.community/v1/push-sensor-data/";
         case BackendType::kAir360Api:
-            return "http://api.air360.ru";
+            return "https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}";
         case BackendType::kUnknown:
         default:
             return "";

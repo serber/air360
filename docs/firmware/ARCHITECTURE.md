@@ -448,9 +448,9 @@ Manages the `BackendConfigList` NVS blob (up to 2 backends).
 | type | `BackendType` enum |
 | enabled | Active flag |
 | display_name | `char[32]` |
-| endpoint_url | `char[256]` (static defaults) |
-| device_id_override | `char[64]` |
-| bearer_token | `char[256]` (reserved) |
+| endpoint_url | `char[160]` (stored full URL) |
+| device_id_override | `char[32]` |
+| bearer_token | `char[160]` (reserved) |
 | upload_interval_s | 10–300 seconds (default 145 s) |
 
 **Log tag:** `air360.backend_cfg`
@@ -470,8 +470,8 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 
 | Type | Default endpoint |
 |------|-----------------|
-| Sensor.Community | `http://api.sensor.community/v1/push-sensor-data/` |
-| Air360 API | `http://api.air360.ru` |
+| Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
+| Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
 
 ---
 
@@ -551,7 +551,7 @@ Payload is the full `MeasurementBatch` serialized as JSON with `schema_version`.
 Uploads to [Sensor.Community](https://sensor.community/).
 
 - Method: `POST`
-- Endpoint: `http://api.sensor.community/v1/push-sensor-data/`
+- Endpoint: configured `endpoint_url` (default `https://api.sensor.community/v1/push-sensor-data/`)
 - Headers: `X-Sensor`, `X-MAC-ID`, `X-PIN`, `User-Agent`
 - Format: `{"sensordatavalues": [{"value_type": "...", "value": "..."}]}`
 
@@ -736,15 +736,14 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 
 ### Air360 backend API
 
-- Base: `http://api.air360.ru`
-- Protocol: HTTP (HTTPS deferred due to unresolved connection-latency issues on ESP32-S3)
-- Route: `PUT /v1/devices/{chip_id}/batches/{batch_id}`
+- Endpoint template: configured `endpoint_url` (default `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`)
+- Protocol: `http` or `https`, selected per backend in the web UI and stored in NVS
 - Payload: JSON `MeasurementBatch`
 
 ### Sensor.Community API
 
-- Endpoint: `http://api.sensor.community/v1/push-sensor-data/`
-- Protocol: HTTP
+- Endpoint: configured `endpoint_url` (default `https://api.sensor.community/v1/push-sensor-data/`)
+- Protocol: `http` or `https`, selected per backend in the web UI and stored in NVS
 - Payload: `sensordatavalues` array
 - Identification: `X-Sensor: esp32-{chip_id}`, `X-MAC-ID`, `X-PIN`
 

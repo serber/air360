@@ -4,7 +4,10 @@
         <input type='checkbox' name='enabled_{{BACKEND_KEY_ATTR}}' {{ENABLED_CHECKED}} data-backend-enabled-toggle>
         <span class='checkbox__label'>Enabled</span>
     </label>
-    {{ENDPOINT_BLOCK}}
-    {{DEVICE_ID_OVERRIDE_BLOCK}}
-    {{STATUS_BLOCK}}
+    <div class='stack' data-backend-fields>
+        {{HTTPS_BLOCK}}
+        {{ENDPOINT_BLOCK}}
+        {{DEVICE_ID_OVERRIDE_BLOCK}}
+        {{STATUS_BLOCK}}
+    </div>
 </div>
