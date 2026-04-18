@@ -40,6 +40,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
 | [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | One of `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
 | [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
+| [mhz19b.md](mhz19b.md) | MH-Z19B | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | CO2 |
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
@@ -226,6 +227,19 @@ GPIO sensor slots (`GPIO4` / `GPIO5` / `GPIO6`) are shared across DHT11, DHT22, 
 | Accuracy | Voltage `0.5 %` full-scale; current accuracy depends on shunt resistor tolerance |
 | Maximum current | `1 mA` quiescent; shunt current limited by gain setting (±3.2 A with 100 mΩ shunt at `INA219_GAIN_0_125`) |
 | Reference links | [TI product page](https://www.ti.com/product/INA219), [TI datasheet](https://www.ti.com/lit/ds/symlink/ina219.pdf) |
+
+### MH-Z19B
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Zhengzhou Winsen Electronics Technology Co., Ltd. |
+| Air360 measurements | CO2 |
+| Declared service life | `5 years` |
+| Operating temperature | `0..50 deg C` |
+| Supply voltage | `4.5..5.5 V` (Vin); UART logic levels `3.3 V` |
+| Accuracy | `±(50 ppm + 5 % of reading)` |
+| Maximum current | `150 mA` peak during heating; `60 mA` typical |
+| Reference links | [Winsen product page](https://www.winsen-sensor.com/sensors/co2-sensor/mh-z19b.html), [Winsen datasheet](https://www.winsen-sensor.com/d/files/infrared-gas-sensor/mh-z19b-co2-ver1_0.pdf) |
 
 ## Peripheral Hardware
 

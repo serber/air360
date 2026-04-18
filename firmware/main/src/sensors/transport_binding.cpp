@@ -11,13 +11,6 @@ namespace air360 {
 
 namespace {
 
-#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
-#define CONFIG_AIR360_I2C0_SDA_GPIO 8
-#endif
-#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
-#define CONFIG_AIR360_I2C0_SCL_GPIO 9
-#endif
-
 constexpr gpio_num_t kBus0Sda = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
 constexpr gpio_num_t kBus0Scl = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
 constexpr std::uint32_t kDefaultI2cClockHz = 100000U;

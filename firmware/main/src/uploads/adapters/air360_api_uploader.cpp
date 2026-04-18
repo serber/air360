@@ -76,6 +76,8 @@ const char* sensorTypeKey(SensorType type) {
             return "veml7700";
         case SensorType::kIna219:
             return "ina219";
+        case SensorType::kMhz19b:
+            return "mhz19b";
         case SensorType::kUnknown:
         default:
             return "unknown";

@@ -13,36 +13,9 @@
 #include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/ina219_sensor.hpp"
+#include "air360/sensors/drivers/mhz19b_sensor.hpp"
 #include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_UART_PORT
-#define CONFIG_AIR360_GPS_DEFAULT_UART_PORT 1
-#endif
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_RX_GPIO 18
-#endif
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 17
-#endif
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
-#define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
-#endif
-
-#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
-#define CONFIG_AIR360_GPIO_SENSOR_PIN_0 4
-#endif
-
-#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_1
-#define CONFIG_AIR360_GPIO_SENSOR_PIN_1 5
-#endif
-
-#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_2
-#define CONFIG_AIR360_GPIO_SENSOR_PIN_2 6
-#endif
 
 namespace air360 {
 
@@ -325,6 +298,24 @@ bool validateIna219Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateMhz19bRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "MH-Z19B currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_baud_rate != 9600U) {
+        error = "MH-Z19B requires UART baud rate of 9600.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -573,6 +564,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateIna219Record,
         &createIna219Sensor,
+    },
+    {
+        SensorType::kMhz19b,
+        "mhz19b",
+        "MH-Z19B",
+        false,
+        false,
+        true,
+        false,
+        true,
+        10000U,
+        0U,
+        0x00U,
+        CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT,
+        CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO,
+        CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO,
+        9600U,
+        &validateMhz19bRecord,
+        &createMhz19bSensor,
     },
     {
         SensorType::kMe3No2,

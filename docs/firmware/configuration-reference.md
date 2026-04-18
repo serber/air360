@@ -204,6 +204,8 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | DHT22 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
 | DS18B20 | GPIO (1-Wire) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
 | ME3-NO2 | Analog | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
+| INA219 | I2C | `0x40`, `0x41`, `0x44`, or `0x45` | 5 000 ms | — |
+| MH-Z19B | UART2 | RX=GPIO16, TX=GPIO15 | 10 000 ms | Baud rate must be 9600 |
 
 The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C address `0` is not valid for any sensor — it is a zero-init placeholder.
 

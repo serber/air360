@@ -43,6 +43,21 @@ config AIR360_GPS_DEFAULT_BAUD_RATE
     range 1200 115200
     default 9600
 
+config AIR360_MHZ19B_DEFAULT_UART_PORT
+    int "MH-Z19B default UART port"
+    range 1 2
+    default 2
+
+config AIR360_MHZ19B_DEFAULT_RX_GPIO
+    int "MH-Z19B default RX GPIO"
+    range 0 48
+    default 16
+
+config AIR360_MHZ19B_DEFAULT_TX_GPIO
+    int "MH-Z19B default TX GPIO"
+    range 0 48
+    default 15
+
 config AIR360_GPIO_SENSOR_PIN_0
     int "GPIO sensor slot 0"
     range 0 48

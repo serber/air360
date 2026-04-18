@@ -86,6 +86,7 @@ Manages UART ports for sensors that use serial communication. Current UART senso
 | Sensor | Port | RX | TX | Baud |
 |--------|------|----|----|------|
 | GPS (NMEA) | UART1 | GPIO18 | GPIO17 | 9600 |
+| MH-Z19B | UART2 | GPIO16 | GPIO15 | 9600 |
 
 ### Port mapping
 

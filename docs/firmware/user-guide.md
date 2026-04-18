@@ -286,7 +286,7 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | Light | VEML7700 |
 | Particulate Matter | SPS30 |
 | Location | GPS (NMEA) |
-| Gas | ME3-NO2 |
+| Gas | ME3-NO2, MH-Z19B |
 | Power Monitoring | INA219 |
 
 All categories except **Gas** allow only one configured sensor at a time.
@@ -307,6 +307,7 @@ All categories except **Gas** allow only one configured sensor at a time.
 | DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
 | ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
 | INA219 | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
+| MH-Z19B | UART2 at 9600 baud | RX=GPIO16, TX=GPIO15 |
 
 I2C sensors allow an optional address override if your module uses a non-default address. GPIO and analog sensors require selecting one of the three available board pins.
 

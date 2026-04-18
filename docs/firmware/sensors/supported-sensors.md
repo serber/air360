@@ -37,6 +37,7 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 | `DS18B20` | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | [ds18b20.md](ds18b20.md) |
 | `ME3-NO2` | Analog / ADC | One of `GPIO4`, `GPIO5`, `GPIO6` | [me3_no2.md](me3_no2.md) |
 | `INA219` | I2C | Bus 0, address `0x40` (alt `0x41`, `0x44`, `0x45`) | [ina219.md](ina219.md) |
+| `MH-Z19B` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | [mhz19b.md](mhz19b.md) |
 
 ## Peripheral note
 

@@ -11,4 +11,5 @@ dependencies:
   cinderblocks/esp_tinygpsplusplus: 1.1.1
   espressif/led_strip: ^3.0.0
   esp-idf-lib/ina219: 1.0.7
+  esp-idf-lib/mhz19b: 1.2.0
   espressif/mdns: '*'

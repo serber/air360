@@ -130,6 +130,28 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.7
+  esp-idf-lib/mhz19b:
+    component_hash: 2be2e9b82fd0cb02a86ccb0abb2171e055c90a9756c76b4f964b0ae8b3d0375c
+    dependencies:
+    - name: esp-idf-lib/esp_idf_lib_helpers
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32c2
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    - esp32c61
+    - esp32h2
+    - esp32p4
+    - esp32s2
+    - esp32s3
+    version: 1.2.0
   esp-idf-lib/scd30:
     component_hash: 6b05e1e936a2ecce0e2e92af02ef129c0e91e6ee1964d64bf43e6a11e692f3cc
     dependencies:
@@ -336,6 +358,7 @@ direct_dependencies:
 - esp-idf-lib/bme680
 - esp-idf-lib/dht
 - esp-idf-lib/ina219
+- esp-idf-lib/mhz19b
 - esp-idf-lib/scd30
 - esp-idf-lib/sht4x
 - esp-idf-lib/si7021
@@ -345,6 +368,6 @@ direct_dependencies:
 - espressif/esp_modem
 - espressif/led_strip
 - espressif/mdns
-manifest_hash: 30866f2f27bb5ba5658e3051072750434785a496c23f7d9eaa38febffbad042e
+manifest_hash: fe1e23b2d747ed0f437c89f428f477776eb8d80130331d898e834282ea16cf95
 target: esp32s3
 version: 3.0.0

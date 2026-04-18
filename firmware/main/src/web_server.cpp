@@ -28,42 +28,6 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
-#ifndef CONFIG_AIR360_GPS_DEFAULT_UART_PORT
-#define CONFIG_AIR360_GPS_DEFAULT_UART_PORT 1
-#endif
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_RX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_RX_GPIO 18
-#endif
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_TX_GPIO
-#define CONFIG_AIR360_GPS_DEFAULT_TX_GPIO 17
-#endif
-
-#ifndef CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE
-#define CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE 9600
-#endif
-
-#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_0
-#define CONFIG_AIR360_GPIO_SENSOR_PIN_0 4
-#endif
-
-#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_1
-#define CONFIG_AIR360_GPIO_SENSOR_PIN_1 5
-#endif
-
-#ifndef CONFIG_AIR360_GPIO_SENSOR_PIN_2
-#define CONFIG_AIR360_GPIO_SENSOR_PIN_2 6
-#endif
-
-#ifndef CONFIG_AIR360_I2C0_SDA_GPIO
-#define CONFIG_AIR360_I2C0_SDA_GPIO 8
-#endif
-
-#ifndef CONFIG_AIR360_I2C0_SCL_GPIO
-#define CONFIG_AIR360_I2C0_SCL_GPIO 9
-#endif
-
 namespace air360 {
 
 namespace {
@@ -626,6 +590,7 @@ constexpr SensorType kLocationSensorTypes[] = {
 constexpr SensorType kGasSensorTypes[] = {
     SensorType::kScd30,
     SensorType::kMe3No2,
+    SensorType::kMhz19b,
 };
 
 constexpr SensorType kPowerSensorTypes[] = {
@@ -710,6 +675,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kIna219:
             return SensorCategory::kPower;
         case SensorType::kMe3No2:
+        case SensorType::kMhz19b:
         case SensorType::kUnknown:
         default:
             return SensorCategory::kGas;
@@ -887,6 +853,16 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: I2C bus 0 at address 0x44.";
         case SensorType::kMe3No2:
             return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6).";
+        case SensorType::kMhz19b: {
+            std::string hint = "Defaults: UART ";
+            hint += std::to_string(CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT);
+            hint += " RX";
+            hint += std::to_string(CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO);
+            hint += " TX";
+            hint += std::to_string(CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO);
+            hint += " @ 9600 baud.";
+            return hint;
+        }
         case SensorType::kUnknown:
         default:
             return "";

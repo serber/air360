@@ -190,6 +190,8 @@ struct SensorRecord {
 | 11 | SCD30 |
 | 12 | HTU2X |
 | 13 | SHT4X |
+| 14 | INA219 |
+| 15 | MH-Z19B |
 
 ### `TransportKind` enum values
 
