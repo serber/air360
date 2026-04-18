@@ -36,8 +36,11 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
 | Response caching | `Cache-Control: no-store` on all pages |
 | Log tag | `air360.web` |
+| mDNS name | `{device_name}.local` (station mode only) |
 
 The server starts during boot step 9/9. A startup failure is fatal — the boot LED is set to the error state.
+
+In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
 ---
 

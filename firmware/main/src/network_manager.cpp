@@ -16,6 +16,7 @@
 #include "esp_netif_sntp.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
+#include "mdns.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
@@ -55,6 +56,7 @@ struct RuntimeContext {
     std::uint64_t ignore_disconnect_until_ms = 0U;
     bool wifi_initialized = false;
     bool sntp_initialized = false;
+    bool mdns_initialized = false;
 };
 
 RuntimeContext& runtimeContext() {
@@ -225,6 +227,34 @@ EventBits_t waitForStationResult(EventGroupHandle_t station_events, std::uint32_
     }
 
     return bits;
+}
+
+void startMdns(const std::string& hostname) {
+    RuntimeContext& context = runtimeContext();
+    if (context.mdns_initialized) {
+        return;
+    }
+
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "mDNS init failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = mdns_hostname_set(hostname.c_str());
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "mDNS hostname set failed: %s", esp_err_to_name(err));
+        mdns_free();
+        return;
+    }
+
+    err = mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "mDNS service add failed: %s", esp_err_to_name(err));
+    }
+
+    context.mdns_initialized = true;
+    ESP_LOGI(kTag, "mDNS started: %s.local", hostname.c_str());
 }
 
 std::uint32_t reconnectDelayMs(std::uint32_t attempt_count) {
@@ -848,6 +878,8 @@ esp_err_t NetworkManager::attemptStationConnect(
             state_.next_setup_ap_retry_uptime_ms = 0U;
             unlock();
         }
+
+        startMdns(hostname);
 
         const esp_err_t time_err = synchronizeTime();
         if (time_err != ESP_OK) {

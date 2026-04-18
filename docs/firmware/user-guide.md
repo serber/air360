@@ -63,7 +63,7 @@ The firmware operates in one of two modes:
 | Mode | When | Access |
 |------|------|--------|
 | `setup AP` | No valid station credentials, or station join failed | Connect to the device's own Wi-Fi network, open `http://192.168.4.1/` |
-| `station` | Joined the configured Wi-Fi network | Open the device by its DHCP IP address on your network |
+| `station` | Joined the configured Wi-Fi network | Open `http://{device-name}.local/` or the device's DHCP IP address |
 
 In **setup AP mode** the navigation is intentionally limited to the `Device` page only. All other pages redirect to `Device`.
 
@@ -115,15 +115,29 @@ The device reboots and attempts to join the configured network.
 
 ## Finding The Device In Station Mode
 
-After a successful join, the device receives a DHCP address from your router.
+After a successful join, the device is reachable in two ways:
 
-Ways to find it:
+### By name (recommended)
 
-- Check the connected client list in your router admin panel — look for the configured Device name as the hostname.
+Open `http://{device-name}.local/` in a browser on the same network.
+
+The `{device-name}` part matches the **Device name** field you configured — lowercased and with spaces replaced by `-`. The default is `air360`, so the default address is:
+
+```
+http://air360.local/
+```
+
+mDNS is supported natively on macOS, iOS, Android, and most Linux systems. On Windows it requires the Bonjour service (installed automatically with iTunes, Apple devices, or some printer drivers). If `.local` does not resolve, use the IP address method below.
+
+### By IP address
+
+If mDNS does not work on your network:
+
+- Check the connected client list in your router admin panel — look for the configured Device name as the DHCP hostname.
 - Use a network scanner app on your phone.
 - Check the serial monitor output during boot — the assigned IP is logged.
 
-Once you have the IP, open `http://<device-ip>/` in a browser.
+Then open `http://<device-ip>/` in a browser.
 
 ---
 
@@ -273,6 +287,7 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | Particulate Matter | SPS30 |
 | Location | GPS (NMEA) |
 | Gas | ME3-NO2 |
+| Power Monitoring | INA219 |
 
 All categories except **Gas** allow only one configured sensor at a time.
 
@@ -291,6 +306,7 @@ All categories except **Gas** allow only one configured sensor at a time.
 | DHT11, DHT22 | GPIO | GPIO4, GPIO5, or GPIO6 |
 | DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
 | ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
+| INA219 | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
 
 I2C sensors allow an optional address override if your module uses a non-default address. GPIO and analog sensors require selecting one of the three available board pins.
 
@@ -442,7 +458,7 @@ What this means in practice:
 3. Open `http://192.168.4.1/`.
 4. Enter station Wi-Fi SSID and password.
 5. Press **Save and reboot**.
-6. Find the device IP in your router and open the full UI.
+6. Once the LED turns green, open `http://air360.local/` (or the IP from your router if `.local` does not resolve).
 
 ### Configuring sensors
 

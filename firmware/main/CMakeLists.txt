@@ -76,6 +76,7 @@ idf_component_register(
         lwip
         esp_timer
         esp_wifi
+        espressif__mdns
         esp_modem
         freertos
         nvs_flash

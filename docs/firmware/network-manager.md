@@ -6,7 +6,7 @@ Implemented. Keep this document aligned with the current Wi-Fi and SNTP runtime 
 
 ## Scope
 
-This document covers station mode, setup AP fallback, reconnect logic, connectivity checks, and SNTP synchronization handled by `NetworkManager`.
+This document covers station mode, setup AP fallback, reconnect logic, connectivity checks, SNTP synchronization, and mDNS local discovery handled by `NetworkManager`.
 
 ## Source of truth in code
 
@@ -100,6 +100,7 @@ struct RuntimeContext {
     uint64_t ignore_disconnect_until_ms;
     bool wifi_initialized;
     bool sntp_initialized;
+    bool mdns_initialized;
 };
 ```
 
@@ -145,6 +146,31 @@ station connect timeout (DHCP or IP assignment not completed)
 ```
 
 That is the current way the firmware distinguishes “joined Wi-Fi but never became usable” from explicit disconnect reasons such as auth failure or AP not found.
+
+---
+
+## mDNS local discovery
+
+After a successful station join, `startMdns()` initialises mDNS once for the lifetime of the process:
+
+```cpp
+mdns_init();
+mdns_hostname_set(hostname.c_str());   // derived from device_name
+mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+```
+
+The hostname is the sanitised form of `device_name` produced by `stationHostname()`:
+
+- alphanumeric characters are kept and lowercased
+- spaces and special characters become `-`
+- leading and trailing `-` are stripped
+- empty result falls back to `"air360"`
+
+The device becomes reachable at `{hostname}.local` on the local network immediately after DHCP succeeds. The mDNS responder advertises an `_http._tcp` service on port 80 so that local service browsers can discover the web UI automatically.
+
+`mdns_initialized` in `RuntimeContext` guards against double-init. mDNS survives Wi-Fi reconnects without any restart — the ESP-IDF mDNS implementation re-announces after interface events automatically.
+
+mDNS is not started in setup AP mode. The setup AP network is isolated, and the AP address (`192.168.4.1`) is fixed and already known.
 
 ---
 
