@@ -78,10 +78,16 @@ When code changes, update the matching docs in the same change:
 - Firmware doc template: [`docs/firmware/doc-template.md`](docs/firmware/doc-template.md)
 - Firmware doc hygiene checker: `python3 scripts/check_firmware_docs.py`
 
-## Local firmware skills
+## Skills
 
-- `.agents/skills/air360-firmware-docs/`
-- `.agents/skills/esp-idf-cpp-developer/`
-- `.agents/skills/firmware-doc-audit/`
-- `.agents/skills/firmware-subsystem-walkthrough/`
-- `.agents/skills/firmware-change-checklist/`
+Skills live under `.agents/skills/` (Codex) and `.claude/skills/` (Claude). Use the table below to pick the right one.
+
+| Skill | Use when | Do not use when |
+|-------|----------|-----------------|
+| `esp-idf-cpp-developer` | Writing or changing C++ firmware code: new driver, FreeRTOS task, NVS key, CMakeLists, Kconfig, build failure triage | Task is documentation-only or backend/portal code |
+| `firmware-change-checklist` | About to start or just finished a firmware code change and need to confirm which co-change files and docs are required | Exploratory questions, no code is being changed |
+| `firmware-doc-audit` | Checking whether docs still match the code after a change, or doing a broad doc hygiene pass | A specific doc needs updating — just edit it directly |
+| `firmware-subsystem-walkthrough` | Mapping a subsystem for the first time: boot, sensors, networking, uploads, web UI, storage | The relevant doc is already known — read it directly |
+| `air360-firmware-docs` | Creating or rewriting a firmware implementation doc in `docs/firmware/` or `firmware/README.md` | Code is being changed — use `esp-idf-cpp-developer` instead |
+| `air360-docs` | Creating or rewriting repository-level docs: root `README.md`, `docs/README.md`, onboarding guide, project map | Firmware implementation details — use `air360-firmware-docs` instead |
+| `air360-firmware-release-bundle` | Packaging a firmware release after a successful build: merging binaries, generating release notes, creating zip archives | Build has not completed or no `firmware/build/` artifacts exist |
