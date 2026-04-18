@@ -22,6 +22,7 @@ enum class SensorType : std::uint8_t {
     kScd30 = 11U,
     kHtu2x = 12U,
     kSht4x = 13U,
+    kIna219 = 14U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -87,6 +88,8 @@ enum class SensorValueKind : std::uint8_t {
     kCourseDeg = 26U,
     kHdop = 27U,
     kIlluminanceLux = 28U,
+    kCurrentMa = 29U,
+    kPowerMw = 30U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -141,6 +144,10 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "hdop";
         case SensorValueKind::kIlluminanceLux:
             return "illuminance_lux";
+        case SensorValueKind::kCurrentMa:
+            return "current_ma";
+        case SensorValueKind::kPowerMw:
+            return "power_mw";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -199,6 +206,10 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "HDOP";
         case SensorValueKind::kIlluminanceLux:
             return "Illuminance";
+        case SensorValueKind::kCurrentMa:
+            return "Current";
+        case SensorValueKind::kPowerMw:
+            return "Power";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -249,6 +260,10 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "mV";
         case SensorValueKind::kIlluminanceLux:
             return "lux";
+        case SensorValueKind::kCurrentMa:
+            return "mA";
+        case SensorValueKind::kPowerMw:
+            return "mW";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -283,6 +298,9 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kVoltageMv:
             return 0;
         case SensorValueKind::kIlluminanceLux:
+            return 1;
+        case SensorValueKind::kCurrentMa:
+        case SensorValueKind::kPowerMw:
             return 1;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:

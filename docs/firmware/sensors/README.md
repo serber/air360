@@ -39,6 +39,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [dht.md](dht.md) | DHT11 / DHT22 | GPIO | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
 | [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | One of `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
+| [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
@@ -212,6 +213,19 @@ GPIO sensor slots (`GPIO4` / `GPIO5` / `GPIO6`) are shared across DHT11, DHT22, 
 | Accuracy | Repeatability `<2 %` of output value; stability `<2 % / month` |
 | Maximum current | Not stated; the public Winsen manual describes the sensor as low-consumption and specifies sensitivity in `uA/ppm` rather than supply current |
 | Reference links | [Winsen product page](https://de.winsen-sensor.com/product/me3-no2.html?lang=tr), [Winsen manual](https://www.winsen-sensor.com/d/files/4-series-electrochemical-toxic-gas-sensor/me3-no2/me3-no2-0-20ppm.pdf) |
+
+### INA219
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Texas Instruments |
+| Air360 measurements | Bus voltage, current, power |
+| Declared service life | Not stated in the public datasheet |
+| Operating temperature | `-40..125 deg C` |
+| Supply voltage | `2.7..5.5 V` |
+| Accuracy | Voltage `0.5 %` full-scale; current accuracy depends on shunt resistor tolerance |
+| Maximum current | `1 mA` quiescent; shunt current limited by gain setting (±3.2 A with 100 mΩ shunt at `INA219_GAIN_0_125`) |
+| Reference links | [TI product page](https://www.ti.com/product/INA219), [TI datasheet](https://www.ti.com/lit/ds/symlink/ina219.pdf) |
 
 ## Peripheral Hardware
 

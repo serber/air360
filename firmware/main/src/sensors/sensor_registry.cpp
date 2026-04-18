@@ -12,6 +12,7 @@
 #include "air360/sensors/drivers/scd30_sensor.hpp"
 #include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
+#include "air360/sensors/drivers/ina219_sensor.hpp"
 #include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
 
@@ -300,6 +301,30 @@ bool validateDs18b20Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateIna219Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "INA219 currently supports only I2C.";
+        return false;
+    }
+
+    if (record.i2c_bus_id != 0U) {
+        error = "I2C bus id must be 0 for the current board wiring.";
+        return false;
+    }
+
+    if (record.i2c_address != 0x40U && record.i2c_address != 0x41U &&
+        record.i2c_address != 0x44U && record.i2c_address != 0x45U) {
+        error = "INA219 I2C address must be 0x40, 0x41, 0x44, or 0x45.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -529,6 +554,25 @@ constexpr SensorDescriptor kDescriptors[] = {
         0U,
         &validateSht4xRecord,
         &createSht4xSensor,
+    },
+    {
+        SensorType::kIna219,
+        "ina219",
+        "INA219",
+        true,
+        false,
+        false,
+        false,
+        true,
+        5000U,
+        0U,
+        0x40U,
+        0U,
+        -1,
+        -1,
+        0U,
+        &validateIna219Record,
+        &createIna219Sensor,
     },
     {
         SensorType::kMe3No2,

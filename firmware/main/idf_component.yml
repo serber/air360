@@ -10,3 +10,4 @@ dependencies:
   esp-idf-lib/bme680: ^1.0.7
   cinderblocks/esp_tinygpsplusplus: "1.1.1"
   espressif/led_strip: "^3.0.0"
+  esp-idf-lib/ina219: "1.0.7"

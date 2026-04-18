@@ -402,6 +402,7 @@ enum class SensorCategory : std::uint8_t {
     kParticulateMatter = 3U,
     kLocation = 4U,
     kGas = 5U,
+    kPower = 6U,
 };
 
 struct SensorCategoryDescriptor {
@@ -627,6 +628,10 @@ constexpr SensorType kGasSensorTypes[] = {
     SensorType::kMe3No2,
 };
 
+constexpr SensorType kPowerSensorTypes[] = {
+    SensorType::kIna219,
+};
+
 constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
     {
         SensorCategory::kClimate,
@@ -673,6 +678,15 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         kGasSensorTypes,
         sizeof(kGasSensorTypes) / sizeof(kGasSensorTypes[0]),
     },
+    {
+        SensorCategory::kPower,
+        "power",
+        "Power",
+        "DC current, voltage, and power monitoring over I2C.",
+        false,
+        kPowerSensorTypes,
+        sizeof(kPowerSensorTypes) / sizeof(kPowerSensorTypes[0]),
+    },
 };
 
 SensorCategory sensorCategoryForType(SensorType type) {
@@ -693,6 +707,8 @@ SensorCategory sensorCategoryForType(SensorType type) {
             return SensorCategory::kParticulateMatter;
         case SensorType::kGpsNmea:
             return SensorCategory::kLocation;
+        case SensorType::kIna219:
+            return SensorCategory::kPower;
         case SensorType::kMe3No2:
         case SensorType::kUnknown:
         default:

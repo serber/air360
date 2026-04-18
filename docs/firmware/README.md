@@ -105,6 +105,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | GPIO | Temperature, humidity |
 | [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | GPIO (1-Wire) | Temperature |
 | [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Analog (ADC) | Raw ADC count, voltage |
+| [sensors/ina219.md](sensors/ina219.md) | INA219 | I2C `0x40` | Bus voltage, current, power |
 
 ---
 
