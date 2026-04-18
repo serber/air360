@@ -834,28 +834,6 @@ RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
     return snapshot;
 }
 
-std::string renderDiagnosticsMemoryBlock(const RuntimeDiagnosticsSnapshot& diagnostics) {
-    std::string html;
-    html += "<div class='list'>";
-    html += "<div class='list-card stack'><h3 class='list-card__title'>8-bit heap</h3><div class='meta'>";
-    html += "<span class='pill'>free ";
-    html += htmlEscape(formatBytesCompact(diagnostics.free_heap_bytes));
-    html += "</span><span class='pill'>minimum ";
-    html += htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes));
-    html += "</span><span class='pill'>largest block ";
-    html += htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes));
-    html += "</span></div></div>";
-    html += "<div class='list-card stack'><h3 class='list-card__title'>Internal heap</h3><div class='meta'>";
-    html += "<span class='pill'>free ";
-    html += htmlEscape(formatBytesCompact(diagnostics.free_internal_heap_bytes));
-    html += "</span><span class='pill'>minimum ";
-    html += htmlEscape(formatBytesCompact(diagnostics.min_free_internal_heap_bytes));
-    html += "</span><span class='pill'>largest block ";
-    html += htmlEscape(formatBytesCompact(diagnostics.largest_internal_heap_block_bytes));
-    html += "</span></div><p class='muted'>The minimum free value shows the worst-case headroom since boot. The largest block helps spot fragmentation.</p></div>";
-    html += "</div>";
-    return html;
-}
 
 std::string renderDiagnosticsTaskBlock(const RuntimeDiagnosticsSnapshot& diagnostics) {
     const auto taskCard = [](const char* title, std::size_t free_stack_bytes) {
@@ -1033,7 +1011,7 @@ std::string StatusService::renderRootHtml() const {
         true);
 }
 
-std::string StatusService::renderDiagnosticsHtml() const {
+std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) const {
     const RuntimeDiagnosticsSnapshot diagnostics = buildRuntimeDiagnosticsSnapshot(
         measurement_store_,
         sensor_manager_,
@@ -1048,9 +1026,9 @@ std::string StatusService::renderDiagnosticsHtml() const {
             {"FREE_HEAP", htmlEscape(formatBytesCompact(diagnostics.free_heap_bytes))},
             {"MIN_HEAP", htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes))},
             {"LARGEST_BLOCK", htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes))},
-            {"MEMORY_BLOCK", renderDiagnosticsMemoryBlock(diagnostics)},
             {"TASK_BLOCK", renderDiagnosticsTaskBlock(diagnostics)},
             {"NETWORK_BLOCK", renderDiagnosticsNetworkBlock(network_state_, cellular_state_)},
+            {"LOG_CONTENTS", htmlEscape(log_contents)},
             {"STATUS_JSON_DUMP", htmlEscape(status_json)},
         });
 
@@ -1058,7 +1036,7 @@ std::string StatusService::renderDiagnosticsHtml() const {
         WebPageKey::kDiagnostics,
         "Air 360 diagnostics",
         "Diagnostics",
-        "Runtime memory, task, network recovery, and raw status output for troubleshooting.",
+        "Runtime tasks, network recovery, application logs, and raw status output for troubleshooting.",
         body,
         true);
 }

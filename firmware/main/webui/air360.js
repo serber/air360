@@ -427,6 +427,41 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  const logsConsole = document.querySelector("[data-logs-console]");
+  if (logsConsole instanceof HTMLTextAreaElement) {
+    const logsStatus = document.querySelector("[data-logs-status]");
+    let autoScroll = true;
+
+    logsConsole.addEventListener("scroll", () => {
+      autoScroll =
+        logsConsole.scrollHeight - logsConsole.scrollTop - logsConsole.clientHeight < 40;
+    });
+
+    async function refreshLogs() {
+      try {
+        const response = await fetch("/logs/data", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const text = await response.text();
+        logsConsole.value = text;
+        if (autoScroll) {
+          logsConsole.scrollTop = logsConsole.scrollHeight;
+        }
+        if (logsStatus instanceof HTMLElement) {
+          logsStatus.textContent = "";
+        }
+      } catch {
+        if (logsStatus instanceof HTMLElement) {
+          logsStatus.textContent = "Failed to fetch logs.";
+        }
+      }
+    }
+
+    refreshLogs();
+    setInterval(refreshLogs, 2000);
+  }
+
   for (const button of document.querySelectorAll("[data-copy-runtime-dump]")) {
     if (!(button instanceof HTMLButtonElement)) {
       continue;

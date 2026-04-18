@@ -14,6 +14,7 @@
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
+#include "air360/log_buffer.hpp"
 #include "air360/web_server.hpp"
 #include "esp_err.h"
 #include "led_strip.h"
@@ -154,6 +155,8 @@ void App::run() {
     static NetworkManager network_manager;
     static WebServer web_server;
     static esp_timer_handle_t debug_window_timer = nullptr;
+
+    logBufferInstall();
 
     const esp_err_t leds_err = initRgbLed();
     if (leds_err != ESP_OK) {

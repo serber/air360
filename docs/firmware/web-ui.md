@@ -46,7 +46,8 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 | Method | Path | Handler |
 |--------|------|---------|
 | `GET` | `/` | Overview page |
-| `GET` | `/diagnostics` | Diagnostics page |
+| `GET` | `/diagnostics` | Diagnostics page (includes live log console) |
+| `GET` | `/logs/data` | Plain-text log buffer (polled by diagnostics page JS) |
 | `GET` | `/assets/*` | Static assets (CSS, JS) |
 | `GET` | `/wifi-scan` | JSON Wi-Fi scan results |
 | `GET` / `POST` | `/config` | Device configuration page |
@@ -97,9 +98,9 @@ Read-only troubleshooting page with runtime internals that are useful when the d
 The page currently shows:
 
 - **Stats bar**: total available 8-bit heap, current free heap, minimum free heap seen since boot, and largest free block
-- **Memory**: free/minimum/largest block for both 8-bit heap and internal heap
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error and cellular reconnect counters
+- **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
 - **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, and diagnostics fields
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 

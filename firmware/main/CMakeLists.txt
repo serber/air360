@@ -38,6 +38,7 @@ idf_component_register(
         "third_party/sps30/sensirion_i2c.c"
         "third_party/sps30/sps30_i2c.c"
         "src/status_service.cpp"
+        "src/log_buffer.cpp"
         "src/web_server.cpp"
     INCLUDE_DIRS
         "include"

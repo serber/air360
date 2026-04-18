@@ -7,11 +7,6 @@
     </section>
 
     <section class='panel panel--runtime stack'>
-        <h2>Memory</h2>
-        {{MEMORY_BLOCK}}
-    </section>
-
-    <section class='panel panel--runtime stack'>
         <h2>Tasks</h2>
         {{TASK_BLOCK}}
     </section>
@@ -19,6 +14,16 @@
     <section class='panel panel--runtime stack'>
         <h2>Network Recovery</h2>
         {{NETWORK_BLOCK}}
+    </section>
+
+    <section class='panel panel--runtime stack runtime-dump'>
+        <div class='runtime-dump__head'>
+            <h2>Application Logs</h2>
+            <div class='runtime-dump__actions'>
+                <span class='muted runtime-dump__status' data-logs-status aria-live='polite'></span>
+            </div>
+        </div>
+        <textarea class='runtime-dump__console' readonly spellcheck='false' data-logs-console>{{LOG_CONTENTS}}</textarea>
     </section>
 
     <section class='panel panel--runtime stack runtime-dump'>

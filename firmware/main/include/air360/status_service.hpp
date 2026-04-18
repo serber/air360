@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "air360/build_info.hpp"
 #include "air360/cellular_manager.hpp"
@@ -34,7 +35,7 @@ class StatusService {
     void setWebServerStarted(bool started);
 
     std::string renderRootHtml() const;
-    std::string renderDiagnosticsHtml() const;
+    std::string renderDiagnosticsHtml(std::string_view log_contents) const;
     std::string renderStatusJson() const;
     const NetworkState& networkState() const;
     const BuildInfo& buildInfo() const;

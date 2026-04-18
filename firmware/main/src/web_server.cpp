@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "air360/log_buffer.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/sensors/sensor_registry.hpp"
@@ -1758,6 +1759,17 @@ esp_err_t WebServer::start(
         return err;
     }
 
+    httpd_uri_t logs_data_uri{};
+    logs_data_uri.uri = "/logs/data";
+    logs_data_uri.method = HTTP_GET;
+    logs_data_uri.handler = &WebServer::handleLogsData;
+    logs_data_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &logs_data_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
     httpd_uri_t wifi_scan_uri{};
     wifi_scan_uri.uri = "/wifi-scan";
     wifi_scan_uri.method = HTTP_GET;
@@ -2272,10 +2284,17 @@ esp_err_t WebServer::handleRoot(httpd_req_t* request) {
 
 esp_err_t WebServer::handleDiagnostics(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
-    const std::string html = server->status_service_->renderDiagnosticsHtml();
+    const std::string html = server->status_service_->renderDiagnosticsHtml(logBufferGetContents());
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
     return httpd_resp_send(request, html.c_str(), html.size());
+}
+
+esp_err_t WebServer::handleLogsData(httpd_req_t* request) {
+    const std::string contents = logBufferGetContents();
+    httpd_resp_set_type(request, "text/plain; charset=utf-8");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    return httpd_resp_send(request, contents.c_str(), contents.size());
 }
 
 esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
