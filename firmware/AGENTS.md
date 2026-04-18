@@ -63,3 +63,15 @@ Before closing firmware work, do the smallest applicable set:
 - Use the standard header shape from [`../docs/firmware/doc-template.md`](../docs/firmware/doc-template.md).
 - Keep “what to read next” links concrete.
 - Link to code paths, not generated build outputs.
+
+## Skills
+
+See the full skill index and trigger table in [`../AGENTS.md`](../AGENTS.md).
+
+| Skill | Use when |
+|-------|----------|
+| `esp-idf-cpp-developer` | Any C++ code change: driver, task, NVS, CMake, Kconfig, build failure |
+| `firmware-change-checklist` | Before or after a code change — confirm co-change files and docs |
+| `firmware-doc-audit` | Broad doc hygiene pass or post-change doc accuracy check |
+| `firmware-subsystem-walkthrough` | First-time exploration of boot, sensors, networking, uploads, or web UI |
+| `air360-firmware-docs` | Creating or rewriting a doc in `docs/firmware/` or `firmware/README.md` |
