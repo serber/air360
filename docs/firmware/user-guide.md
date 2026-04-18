@@ -96,7 +96,7 @@ When no Wi-Fi credentials are configured, the device starts in setup AP mode.
 
 ### Step 2 — Open the setup page
 
-Open `http://192.168.4.1/` or `http://192.168.4.1/config` in a browser.
+After connecting to the AP, most phones and laptops automatically show a "sign in to network" prompt and open the configuration page — no manual navigation required. If the prompt does not appear, open `http://192.168.4.1/` in a browser manually.
 
 In setup AP mode both routes lead to the Device configuration page.
 

@@ -79,6 +79,7 @@ idf_component_register(
         esp_timer
         esp_wifi
         espressif__mdns
+        nordesems__esp-captive-portal
         esp_modem
         freertos
         nvs_flash

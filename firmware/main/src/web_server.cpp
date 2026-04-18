@@ -26,6 +26,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "captive_portal.h"
 #include "sdkconfig.h"
 
 namespace air360 {
@@ -34,7 +35,7 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
-constexpr std::size_t kHttpServerMaxUriHandlers = 13U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 14U;
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 
 void copyString(char* destination, std::size_t destination_size, const std::string& source) {
@@ -1848,6 +1849,11 @@ esp_err_t WebServer::start(
     if (err != ESP_OK) {
         stop();
         return err;
+    }
+
+    const esp_err_t captive_err = captive_portal_register_catchall(handle_, nullptr);
+    if (captive_err != ESP_OK) {
+        ESP_LOGW(kTag, "Captive portal registration failed: %s", esp_err_to_name(captive_err));
     }
 
     ESP_LOGI(kTag, "HTTP server listening on port %" PRIu16, port);

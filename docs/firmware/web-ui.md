@@ -66,6 +66,10 @@ All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set 
 
 When the device is in `kSetupAp` mode (no station credentials, or station connection failed), `GET /`, `GET /sensors`, and `GET /backends` redirect with `302 Found` to `/config`. Navigation links on the config page are also hidden in this mode — only the device configuration form is shown.
 
+## Captive portal
+
+When a client connects to the setup AP, the OS attempts a captive portal probe. The `nordesems/esp-captive-portal` component intercepts this: a DNS server resolves all hostnames to `192.168.4.1`, and a wildcard `/*` HTTP handler (registered last in `WebServer::start()`) redirects any unrecognised request to `/`. The result is that most phones and laptops surface a "sign in to network" prompt automatically and open the config page without the user having to type an IP address.
+
 ---
 
 ## Page: Overview (`/`)

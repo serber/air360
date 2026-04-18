@@ -172,6 +172,19 @@ The device becomes reachable at `{hostname}.local` on the local network immediat
 
 mDNS is not started in setup AP mode. The setup AP network is isolated, and the AP address (`192.168.4.1`) is fixed and already known.
 
+## Captive portal
+
+When a client connects to the setup AP, the OS performs a captive portal probe — an HTTP request to a well-known URL (varies by OS) to detect whether internet is available. If the response is unexpected, the OS treats the network as a captive portal and surfaces a "sign in" prompt.
+
+Air360 uses the `nordesems/esp-captive-portal` managed component to intercept this mechanism:
+
+- **DNS**: the component registers a DNS server that starts automatically on `WIFI_EVENT_AP_START` and stops on `WIFI_EVENT_AP_STOP`. All hostname queries resolve to the AP IP (`192.168.4.1`), so any URL the browser tries will reach the device.
+- **HTTP**: `captive_portal_register_catchall()` is called in `WebServer::start()` after all regular URI handlers. It registers a wildcard `/*` handler that redirects any unrecognised request to `/`, sending the client to the config page.
+
+The catchall is registered last so it does not shadow the existing `/`, `/config`, `/sensors`, `/diagnostics`, and asset routes.
+
+The component has no effect when the AP is not running (station-only mode).
+
 ---
 
 ## Runtime recovery

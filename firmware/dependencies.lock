@@ -353,6 +353,23 @@ dependencies:
     source:
       type: idf
     version: 6.0.0
+  nordesems/esp-captive-portal:
+    component_hash: bb3cc81e8eb184e0313f01c998763b39e5a2f2f0ab295e774e98192e2949a8b8
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s2
+    - esp32s3
+    - esp32c3
+    - esp32c6
+    - esp32h2
+    version: 1.2.0
 direct_dependencies:
 - cinderblocks/esp_tinygpsplusplus
 - esp-idf-lib/bme680
@@ -368,6 +385,7 @@ direct_dependencies:
 - espressif/esp_modem
 - espressif/led_strip
 - espressif/mdns
-manifest_hash: fe1e23b2d747ed0f437c89f428f477776eb8d80130331d898e834282ea16cf95
+- nordesems/esp-captive-portal
+manifest_hash: 67652884d8bacd65ab00cb1170cd77b88a5d22b2c64079ae1abbae482e596b4f
 target: esp32s3
 version: 3.0.0
