@@ -13,7 +13,6 @@ idf_component_register(
         "src/web_assets.cpp"
         "src/web_ui.cpp"
         "src/uploads/backend_config_repository.cpp"
-        "src/uploads/backend_http_config.cpp"
         "src/uploads/backend_registry.cpp"
         "src/uploads/adapters/air360_json_payload.cpp"
         "src/uploads/adapters/air360_api_uploader.cpp"

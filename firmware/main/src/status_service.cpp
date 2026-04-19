@@ -408,8 +408,7 @@ bool backendIsHealthy(const BackendStatusSnapshot& backend) {
         return true;
     }
 
-    if (backend.state == BackendRuntimeState::kError ||
-        backend.state == BackendRuntimeState::kNotImplemented) {
+    if (backend.state == BackendRuntimeState::kError) {
         return false;
     }
 
@@ -1214,8 +1213,6 @@ std::string StatusService::renderStatusJson() const {
         json += boolString(backend.enabled);
         json += ",\"configured\":";
         json += boolString(backend.configured);
-        json += ",\"implemented\":";
-        json += boolString(backend.implemented);
         json += ",\"state\":\"";
         json += jsonEscape(backendRuntimeStateKey(backend.state));
         json += "\",\"last_result\":\"";

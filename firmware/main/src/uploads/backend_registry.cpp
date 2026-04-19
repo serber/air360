@@ -8,7 +8,6 @@
 #include "air360/uploads/adapters/custom_upload_uploader.hpp"
 #include "air360/uploads/adapters/influxdb_uploader.hpp"
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
-#include "air360/uploads/backend_http_config.hpp"
 
 namespace air360 {
 
@@ -20,19 +19,39 @@ bool validateCommonRecord(const BackendRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.display_name[0] == '\0') {
-        error = "Backend display name must not be empty.";
-        return false;
-    }
-
-    if (record.display_name[kBackendDisplayNameCapacity - 1U] != '\0') {
-        error = "Backend display name is not null-terminated.";
-        return false;
-    }
-
-    const std::size_t display_name_length = std::strlen(record.display_name);
-    if (display_name_length == 0U || display_name_length >= kBackendDisplayNameCapacity) {
+    if (!isNullTerminated(record.display_name, kBackendDisplayNameCapacity) ||
+        record.display_name[0] == '\0') {
         error = "Backend display name is invalid.";
+        return false;
+    }
+
+    if (!isNullTerminated(record.host, kBackendHostCapacity) ||
+        !isNullTerminated(record.path, kBackendPathCapacity)) {
+        error = "Backend host or path is not null-terminated.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateHttpEndpoint(const BackendRecord& record, std::string& error) {
+    if (record.host[0] == '\0') {
+        error = "Backend host must not be empty.";
+        return false;
+    }
+
+    if (record.path[0] == '\0' || record.path[0] != '/') {
+        error = "Backend path must start with '/'.";
+        return false;
+    }
+
+    if (record.port == 0U) {
+        error = "Backend port must be greater than zero.";
+        return false;
+    }
+
+    if (record.protocol == BackendProtocol::kUnknown) {
+        error = "Backend protocol must be set.";
         return false;
     }
 
@@ -44,28 +63,23 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
-    if (!isNullTerminated(record.device_id_override, kBackendIdentifierCapacity)) {
-        error = "Sensor.Community device id override is not null-terminated.";
+    if (!isNullTerminated(record.sensor_community_device_id, kBackendIdentifierCapacity)) {
+        error = "Sensor.Community device ID is not null-terminated.";
         return false;
     }
 
-    return validateBackendHttpRecord(record, error);
+    return validateHttpEndpoint(record, error);
 }
 
 bool validateHttpBackendRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
     }
-    return validateBackendHttpRecord(record, error);
+    return validateHttpEndpoint(record, error);
 }
 
 bool validateCustomUploadRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
-        return false;
-    }
-
-    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
-        error = "Custom upload endpoint URL is not null-terminated.";
         return false;
     }
 
@@ -74,8 +88,21 @@ bool validateCustomUploadRecord(const BackendRecord& record, std::string& error)
         return true;
     }
 
-    if (record.endpoint_url[0] == '\0') {
-        error = "Custom upload endpoint URL must not be empty.";
+    return validateHttpEndpoint(record, error);
+}
+
+bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (!validateHttpEndpoint(record, error)) {
+        return false;
+    }
+
+    if (!isNullTerminated(record.influxdb_measurement, kBackendMeasurementCapacity) ||
+        record.influxdb_measurement[0] == '\0') {
+        error = "InfluxDB measurement name must not be empty.";
         return false;
     }
 
@@ -87,9 +114,8 @@ constexpr BackendDescriptor kDescriptors[] = {
         BackendType::kSensorCommunity,
         "sensor_community",
         "Sensor.Community",
-        true,
-        true,
-        true,
+        {"api.sensor.community", "/v1/push-sensor-data/", 443U, BackendProtocol::kHttps, true, true},
+
         &validateSensorCommunityRecord,
         &createSensorCommunityUploader,
     },
@@ -97,9 +123,8 @@ constexpr BackendDescriptor kDescriptors[] = {
         BackendType::kAir360Api,
         "air360_api",
         "Air360 API",
-        true,
-        false,
-        true,
+        {"api.air360.ru", "/v1/devices/{chip_id}/batches/{batch_id}", 443U, BackendProtocol::kHttps, true, true},
+
         &validateHttpBackendRecord,
         &createAir360ApiUploader,
     },
@@ -107,9 +132,8 @@ constexpr BackendDescriptor kDescriptors[] = {
         BackendType::kCustomUpload,
         "custom_upload",
         "Custom Upload",
-        true,
-        false,
-        true,
+        {"", "", 443U, BackendProtocol::kHttps, false, false},
+
         &validateCustomUploadRecord,
         &createCustomUploadUploader,
     },
@@ -117,10 +141,9 @@ constexpr BackendDescriptor kDescriptors[] = {
         BackendType::kInfluxDb,
         "influxdb",
         "InfluxDB",
-        true,
-        false,
-        true,
-        &validateHttpBackendRecord,
+        {"", "", 443U, BackendProtocol::kHttps, false, false},
+
+        &validateInfluxDbRecord,
         &createInfluxDbUploader,
     },
 };
@@ -141,7 +164,6 @@ const BackendDescriptor* BackendRegistry::findByType(BackendType type) const {
             return &descriptor;
         }
     }
-
     return nullptr;
 }
 
@@ -151,7 +173,6 @@ const BackendDescriptor* BackendRegistry::findByKey(const std::string& backend_k
             return &descriptor;
         }
     }
-
     return nullptr;
 }
 
@@ -160,6 +181,11 @@ bool BackendRegistry::validateRecord(const BackendRecord& record, std::string& e
     if (descriptor == nullptr) {
         error = "Unsupported backend type.";
         return false;
+    }
+
+    if (record.enabled == 0U) {
+        error.clear();
+        return true;
     }
 
     if (descriptor->validate == nullptr) {

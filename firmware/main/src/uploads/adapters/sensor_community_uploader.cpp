@@ -8,7 +8,7 @@
 #include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
-#include "air360/uploads/backend_http_config.hpp"
+#include "air360/uploads/backend_config.hpp"
 
 namespace air360 {
 
@@ -24,7 +24,7 @@ std::string legacyChipId(const MeasurementBatch& batch) {
 }
 
 std::string overrideChipId(const BackendRecord& record) {
-    return boundedCString(record.device_id_override, kBackendIdentifierCapacity);
+    return boundedCString(record.sensor_community_device_id, kBackendIdentifierCapacity);
 }
 
 bool mapMeasurement(
@@ -204,7 +204,16 @@ BackendType SensorCommunityUploader::type() const {
 bool SensorCommunityUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    return validateBackendHttpRecord(record, error);
+    if (record.host[0] == '\0') {
+        error = "Sensor.Community host must not be empty.";
+        return false;
+    }
+    if (record.port == 0U) {
+        error = "Sensor.Community port must be greater than zero.";
+        return false;
+    }
+    error.clear();
+    return true;
 }
 
 bool SensorCommunityUploader::buildRequests(
@@ -241,14 +250,7 @@ bool SensorCommunityUploader::buildRequests(
     const std::string x_mac = std::string(kLegacyPrefix) + batch.esp_mac_id;
     const std::string user_agent =
         batch.project_version + "/" + chip_id + "/" + batch.esp_mac_id;
-    BackendHttpConfigView config;
-    if (!decodeBackendHttpRecord(record, config, error)) {
-        return false;
-    }
-    std::string endpoint_url;
-    if (!buildBackendHttpUrl(config, endpoint_url, error)) {
-        return false;
-    }
+    const std::string endpoint_url = buildBackendUrl(record);
 
     for (const auto& group : groups) {
         if (group.values.empty()) {

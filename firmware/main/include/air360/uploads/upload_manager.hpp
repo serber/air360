@@ -25,7 +25,6 @@ struct BackendStatusSnapshot {
     std::uint32_t id = 0U;
     bool enabled = false;
     bool configured = false;
-    bool implemented = false;
     BackendType backend_type = BackendType::kUnknown;
     std::string backend_key;
     std::string display_name;

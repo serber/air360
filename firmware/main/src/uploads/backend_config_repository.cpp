@@ -24,16 +24,19 @@ esp_err_t saveInternal(nvs_handle_t handle, const BackendConfigList& config) {
     return nvs_commit(handle);
 }
 
-BackendRecord makeDefaultRecord(
-    std::uint32_t id,
-    BackendType type,
-    const char* display_name) {
+BackendRecord makeDefaultRecord(std::uint32_t id, const BackendDescriptor& descriptor) {
     BackendRecord record{};
     record.id = id;
     record.enabled = 0U;
-    record.backend_type = type;
-    copyString(record.display_name, sizeof(record.display_name), display_name);
-    applyBackendStaticDefaults(record);
+    record.backend_type = descriptor.type;
+    copyString(record.display_name, sizeof(record.display_name), descriptor.display_name);
+    copyString(record.host, sizeof(record.host), descriptor.defaults.host);
+    copyString(record.path, sizeof(record.path), descriptor.defaults.path);
+    record.port = descriptor.defaults.port;
+    record.protocol = descriptor.defaults.protocol;
+    if (descriptor.type == BackendType::kInfluxDb) {
+        copyString(record.influxdb_measurement, sizeof(record.influxdb_measurement), "air360");
+    }
     return record;
 }
 
@@ -45,8 +48,7 @@ bool appendDefaultRecordForDescriptor(
     }
 
     const std::uint32_t id = config.next_backend_id++;
-    config.backends[config.backend_count++] =
-        makeDefaultRecord(id, descriptor.type, descriptor.display_name);
+    config.backends[config.backend_count++] = makeDefaultRecord(id, descriptor);
     return true;
 }
 

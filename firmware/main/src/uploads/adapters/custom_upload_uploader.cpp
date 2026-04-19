@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "air360/uploads/adapters/air360_json_payload.hpp"
+#include "air360/uploads/backend_config.hpp"
 
 namespace air360 {
 
@@ -15,11 +16,14 @@ BackendType CustomUploadUploader::type() const {
 bool CustomUploadUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    if (record.endpoint_url[0] == '\0') {
-        error = "Custom upload endpoint URL is empty.";
+    if (record.host[0] == '\0') {
+        error = "Custom upload host must not be empty.";
         return false;
     }
-
+    if (record.port == 0U) {
+        error = "Custom upload port must be greater than zero.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -48,7 +52,7 @@ bool CustomUploadUploader::buildRequests(
     UploadRequestSpec request;
     request.request_key = std::string("custom_upload:") + std::to_string(batch.batch_id);
     request.method = UploadMethod::kPost;
-    request.url = record.endpoint_url;
+    request.url = buildBackendUrl(record);
     request.timeout_ms = 15000;
     request.headers.push_back({"Content-Type", "application/json"});
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});

@@ -8,7 +8,8 @@
 
 #include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
-#include "air360/uploads/backend_http_config.hpp"
+#include "air360/string_utils.hpp"
+#include "air360/uploads/backend_config.hpp"
 #include "mbedtls/base64.h"
 
 namespace air360 {
@@ -25,14 +26,12 @@ struct InfluxSampleGroup {
 std::string escapeMeasurementPart(std::string_view value) {
     std::string escaped;
     escaped.reserve(value.size());
-
     for (const char ch : value) {
         if (ch == ',' || ch == ' ' || ch == '=') {
             escaped.push_back('\\');
         }
         escaped.push_back(ch);
     }
-
     return escaped;
 }
 
@@ -51,23 +50,19 @@ InfluxSampleGroup* findGroup(
     return nullptr;
 }
 
-void upsertLatestValue(
-    InfluxSampleGroup& group,
-    SensorValueKind kind,
-    float value) {
+void upsertLatestValue(InfluxSampleGroup& group, SensorValueKind kind, float value) {
     for (auto& entry : group.values) {
         if (entry.first == kind) {
             entry.second = value;
             return;
         }
     }
-
     group.values.emplace_back(kind, value);
 }
 
 std::string buildLineProtocolBody(
     const MeasurementBatch& batch,
-    const BackendHttpConfigView& config) {
+    const std::string& measurement) {
     std::vector<InfluxSampleGroup> groups;
     groups.reserve(batch.points.size());
     for (const auto& point : batch.points) {
@@ -83,7 +78,7 @@ std::string buildLineProtocolBody(
 
     const std::string node =
         !batch.short_chip_id.empty() ? batch.short_chip_id : batch.chip_id;
-    const std::string escaped_measurement = escapeMeasurementPart(config.measurement_name);
+    const std::string escaped_measurement = escapeMeasurementPart(measurement);
     const std::string escaped_node = escapeMeasurementPart(node);
 
     std::string body;
@@ -102,13 +97,13 @@ std::string buildLineProtocolBody(
         body += std::to_string(group.sensor_id);
         body += " ";
 
-        for (std::size_t index = 0; index < group.values.size(); ++index) {
-            if (index > 0U) {
+        for (std::size_t i = 0; i < group.values.size(); ++i) {
+            if (i > 0U) {
                 body += ",";
             }
-            body += escapeMeasurementPart(sensorValueKindKey(group.values[index].first));
+            body += escapeMeasurementPart(sensorValueKindKey(group.values[i].first));
             body += "=";
-            body += formatSensorValue(group.values[index].first, group.values[index].second);
+            body += formatSensorValue(group.values[i].first, group.values[i].second);
         }
 
         body += " ";
@@ -157,7 +152,20 @@ BackendType InfluxDbUploader::type() const {
 bool InfluxDbUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    return validateBackendHttpRecord(record, error);
+    if (record.host[0] == '\0') {
+        error = "InfluxDB host must not be empty.";
+        return false;
+    }
+    if (record.port == 0U) {
+        error = "InfluxDB port must be greater than zero.";
+        return false;
+    }
+    if (record.influxdb_measurement[0] == '\0') {
+        error = "InfluxDB measurement name must not be empty.";
+        return false;
+    }
+    error.clear();
+    return true;
 }
 
 bool InfluxDbUploader::buildRequests(
@@ -182,26 +190,28 @@ bool InfluxDbUploader::buildRequests(
         return true;
     }
 
-    BackendHttpConfigView config;
-    if (!decodeBackendHttpRecord(record, config, error)) {
-        return false;
-    }
-    std::string endpoint_url;
-    if (!buildBackendHttpUrl(config, endpoint_url, error)) {
-        return false;
-    }
+    const std::string measurement =
+        boundedCString(record.influxdb_measurement, kBackendMeasurementCapacity);
 
     UploadRequestSpec request;
     request.request_key = std::string("influxdb:") + std::to_string(batch.batch_id);
     request.method = UploadMethod::kPost;
-    request.url = endpoint_url;
+    request.url = buildBackendUrl(record);
     request.timeout_ms = 15000;
     request.headers.push_back({"Content-Type", "text/plain; charset=utf-8"});
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
-    if (!appendBasicAuthHeader(config.username, config.password, request, error)) {
-        return false;
+
+    if (record.auth.auth_type == BackendAuthType::kBasic) {
+        const std::string username =
+            boundedCString(record.auth.basic_username, kBackendUsernameCapacity);
+        const std::string password =
+            boundedCString(record.auth.basic_password, kBackendPasswordCapacity);
+        if (!appendBasicAuthHeader(username, password, request, error)) {
+            return false;
+        }
     }
-    request.body = buildLineProtocolBody(batch, config);
+
+    request.body = buildLineProtocolBody(batch, measurement);
     if (request.body.empty()) {
         error.clear();
         return true;

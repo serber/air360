@@ -30,15 +30,9 @@ std::string defaultDisplayName(
     return std::string("Backend #") + std::to_string(id);
 }
 
-BackendRuntimeState classifyInitialState(
-    bool enabled,
-    bool implemented,
-    bool configured) {
+BackendRuntimeState classifyInitialState(bool enabled, bool configured) {
     if (!enabled) {
         return BackendRuntimeState::kDisabled;
-    }
-    if (!implemented) {
-        return BackendRuntimeState::kNotImplemented;
     }
     if (!configured) {
         return BackendRuntimeState::kError;
@@ -47,12 +41,7 @@ BackendRuntimeState classifyInitialState(
 }
 
 bool isDegraded(const BackendStatusSnapshot& backend) {
-    if (!backend.enabled) {
-        return false;
-    }
-
-    return backend.state == BackendRuntimeState::kError ||
-           backend.state == BackendRuntimeState::kNotImplemented;
+    return backend.enabled && backend.state == BackendRuntimeState::kError;
 }
 
 }  // namespace
@@ -109,27 +98,18 @@ std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
         managed.snapshot.display_name =
             record.display_name[0] != '\0' ? std::string(record.display_name)
                                            : defaultDisplayName(descriptor, record.id);
-        managed.snapshot.implemented = descriptor != nullptr && descriptor->implemented;
-
         std::string validation_error;
         const bool configured =
             descriptor != nullptr && registry.validateRecord(record, validation_error);
         managed.snapshot.configured = configured;
-        managed.snapshot.state = classifyInitialState(
-            managed.snapshot.enabled,
-            managed.snapshot.implemented,
-            configured);
+        managed.snapshot.state = classifyInitialState(managed.snapshot.enabled, configured);
 
         if (!validation_error.empty()) {
             managed.snapshot.last_result = UploadResultClass::kConfigError;
             managed.snapshot.last_error = validation_error;
-        } else if (managed.snapshot.enabled && !managed.snapshot.implemented) {
-            managed.snapshot.last_result = UploadResultClass::kUnsupported;
-            managed.snapshot.last_error = "Backend is not implemented yet.";
         }
 
         if (managed.snapshot.enabled &&
-            managed.snapshot.implemented &&
             configured &&
             descriptor != nullptr &&
             descriptor->create_uploader != nullptr) {
