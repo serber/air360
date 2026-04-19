@@ -37,6 +37,15 @@
                     <p class='hint' data-check-sntp-status hidden></p>
                 </div>
                 <hr>
+                <h3>Power Management</h3>
+                <div class='field'>
+                    <label class='label--inline'>
+                        <input type='checkbox' name='wifi_power_save' value='1' {{WIFI_POWER_SAVE_CHECKED}}>
+                        Enable Wi-Fi modem sleep
+                    </label>
+                    <p class='hint'>Reduces power consumption by sleeping the Wi-Fi modem between DTIM beacons. Increases latency slightly. Applies to station mode only.</p>
+                </div>
+                <hr>
                 <h3>Static IP</h3>
                 <p class='muted'>When enabled, the device uses the configured address instead of DHCP. Applies to station mode only; setup AP is unaffected.</p>
                 <div class='field'>

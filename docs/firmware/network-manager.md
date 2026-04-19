@@ -124,7 +124,8 @@ The handlers stay active after `connectStation()` returns, which is what enables
 4. clears the station event bits
 5. switches Wi-Fi to `WIFI_MODE_STA`
 6. applies STA credentials and starts Wi-Fi
-7. waits up to 15 seconds for `kStationConnectedBit` or `kStationFailedBit`
+7. sets power save mode: `WIFI_PS_MIN_MODEM` if `config.wifi_power_save_enabled`, otherwise `WIFI_PS_NONE`
+8. waits up to 15 seconds for `kStationConnectedBit` or `kStationFailedBit`
 
 On success:
 
@@ -235,7 +236,7 @@ This covers the common “sensor boots faster than the router” case without ne
 3. switches Wi-Fi to `WIFI_MODE_APSTA`
 4. configures the setup AP on `192.168.4.1/24`
 5. optionally preloads STA credentials into the Wi-Fi driver if they exist
-6. starts Wi-Fi and disables power save
+6. starts Wi-Fi with `WIFI_PS_NONE` (setup AP always disables power save)
 7. sets `mode = kSetupAp`, `lab_ap_active = true`
 8. triggers an initial Wi-Fi scan for `/wifi-scan`
 9. if station credentials exist, arms the periodic setup-AP retry timer
@@ -350,4 +351,5 @@ If there is no stored station configuration, the firmware does not attempt autom
 | SNTP timeout (maintenance retry) | 10 000 ms |
 | AP static IP | 192.168.4.1/24 |
 | Wi-Fi storage | RAM only |
-| Power save mode | `WIFI_PS_NONE` |
+| Power save mode (station) | `WIFI_PS_NONE` (default) or `WIFI_PS_MIN_MODEM` (when `wifi_power_save_enabled = 1`) |
+| Power save mode (setup AP) | `WIFI_PS_NONE` always |

@@ -16,7 +16,8 @@ struct DeviceConfig {
     std::uint16_t http_port;
     std::uint8_t lab_ap_enabled;
     std::uint8_t local_auth_enabled;
-    std::uint16_t reserved0;
+    std::uint8_t wifi_power_save_enabled;
+    std::uint8_t reserved0;
     char device_name[32];
     char wifi_sta_ssid[33];
     char wifi_sta_password[65];

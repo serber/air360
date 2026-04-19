@@ -340,6 +340,7 @@ struct ConfigPageViewModel {
     std::string wifi_password_value;
     std::string wifi_ssid_options_html;
     std::string sntp_server_value;
+    bool wifi_power_save_enabled = false;
     bool sta_use_static_ip = false;
     std::string sta_ip_value;
     std::string sta_netmask_value;
@@ -517,6 +518,7 @@ std::string renderConfigPage(
             {"WIFI_PASSWORD_VALUE", htmlEscape(model.wifi_password_value)},
             {"WIFI_SSID_OPTIONS", model.wifi_ssid_options_html},
             {"SNTP_SERVER_VALUE", htmlEscape(model.sntp_server_value)},
+            {"WIFI_POWER_SAVE_CHECKED", model.wifi_power_save_enabled ? "checked" : ""},
             {"STA_USE_STATIC_IP_CHECKED", model.sta_use_static_ip ? "checked" : ""},
             {"STA_STATIC_IP_GROUP_DISABLED_CLASS", model.sta_use_static_ip ? "" : "field--disabled"},
             {"STA_IP_VALUE", htmlEscape(model.sta_ip_value)},
@@ -1017,6 +1019,7 @@ ConfigPageViewModel buildConfigPageViewModel(
         model.network_error_html += "</code></p>";
     }
 
+    model.wifi_power_save_enabled = config.wifi_power_save_enabled != 0U;
     model.sta_use_static_ip = config.sta_use_static_ip != 0U;
     model.sta_ip_value = boundedCString(config.sta_ip, sizeof(config.sta_ip));
     model.sta_netmask_value = boundedCString(config.sta_netmask, sizeof(config.sta_netmask));
@@ -2448,6 +2451,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string wifi_ssid = findFormValue(fields, "wifi_ssid");
     const std::string wifi_password = findFormValue(fields, "wifi_password");
     const std::string sntp_server = findFormValue(fields, "sntp_server");
+    const bool wifi_power_save_enabled = (findFormValue(fields, "wifi_power_save") == "1");
     const bool sta_use_static_ip = (findFormValue(fields, "sta_use_static_ip") == "1");
     const std::string sta_ip = sta_use_static_ip ? findFormValue(fields, "sta_ip") : "";
     const std::string sta_netmask = sta_use_static_ip ? findFormValue(fields, "sta_netmask") : "";
@@ -2493,6 +2497,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         copyString(preview.wifi_sta_ssid, sizeof(preview.wifi_sta_ssid), wifi_ssid);
         copyString(preview.wifi_sta_password, sizeof(preview.wifi_sta_password), wifi_password);
         copyString(preview.sntp_server, sizeof(preview.sntp_server), sntp_server);
+        preview.wifi_power_save_enabled = wifi_power_save_enabled ? 1U : 0U;
         preview.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
         copyString(preview.sta_ip, sizeof(preview.sta_ip), sta_ip);
         copyString(preview.sta_netmask, sizeof(preview.sta_netmask), sta_netmask);
@@ -2530,6 +2535,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     copyString(updated.wifi_sta_ssid, sizeof(updated.wifi_sta_ssid), wifi_ssid);
     copyString(updated.wifi_sta_password, sizeof(updated.wifi_sta_password), wifi_password);
     copyString(updated.sntp_server, sizeof(updated.sntp_server), sntp_server);
+    updated.wifi_power_save_enabled = wifi_power_save_enabled ? 1U : 0U;
     updated.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
     copyString(updated.sta_ip, sizeof(updated.sta_ip), sta_ip);
     copyString(updated.sta_netmask, sizeof(updated.sta_netmask), sta_netmask);

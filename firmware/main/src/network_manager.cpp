@@ -822,7 +822,9 @@ esp_err_t NetworkManager::attemptStationConnect(
             err = esp_wifi_start();
         }
         if (err == ESP_OK) {
-            err = esp_wifi_set_ps(WIFI_PS_NONE);
+            const wifi_ps_type_t ps_mode =
+                config.wifi_power_save_enabled ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE;
+            err = esp_wifi_set_ps(ps_mode);
         }
     } else {
         context.auto_connect_on_sta_start = false;
@@ -832,7 +834,9 @@ esp_err_t NetworkManager::attemptStationConnect(
             err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
         }
         if (err == ESP_OK) {
-            err = esp_wifi_set_ps(WIFI_PS_NONE);
+            const wifi_ps_type_t ps_mode =
+                config.wifi_power_save_enabled ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE;
+            err = esp_wifi_set_ps(ps_mode);
         }
         if (err == ESP_OK) {
             err = esp_wifi_disconnect();
@@ -851,7 +855,10 @@ esp_err_t NetworkManager::attemptStationConnect(
         return err;
     }
 
-    ESP_LOGI(kTag, "Station Wi-Fi power save disabled for lower upload latency");
+    ESP_LOGI(
+        kTag,
+        "Station Wi-Fi power save: %s",
+        config.wifi_power_save_enabled ? "MIN_MODEM" : "disabled");
     ESP_LOGI(kTag, "Station hostname: %s", hostname.c_str());
     ESP_LOGI(
         kTag,

@@ -157,6 +157,7 @@ Manages the `DeviceConfig` NVS blob (schema version 1).
 | lab_ap_password | `char[65]` | Lab AP password |
 | lab_ap_enabled | `uint8_t` | Default: 1 |
 | local_auth_enabled | `uint8_t` | Reserved, not enforced |
+| wifi_power_save_enabled | `uint8_t` | 0 = off; 1 = WIFI_PS_MIN_MODEM after station join |
 | sntp_server | `char[64]` | Empty = use `pool.ntp.org` |
 | sta_use_static_ip | `uint8_t` | 0=DHCP, 1=static |
 | sta_ip | `char[16]` | Static IP address |
