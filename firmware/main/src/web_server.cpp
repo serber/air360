@@ -37,6 +37,7 @@ namespace {
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
 constexpr std::size_t kHttpServerMaxUriHandlers = 14U;
+constexpr std::size_t kHttpMaxRequestBodySize = 4096U;
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 
 int decodeHex(char value) {
@@ -131,6 +132,9 @@ esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body) {
     if (request->content_len <= 0) {
         return ESP_OK;
     }
+    if (request->content_len > static_cast<int>(kHttpMaxRequestBodySize)) {
+        return ESP_ERR_INVALID_SIZE;
+    }
 
     out_body.resize(static_cast<std::size_t>(request->content_len));
     int received_total = 0;
@@ -146,6 +150,13 @@ esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body) {
     }
 
     return ESP_OK;
+}
+
+esp_err_t sendRequestBodyTooLarge(httpd_req_t* request) {
+    httpd_resp_set_status(request, "413 Payload Too Large");
+    httpd_resp_set_type(request, "text/plain; charset=utf-8");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    return httpd_resp_sendstr(request, "Request body exceeds the 4096-byte limit.");
 }
 
 esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html) {
@@ -1622,25 +1633,6 @@ std::string renderSensorsPage(
         body);
 }
 
-bool isValidIpv4(const std::string& s) {
-    if (s.size() < 7U || s.size() > 15U) {
-        return false;
-    }
-    int a = 0;
-    int b = 0;
-    int c = 0;
-    int d = 0;
-    if (std::sscanf(s.c_str(), "%d.%d.%d.%d", &a, &b, &c, &d) != 4) {
-        return false;
-    }
-    if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255 || d < 0 || d > 255) {
-        return false;
-    }
-    char rebuilt[16];
-    std::snprintf(rebuilt, sizeof(rebuilt), "%d.%d.%d.%d", a, b, c, d);
-    return s == rebuilt;
-}
-
 bool validateConfigForm(
     const std::string& device_name,
     const std::string& wifi_ssid,
@@ -1689,23 +1681,17 @@ bool validateConfigForm(
             return false;
         }
     }
-    if (sta_use_static_ip) {
-        if (!isValidIpv4(sta_ip)) {
-            error = "IP address is not a valid IPv4 address.";
-            return false;
-        }
-        if (!isValidIpv4(sta_netmask)) {
-            error = "Subnet mask is not a valid IPv4 address.";
-            return false;
-        }
-        if (!isValidIpv4(sta_gateway)) {
-            error = "Gateway is not a valid IPv4 address.";
-            return false;
-        }
-        if (!sta_dns.empty() && !isValidIpv4(sta_dns)) {
-            error = "DNS server is not a valid IPv4 address.";
-            return false;
-        }
+    const char* static_ip_error = nullptr;
+    if (!validateStaticIpv4Config(
+            sta_use_static_ip,
+            sta_ip,
+            sta_netmask,
+            sta_gateway,
+            sta_dns,
+            static_ip_error)) {
+        error = static_ip_error == nullptr ? "Static IPv4 configuration is invalid."
+                                           : static_ip_error;
+        return false;
     }
     if (cellular_enabled) {
         if (cellular_apn.empty()) {
@@ -1985,7 +1971,11 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     }
 
     std::string body;
-    if (readRequestBody(request, body) != ESP_OK) {
+    const esp_err_t body_err = readRequestBody(request, body);
+    if (body_err == ESP_ERR_INVALID_SIZE) {
+        return sendRequestBodyTooLarge(request);
+    }
+    if (body_err != ESP_OK) {
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
@@ -2277,7 +2267,11 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     }
 
     std::string body;
-    if (readRequestBody(request, body) != ESP_OK) {
+    const esp_err_t body_err = readRequestBody(request, body);
+    if (body_err == ESP_ERR_INVALID_SIZE) {
+        return sendRequestBodyTooLarge(request);
+    }
+    if (body_err != ESP_OK) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
@@ -2514,7 +2508,11 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     }
 
     std::string body;
-    if (readRequestBody(request, body) != ESP_OK) {
+    const esp_err_t body_err = readRequestBody(request, body);
+    if (body_err == ESP_ERR_INVALID_SIZE) {
+        return sendRequestBodyTooLarge(request);
+    }
+    if (body_err != ESP_OK) {
         const std::string html = renderConfigPage(
             *server->config_,
             *server->cellular_config_,
@@ -2700,7 +2698,11 @@ esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
 
     std::string body;
-    if (readRequestBody(request, body) != ESP_OK) {
+    const esp_err_t body_err = readRequestBody(request, body);
+    if (body_err == ESP_ERR_INVALID_SIZE) {
+        return sendRequestBodyTooLarge(request);
+    }
+    if (body_err != ESP_OK) {
         return httpd_resp_sendstr(request, "{\"success\":false,\"error\":\"sync_failed\"}");
     }
 

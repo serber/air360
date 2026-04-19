@@ -729,6 +729,17 @@ esp_err_t NetworkManager::attemptStationConnect(
     }
 
     if (config.sta_use_static_ip != 0U && config.sta_ip[0] != '\0') {
+        const char* static_ip_error = nullptr;
+        if (!validateStaticIpv4Config(config, static_ip_error)) {
+            lock();
+            setStateError(
+                state_,
+                static_ip_error == nullptr ? "invalid static IPv4 configuration"
+                                           : static_ip_error);
+            unlock();
+            return ESP_ERR_INVALID_ARG;
+        }
+
         err = esp_netif_dhcpc_stop(context.sta_netif);
         if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
             lock();

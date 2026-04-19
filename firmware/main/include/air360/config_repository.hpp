@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include "esp_err.h"
 
@@ -38,6 +39,15 @@ struct DeviceConfig {
 };
 
 DeviceConfig makeDefaultDeviceConfig();
+bool isValidIpv4Address(std::string_view value);
+bool validateStaticIpv4Config(
+    bool sta_use_static_ip,
+    std::string_view sta_ip,
+    std::string_view sta_netmask,
+    std::string_view sta_gateway,
+    std::string_view sta_dns,
+    const char*& out_error);
+bool validateStaticIpv4Config(const DeviceConfig& config, const char*& out_error);
 
 class ConfigRepository {
   public:
