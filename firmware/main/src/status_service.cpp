@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/string_utils.hpp"
 #include "air360/web_ui.hpp"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -16,36 +17,6 @@
 namespace air360 {
 
 namespace {
-
-std::string jsonEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '\\':
-                escaped += "\\\\";
-                break;
-            case '"':
-                escaped += "\\\"";
-                break;
-            case '\n':
-                escaped += "\\n";
-                break;
-            case '\r':
-                escaped += "\\r";
-                break;
-            case '\t':
-                escaped += "\\t";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
-}
 
 const char* boolString(bool value) {
     return value ? "true" : "false";

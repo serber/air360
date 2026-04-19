@@ -1,9 +1,9 @@
 #include "air360/uploads/backend_http_config.hpp"
 
-#include <cstddef>
-#include <cstring>
 #include <string>
 #include <string_view>
+
+#include "air360/string_utils.hpp"
 
 namespace air360 {
 
@@ -12,45 +12,9 @@ namespace {
 constexpr std::string_view kHttpScheme = "http://";
 constexpr std::string_view kHttpsScheme = "https://";
 
-bool isNullTerminated(const char* value, std::size_t capacity) {
-    if (value == nullptr || capacity == 0U) {
-        return false;
-    }
-    return value[capacity - 1U] == '\0';
-}
-
-std::string boundedCString(const char* value, std::size_t capacity) {
-    if (value == nullptr || capacity == 0U) {
-        return "";
-    }
-
-    std::size_t length = 0U;
-    while (length < capacity && value[length] != '\0') {
-        ++length;
-    }
-
-    return std::string(value, length);
-}
-
 bool containsLineBreak(std::string_view value) {
     return value.find('\n') != std::string_view::npos ||
            value.find('\r') != std::string_view::npos;
-}
-
-void copyString(char* destination, std::size_t destination_size, std::string_view source) {
-    if (destination_size == 0U) {
-        return;
-    }
-
-    const std::size_t count =
-        source.size() < (destination_size - 1U) ? source.size() : (destination_size - 1U);
-    if (count > 0U) {
-        std::memcpy(destination, source.data(), count);
-    }
-    destination[count] = '\0';
-    for (std::size_t index = count + 1U; index < destination_size; ++index) {
-        destination[index] = '\0';
-    }
 }
 
 bool validateBackendTextFields(const BackendHttpConfigView& config, std::string& error) {

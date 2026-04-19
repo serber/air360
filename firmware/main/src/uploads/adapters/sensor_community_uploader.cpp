@@ -1,12 +1,13 @@
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
 
-#include <cstdio>
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/string_utils.hpp"
 #include "air360/uploads/backend_http_config.hpp"
 
 namespace air360 {
@@ -14,47 +15,6 @@ namespace air360 {
 namespace {
 
 constexpr char kLegacyPrefix[] = "esp32-";
-
-std::string jsonEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '\\':
-                escaped += "\\\\";
-                break;
-            case '"':
-                escaped += "\\\"";
-                break;
-            case '\n':
-                escaped += "\\n";
-                break;
-            case '\r':
-                escaped += "\\r";
-                break;
-            case '\t':
-                escaped += "\\t";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
-}
-
-std::string formatValue(SensorValueKind kind, float value) {
-    char buffer[48];
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "%.*f",
-        sensorValueKindPrecision(kind),
-        static_cast<double>(value));
-    return buffer;
-}
 
 std::string legacyChipId(const MeasurementBatch& batch) {
     if (!batch.short_chip_id.empty()) {
@@ -64,16 +24,7 @@ std::string legacyChipId(const MeasurementBatch& batch) {
 }
 
 std::string overrideChipId(const BackendRecord& record) {
-    const char* raw = record.device_id_override;
-    if (raw == nullptr || raw[0] == '\0') {
-        return "";
-    }
-
-    std::size_t length = 0U;
-    while (length < kBackendIdentifierCapacity && raw[length] != '\0') {
-        ++length;
-    }
-    return std::string(raw, length);
+    return boundedCString(record.device_id_override, kBackendIdentifierCapacity);
 }
 
 bool mapMeasurement(
@@ -211,7 +162,7 @@ void upsertLatestValue(
     SensorValueKind kind,
     float value) {
     const std::string value_type_key = value_type != nullptr ? value_type : "";
-    const std::string formatted_value = formatValue(kind, value);
+    const std::string formatted_value = formatSensorValue(kind, value);
 
     for (auto& entry : group.values) {
         if (entry.first == value_type_key) {

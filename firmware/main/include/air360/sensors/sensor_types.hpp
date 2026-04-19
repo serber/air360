@@ -314,6 +314,28 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
     }
 }
 
+inline const char* sensorTypeKey(SensorType type) {
+    switch (type) {
+        case SensorType::kBme280:   return "bme280";
+        case SensorType::kGpsNmea:  return "gps_nmea";
+        case SensorType::kDht11:    return "dht11";
+        case SensorType::kDht22:    return "dht22";
+        case SensorType::kDs18b20:  return "ds18b20";
+        case SensorType::kBme680:   return "bme680";
+        case SensorType::kSps30:    return "sps30";
+        case SensorType::kScd30:    return "scd30";
+        case SensorType::kHtu2x:    return "htu2x";
+        case SensorType::kSht4x:    return "sht4x";
+        case SensorType::kMe3No2:   return "me3_no2";
+        case SensorType::kVeml7700: return "veml7700";
+        case SensorType::kIna219:   return "ina219";
+        case SensorType::kMhz19b:   return "mhz19b";
+        case SensorType::kSds011:
+        case SensorType::kUnknown:
+        default:                    return "unknown";
+    }
+}
+
 inline const char* sensorRuntimeStateKey(SensorRuntimeState state) {
     switch (state) {
         case SensorRuntimeState::kDisabled:

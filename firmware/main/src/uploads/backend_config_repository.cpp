@@ -1,9 +1,8 @@
 #include "air360/uploads/backend_config_repository.hpp"
 
-#include <cstddef>
-#include <cstring>
 #include <string>
 
+#include "air360/string_utils.hpp"
 #include "air360/uploads/backend_registry.hpp"
 #include "esp_log.h"
 #include "nvs.h"
@@ -15,15 +14,6 @@ namespace {
 constexpr char kTag[] = "air360.backend_cfg";
 constexpr char kNamespace[] = "air360";
 constexpr char kConfigKey[] = "backend_cfg";
-
-void copyString(char* destination, std::size_t destination_size, const char* source) {
-    if (destination_size == 0U) {
-        return;
-    }
-
-    std::strncpy(destination, source != nullptr ? source : "", destination_size - 1U);
-    destination[destination_size - 1U] = '\0';
-}
 
 esp_err_t saveInternal(nvs_handle_t handle, const BackendConfigList& config) {
     esp_err_t err = nvs_set_blob(handle, kConfigKey, &config, sizeof(config));

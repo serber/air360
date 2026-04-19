@@ -1,8 +1,6 @@
 #include "air360/config_repository.hpp"
 
-#include <cstddef>
-#include <cstring>
-
+#include "air360/string_utils.hpp"
 #include "esp_log.h"
 #include "nvs.h"
 
@@ -14,15 +12,6 @@ constexpr char kTag[] = "air360.config";
 constexpr char kNamespace[] = "air360";
 constexpr char kConfigKey[] = "device_cfg";
 constexpr char kBootCountKey[] = "boot_count";
-
-void copyString(char* destination, std::size_t destination_size, const char* source) {
-    if (destination_size == 0U) {
-        return;
-    }
-
-    std::strncpy(destination, source, destination_size - 1U);
-    destination[destination_size - 1U] = '\0';
-}
 
 esp_err_t saveInternal(nvs_handle_t handle, const DeviceConfig& config) {
     esp_err_t err = nvs_set_blob(handle, kConfigKey, &config, sizeof(config));

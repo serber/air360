@@ -7,6 +7,7 @@
 #include <cstring>
 #include <vector>
 
+#include "air360/string_utils.hpp"
 #include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_event.h"
@@ -82,15 +83,6 @@ void armTimer(TimerHandle_t timer, std::uint32_t delay_ms) {
     xTimerStop(timer, 0U);
     xTimerChangePeriod(timer, ticksFromMs(delay_ms), 0U);
     xTimerStart(timer, 0U);
-}
-
-void copyString(char* destination, std::size_t destination_size, const char* source) {
-    if (destination_size == 0U) {
-        return;
-    }
-
-    std::strncpy(destination, source, destination_size - 1U);
-    destination[destination_size - 1U] = '\0';
 }
 
 bool hasStationConfig(const DeviceConfig& config) {

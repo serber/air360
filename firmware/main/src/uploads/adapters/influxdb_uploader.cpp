@@ -1,12 +1,12 @@
 #include "air360/uploads/adapters/influxdb_uploader.hpp"
 
-#include <cstdio>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/uploads/backend_http_config.hpp"
 #include "mbedtls/base64.h"
@@ -21,53 +21,6 @@ struct InfluxSampleGroup {
     std::uint64_t sample_time_ms = 0U;
     std::vector<std::pair<SensorValueKind, float>> values;
 };
-
-const char* sensorTypeKey(SensorType type) {
-    switch (type) {
-        case SensorType::kBme280:
-            return "bme280";
-        case SensorType::kGpsNmea:
-            return "gps_nmea";
-        case SensorType::kDht11:
-            return "dht11";
-        case SensorType::kDht22:
-            return "dht22";
-        case SensorType::kDs18b20:
-            return "ds18b20";
-        case SensorType::kBme680:
-            return "bme680";
-        case SensorType::kSps30:
-            return "sps30";
-        case SensorType::kScd30:
-            return "scd30";
-        case SensorType::kHtu2x:
-            return "htu2x";
-        case SensorType::kSht4x:
-            return "sht4x";
-        case SensorType::kMe3No2:
-            return "me3_no2";
-        case SensorType::kVeml7700:
-            return "veml7700";
-        case SensorType::kIna219:
-            return "ina219";
-        case SensorType::kMhz19b:
-            return "mhz19b";
-        case SensorType::kUnknown:
-        default:
-            return "unknown";
-    }
-}
-
-std::string formatNumericValue(SensorValueKind kind, float value) {
-    char buffer[48];
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "%.*f",
-        sensorValueKindPrecision(kind),
-        static_cast<double>(value));
-    return buffer;
-}
 
 std::string escapeMeasurementPart(std::string_view value) {
     std::string escaped;
@@ -155,7 +108,7 @@ std::string buildLineProtocolBody(
             }
             body += escapeMeasurementPart(sensorValueKindKey(group.values[index].first));
             body += "=";
-            body += formatNumericValue(group.values[index].first, group.values[index].second);
+            body += formatSensorValue(group.values[index].first, group.values[index].second);
         }
 
         body += " ";
@@ -247,7 +200,7 @@ bool InfluxDbUploader::buildRequests(
     request.method = UploadMethod::kPost;
     request.url = endpoint_url;
     request.timeout_ms = 15000;
-    request.headers.push_back({"Content-Type", "application/x-www-form-urlencoded"});
+    request.headers.push_back({"Content-Type", "text/plain; charset=utf-8"});
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
     if (!appendBasicAuthHeader(config.username, config.password, request, error)) {
         return false;

@@ -3,6 +3,7 @@
 #include <cstring>
 #include <string>
 
+#include "air360/string_utils.hpp"
 #include "air360/uploads/adapters/air360_api_uploader.hpp"
 #include "air360/uploads/adapters/custom_upload_uploader.hpp"
 #include "air360/uploads/adapters/influxdb_uploader.hpp"
@@ -12,13 +13,6 @@
 namespace air360 {
 
 namespace {
-
-bool isNullTerminated(const char* value, std::size_t capacity) {
-    if (value == nullptr || capacity == 0U) {
-        return false;
-    }
-    return value[capacity - 1U] == '\0';
-}
 
 bool validateCommonRecord(const BackendRecord& record, std::string& error) {
     if (record.id == 0U) {

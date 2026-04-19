@@ -1,12 +1,13 @@
 #include "air360/uploads/adapters/air360_json_payload.hpp"
 
-#include <cstdio>
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/string_utils.hpp"
 
 namespace air360 {
 
@@ -17,83 +18,6 @@ struct SampleGroup {
     std::uint64_t sample_time_ms = 0U;
     std::vector<std::pair<SensorValueKind, float>> values;
 };
-
-std::string jsonEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '\\':
-                escaped += "\\\\";
-                break;
-            case '"':
-                escaped += "\\\"";
-                break;
-            case '\n':
-                escaped += "\\n";
-                break;
-            case '\r':
-                escaped += "\\r";
-                break;
-            case '\t':
-                escaped += "\\t";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
-}
-
-const char* sensorTypeKey(SensorType type) {
-    switch (type) {
-        case SensorType::kBme280:
-            return "bme280";
-        case SensorType::kGpsNmea:
-            return "gps_nmea";
-        case SensorType::kDht11:
-            return "dht11";
-        case SensorType::kDht22:
-            return "dht22";
-        case SensorType::kDs18b20:
-            return "ds18b20";
-        case SensorType::kBme680:
-            return "bme680";
-        case SensorType::kSps30:
-            return "sps30";
-        case SensorType::kScd30:
-            return "scd30";
-        case SensorType::kHtu2x:
-            return "htu2x";
-        case SensorType::kSht4x:
-            return "sht4x";
-        case SensorType::kMe3No2:
-            return "me3_no2";
-        case SensorType::kVeml7700:
-            return "veml7700";
-        case SensorType::kIna219:
-            return "ina219";
-        case SensorType::kMhz19b:
-            return "mhz19b";
-        case SensorType::kUnknown:
-        default:
-            return "unknown";
-    }
-}
-
-std::string formatValue(SensorValueKind kind, float value) {
-    char buffer[48];
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "%.*f",
-        sensorValueKindPrecision(kind),
-        static_cast<double>(value));
-    return buffer;
-}
 
 SampleGroup* findGroup(
     std::vector<SampleGroup>& groups,
@@ -183,7 +107,7 @@ std::string buildAir360JsonBody(const MeasurementBatch& batch) {
             body += "{\"kind\":\"";
             body += jsonEscape(sensorValueKindKey(value.first));
             body += "\",\"value\":";
-            body += formatValue(value.first, value.second);
+            body += formatSensorValue(value.first, value.second);
             body += "}";
         }
         body += "]}";

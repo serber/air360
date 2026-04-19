@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
-#include <cstring>
 #include <cstdlib>
 #include <ctime>
 #include <string>
@@ -13,6 +12,7 @@
 
 #include "air360/log_buffer.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
+#include "air360/string_utils.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/sensors/sensor_types.hpp"
@@ -38,58 +38,6 @@ constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
 constexpr std::size_t kHttpServerMaxUriHandlers = 14U;
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
-
-void copyString(char* destination, std::size_t destination_size, const std::string& source) {
-    if (destination_size == 0U) {
-        return;
-    }
-
-    std::strncpy(destination, source.c_str(), destination_size - 1U);
-    destination[destination_size - 1U] = '\0';
-}
-
-std::string boundedCString(const char* value, std::size_t capacity) {
-    if (value == nullptr || capacity == 0U) {
-        return "";
-    }
-
-    std::size_t length = 0U;
-    while (length < capacity && value[length] != '\0') {
-        ++length;
-    }
-
-    return std::string(value, length);
-}
-
-std::string jsonEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '\\':
-                escaped += "\\\\";
-                break;
-            case '"':
-                escaped += "\\\"";
-                break;
-            case '\n':
-                escaped += "\\n";
-                break;
-            case '\r':
-                escaped += "\\r";
-                break;
-            case '\t':
-                escaped += "\\t";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
-}
 
 int decodeHex(char value) {
     if (value >= '0' && value <= '9') {
