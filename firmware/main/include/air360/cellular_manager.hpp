@@ -7,6 +7,7 @@
 #include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 namespace air360 {
@@ -42,13 +43,15 @@ struct CellularState {
 //   failures the modem is hard-reset via PWRKEY.
 class CellularManager {
   public:
+    CellularManager();
+
     void init(NetworkManager& network_manager);
 
     // Initialize modem GPIOs and, if cellular is enabled, launch the reconnect
     // task.  No-op if config.enabled == 0.  Calling more than once is a no-op.
     void start(const CellularConfig& config);
 
-    const CellularState& state() const;
+    CellularState state() const;
     std::size_t taskStackHighWaterMarkBytes() const;
 
     // Called internally once PPP is up and an IP has been assigned.
@@ -58,6 +61,9 @@ class CellularManager {
     void onPppDisconnected(const char* reason);
 
   private:
+    void lock() const;
+    void unlock() const;
+
     // FreeRTOS task
     static void taskEntry(void* arg);
     void taskBody();
@@ -84,6 +90,8 @@ class CellularManager {
     CellularState state_;
     NetworkManager* network_manager_ = nullptr;
     TaskHandle_t task_handle_ = nullptr;
+    mutable StaticSemaphore_t mutex_buffer_{};
+    mutable SemaphoreHandle_t mutex_ = nullptr;
 
     // Opaque handles for modem resources — typed as void* to avoid pulling
     // esp_modem_api.h and esp_event.h into every translation unit that

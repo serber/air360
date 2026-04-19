@@ -61,7 +61,7 @@ struct NetworkState {
 };
 ```
 
-The state is guarded by a mutex inside `NetworkManager`; callers receive snapshots through `state()`.
+The state is guarded by a mutex inside `NetworkManager`; callers receive copies through `state()`. The Wi-Fi scan cache is exposed separately via `wifiScanSnapshot()`, which returns the SSID list together with `last_scan_error` and `last_scan_uptime_ms` as one consistent snapshot.
 
 ---
 
@@ -275,6 +275,7 @@ The Diagnostics page raw JSON dump exposes the same fields in machine-readable f
 - hidden SSIDs are skipped
 - duplicate SSIDs are collapsed
 - failures clear `available_networks_` and populate `last_scan_error_`
+- callers do not read the scan cache field-by-field; `/config` and `/wifi-scan` consume a single `WifiScanSnapshot`
 
 ---
 

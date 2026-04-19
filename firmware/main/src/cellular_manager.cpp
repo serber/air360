@@ -33,6 +33,22 @@ constexpr std::uint32_t kCheckRetries   = 3U;
 // Public API
 // ---------------------------------------------------------------------------
 
+CellularManager::CellularManager() {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
+void CellularManager::lock() const {
+    if (mutex_ != nullptr) {
+        xSemaphoreTake(mutex_, portMAX_DELAY);
+    }
+}
+
+void CellularManager::unlock() const {
+    if (mutex_ != nullptr) {
+        xSemaphoreGive(mutex_);
+    }
+}
+
 void CellularManager::init(NetworkManager& network_manager) {
     network_manager_ = &network_manager;
 }
@@ -43,12 +59,14 @@ void CellularManager::start(const CellularConfig& config) {
         return;
     }
 
-    config_        = config;
+    lock();
+    config_ = config;
     state_.enabled = (config.enabled != 0U);
+    unlock();
 
     initModemGpios(config);
 
-    if (!state_.enabled) {
+    if (config.enabled == 0U) {
         ESP_LOGI(kTag, "Cellular disabled — skipping task start");
         return;
     }
@@ -64,8 +82,11 @@ void CellularManager::start(const CellularConfig& config) {
     }
 }
 
-const CellularState& CellularManager::state() const {
-    return state_;
+CellularState CellularManager::state() const {
+    lock();
+    const CellularState snapshot = state_;
+    unlock();
+    return snapshot;
 }
 
 std::size_t CellularManager::taskStackHighWaterMarkBytes() const {
@@ -100,29 +121,40 @@ void CellularManager::taskBody() {
 
         if (was_connected) {
             // Clean disconnect — reset backoff counter for next cycle.
-            state_.reconnect_attempts     = 0U;
+            lock();
+            state_.reconnect_attempts = 0U;
             state_.next_reconnect_uptime_ms = 0U;
+            unlock();
             continue;
         }
 
         // Setup failure — apply backoff.
+        std::uint32_t reconnect_attempts = 0U;
+        lock();
         state_.reconnect_attempts++;
-        ESP_LOGW(kTag, "Attempt %" PRIu32 " failed", state_.reconnect_attempts);
+        reconnect_attempts = state_.reconnect_attempts;
+        unlock();
 
-        if (state_.reconnect_attempts >= kMaxReconnectAttempts) {
+        ESP_LOGW(kTag, "Attempt %" PRIu32 " failed", reconnect_attempts);
+
+        if (reconnect_attempts >= kMaxReconnectAttempts) {
             ESP_LOGW(kTag, "Max attempts reached — hardware reset");
             doHardwareReset();
-            state_.reconnect_attempts      = 0U;
+            lock();
+            state_.reconnect_attempts = 0U;
             state_.next_reconnect_uptime_ms = 0U;
+            unlock();
             // doHardwareReset() already waits for modem boot — go straight to
             // next attempt without an extra backoff sleep.
             continue;
         }
 
-        const std::uint32_t backoff_ms = computeBackoffMs(state_.reconnect_attempts);
+        const std::uint32_t backoff_ms = computeBackoffMs(reconnect_attempts);
         const std::uint64_t now_ms =
             static_cast<std::uint64_t>(esp_timer_get_time()) / 1000ULL;
+        lock();
         state_.next_reconnect_uptime_ms = now_ms + backoff_ms;
+        unlock();
 
         ESP_LOGI(kTag, "Backoff %" PRIu32 " ms", backoff_ms);
 
@@ -137,13 +169,17 @@ void CellularManager::taskBody() {
 // ---------------------------------------------------------------------------
 
 bool CellularManager::attemptConnect() {
+    lock();
     state_.last_error.clear();
+    unlock();
 
     // --- 1. PPP netif -------------------------------------------------------
     esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_PPP();
     ppp_netif_ = esp_netif_new(&netif_cfg);
     if (ppp_netif_ == nullptr) {
+        lock();
         state_.last_error = "netif alloc failed";
+        unlock();
         return false;
     }
 
@@ -164,7 +200,9 @@ bool CellularManager::attemptConnect() {
         ESP_MODEM_DCE_SIM7600, &dte_cfg, &dce_cfg,
         static_cast<esp_netif_t*>(ppp_netif_));
     if (dce_ == nullptr) {
+        lock();
         state_.last_error = "DCE creation failed";
+        unlock();
         teardownModem();
         return false;
     }
@@ -172,7 +210,9 @@ bool CellularManager::attemptConnect() {
     // --- 4. Event group and event handlers ----------------------------------
     ppp_event_group_ = xEventGroupCreate();
     if (ppp_event_group_ == nullptr) {
+        lock();
         state_.last_error = "event group alloc failed";
+        unlock();
         teardownModem();
         return false;
     }
@@ -198,7 +238,9 @@ bool CellularManager::attemptConnect() {
         if (esp_modem_read_pin(dce, pin_needed) == ESP_OK && pin_needed) {
             ESP_LOGI(kTag, "Unlocking SIM PIN");
             if (esp_modem_set_pin(dce, std::string(config_.sim_pin)) != ESP_OK) {
+                lock();
                 state_.last_error = "SIM PIN unlock failed";
+                unlock();
                 teardownModem();
                 return false;
             }
@@ -215,16 +257,21 @@ bool CellularManager::attemptConnect() {
             int ber  = 0;
             if (esp_modem_get_signal_quality(dce, rssi, ber) == ESP_OK && rssi != 99) {
                 // Convert AT+CSQ rssi value to dBm: 0 = -113 dBm, step 2 dBm
-                state_.rssi_dbm  = (rssi == 0) ? -113 : (-113 + 2 * rssi);
+                const int rssi_dbm = (rssi == 0) ? -113 : (-113 + 2 * rssi);
+                lock();
+                state_.rssi_dbm = rssi_dbm;
                 state_.registered = true;
+                unlock();
                 registered = true;
-                ESP_LOGI(kTag, "Network registered, RSSI %d dBm", state_.rssi_dbm);
+                ESP_LOGI(kTag, "Network registered, RSSI %d dBm", rssi_dbm);
                 break;
             }
             vTaskDelay(pdMS_TO_TICKS(kRegPollMs));
         }
         if (!registered) {
+            lock();
             state_.last_error = "Network registration timeout";
+            unlock();
             teardownModem();
             return false;
         }
@@ -242,7 +289,9 @@ bool CellularManager::attemptConnect() {
 
     // --- 8. Enter PPP / data mode -------------------------------------------
     if (esp_modem_set_mode(dce, ESP_MODEM_MODE_DATA) != ESP_OK) {
+        lock();
         state_.last_error = "Failed to enter PPP data mode";
+        unlock();
         teardownModem();
         return false;
     }
@@ -255,7 +304,9 @@ bool CellularManager::attemptConnect() {
         pdMS_TO_TICKS(kPppIpTimeoutMs));
 
     if (!(bits & kGotIpBit)) {
+        lock();
         state_.last_error = "PPP IP assignment timeout";
+        unlock();
         // Return to command mode so the UART DTE can be destroyed cleanly.
         esp_modem_set_mode(dce, ESP_MODEM_MODE_COMMAND);
         teardownModem();
@@ -316,8 +367,10 @@ void CellularManager::teardownModem() {
     }
 
     // Clear transient registration state so it is re-evaluated on next attempt.
-    state_.registered  = false;
-    state_.rssi_dbm    = 0;
+    lock();
+    state_.registered = false;
+    state_.rssi_dbm = 0;
+    unlock();
 }
 
 // ---------------------------------------------------------------------------
@@ -380,33 +433,43 @@ std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
 // ---------------------------------------------------------------------------
 
 void CellularManager::onPppConnected(const char* ip_address, const char* check_host) {
+    const std::string ip = (ip_address != nullptr) ? ip_address : "";
+    lock();
     state_.ppp_connected = true;
-    state_.ip_address    = (ip_address != nullptr) ? ip_address : "";
+    state_.ip_address = ip;
     state_.last_error.clear();
+    state_.next_reconnect_uptime_ms = 0U;
+    unlock();
 
     if (network_manager_ != nullptr) {
         network_manager_->setCellularStatus(true, ip_address);
     }
 
-    ESP_LOGI(kTag, "PPP connected, IP: %s", state_.ip_address.c_str());
+    ESP_LOGI(kTag, "PPP connected, IP: %s", ip.c_str());
 
     const ConnectivityCheckResult result =
         runConnectivityCheck(check_host, kCheckTimeoutMs, kCheckRetries);
 
     switch (result) {
         case ConnectivityCheckResult::kSkipped:
+            lock();
             state_.connectivity_check_skipped = true;
-            state_.connectivity_ok            = false;
+            state_.connectivity_ok = false;
+            unlock();
             ESP_LOGI(kTag, "Connectivity check skipped (no host configured)");
             break;
         case ConnectivityCheckResult::kOk:
-            state_.connectivity_ok            = true;
+            lock();
+            state_.connectivity_ok = true;
             state_.connectivity_check_skipped = false;
+            unlock();
             ESP_LOGI(kTag, "Connectivity check OK (%s)", check_host);
             break;
         case ConnectivityCheckResult::kFailed:
-            state_.connectivity_ok            = false;
+            lock();
+            state_.connectivity_ok = false;
             state_.connectivity_check_skipped = false;
+            unlock();
             ESP_LOGW(kTag, "Connectivity check failed (%s)",
                      (check_host != nullptr) ? check_host : "");
             break;
@@ -414,17 +477,27 @@ void CellularManager::onPppConnected(const char* ip_address, const char* check_h
 }
 
 void CellularManager::onPppDisconnected(const char* reason) {
-    state_.ppp_connected  = false;
+    std::string reason_text;
+    lock();
+    state_.ppp_connected = false;
     state_.connectivity_ok = false;
+    state_.connectivity_check_skipped = false;
     state_.ip_address.clear();
+
+    if (reason != nullptr && reason[0] != '\0') {
+        state_.last_error = reason;
+        reason_text = reason;
+    } else {
+        state_.last_error.clear();
+    }
+    unlock();
 
     if (network_manager_ != nullptr) {
         network_manager_->setCellularStatus(false, nullptr);
     }
 
-    if (reason != nullptr && reason[0] != '\0') {
-        state_.last_error = reason;
-        ESP_LOGW(kTag, "PPP disconnected: %s", reason);
+    if (!reason_text.empty()) {
+        ESP_LOGW(kTag, "PPP disconnected: %s", reason_text.c_str());
     } else {
         ESP_LOGI(kTag, "PPP disconnected");
     }

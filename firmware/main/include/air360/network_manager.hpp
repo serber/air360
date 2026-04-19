@@ -60,6 +60,12 @@ struct WifiNetworkRecord {
     wifi_auth_mode_t auth_mode = WIFI_AUTH_OPEN;
 };
 
+struct WifiScanSnapshot {
+    std::vector<WifiNetworkRecord> networks;
+    std::string last_scan_error;
+    std::uint64_t last_scan_uptime_ms = 0U;
+};
+
 struct SntpCheckResult {
     bool success = false;
     std::string error;  // "invalid_input" | "not_connected" | "sync_failed"
@@ -80,9 +86,7 @@ class NetworkManager {
     SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
     UplinkStatus uplinkStatus() const;
     NetworkState state() const;
-    const std::vector<WifiNetworkRecord>& availableNetworks() const;
-    const std::string& lastScanError() const;
-    std::uint64_t lastScanUptimeMs() const;
+    WifiScanSnapshot wifiScanSnapshot() const;
     bool hasValidTime() const;
     std::int64_t currentUnixMilliseconds() const;
 

@@ -1147,10 +1147,12 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
 
 esp_err_t NetworkManager::scanAvailableNetworks() {
     const auto fail = [this](esp_err_t err, const char* message = nullptr) -> esp_err_t {
+        lock();
         available_networks_.clear();
         last_scan_uptime_ms_ = 0U;
         last_scan_error_ =
             message != nullptr ? std::string(message) : std::string(esp_err_to_name(err));
+        unlock();
         return err;
     };
 
@@ -1213,9 +1215,11 @@ esp_err_t NetworkManager::scanAvailableNetworks() {
         esp_wifi_clear_ap_list();
     }
 
+    lock();
     available_networks_ = std::move(networks);
     last_scan_error_.clear();
     last_scan_uptime_ms_ = air360::uptimeMilliseconds();
+    unlock();
     return ESP_OK;
 }
 
@@ -1388,16 +1392,14 @@ NetworkState NetworkManager::state() const {
     return snapshot;
 }
 
-const std::vector<WifiNetworkRecord>& NetworkManager::availableNetworks() const {
-    return available_networks_;
-}
-
-const std::string& NetworkManager::lastScanError() const {
-    return last_scan_error_;
-}
-
-std::uint64_t NetworkManager::lastScanUptimeMs() const {
-    return last_scan_uptime_ms_;
+WifiScanSnapshot NetworkManager::wifiScanSnapshot() const {
+    lock();
+    WifiScanSnapshot snapshot;
+    snapshot.networks = available_networks_;
+    snapshot.last_scan_error = last_scan_error_;
+    snapshot.last_scan_uptime_ms = last_scan_uptime_ms_;
+    unlock();
+    return snapshot;
 }
 
 bool NetworkManager::hasValidTime() const {

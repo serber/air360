@@ -227,6 +227,28 @@ std::vector<BackendStatusSnapshot> UploadManager::backends() const {
     return snapshot;
 }
 
+UploadManagerRuntimeSnapshot UploadManager::runtimeSnapshot() const {
+    lock();
+
+    UploadManagerRuntimeSnapshot snapshot;
+    snapshot.backends.reserve(backends_.size());
+    snapshot.upload_interval_ms = cycle_interval_ms_;
+    snapshot.last_overall_attempt_uptime_ms = last_overall_attempt_uptime_ms_;
+    snapshot.last_overall_attempt_unix_ms = last_overall_attempt_unix_ms_;
+    for (const auto& backend : backends_) {
+        snapshot.backends.push_back(backend.snapshot);
+        if (backend.snapshot.enabled) {
+            ++snapshot.enabled_count;
+        }
+        if (isDegraded(backend.snapshot)) {
+            ++snapshot.degraded_count;
+        }
+    }
+
+    unlock();
+    return snapshot;
+}
+
 bool UploadManager::backendStatus(BackendType type, BackendStatusSnapshot& out_status) const {
     lock();
     for (const auto& backend : backends_) {

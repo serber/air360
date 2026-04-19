@@ -44,7 +44,7 @@ struct CellularState {
 };
 ```
 
-The state is owned by `CellularManager` and exposed via `state()`. Callers receive a const reference; the struct is updated only from the cellular task and the PPP event handlers.
+The state is owned by `CellularManager` and exposed via `state()`. The struct is updated from both the cellular task and PPP event handlers under an internal mutex, and callers receive a copied snapshot instead of a live reference.
 
 ---
 

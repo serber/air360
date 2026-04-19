@@ -323,6 +323,27 @@ struct RuntimeDiagnosticsSnapshot {
     std::uint32_t queue_dropped_count = 0U;
 };
 
+struct StatusServiceRenderSnapshot {
+    DeviceConfig config{};
+    NetworkState network_state{};
+    CellularState cellular_state{};
+    std::uint32_t boot_count = 0U;
+    bool nvs_ready = false;
+    bool watchdog_armed = false;
+    bool config_loaded_from_storage = false;
+    bool wrote_default_config = false;
+    bool web_server_started = false;
+    esp_reset_reason_t reset_reason = ESP_RST_UNKNOWN;
+    std::vector<SensorRuntimeInfo> sensors;
+    MeasurementStoreSnapshot measurement_store;
+    UploadManagerRuntimeSnapshot upload;
+    std::size_t sensor_task_stack_free_bytes = 0U;
+    std::size_t upload_task_stack_free_bytes = 0U;
+    std::size_t cellular_task_stack_free_bytes = 0U;
+    bool has_ble_state = false;
+    BleState ble_state{};
+};
+
 enum class HealthStatus : std::uint8_t {
     kHealthy = 0U,
     kDegraded,
@@ -343,10 +364,6 @@ struct HealthViewModel {
     std::string summary;
     std::vector<HealthCheckViewModel> checks;
 };
-
-MeasurementRuntimeInfo measurementRuntimeForSensor(
-    const MeasurementStore* measurement_store,
-    std::uint32_t sensor_id);
 
 const char* healthStatusKey(HealthStatus status) {
     switch (status) {
@@ -428,11 +445,23 @@ bool backendIsHealthy(const BackendStatusSnapshot& backend) {
 }
 
 
+const MeasurementRuntimeInfo* measurementRuntimeForSensor(
+    const MeasurementStoreSnapshot& measurement_store,
+    std::uint32_t sensor_id) {
+    for (const auto& info : measurement_store.measurements) {
+        if (info.sensor_id == sensor_id) {
+            return &info;
+        }
+    }
+
+    return nullptr;
+}
+
 HealthViewModel buildHealthViewModel(
     const NetworkState& network_state,
     const std::vector<SensorRuntimeInfo>& sensors,
     const std::vector<BackendStatusSnapshot>& backends,
-    const MeasurementStore* measurement_store) {
+    const MeasurementStoreSnapshot& measurement_store) {
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
     const bool setup_required = !network_state.station_config_present;
     const bool setup_ap_recovery =
@@ -448,9 +477,10 @@ HealthViewModel buildHealthViewModel(
         }
 
         ++enabled_sensor_count;
-        const MeasurementRuntimeInfo measurement_runtime =
+        const MeasurementRuntimeInfo* measurement_runtime =
             measurementRuntimeForSensor(measurement_store, sensor.id);
-        if (!sensorIsReporting(sensor, measurement_runtime, now_uptime_ms)) {
+        if (measurement_runtime == nullptr ||
+            !sensorIsReporting(sensor, *measurement_runtime, now_uptime_ms)) {
             ++failing_sensor_count;
         }
     }
@@ -558,18 +588,6 @@ HealthViewModel buildHealthViewModel(
     return model;
 }
 
-MeasurementRuntimeInfo measurementRuntimeForSensor(
-    const MeasurementStore* measurement_store,
-    std::uint32_t sensor_id) {
-    if (measurement_store == nullptr) {
-        MeasurementRuntimeInfo info;
-        info.sensor_id = sensor_id;
-        return info;
-    }
-
-    return measurement_store->runtimeInfoForSensor(sensor_id);
-}
-
 std::string renderBackendOverviewBlock(
     const std::vector<BackendStatusSnapshot>& backends,
     std::uint32_t upload_interval_ms) {
@@ -615,7 +633,7 @@ std::string renderBackendOverviewBlock(
 
 std::string renderSensorOverviewBlock(
     const std::vector<SensorRuntimeInfo>& sensors,
-    const MeasurementStore* measurement_store) {
+    const MeasurementStoreSnapshot& measurement_store) {
     std::string html;
     if (sensors.empty()) {
         return "<p class='muted'>No sensors configured yet.</p>";
@@ -623,9 +641,14 @@ std::string renderSensorOverviewBlock(
 
     html += "<div class='list'>";
     for (const auto& sensor : sensors) {
-        const MeasurementRuntimeInfo measurement_runtime =
+        const MeasurementRuntimeInfo* measurement_runtime =
             measurementRuntimeForSensor(measurement_store, sensor.id);
-        const std::string readings_block = measurementListHtml(measurement_runtime.measurement);
+        const SensorMeasurement empty_measurement{};
+        const SensorMeasurement& measurement =
+            measurement_runtime != nullptr ? measurement_runtime->measurement : empty_measurement;
+        const std::size_t queued_sample_count =
+            measurement_runtime != nullptr ? measurement_runtime->queued_sample_count : 0U;
+        const std::string readings_block = measurementListHtml(measurement);
 
         std::string last_error_block;
         if (!sensor.last_error.empty()) {
@@ -642,7 +665,7 @@ std::string renderSensorOverviewBlock(
                 {"BINDING_SUMMARY", htmlEscape(sensor.binding_summary)},
                 {"STATE_KEY", htmlEscape(sensorRuntimeStateKey(sensor.state))},
                 {"POLL_INTERVAL_MS", std::to_string(sensor.poll_interval_ms)},
-                {"QUEUED_SAMPLE_COUNT", std::to_string(measurement_runtime.queued_sample_count)},
+                {"QUEUED_SAMPLE_COUNT", std::to_string(queued_sample_count)},
                 {"READINGS_BLOCK", readings_block},
                 {"LAST_ERROR_BLOCK", last_error_block},
             });
@@ -723,20 +746,15 @@ std::string renderConnectionBlock(
 }
 
 RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
-    const BuildInfo& build_info,
-    const DeviceConfig& config,
     const NetworkState& network_state,
     const CellularState& cellular_state,
     std::uint32_t boot_count,
-    esp_reset_reason_t reset_reason,
-    bool config_loaded_from_storage,
     const std::vector<SensorRuntimeInfo>& sensors,
-    const std::vector<BackendStatusSnapshot>& backends,
-    const MeasurementStore* measurement_store,
-    const UploadManager* upload_manager) {
+    const MeasurementStoreSnapshot& measurement_store,
+    const UploadManagerRuntimeSnapshot& upload) {
     RuntimeOverviewViewModel model;
     const HealthViewModel health =
-        buildHealthViewModel(network_state, sensors, backends, measurement_store);
+        buildHealthViewModel(network_state, sensors, upload.backends, measurement_store);
     const bool healthy = (health.status == HealthStatus::kHealthy);
     model.health_status_pill_html = "<span class='";
     model.health_status_pill_html += healthy ? "pill pill--ok" : "pill pill--danger";
@@ -758,19 +776,15 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.boot_count = boot_count;
     model.connection_block_html = renderConnectionBlock(network_state, cellular_state);
     model.sensor_count = sensors.size();
-    model.backend_block_html = renderBackendOverviewBlock(
-        backends,
-        upload_manager != nullptr ? upload_manager->uploadIntervalMs() : 0U);
+    model.backend_block_html =
+        renderBackendOverviewBlock(upload.backends, upload.upload_interval_ms);
     model.sensor_block_html = renderSensorOverviewBlock(sensors, measurement_store);
 
     return model;
 }
 
 RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
-    const MeasurementStore* measurement_store,
-    const SensorManager* sensor_manager,
-    const UploadManager* upload_manager,
-    const CellularManager* cellular_manager) {
+    const StatusServiceRenderSnapshot& render_snapshot) {
     RuntimeDiagnosticsSnapshot snapshot;
     snapshot.total_heap_bytes = heap_caps_get_total_size(MALLOC_CAP_8BIT);
     snapshot.free_heap_bytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
@@ -782,24 +796,12 @@ RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
     snapshot.min_free_internal_heap_bytes = heap_caps_get_minimum_free_size(kInternal8BitCaps);
     snapshot.largest_internal_heap_block_bytes =
         heap_caps_get_largest_free_block(kInternal8BitCaps);
-
-    if (measurement_store != nullptr) {
-        snapshot.queue_pending_count = measurement_store->pendingCount();
-        snapshot.queue_inflight_count = measurement_store->inflightCount();
-        snapshot.queue_dropped_count = measurement_store->droppedSampleCount();
-    }
-
-    if (sensor_manager != nullptr) {
-        snapshot.sensor_task_stack_free_bytes = sensor_manager->taskStackHighWaterMarkBytes();
-    }
-
-    if (upload_manager != nullptr) {
-        snapshot.upload_task_stack_free_bytes = upload_manager->taskStackHighWaterMarkBytes();
-    }
-
-    if (cellular_manager != nullptr) {
-        snapshot.cellular_task_stack_free_bytes = cellular_manager->taskStackHighWaterMarkBytes();
-    }
+    snapshot.queue_pending_count = render_snapshot.measurement_store.pending_count;
+    snapshot.queue_inflight_count = render_snapshot.measurement_store.inflight_count;
+    snapshot.queue_dropped_count = render_snapshot.measurement_store.dropped_sample_count;
+    snapshot.sensor_task_stack_free_bytes = render_snapshot.sensor_task_stack_free_bytes;
+    snapshot.upload_task_stack_free_bytes = render_snapshot.upload_task_stack_free_bytes;
+    snapshot.cellular_task_stack_free_bytes = render_snapshot.cellular_task_stack_free_bytes;
 
     return snapshot;
 }
@@ -887,85 +889,409 @@ std::string renderDiagnosticsNetworkBlock(
     return html;
 }
 
+std::string buildStatusJsonDocument(
+    const BuildInfo& build_info,
+    const StatusServiceRenderSnapshot& render_snapshot) {
+    const HealthViewModel health = buildHealthViewModel(
+        render_snapshot.network_state,
+        render_snapshot.sensors,
+        render_snapshot.upload.backends,
+        render_snapshot.measurement_store);
+    const RuntimeDiagnosticsSnapshot diagnostics =
+        buildRuntimeDiagnosticsSnapshot(render_snapshot);
+
+    std::string json;
+    json.reserve(8192);
+    json += "{";
+    json += "\"project_name\":\"" + jsonEscape(build_info.project_name) + "\",";
+    json += "\"project_version\":\"" + jsonEscape(build_info.project_version) + "\",";
+    json += "\"idf_version\":\"" + jsonEscape(build_info.idf_version) + "\",";
+    json += "\"board_name\":\"" + jsonEscape(build_info.board_name) + "\",";
+    json += "\"chip_name\":\"" + jsonEscape(build_info.chip_name) + "\",";
+    json += "\"chip_revision\":\"" + jsonEscape(build_info.chip_revision) + "\",";
+    json += "\"chip_type\":\"" + jsonEscape(build_info.chip_type) + "\",";
+    json += "\"chip_features\":\"" + jsonEscape(build_info.chip_features) + "\",";
+    json += "\"crystal_frequency\":\"" + jsonEscape(build_info.crystal_frequency) + "\",";
+    json += "\"current_datetime\":\"" + jsonEscape(currentUtcDateTimeLabel()) + "\",";
+    json += "\"compile_date\":\"" + jsonEscape(build_info.compile_date) + "\",";
+    json += "\"compile_time\":\"" + jsonEscape(build_info.compile_time) + "\",";
+    json += "\"chip_id\":\"" + jsonEscape(build_info.chip_id) + "\",";
+    json += "\"short_chip_id\":\"" + jsonEscape(build_info.short_chip_id) + "\",";
+    json += "\"esp_mac_id\":\"" + jsonEscape(build_info.esp_mac_id) + "\",";
+    json += "\"device_name\":\"" + jsonEscape(render_snapshot.config.device_name) + "\",";
+    json += "\"wifi_station_ssid\":\"" + jsonEscape(render_snapshot.config.wifi_sta_ssid) + "\",";
+    json += "\"setup_ap_ssid\":\"" + jsonEscape(render_snapshot.config.lab_ap_ssid) + "\",";
+    json += "\"boot_count\":" + std::to_string(render_snapshot.boot_count) + ",";
+    json += "\"uptime_ms\":" + std::to_string(uptimeMilliseconds()) + ",";
+    json += "\"reset_reason\":" +
+            std::to_string(static_cast<int>(render_snapshot.reset_reason)) + ",";
+    json += "\"reset_reason_label\":\"";
+    json += jsonEscape(resetReasonLabel(render_snapshot.reset_reason));
+    json += "\",";
+    json += "\"health_status\":\"" + jsonEscape(healthStatusKey(health.status)) + "\",";
+    json += "\"health_summary\":\"" + jsonEscape(health.summary) + "\",";
+    json += "\"health_checks\":{";
+    for (std::size_t index = 0; index < health.checks.size(); ++index) {
+        const auto& check = health.checks[index];
+        if (index > 0U) {
+            json += ",";
+        }
+        json += "\"";
+        json += jsonEscape(check.key);
+        json += "\":{";
+        json += "\"state\":\"";
+        json += check.ok ? "ok" : "attention";
+        json += "\",\"summary\":\"";
+        json += jsonEscape(check.summary);
+        json += "\"}";
+    }
+    json += "},";
+    json += "\"nvs_ready\":";
+    json += boolString(render_snapshot.nvs_ready);
+    json += ",\"watchdog_armed\":";
+    json += boolString(render_snapshot.watchdog_armed);
+    json += ",\"config_loaded_from_storage\":";
+    json += boolString(render_snapshot.config_loaded_from_storage);
+    json += ",\"wrote_default_config\":";
+    json += boolString(render_snapshot.wrote_default_config);
+    json += ",\"web_server_started\":";
+    json += boolString(render_snapshot.web_server_started);
+    json += ",\"http_port\":" + std::to_string(render_snapshot.config.http_port) + ",";
+    json += "\"lab_ap_enabled\":";
+    json += boolString(render_snapshot.config.lab_ap_enabled != 0U);
+    json += ",\"local_auth_enabled\":";
+    json += boolString(render_snapshot.config.local_auth_enabled != 0U);
+    json += ",\"network_mode\":\"";
+    json += networkModeString(render_snapshot.network_state.mode);
+    json += "\",\"station_config_present\":";
+    json += boolString(render_snapshot.network_state.station_config_present);
+    json += ",\"station_connect_attempted\":";
+    json += boolString(render_snapshot.network_state.station_connect_attempted);
+    json += ",\"station_connected\":";
+    json += boolString(render_snapshot.network_state.station_connected);
+    json += ",\"lab_ap_active\":";
+    json += boolString(render_snapshot.network_state.lab_ap_active);
+    json += ",\"time_sync_attempted\":";
+    json += boolString(render_snapshot.network_state.time_sync_attempted);
+    json += ",\"time_synchronized\":";
+    json += boolString(render_snapshot.network_state.time_synchronized);
+    json += ",\"last_time_sync_unix_ms\":";
+    json += std::to_string(render_snapshot.network_state.last_time_sync_unix_ms);
+    json += ",\"active_station_ssid\":\"";
+    json += jsonEscape(render_snapshot.network_state.station_ssid);
+    json += "\",";
+    json += "\"active_setup_ap_ssid\":\"";
+    json += jsonEscape(render_snapshot.network_state.lab_ap_ssid);
+    json += "\",";
+    json += "\"lab_ap_ip\":\"" + jsonEscape(render_snapshot.network_state.ip_address) + "\",";
+    json += "\"last_error\":\"" + jsonEscape(render_snapshot.network_state.last_error) + "\",";
+    json += "\"last_disconnect_reason\":";
+    json += std::to_string(render_snapshot.network_state.last_disconnect_reason);
+    json += ",\"last_disconnect_reason_label\":\"";
+    json += jsonEscape(render_snapshot.network_state.last_disconnect_reason_label);
+    json += "\",\"wifi_reconnect_backoff_active\":";
+    json += boolString(render_snapshot.network_state.reconnect_backoff_active);
+    json += ",\"wifi_reconnect_attempt_count\":";
+    json += std::to_string(render_snapshot.network_state.reconnect_attempt_count);
+    json += ",\"wifi_next_reconnect_uptime_ms\":";
+    json += std::to_string(render_snapshot.network_state.next_reconnect_uptime_ms);
+    json += ",\"wifi_setup_ap_retry_active\":";
+    json += boolString(render_snapshot.network_state.setup_ap_retry_active);
+    json += ",\"wifi_next_setup_ap_retry_uptime_ms\":";
+    json += std::to_string(render_snapshot.network_state.next_setup_ap_retry_uptime_ms);
+    json += ",";
+    json += "\"time_sync_error\":\"" + jsonEscape(render_snapshot.network_state.time_sync_error) +
+            "\",";
+    json += "\"cellular\":{";
+    json += "\"enabled\":";
+    json += boolString(render_snapshot.cellular_state.enabled);
+    json += ",\"ppp_connected\":";
+    json += boolString(render_snapshot.cellular_state.ppp_connected);
+    json += ",\"ip_address\":\"" + jsonEscape(render_snapshot.cellular_state.ip_address) + "\",";
+    json += "\"connectivity_ok\":";
+    json += boolString(render_snapshot.cellular_state.connectivity_ok);
+    json += ",\"connectivity_check_skipped\":";
+    json += boolString(render_snapshot.cellular_state.connectivity_check_skipped);
+    json += ",\"last_error\":\"" + jsonEscape(render_snapshot.cellular_state.last_error) + "\"";
+    json += "},";
+    json += "\"configured_sensors_count\":" + std::to_string(render_snapshot.sensors.size()) + ",";
+    json += "\"enabled_backends_count\":";
+    json += std::to_string(render_snapshot.upload.enabled_count);
+    json += ",\"degraded_backends_count\":";
+    json += std::to_string(render_snapshot.upload.degraded_count);
+    json += ",\"upload_interval_ms\":";
+    json += std::to_string(render_snapshot.upload.upload_interval_ms);
+    json += ",\"last_upload_attempt_uptime_ms\":";
+    json += std::to_string(render_snapshot.upload.last_overall_attempt_uptime_ms);
+    json += ",\"last_upload_attempt_unix_ms\":";
+    json += std::to_string(render_snapshot.upload.last_overall_attempt_unix_ms);
+    json += ",\"diagnostics\":{";
+    json += "\"heap_total_bytes\":";
+    json += std::to_string(diagnostics.total_heap_bytes);
+    json += ",";
+    json += "\"heap_free_bytes\":";
+    json += std::to_string(diagnostics.free_heap_bytes);
+    json += ",\"heap_min_free_bytes\":";
+    json += std::to_string(diagnostics.min_free_heap_bytes);
+    json += ",\"heap_largest_block_bytes\":";
+    json += std::to_string(diagnostics.largest_heap_block_bytes);
+    json += ",\"internal_heap_free_bytes\":";
+    json += std::to_string(diagnostics.free_internal_heap_bytes);
+    json += ",\"internal_heap_min_free_bytes\":";
+    json += std::to_string(diagnostics.min_free_internal_heap_bytes);
+    json += ",\"internal_heap_largest_block_bytes\":";
+    json += std::to_string(diagnostics.largest_internal_heap_block_bytes);
+    json += ",\"sensor_task_stack_high_watermark_bytes\":";
+    json += std::to_string(diagnostics.sensor_task_stack_free_bytes);
+    json += ",\"upload_task_stack_high_watermark_bytes\":";
+    json += std::to_string(diagnostics.upload_task_stack_free_bytes);
+    json += ",\"cellular_task_stack_high_watermark_bytes\":";
+    json += std::to_string(diagnostics.cellular_task_stack_free_bytes);
+    json += ",\"measurement_queue_pending_count\":";
+    json += std::to_string(diagnostics.queue_pending_count);
+    json += ",\"measurement_queue_inflight_count\":";
+    json += std::to_string(diagnostics.queue_inflight_count);
+    json += ",\"measurement_queue_dropped_count\":";
+    json += std::to_string(diagnostics.queue_dropped_count);
+    json += "}";
+    json += ",\"backends\":[";
+    for (std::size_t index = 0; index < render_snapshot.upload.backends.size(); ++index) {
+        const auto& backend = render_snapshot.upload.backends[index];
+        if (index > 0U) {
+            json += ",";
+        }
+        json += "{";
+        json += "\"id\":" + std::to_string(backend.id) + ",";
+        json += "\"backend_key\":\"" + jsonEscape(backend.backend_key) + "\",";
+        json += "\"display_name\":\"" + jsonEscape(backend.display_name) + "\",";
+        json += "\"enabled\":";
+        json += boolString(backend.enabled);
+        json += ",\"configured\":";
+        json += boolString(backend.configured);
+        json += ",\"state\":\"";
+        json += jsonEscape(backendRuntimeStateKey(backend.state));
+        json += "\",\"last_result\":\"";
+        json += jsonEscape(uploadResultClassKey(backend.last_result));
+        json += "\",\"last_attempt_uptime_ms\":";
+        json += std::to_string(backend.last_attempt_uptime_ms);
+        json += ",\"last_success_uptime_ms\":";
+        json += std::to_string(backend.last_success_uptime_ms);
+        json += ",\"last_attempt_unix_ms\":";
+        json += std::to_string(backend.last_attempt_unix_ms);
+        json += ",\"last_success_unix_ms\":";
+        json += std::to_string(backend.last_success_unix_ms);
+        json += ",\"last_http_status\":";
+        json += std::to_string(backend.last_http_status);
+        json += ",\"last_response_time_ms\":";
+        json += std::to_string(backend.last_response_time_ms);
+        json += ",\"retry_count\":";
+        json += std::to_string(backend.retry_count);
+        json += ",\"next_retry_uptime_ms\":";
+        json += std::to_string(backend.next_retry_uptime_ms);
+        json += ",\"last_error\":\"";
+        json += jsonEscape(backend.last_error);
+        json += "\"}";
+    }
+    json += "],";
+    json += "\"sensors\":[";
+    for (std::size_t index = 0; index < render_snapshot.sensors.size(); ++index) {
+        const auto& sensor = render_snapshot.sensors[index];
+        const MeasurementRuntimeInfo* measurement_runtime =
+            measurementRuntimeForSensor(render_snapshot.measurement_store, sensor.id);
+        const MeasurementRuntimeInfo empty_measurement_runtime{};
+        const MeasurementRuntimeInfo& runtime =
+            measurement_runtime != nullptr ? *measurement_runtime : empty_measurement_runtime;
+        if (index > 0U) {
+            json += ",";
+        }
+        json += "{";
+        json += "\"id\":" + std::to_string(sensor.id) + ",";
+        json += "\"enabled\":";
+        json += boolString(sensor.enabled);
+        json += ",\"sensor_type\":\"" + jsonEscape(sensor.type_key) + "\",";
+        json += "\"sensor_name\":\"" + jsonEscape(sensor.type_name) + "\",";
+        json += "\"transport_kind\":\"" + jsonEscape(transportKindKey(sensor.transport_kind)) +
+                "\",";
+        json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
+        json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
+        json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
+        json += "\"last_sample_time_ms\":" + std::to_string(runtime.last_sample_time_ms) + ",";
+        json += "\"queued_sample_count\":" + std::to_string(runtime.queued_sample_count) + ",";
+        json += "\"measurements\":";
+        json += measurementArrayJson(runtime.measurement);
+        json += ",";
+        json += "\"temperature_c\":";
+        json += jsonNumberOrNull(runtime.measurement, SensorValueKind::kTemperatureC);
+        json += ",\"humidity_percent\":";
+        json += jsonNumberOrNull(runtime.measurement, SensorValueKind::kHumidityPercent);
+        json += ",\"pressure_hpa\":";
+        json += jsonNumberOrNull(runtime.measurement, SensorValueKind::kPressureHpa);
+        json += ",\"gas_resistance_ohms\":";
+        json += jsonNumberOrNull(runtime.measurement, SensorValueKind::kGasResistanceOhms);
+        json += ",\"illuminance_lux\":";
+        json += jsonNumberOrNull(runtime.measurement, SensorValueKind::kIlluminanceLux);
+        json += ",";
+        json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
+        json += "}";
+    }
+    json += "]}";
+    return json;
+}
+
 }  // namespace
 
-StatusService::StatusService(BuildInfo build_info) : build_info_(std::move(build_info)) {}
+StatusService::StatusService(BuildInfo build_info) : build_info_(std::move(build_info)) {
+    mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
+void StatusService::lock() const {
+    if (mutex_ != nullptr) {
+        xSemaphoreTake(mutex_, portMAX_DELAY);
+    }
+}
+
+void StatusService::unlock() const {
+    if (mutex_ != nullptr) {
+        xSemaphoreGive(mutex_);
+    }
+}
 
 void StatusService::markNvsReady(bool ready) {
+    lock();
     nvs_ready_ = ready;
+    unlock();
 }
 
 void StatusService::markWatchdogArmed(bool armed) {
+    lock();
     watchdog_armed_ = armed;
+    unlock();
 }
 
 void StatusService::setConfig(
     const DeviceConfig& config,
     bool loaded_from_storage,
     bool wrote_defaults) {
+    lock();
     config_ = config;
     config_loaded_from_storage_ = loaded_from_storage;
     wrote_default_config_ = wrote_defaults;
+    unlock();
 }
 
 void StatusService::setBootCount(std::uint32_t boot_count) {
+    lock();
     boot_count_ = boot_count;
+    unlock();
 }
 
 void StatusService::setNetworkState(const NetworkState& state) {
+    lock();
     network_state_ = state;
+    unlock();
 }
 
 void StatusService::setCellularState(const CellularState& state) {
+    lock();
     cellular_state_ = state;
+    unlock();
 }
 
 void StatusService::setCellularManager(const CellularManager& cellular_manager) {
+    lock();
     cellular_manager_ = &cellular_manager;
+    unlock();
 }
 
 void StatusService::setSensors(const SensorManager& sensor_manager) {
+    lock();
     sensor_manager_ = &sensor_manager;
+    unlock();
 }
 
 void StatusService::setMeasurements(const MeasurementStore& measurement_store) {
+    lock();
     measurement_store_ = &measurement_store;
+    unlock();
 }
 
 void StatusService::setUploads(const UploadManager& upload_manager) {
+    lock();
     upload_manager_ = &upload_manager;
+    unlock();
 }
 
 void StatusService::setWebServerStarted(bool started) {
+    lock();
     web_server_started_ = started;
+    unlock();
 }
 
 void StatusService::setBleAdvertiser(const BleAdvertiser& ble) {
+    lock();
     ble_advertiser_ = &ble;
+    unlock();
 }
 
 std::string StatusService::renderRootHtml() const {
-    const std::vector<SensorRuntimeInfo> sensors =
-        sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
-    const std::vector<BackendStatusSnapshot> backends =
-        upload_manager_ != nullptr ? upload_manager_->backends()
-                                   : std::vector<BackendStatusSnapshot>{};
+    StatusServiceRenderSnapshot render_snapshot;
+    const CellularManager* cellular_manager = nullptr;
+    const SensorManager* sensor_manager = nullptr;
+    const MeasurementStore* measurement_store = nullptr;
+    const UploadManager* upload_manager = nullptr;
+    const BleAdvertiser* ble_advertiser = nullptr;
+
+    lock();
+    render_snapshot.config = config_;
+    render_snapshot.network_state = network_state_;
+    render_snapshot.cellular_state = cellular_state_;
+    render_snapshot.boot_count = boot_count_;
+    render_snapshot.nvs_ready = nvs_ready_;
+    render_snapshot.watchdog_armed = watchdog_armed_;
+    render_snapshot.config_loaded_from_storage = config_loaded_from_storage_;
+    render_snapshot.wrote_default_config = wrote_default_config_;
+    render_snapshot.web_server_started = web_server_started_;
+    render_snapshot.reset_reason = reset_reason_;
+    cellular_manager = cellular_manager_;
+    sensor_manager = sensor_manager_;
+    measurement_store = measurement_store_;
+    upload_manager = upload_manager_;
+    ble_advertiser = ble_advertiser_;
+    unlock();
+
+    if (sensor_manager != nullptr) {
+        render_snapshot.sensors = sensor_manager->sensors();
+        render_snapshot.sensor_task_stack_free_bytes =
+            sensor_manager->taskStackHighWaterMarkBytes();
+    }
+    if (measurement_store != nullptr) {
+        render_snapshot.measurement_store = measurement_store->snapshot();
+    }
+    if (upload_manager != nullptr) {
+        render_snapshot.upload = upload_manager->runtimeSnapshot();
+        render_snapshot.upload_task_stack_free_bytes =
+            upload_manager->taskStackHighWaterMarkBytes();
+    }
+    if (cellular_manager != nullptr) {
+        render_snapshot.cellular_task_stack_free_bytes =
+            cellular_manager->taskStackHighWaterMarkBytes();
+    }
+    if (ble_advertiser != nullptr) {
+        render_snapshot.has_ble_state = true;
+        render_snapshot.ble_state = ble_advertiser->state();
+    }
+
     const RuntimeOverviewViewModel model = buildRuntimeOverviewViewModel(
-        build_info_,
-        config_,
-        network_state_,
-        cellular_state_,
-        boot_count_,
-        reset_reason_,
-        config_loaded_from_storage_,
-        sensors,
-        backends,
-        measurement_store_,
-        upload_manager_);
+        render_snapshot.network_state,
+        render_snapshot.cellular_state,
+        render_snapshot.boot_count,
+        render_snapshot.sensors,
+        render_snapshot.measurement_store,
+        render_snapshot.upload);
 
     std::string ble_block_html;
-    if (ble_advertiser_ != nullptr) {
-        const BleState ble_state = ble_advertiser_->state();
+    if (render_snapshot.has_ble_state) {
+        const BleState& ble_state = render_snapshot.ble_state;
         if (ble_state.enabled) {
             ble_block_html += "<section class='panel panel--identity stack'>";
             ble_block_html += "<h2>BLE Advertising</h2>";
@@ -1008,12 +1334,57 @@ std::string StatusService::renderRootHtml() const {
 }
 
 std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) const {
-    const RuntimeDiagnosticsSnapshot diagnostics = buildRuntimeDiagnosticsSnapshot(
-        measurement_store_,
-        sensor_manager_,
-        upload_manager_,
-        cellular_manager_);
-    const std::string status_json = prettyPrintJson(renderStatusJson());
+    StatusServiceRenderSnapshot render_snapshot;
+    const CellularManager* cellular_manager = nullptr;
+    const SensorManager* sensor_manager = nullptr;
+    const MeasurementStore* measurement_store = nullptr;
+    const UploadManager* upload_manager = nullptr;
+    const BleAdvertiser* ble_advertiser = nullptr;
+
+    lock();
+    render_snapshot.config = config_;
+    render_snapshot.network_state = network_state_;
+    render_snapshot.cellular_state = cellular_state_;
+    render_snapshot.boot_count = boot_count_;
+    render_snapshot.nvs_ready = nvs_ready_;
+    render_snapshot.watchdog_armed = watchdog_armed_;
+    render_snapshot.config_loaded_from_storage = config_loaded_from_storage_;
+    render_snapshot.wrote_default_config = wrote_default_config_;
+    render_snapshot.web_server_started = web_server_started_;
+    render_snapshot.reset_reason = reset_reason_;
+    cellular_manager = cellular_manager_;
+    sensor_manager = sensor_manager_;
+    measurement_store = measurement_store_;
+    upload_manager = upload_manager_;
+    ble_advertiser = ble_advertiser_;
+    unlock();
+
+    if (sensor_manager != nullptr) {
+        render_snapshot.sensors = sensor_manager->sensors();
+        render_snapshot.sensor_task_stack_free_bytes =
+            sensor_manager->taskStackHighWaterMarkBytes();
+    }
+    if (measurement_store != nullptr) {
+        render_snapshot.measurement_store = measurement_store->snapshot();
+    }
+    if (upload_manager != nullptr) {
+        render_snapshot.upload = upload_manager->runtimeSnapshot();
+        render_snapshot.upload_task_stack_free_bytes =
+            upload_manager->taskStackHighWaterMarkBytes();
+    }
+    if (cellular_manager != nullptr) {
+        render_snapshot.cellular_task_stack_free_bytes =
+            cellular_manager->taskStackHighWaterMarkBytes();
+    }
+    if (ble_advertiser != nullptr) {
+        render_snapshot.has_ble_state = true;
+        render_snapshot.ble_state = ble_advertiser->state();
+    }
+
+    const RuntimeDiagnosticsSnapshot diagnostics =
+        buildRuntimeDiagnosticsSnapshot(render_snapshot);
+    const std::string status_json =
+        prettyPrintJson(buildStatusJsonDocument(build_info_, render_snapshot));
 
     const std::string body = renderPageTemplate(
         WebTemplateKey::kDiagnostics,
@@ -1023,7 +1394,9 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
             {"MIN_HEAP", htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes))},
             {"LARGEST_BLOCK", htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes))},
             {"TASK_BLOCK", renderDiagnosticsTaskBlock(diagnostics)},
-            {"NETWORK_BLOCK", renderDiagnosticsNetworkBlock(network_state_, cellular_state_)},
+            {"NETWORK_BLOCK", renderDiagnosticsNetworkBlock(
+                                  render_snapshot.network_state,
+                                  render_snapshot.cellular_state)},
             {"LOG_CONTENTS", htmlEscape(log_contents)},
             {"STATUS_JSON_DUMP", htmlEscape(status_json)},
         });
@@ -1038,257 +1411,61 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
 }
 
 std::string StatusService::renderStatusJson() const {
-    const std::vector<SensorRuntimeInfo> sensors =
-        sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
-    const std::vector<BackendStatusSnapshot> backends =
-        upload_manager_ != nullptr ? upload_manager_->backends()
-                                   : std::vector<BackendStatusSnapshot>{};
-    const HealthViewModel health =
-        buildHealthViewModel(network_state_, sensors, backends, measurement_store_);
-    const RuntimeDiagnosticsSnapshot diagnostics = buildRuntimeDiagnosticsSnapshot(
-        measurement_store_,
-        sensor_manager_,
-        upload_manager_,
-        cellular_manager_);
+    StatusServiceRenderSnapshot render_snapshot;
+    const CellularManager* cellular_manager = nullptr;
+    const SensorManager* sensor_manager = nullptr;
+    const MeasurementStore* measurement_store = nullptr;
+    const UploadManager* upload_manager = nullptr;
+    const BleAdvertiser* ble_advertiser = nullptr;
 
-    std::string json;
-    json.reserve(8192);
-    json += "{";
-    json += "\"project_name\":\"" + jsonEscape(build_info_.project_name) + "\",";
-    json += "\"project_version\":\"" + jsonEscape(build_info_.project_version) + "\",";
-    json += "\"idf_version\":\"" + jsonEscape(build_info_.idf_version) + "\",";
-    json += "\"board_name\":\"" + jsonEscape(build_info_.board_name) + "\",";
-    json += "\"chip_name\":\"" + jsonEscape(build_info_.chip_name) + "\",";
-    json += "\"chip_revision\":\"" + jsonEscape(build_info_.chip_revision) + "\",";
-    json += "\"chip_type\":\"" + jsonEscape(build_info_.chip_type) + "\",";
-    json += "\"chip_features\":\"" + jsonEscape(build_info_.chip_features) + "\",";
-    json += "\"crystal_frequency\":\"" + jsonEscape(build_info_.crystal_frequency) + "\",";
-    json += "\"current_datetime\":\"" + jsonEscape(currentUtcDateTimeLabel()) + "\",";
-    json += "\"compile_date\":\"" + jsonEscape(build_info_.compile_date) + "\",";
-    json += "\"compile_time\":\"" + jsonEscape(build_info_.compile_time) + "\",";
-    json += "\"chip_id\":\"" + jsonEscape(build_info_.chip_id) + "\",";
-    json += "\"short_chip_id\":\"" + jsonEscape(build_info_.short_chip_id) + "\",";
-    json += "\"esp_mac_id\":\"" + jsonEscape(build_info_.esp_mac_id) + "\",";
-    json += "\"device_name\":\"" + jsonEscape(config_.device_name) + "\",";
-    json += "\"wifi_station_ssid\":\"" + jsonEscape(config_.wifi_sta_ssid) + "\",";
-    json += "\"setup_ap_ssid\":\"" + jsonEscape(config_.lab_ap_ssid) + "\",";
-    json += "\"boot_count\":" + std::to_string(boot_count_) + ",";
-    json += "\"uptime_ms\":" + std::to_string(uptimeMilliseconds()) + ",";
-    json += "\"reset_reason\":" + std::to_string(static_cast<int>(reset_reason_)) + ",";
-    json += "\"reset_reason_label\":\"" + jsonEscape(resetReasonLabel(reset_reason_)) + "\",";
-    json += "\"health_status\":\"" + jsonEscape(healthStatusKey(health.status)) + "\",";
-    json += "\"health_summary\":\"" + jsonEscape(health.summary) + "\",";
-    json += "\"health_checks\":{";
-    for (std::size_t index = 0; index < health.checks.size(); ++index) {
-        const auto& check = health.checks[index];
-        if (index > 0U) {
-            json += ",";
-        }
-        json += "\"";
-        json += jsonEscape(check.key);
-        json += "\":{";
-        json += "\"state\":\"";
-        json += check.ok ? "ok" : "attention";
-        json += "\",\"summary\":\"";
-        json += jsonEscape(check.summary);
-        json += "\"}";
+    lock();
+    render_snapshot.config = config_;
+    render_snapshot.network_state = network_state_;
+    render_snapshot.cellular_state = cellular_state_;
+    render_snapshot.boot_count = boot_count_;
+    render_snapshot.nvs_ready = nvs_ready_;
+    render_snapshot.watchdog_armed = watchdog_armed_;
+    render_snapshot.config_loaded_from_storage = config_loaded_from_storage_;
+    render_snapshot.wrote_default_config = wrote_default_config_;
+    render_snapshot.web_server_started = web_server_started_;
+    render_snapshot.reset_reason = reset_reason_;
+    cellular_manager = cellular_manager_;
+    sensor_manager = sensor_manager_;
+    measurement_store = measurement_store_;
+    upload_manager = upload_manager_;
+    ble_advertiser = ble_advertiser_;
+    unlock();
+
+    if (sensor_manager != nullptr) {
+        render_snapshot.sensors = sensor_manager->sensors();
+        render_snapshot.sensor_task_stack_free_bytes =
+            sensor_manager->taskStackHighWaterMarkBytes();
     }
-    json += "},";
-    json += "\"nvs_ready\":";
-    json += boolString(nvs_ready_);
-    json += ",\"watchdog_armed\":";
-    json += boolString(watchdog_armed_);
-    json += ",\"config_loaded_from_storage\":";
-    json += boolString(config_loaded_from_storage_);
-    json += ",\"wrote_default_config\":";
-    json += boolString(wrote_default_config_);
-    json += ",\"web_server_started\":";
-    json += boolString(web_server_started_);
-    json += ",\"http_port\":" + std::to_string(config_.http_port) + ",";
-    json += "\"lab_ap_enabled\":";
-    json += boolString(config_.lab_ap_enabled != 0U);
-    json += ",\"local_auth_enabled\":";
-    json += boolString(config_.local_auth_enabled != 0U);
-    json += ",\"network_mode\":\"";
-    json += networkModeString(network_state_.mode);
-    json += "\",\"station_config_present\":";
-    json += boolString(network_state_.station_config_present);
-    json += ",\"station_connect_attempted\":";
-    json += boolString(network_state_.station_connect_attempted);
-    json += ",\"station_connected\":";
-    json += boolString(network_state_.station_connected);
-    json += ",\"lab_ap_active\":";
-    json += boolString(network_state_.lab_ap_active);
-    json += ",\"time_sync_attempted\":";
-    json += boolString(network_state_.time_sync_attempted);
-    json += ",\"time_synchronized\":";
-    json += boolString(network_state_.time_synchronized);
-    json += ",\"last_time_sync_unix_ms\":";
-    json += std::to_string(network_state_.last_time_sync_unix_ms);
-    json += ",\"active_station_ssid\":\"" + jsonEscape(network_state_.station_ssid) + "\",";
-    json += "\"active_setup_ap_ssid\":\"" + jsonEscape(network_state_.lab_ap_ssid) + "\",";
-    json += "\"lab_ap_ip\":\"" + jsonEscape(network_state_.ip_address) + "\",";
-    json += "\"last_error\":\"" + jsonEscape(network_state_.last_error) + "\",";
-    json += "\"last_disconnect_reason\":";
-    json += std::to_string(network_state_.last_disconnect_reason);
-    json += ",\"last_disconnect_reason_label\":\"";
-    json += jsonEscape(network_state_.last_disconnect_reason_label);
-    json += "\",\"wifi_reconnect_backoff_active\":";
-    json += boolString(network_state_.reconnect_backoff_active);
-    json += ",\"wifi_reconnect_attempt_count\":";
-    json += std::to_string(network_state_.reconnect_attempt_count);
-    json += ",\"wifi_next_reconnect_uptime_ms\":";
-    json += std::to_string(network_state_.next_reconnect_uptime_ms);
-    json += ",\"wifi_setup_ap_retry_active\":";
-    json += boolString(network_state_.setup_ap_retry_active);
-    json += ",\"wifi_next_setup_ap_retry_uptime_ms\":";
-    json += std::to_string(network_state_.next_setup_ap_retry_uptime_ms);
-    json += ",";
-    json += "\"time_sync_error\":\"" + jsonEscape(network_state_.time_sync_error) + "\",";
-    json += "\"cellular\":{";
-    json += "\"enabled\":";
-    json += boolString(cellular_state_.enabled);
-    json += ",\"ppp_connected\":";
-    json += boolString(cellular_state_.ppp_connected);
-    json += ",\"ip_address\":\"" + jsonEscape(cellular_state_.ip_address) + "\",";
-    json += "\"connectivity_ok\":";
-    json += boolString(cellular_state_.connectivity_ok);
-    json += ",\"connectivity_check_skipped\":";
-    json += boolString(cellular_state_.connectivity_check_skipped);
-    json += ",\"last_error\":\"" + jsonEscape(cellular_state_.last_error) + "\"";
-    json += "},";
-    json += "\"configured_sensors_count\":" + std::to_string(sensors.size()) + ",";
-    json += "\"enabled_backends_count\":";
-    json += std::to_string(upload_manager_ != nullptr ? upload_manager_->enabledCount() : 0U);
-    json += ",\"degraded_backends_count\":";
-    json += std::to_string(upload_manager_ != nullptr ? upload_manager_->degradedCount() : 0U);
-    json += ",\"upload_interval_ms\":";
-    json += std::to_string(upload_manager_ != nullptr ? upload_manager_->uploadIntervalMs() : 0U);
-    json += ",\"last_upload_attempt_uptime_ms\":";
-    json += std::to_string(
-        upload_manager_ != nullptr ? upload_manager_->lastOverallAttemptUptimeMs() : 0U);
-    json += ",\"last_upload_attempt_unix_ms\":";
-    json += std::to_string(
-        upload_manager_ != nullptr ? upload_manager_->lastOverallAttemptUnixMs() : 0);
-    json += ",\"diagnostics\":{";
-    json += "\"heap_total_bytes\":";
-    json += std::to_string(diagnostics.total_heap_bytes);
-    json += ",";
-    json += "\"heap_free_bytes\":";
-    json += std::to_string(diagnostics.free_heap_bytes);
-    json += ",\"heap_min_free_bytes\":";
-    json += std::to_string(diagnostics.min_free_heap_bytes);
-    json += ",\"heap_largest_block_bytes\":";
-    json += std::to_string(diagnostics.largest_heap_block_bytes);
-    json += ",\"internal_heap_free_bytes\":";
-    json += std::to_string(diagnostics.free_internal_heap_bytes);
-    json += ",\"internal_heap_min_free_bytes\":";
-    json += std::to_string(diagnostics.min_free_internal_heap_bytes);
-    json += ",\"internal_heap_largest_block_bytes\":";
-    json += std::to_string(diagnostics.largest_internal_heap_block_bytes);
-    json += ",\"sensor_task_stack_high_watermark_bytes\":";
-    json += std::to_string(diagnostics.sensor_task_stack_free_bytes);
-    json += ",\"upload_task_stack_high_watermark_bytes\":";
-    json += std::to_string(diagnostics.upload_task_stack_free_bytes);
-    json += ",\"cellular_task_stack_high_watermark_bytes\":";
-    json += std::to_string(diagnostics.cellular_task_stack_free_bytes);
-    json += ",\"measurement_queue_pending_count\":";
-    json += std::to_string(diagnostics.queue_pending_count);
-    json += ",\"measurement_queue_inflight_count\":";
-    json += std::to_string(diagnostics.queue_inflight_count);
-    json += ",\"measurement_queue_dropped_count\":";
-    json += std::to_string(diagnostics.queue_dropped_count);
-    json += "}";
-    json += ",\"backends\":[";
-    for (std::size_t index = 0; index < backends.size(); ++index) {
-        const auto& backend = backends[index];
-        if (index > 0U) {
-            json += ",";
-        }
-        json += "{";
-        json += "\"id\":" + std::to_string(backend.id) + ",";
-        json += "\"backend_key\":\"" + jsonEscape(backend.backend_key) + "\",";
-        json += "\"display_name\":\"" + jsonEscape(backend.display_name) + "\",";
-        json += "\"enabled\":";
-        json += boolString(backend.enabled);
-        json += ",\"configured\":";
-        json += boolString(backend.configured);
-        json += ",\"state\":\"";
-        json += jsonEscape(backendRuntimeStateKey(backend.state));
-        json += "\",\"last_result\":\"";
-        json += jsonEscape(uploadResultClassKey(backend.last_result));
-        json += "\",\"last_attempt_uptime_ms\":";
-        json += std::to_string(backend.last_attempt_uptime_ms);
-        json += ",\"last_success_uptime_ms\":";
-        json += std::to_string(backend.last_success_uptime_ms);
-        json += ",\"last_attempt_unix_ms\":";
-        json += std::to_string(backend.last_attempt_unix_ms);
-        json += ",\"last_success_unix_ms\":";
-        json += std::to_string(backend.last_success_unix_ms);
-        json += ",\"last_http_status\":";
-        json += std::to_string(backend.last_http_status);
-        json += ",\"last_response_time_ms\":";
-        json += std::to_string(backend.last_response_time_ms);
-        json += ",\"retry_count\":";
-        json += std::to_string(backend.retry_count);
-        json += ",\"next_retry_uptime_ms\":";
-        json += std::to_string(backend.next_retry_uptime_ms);
-        json += ",\"last_error\":\"";
-        json += jsonEscape(backend.last_error);
-        json += "\"}";
+    if (measurement_store != nullptr) {
+        render_snapshot.measurement_store = measurement_store->snapshot();
     }
-    json += "],";
-    json += "\"sensors\":[";
-    for (std::size_t index = 0; index < sensors.size(); ++index) {
-        const auto& sensor = sensors[index];
-        const MeasurementRuntimeInfo measurement_runtime =
-            measurementRuntimeForSensor(measurement_store_, sensor.id);
-        if (index > 0U) {
-            json += ",";
-        }
-        json += "{";
-        json += "\"id\":" + std::to_string(sensor.id) + ",";
-        json += "\"enabled\":";
-        json += boolString(sensor.enabled);
-        json += ",\"sensor_type\":\"" + jsonEscape(sensor.type_key) + "\",";
-        json += "\"sensor_name\":\"" + jsonEscape(sensor.type_name) + "\",";
-        json += "\"transport_kind\":\"" + jsonEscape(transportKindKey(sensor.transport_kind)) + "\",";
-        json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
-        json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
-        json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
-        json += "\"last_sample_time_ms\":" +
-                std::to_string(measurement_runtime.last_sample_time_ms) + ",";
-        json += "\"queued_sample_count\":" +
-                std::to_string(measurement_runtime.queued_sample_count) + ",";
-        json += "\"measurements\":";
-        json += measurementArrayJson(measurement_runtime.measurement);
-        json += ",";
-        json += "\"temperature_c\":";
-        json += jsonNumberOrNull(measurement_runtime.measurement, SensorValueKind::kTemperatureC);
-        json += ",\"humidity_percent\":";
-        json += jsonNumberOrNull(
-            measurement_runtime.measurement,
-            SensorValueKind::kHumidityPercent);
-        json += ",\"pressure_hpa\":";
-        json += jsonNumberOrNull(measurement_runtime.measurement, SensorValueKind::kPressureHpa);
-        json += ",\"gas_resistance_ohms\":";
-        json += jsonNumberOrNull(
-            measurement_runtime.measurement,
-            SensorValueKind::kGasResistanceOhms);
-        json += ",\"illuminance_lux\":";
-        json += jsonNumberOrNull(
-            measurement_runtime.measurement,
-            SensorValueKind::kIlluminanceLux);
-        json += ",";
-        json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
-        json += "}";
+    if (upload_manager != nullptr) {
+        render_snapshot.upload = upload_manager->runtimeSnapshot();
+        render_snapshot.upload_task_stack_free_bytes =
+            upload_manager->taskStackHighWaterMarkBytes();
     }
-    json += "]}";
-    return json;
+    if (cellular_manager != nullptr) {
+        render_snapshot.cellular_task_stack_free_bytes =
+            cellular_manager->taskStackHighWaterMarkBytes();
+    }
+    if (ble_advertiser != nullptr) {
+        render_snapshot.has_ble_state = true;
+        render_snapshot.ble_state = ble_advertiser->state();
+    }
+
+    return buildStatusJsonDocument(build_info_, render_snapshot);
 }
 
-const NetworkState& StatusService::networkState() const {
-    return network_state_;
+NetworkState StatusService::networkState() const {
+    lock();
+    const NetworkState snapshot = network_state_;
+    unlock();
+    return snapshot;
 }
 
 const BuildInfo& StatusService::buildInfo() const {

@@ -41,6 +41,15 @@ struct BackendStatusSnapshot {
     std::string last_error;
 };
 
+struct UploadManagerRuntimeSnapshot {
+    std::vector<BackendStatusSnapshot> backends;
+    std::size_t enabled_count = 0U;
+    std::size_t degraded_count = 0U;
+    std::uint32_t upload_interval_ms = 0U;
+    std::uint64_t last_overall_attempt_uptime_ms = 0U;
+    std::int64_t last_overall_attempt_unix_ms = 0;
+};
+
 class UploadManager {
   public:
     UploadManager();
@@ -55,6 +64,7 @@ class UploadManager {
     void stop();
 
     std::vector<BackendStatusSnapshot> backends() const;
+    UploadManagerRuntimeSnapshot runtimeSnapshot() const;
     bool backendStatus(BackendType type, BackendStatusSnapshot& out_status) const;
     std::size_t enabledCount() const;
     std::size_t degradedCount() const;

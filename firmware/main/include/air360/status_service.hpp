@@ -12,6 +12,7 @@
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "esp_system.h"
+#include "freertos/semphr.h"
 
 #include "air360/ble_advertiser.hpp"
 
@@ -40,10 +41,13 @@ class StatusService {
     std::string renderRootHtml() const;
     std::string renderDiagnosticsHtml(std::string_view log_contents) const;
     std::string renderStatusJson() const;
-    const NetworkState& networkState() const;
+    NetworkState networkState() const;
     const BuildInfo& buildInfo() const;
 
   private:
+    void lock() const;
+    void unlock() const;
+
     BuildInfo build_info_;
     DeviceConfig config_{};
     NetworkState network_state_{};
@@ -60,6 +64,8 @@ class StatusService {
     bool wrote_default_config_ = false;
     bool web_server_started_ = false;
     esp_reset_reason_t reset_reason_ = esp_reset_reason();
+    mutable StaticSemaphore_t mutex_buffer_{};
+    mutable SemaphoreHandle_t mutex_ = nullptr;
 };
 
 }  // namespace air360

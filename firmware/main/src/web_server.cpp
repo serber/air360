@@ -901,6 +901,7 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.wifi_ssid_value = config.wifi_sta_ssid;
     model.wifi_password_value = config.wifi_sta_password;
     model.sntp_server_value = boundedCString(config.sntp_server, sizeof(config.sntp_server));
+    const WifiScanSnapshot wifi_scan = network_manager.wifiScanSnapshot();
 
     appendWifiSsidOption(
         model.wifi_ssid_options_html,
@@ -909,7 +910,7 @@ ConfigPageViewModel buildConfigPageViewModel(
         model.wifi_ssid_value.empty());
 
     bool selected_network_present = false;
-    for (const auto& network : network_manager.availableNetworks()) {
+    for (const auto& network : wifi_scan.networks) {
         if (network.ssid == model.wifi_ssid_value) {
             selected_network_present = true;
         }
@@ -923,7 +924,7 @@ ConfigPageViewModel buildConfigPageViewModel(
             true);
     }
 
-    for (const auto& network : network_manager.availableNetworks()) {
+    for (const auto& network : wifi_scan.networks) {
         appendWifiSsidOption(
             model.wifi_ssid_options_html,
             network.ssid,
@@ -2462,31 +2463,32 @@ esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
     httpd_resp_set_type(request, "application/json");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
 
-    if (server->network_manager_->lastScanUptimeMs() == 0U) {
+    WifiScanSnapshot scan_snapshot = server->network_manager_->wifiScanSnapshot();
+    if (scan_snapshot.last_scan_uptime_ms == 0U) {
         server->network_manager_->scanAvailableNetworks();
+        scan_snapshot = server->network_manager_->wifiScanSnapshot();
     }
 
     std::string json;
     json.reserve(1024U);
     json += "{";
     json += "\"networks\":[";
-    const auto& networks = server->network_manager_->availableNetworks();
-    for (std::size_t index = 0; index < networks.size(); ++index) {
+    for (std::size_t index = 0; index < scan_snapshot.networks.size(); ++index) {
         if (index > 0U) {
             json += ",";
         }
 
         json += "{";
         json += "\"ssid\":\"";
-        json += jsonEscape(networks[index].ssid);
+        json += jsonEscape(scan_snapshot.networks[index].ssid);
         json += "\",\"rssi\":";
-        json += std::to_string(networks[index].rssi);
+        json += std::to_string(scan_snapshot.networks[index].rssi);
         json += "}";
     }
     json += "],\"last_scan_uptime_ms\":";
-    json += std::to_string(server->network_manager_->lastScanUptimeMs());
+    json += std::to_string(scan_snapshot.last_scan_uptime_ms);
     json += ",\"last_scan_error\":\"";
-    json += jsonEscape(server->network_manager_->lastScanError());
+    json += jsonEscape(scan_snapshot.last_scan_error);
     json += "\"}";
     return httpd_resp_send(request, json.c_str(), json.size());
 }

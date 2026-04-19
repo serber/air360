@@ -19,6 +19,13 @@ struct MeasurementRuntimeInfo {
     std::size_t queued_sample_count = 0U;
 };
 
+struct MeasurementStoreSnapshot {
+    std::vector<MeasurementRuntimeInfo> measurements;
+    std::size_t pending_count = 0U;
+    std::size_t inflight_count = 0U;
+    std::uint32_t dropped_sample_count = 0U;
+};
+
 class MeasurementStore {
   public:
     MeasurementStore();
@@ -35,6 +42,7 @@ class MeasurementStore {
 
     MeasurementRuntimeInfo runtimeInfoForSensor(std::uint32_t sensor_id) const;
     std::vector<MeasurementRuntimeInfo> allLatestMeasurements() const;
+    MeasurementStoreSnapshot snapshot() const;
     std::size_t queuedSampleCountForSensor(std::uint32_t sensor_id) const;
     std::size_t pendingCount() const;
     std::size_t inflightCount() const;

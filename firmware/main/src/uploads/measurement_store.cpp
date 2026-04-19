@@ -173,11 +173,36 @@ std::vector<MeasurementRuntimeInfo> MeasurementStore::allLatestMeasurements() co
         info.sensor_id = entry.sensor_id;
         info.measurement = entry.measurement;
         info.last_sample_time_ms = entry.last_sample_time_ms;
-        info.queued_sample_count = 0U;
+        const auto queued = queued_count_by_sensor_.find(entry.sensor_id);
+        info.queued_sample_count =
+            queued != queued_count_by_sensor_.end() ? queued->second : 0U;
         result.push_back(info);
     }
     unlock();
     return result;
+}
+
+MeasurementStoreSnapshot MeasurementStore::snapshot() const {
+    lock();
+
+    MeasurementStoreSnapshot snapshot;
+    snapshot.measurements.reserve(latest_by_sensor_.size());
+    for (const auto& entry : latest_by_sensor_) {
+        MeasurementRuntimeInfo info;
+        info.sensor_id = entry.sensor_id;
+        info.measurement = entry.measurement;
+        info.last_sample_time_ms = entry.last_sample_time_ms;
+        const auto queued = queued_count_by_sensor_.find(entry.sensor_id);
+        info.queued_sample_count =
+            queued != queued_count_by_sensor_.end() ? queued->second : 0U;
+        snapshot.measurements.push_back(std::move(info));
+    }
+    snapshot.pending_count = pending_.size();
+    snapshot.inflight_count = inflight_.size();
+    snapshot.dropped_sample_count = dropped_sample_count_;
+
+    unlock();
+    return snapshot;
 }
 
 std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id) const {

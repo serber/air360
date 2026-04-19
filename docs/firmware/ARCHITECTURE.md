@@ -231,6 +231,8 @@ Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
 - Optionally scans for available station networks
 - Stores scan results for the `/wifi-scan` endpoint
 
+`NetworkManager` keeps its runtime state and scan cache behind a mutex. Callers consume copies through `state()` and `wifiScanSnapshot()` rather than reading live shared members.
+
 **Synchronization:** Static FreeRTOS event group `station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
 
 **Log tag:** `air360.net`
@@ -610,6 +612,8 @@ Produces HTML and JSON payloads for web routes. Aggregates runtime state from al
 - `MeasurementStore` pending/inflight counts
 - Backend statuses with last result, duration, retry count
 - Health checks (time sync, sensor freshness, uplink, backend health)
+
+For each request, `StatusService` now captures snapshot copies of the stored config/network/cellular state and then pulls snapshot data from `SensorManager`, `MeasurementStore`, `UploadManager`, `CellularManager`, and `BleAdvertiser`. The Overview page, Diagnostics page, and raw status JSON are rendered from that single request-local snapshot so the UI does not race on mutable shared state while rendering.
 
 The raw status JSON rendered inside the Diagnostics page includes `health_status`, `health_summary`, and `health_checks`.
 
