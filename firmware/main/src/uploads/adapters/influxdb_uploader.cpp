@@ -154,10 +154,6 @@ BackendType InfluxDbUploader::type() const {
     return BackendType::kInfluxDb;
 }
 
-const char* InfluxDbUploader::backendKey() const {
-    return "influxdb";
-}
-
 bool InfluxDbUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {

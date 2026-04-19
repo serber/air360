@@ -52,7 +52,7 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
     return validateBackendHttpRecord(record, error);
 }
 
-bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
+bool validateHttpBackendRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
     }
@@ -82,14 +82,6 @@ bool validateCustomUploadRecord(const BackendRecord& record, std::string& error)
     return true;
 }
 
-bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
-    if (!validateCommonRecord(record, error)) {
-        return false;
-    }
-
-    return validateBackendHttpRecord(record, error);
-}
-
 constexpr BackendDescriptor kDescriptors[] = {
     {
         BackendType::kSensorCommunity,
@@ -108,7 +100,7 @@ constexpr BackendDescriptor kDescriptors[] = {
         true,
         false,
         true,
-        &validateAir360ApiRecord,
+        &validateHttpBackendRecord,
         &createAir360ApiUploader,
     },
     {
@@ -128,7 +120,7 @@ constexpr BackendDescriptor kDescriptors[] = {
         true,
         false,
         true,
-        &validateInfluxDbRecord,
+        &validateHttpBackendRecord,
         &createInfluxDbUploader,
     },
 };

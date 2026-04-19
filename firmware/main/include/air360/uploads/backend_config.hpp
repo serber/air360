@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "air360/string_utils.hpp"
 #include "air360/uploads/backend_types.hpp"
 
 namespace air360 {
@@ -100,40 +101,10 @@ BackendConfigList makeDefaultBackendConfigList();
 inline void applyBackendStaticDefaults(BackendRecord& record) {
     record.port = backendDefaultPort(record.backend_type);
     record.use_https = backendDefaultUseHttps(record.backend_type) ? 1U : 0U;
-
-    const char* host = backendDefaultHost(record.backend_type);
-    std::size_t index = 0U;
-    for (; index + 1U < kBackendHostCapacity && host[index] != '\0'; ++index) {
-        record.host[index] = host[index];
-    }
-    record.host[index] = '\0';
-    for (++index; index < kBackendHostCapacity; ++index) {
-        record.host[index] = '\0';
-    }
-
-    const char* path = backendDefaultPath(record.backend_type);
-    index = 0U;
-    for (; index + 1U < kBackendPathCapacity && path[index] != '\0'; ++index) {
-        record.path[index] = path[index];
-    }
-    record.path[index] = '\0';
-    for (++index; index < kBackendPathCapacity; ++index) {
-        record.path[index] = '\0';
-    }
-
+    copyString(record.host, kBackendHostCapacity, backendDefaultHost(record.backend_type));
+    copyString(record.path, kBackendPathCapacity, backendDefaultPath(record.backend_type));
     if (record.backend_type == BackendType::kInfluxDb) {
-        constexpr char kDefaultMeasurementName[] = "air360";
-        std::size_t measurement_index = 0U;
-        for (; measurement_index + 1U < kBackendMeasurementCapacity &&
-               kDefaultMeasurementName[measurement_index] != '\0';
-             ++measurement_index) {
-            record.measurement_name[measurement_index] = kDefaultMeasurementName[measurement_index];
-        }
-        record.measurement_name[measurement_index] = '\0';
-        for (++measurement_index; measurement_index < kBackendMeasurementCapacity;
-             ++measurement_index) {
-            record.measurement_name[measurement_index] = '\0';
-        }
+        copyString(record.measurement_name, kBackendMeasurementCapacity, "air360");
     }
 }
 

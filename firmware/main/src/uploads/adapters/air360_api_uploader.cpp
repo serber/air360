@@ -56,10 +56,6 @@ BackendType Air360ApiUploader::type() const {
     return BackendType::kAir360Api;
 }
 
-const char* Air360ApiUploader::backendKey() const {
-    return "air360_api";
-}
-
 bool Air360ApiUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {

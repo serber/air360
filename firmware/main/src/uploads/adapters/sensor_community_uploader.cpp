@@ -201,10 +201,6 @@ BackendType SensorCommunityUploader::type() const {
     return BackendType::kSensorCommunity;
 }
 
-const char* SensorCommunityUploader::backendKey() const {
-    return "sensor_community";
-}
-
 bool SensorCommunityUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {

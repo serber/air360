@@ -12,10 +12,6 @@ BackendType CustomUploadUploader::type() const {
     return BackendType::kCustomUpload;
 }
 
-const char* CustomUploadUploader::backendKey() const {
-    return "custom_upload";
-}
-
 bool CustomUploadUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {

@@ -48,7 +48,6 @@ class IBackendUploader {
     virtual ~IBackendUploader() = default;
 
     virtual BackendType type() const = 0;
-    virtual const char* backendKey() const = 0;
     virtual bool validateConfig(const BackendRecord& record, std::string& error) const = 0;
     virtual bool buildRequests(
         const BackendRecord& record,
