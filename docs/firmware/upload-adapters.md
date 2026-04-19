@@ -55,7 +55,7 @@ struct UploadRequestSpec {
 };
 ```
 
-`classifyResponse()` maps the transport result to `UploadResultClass`. The upload manager uses this to decide whether to acknowledge or restore the inflight queue.
+`classifyResponse()` maps the transport result to `UploadResultClass`. `UploadManager` now applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry.
 
 ---
 

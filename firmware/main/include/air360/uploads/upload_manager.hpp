@@ -45,6 +45,7 @@ struct UploadManagerRuntimeSnapshot {
     std::vector<BackendStatusSnapshot> backends;
     std::size_t enabled_count = 0U;
     std::size_t degraded_count = 0U;
+    std::size_t inflight_sample_count = 0U;
     std::uint32_t upload_interval_ms = 0U;
     std::uint64_t last_overall_attempt_uptime_ms = 0U;
     std::int64_t last_overall_attempt_unix_ms = 0;
@@ -80,6 +81,10 @@ class UploadManager {
         std::unique_ptr<IBackendUploader> uploader;
         BackendStatusSnapshot snapshot{};
         std::uint64_t next_action_time_ms = 0U;
+        std::uint64_t acknowledged_sample_id = 0U;
+        std::uint64_t inflight_last_sample_id = 0U;
+        std::vector<std::uint64_t> inflight_sample_ids;
+        std::vector<MeasurementSample> inflight_samples;
     };
 
     void lock() const;

@@ -87,7 +87,7 @@ If `esp_http_client_perform` fails (network error, DNS failure, timeout), `trans
 
 ## Response classification
 
-`UploadTransport` does not interpret the HTTP status itself. The adapter's `classifyResponse()` method reads `transport_err` and `http_status` to determine `UploadResultClass`:
+`UploadTransport` does not interpret the HTTP status itself. The adapter's `classifyResponse()` method reads `transport_err` and `http_status` to determine `UploadResultClass` for the current backend delivery window:
 
 - `transport_err != ESP_OK` → `kTransportError` (regardless of `http_status`)
 - `http_status` in success range → `kSuccess`

@@ -423,9 +423,9 @@ In-memory bounded ring buffer for measurement samples. All access is protected b
 
 **Lifecycle:**
 1. `SensorManager` calls `recordMeasurement()` after each successful poll — latest reading per sensor is tracked separately from the queue
-2. `UploadManager` calls `beginUploadWindow(N)` to atomically move up to N pending samples to `inflight`
-3. On upload success: `acknowledgeInflight()` clears the inflight set
-4. On upload failure: `restoreInflight()` moves inflight samples back to pending
+2. `MeasurementStore` appends one shared queued sample record with a monotonic sample ID
+3. `UploadManager` asks for windows after each backend's own acknowledged cursor
+4. Samples remain in the shared queue until every active backend has acknowledged them, then `discardUpTo()` retires the common prefix
 
 **`MeasurementBatch` structure (passed to uploaders):**
 
@@ -494,20 +494,21 @@ Manages the upload cycle and per-backend runtime state.
 - Stack: 7168 bytes
 - Priority: 4
 - Normal loop delay: 1000 ms
-- Upload interval: 145 s (configurable per backend, 10–300 s)
-- Backlog drain interval: 5 s (applied when upload succeeded and pending > 0)
+- Upload interval: 145 s (global backend config value, 10–300 s)
+- Backlog drain interval: 5 s (applied per backend when that backend still has backlog)
 
 **Upload preconditions (checked every cycle):**
 - Network uplink active (Wi-Fi station connected **or** cellular PPP connected)
 - Valid SNTP unix time (`unix_ms > 0`)
 
 **Upload cycle:**
-1. Check preconditions
-2. Call `MeasurementStore::beginUploadWindow(32)` — up to 32 samples per batch
+1. For each backend whose `next_action_time_ms` is due, check preconditions
+2. Reuse that backend's retry window or call `MeasurementStore::uploadWindowAfter(acknowledged_sample_id, 32)`
 3. Assemble `MeasurementBatch`
-4. Call each enabled backend adapter
-5. `acknowledgeInflight()` on success, `restoreInflight()` on failure
-6. Update per-backend runtime state
+4. Call the backend adapter
+5. On `kSuccess` or `kNoData`, advance only that backend cursor
+6. On failure, keep only that backend window for retry
+7. Retire shared queue entries once every active backend has acknowledged them
 
 **Backend runtime states:**
 
@@ -609,7 +610,7 @@ Produces HTML and JSON payloads for web routes. Aggregates runtime state from al
 - Build info and device identity
 - Network mode, IP address, SNTP state
 - Sensor list with states, last measurements, and queued sample counts
-- `MeasurementStore` pending/inflight counts
+- `MeasurementStore` pending count plus per-backend inflight count from `UploadManager`
 - Backend statuses with last result, duration, retry count
 - Health checks (time sync, sensor freshness, uplink, backend health)
 
@@ -840,12 +841,12 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Module | Primitive | Protected resource |
 |--------|-----------|-------------------|
 | `SensorManager` | Static mutex | `sensors_`, task handle |
-| `MeasurementStore` | Static mutex | `pending_`, `inflight_`, `latest_by_sensor_` |
+| `MeasurementStore` | Static mutex | `queued_`, `latest_by_sensor_`, queued counters |
 | `UploadManager` | Static mutex | `backends_`, runtime state |
 | `I2cBusManager` | Static mutex | bus handles, device list |
 | `NetworkManager` | Static event group | station connected / failed bits |
 
-No application-level queues. `MeasurementStore` uses vector swap under mutex for atomic pending→inflight transition.
+No application-level RTOS queues. Upload delivery progress is tracked via per-backend cursors and retry windows in `UploadManager`, while `MeasurementStore` owns the shared retained sample queue.
 
 ---
 

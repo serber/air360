@@ -797,7 +797,7 @@ RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
     snapshot.largest_internal_heap_block_bytes =
         heap_caps_get_largest_free_block(kInternal8BitCaps);
     snapshot.queue_pending_count = render_snapshot.measurement_store.pending_count;
-    snapshot.queue_inflight_count = render_snapshot.measurement_store.inflight_count;
+    snapshot.queue_inflight_count = render_snapshot.upload.inflight_sample_count;
     snapshot.queue_dropped_count = render_snapshot.measurement_store.dropped_sample_count;
     snapshot.sensor_task_stack_free_bytes = render_snapshot.sensor_task_stack_free_bytes;
     snapshot.upload_task_stack_free_bytes = render_snapshot.upload_task_stack_free_bytes;

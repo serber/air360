@@ -64,9 +64,25 @@ void UploadManager::start(
 }
 
 void UploadManager::applyConfig(const BackendConfigList& config) {
+    std::vector<std::pair<std::uint32_t, std::uint64_t>> acknowledged_by_id;
+    lock();
+    acknowledged_by_id.reserve(backends_.size());
+    for (const auto& backend : backends_) {
+        acknowledged_by_id.emplace_back(backend.snapshot.id, backend.acknowledged_sample_id);
+    }
+    unlock();
+
     stop();
 
     std::vector<ManagedBackend> next_backends = buildManagedBackends(config);
+    for (auto& backend : next_backends) {
+        for (const auto& previous : acknowledged_by_id) {
+            if (previous.first == backend.snapshot.id) {
+                backend.acknowledged_sample_id = previous.second;
+                break;
+            }
+        }
+    }
 
     lock();
     backends_ = std::move(next_backends);
@@ -245,6 +261,17 @@ UploadManagerRuntimeSnapshot UploadManager::runtimeSnapshot() const {
         }
     }
 
+    std::vector<std::uint64_t> unique_inflight_ids;
+    for (const auto& backend : backends_) {
+        for (const auto sample_id : backend.inflight_sample_ids) {
+            if (std::find(unique_inflight_ids.begin(), unique_inflight_ids.end(), sample_id) ==
+                unique_inflight_ids.end()) {
+                unique_inflight_ids.push_back(sample_id);
+            }
+        }
+    }
+    snapshot.inflight_sample_count = unique_inflight_ids.size();
+
     unlock();
     return snapshot;
 }
@@ -371,87 +398,96 @@ void UploadManager::taskEntry(void* arg) {
 
 void UploadManager::taskMain() {
     for (;;) {
+        const std::uint64_t now_ms = uptimeMilliseconds();
+        bool has_active_backend = false;
+        std::vector<std::size_t> due_indices;
+
         lock();
         const bool stop_requested = stop_requested_;
-        const std::size_t backend_count = backends_.size();
-        const std::uint64_t next_cycle_time_ms = next_cycle_time_ms_;
-        bool has_active_backend = false;
-        for (const auto& backend : backends_) {
-            if (backend.snapshot.enabled && backend.uploader != nullptr) {
-                has_active_backend = true;
-                break;
+        due_indices.reserve(backends_.size());
+        for (std::size_t index = 0; index < backends_.size(); ++index) {
+            const auto& backend = backends_[index];
+            if (!backend.snapshot.enabled || backend.uploader == nullptr) {
+                continue;
+            }
+
+            has_active_backend = true;
+            if (now_ms >= backend.next_action_time_ms) {
+                due_indices.push_back(index);
             }
         }
         unlock();
+
         if (stop_requested) {
             break;
         }
 
-        const std::uint64_t now_ms = uptimeMilliseconds();
-        if (now_ms < next_cycle_time_ms) {
+        if (!has_active_backend ||
+            due_indices.empty() ||
+            measurement_store_ == nullptr ||
+            network_manager_ == nullptr) {
             vTaskDelay(kUploadLoopDelay);
             continue;
         }
 
-        if (!has_active_backend || measurement_store_ == nullptr || network_manager_ == nullptr) {
-            lock();
-            next_cycle_time_ms_ = now_ms + static_cast<std::uint64_t>(pdTICKS_TO_MS(kUploadLoopDelay));
-            unlock();
-            vTaskDelay(kUploadLoopDelay);
-            continue;
-        }
-
-        if (!network_manager_->uplinkStatus().uplink_ready) {
-            lock();
-            next_cycle_time_ms_ = now_ms + static_cast<std::uint64_t>(pdTICKS_TO_MS(kUploadLoopDelay));
-            unlock();
-            vTaskDelay(kUploadLoopDelay);
-            continue;
-        }
-
-        std::vector<MeasurementSample> upload_samples =
-            measurement_store_->beginUploadWindow(kMaxSamplesPerUploadWindow);
-        if (upload_samples.empty()) {
-            lock();
-            next_cycle_time_ms_ = now_ms + cycle_interval_ms_;
-            unlock();
-            vTaskDelay(kUploadLoopDelay);
-            continue;
-        }
-
-        MeasurementBatch batch = buildMeasurementBatch(now_ms, upload_samples);
-        if (batch.empty()) {
-            measurement_store_->restoreInflight();
-            lock();
-            next_cycle_time_ms_ = now_ms + cycle_interval_ms_;
-            unlock();
-            vTaskDelay(kUploadLoopDelay);
-            continue;
-        }
-
-        bool had_active_backend = false;
-        bool all_uploads_succeeded = true;
-
-        for (std::size_t index = 0; index < backend_count; ++index) {
+        for (const std::size_t index : due_indices) {
             IBackendUploader* uploader = nullptr;
             BackendRecord record{};
             BackendStatusSnapshot base_snapshot{};
+            std::uint64_t acknowledged_sample_id = 0U;
+            std::uint64_t inflight_last_sample_id = 0U;
+            std::vector<std::uint64_t> upload_sample_ids;
+            std::vector<MeasurementSample> upload_samples;
+            bool had_retry_window = false;
 
             lock();
             if (index < backends_.size()) {
                 auto& backend = backends_[index];
-                if (backend.snapshot.enabled && backend.uploader != nullptr) {
+                if (backend.snapshot.enabled &&
+                    backend.uploader != nullptr &&
+                    now_ms >= backend.next_action_time_ms) {
                     backend.snapshot.state = BackendRuntimeState::kUploading;
                     uploader = backend.uploader.get();
                     record = backend.record;
                     base_snapshot = backend.snapshot;
-                    had_active_backend = true;
+                    acknowledged_sample_id = backend.acknowledged_sample_id;
+                    inflight_last_sample_id = backend.inflight_last_sample_id;
+                    upload_sample_ids = backend.inflight_sample_ids;
+                    upload_samples = backend.inflight_samples;
+                    had_retry_window = !backend.inflight_samples.empty();
                 }
             }
             unlock();
 
             if (uploader == nullptr) {
                 continue;
+            }
+
+            if (!had_retry_window) {
+                MeasurementQueueWindow window =
+                    measurement_store_->uploadWindowAfter(
+                        acknowledged_sample_id,
+                        kMaxSamplesPerUploadWindow);
+                if (!window.empty()) {
+                    upload_sample_ids = std::move(window.sample_ids);
+                    upload_samples = std::move(window.samples);
+                    inflight_last_sample_id = upload_sample_ids.back();
+
+                    lock();
+                    if (index < backends_.size() && backends_[index].uploader.get() == uploader) {
+                        auto& backend = backends_[index];
+                        backend.inflight_sample_ids = upload_sample_ids;
+                        backend.inflight_samples = upload_samples;
+                        backend.inflight_last_sample_id = inflight_last_sample_id;
+                    } else {
+                        uploader = nullptr;
+                    }
+                    unlock();
+
+                    if (uploader == nullptr) {
+                        continue;
+                    }
+                }
             }
 
             const std::int64_t unix_ms = currentUnixMilliseconds();
@@ -461,56 +497,76 @@ void UploadManager::taskMain() {
             int last_http_status = 0;
             std::uint32_t last_response_time_ms = 0U;
             std::uint32_t next_retry_count = base_snapshot.retry_count;
+            std::uint64_t next_action_time_ms = now_ms + cycle_interval_ms_;
+            bool acknowledge_window = false;
             const std::int64_t attempt_started_us = esp_timer_get_time();
 
-            lock();
-            last_overall_attempt_uptime_ms_ = now_ms;
-            last_overall_attempt_unix_ms_ = unix_ms;
-            unlock();
-
-            std::string network_error;
-            if (!hasNetworkForUpload(network_error)) {
-                aggregate_result = UploadResultClass::kNoNetwork;
-                next_state = BackendRuntimeState::kError;
-                last_error = std::move(network_error);
-                ++next_retry_count;
-                all_uploads_succeeded = false;
+            if (upload_samples.empty()) {
+                aggregate_result = UploadResultClass::kNoData;
+                next_state = BackendRuntimeState::kIdle;
+                next_retry_count = 0U;
             } else {
-                std::vector<UploadRequestSpec> requests;
-                if (!uploader->buildRequests(record, batch, requests, last_error)) {
-                    aggregate_result = UploadResultClass::kConfigError;
+                lock();
+                last_overall_attempt_uptime_ms_ = now_ms;
+                last_overall_attempt_unix_ms_ = unix_ms;
+                unlock();
+
+                std::string network_error;
+                if (!hasNetworkForUpload(network_error)) {
+                    aggregate_result = UploadResultClass::kNoNetwork;
                     next_state = BackendRuntimeState::kError;
+                    last_error = std::move(network_error);
                     ++next_retry_count;
-                    all_uploads_succeeded = false;
-                } else if (requests.empty()) {
-                    aggregate_result = UploadResultClass::kNoData;
-                    next_state = BackendRuntimeState::kIdle;
-                    last_error.clear();
                 } else {
-                    aggregate_result = UploadResultClass::kSuccess;
-                    next_state = BackendRuntimeState::kOk;
-
-                    for (const auto& request : requests) {
-                        const UploadTransportResponse response = transport_.execute(request);
-                        const UploadResultClass request_result =
-                            uploader->classifyResponse(response);
-                        last_http_status = response.http_status;
-
-                        if (request_result != UploadResultClass::kSuccess) {
-                            aggregate_result = request_result;
+                    MeasurementBatch batch = buildMeasurementBatch(now_ms, upload_samples);
+                    if (batch.empty()) {
+                        aggregate_result = UploadResultClass::kNoData;
+                        next_state = BackendRuntimeState::kIdle;
+                        acknowledge_window = true;
+                        next_retry_count = 0U;
+                    } else {
+                        std::vector<UploadRequestSpec> requests;
+                        if (!uploader->buildRequests(record, batch, requests, last_error)) {
+                            aggregate_result = UploadResultClass::kConfigError;
                             next_state = BackendRuntimeState::kError;
-                            if (response.transport_err != ESP_OK) {
-                                last_error = esp_err_to_name(response.transport_err);
-                            } else if (!response.body_snippet.empty()) {
-                                last_error = response.body_snippet;
-                            } else if (response.http_status != 0) {
-                                last_error =
-                                    std::string("HTTP ") + std::to_string(response.http_status);
-                            } else {
-                                last_error = "Upload failed.";
-                            }
                             ++next_retry_count;
-                            all_uploads_succeeded = false;
+                        } else if (requests.empty()) {
+                            aggregate_result = UploadResultClass::kNoData;
+                            next_state = BackendRuntimeState::kIdle;
+                            acknowledge_window = true;
+                            next_retry_count = 0U;
+                            last_error.clear();
+                        } else {
+                            aggregate_result = UploadResultClass::kSuccess;
+                            next_state = BackendRuntimeState::kOk;
+                            acknowledge_window = true;
+                            next_retry_count = 0U;
+
+                            for (const auto& request : requests) {
+                                const UploadTransportResponse response = transport_.execute(request);
+                                const UploadResultClass request_result =
+                                    uploader->classifyResponse(response);
+                                last_http_status = response.http_status;
+
+                                if (request_result != UploadResultClass::kSuccess) {
+                                    aggregate_result = request_result;
+                                    next_state = BackendRuntimeState::kError;
+                                    acknowledge_window = false;
+                                    ++next_retry_count;
+                                    if (response.transport_err != ESP_OK) {
+                                        last_error = esp_err_to_name(response.transport_err);
+                                    } else if (!response.body_snippet.empty()) {
+                                        last_error = response.body_snippet;
+                                    } else if (response.http_status != 0) {
+                                        last_error =
+                                            std::string("HTTP ") +
+                                            std::to_string(response.http_status);
+                                    } else {
+                                        last_error = "Upload failed.";
+                                    }
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -522,6 +578,17 @@ void UploadManager::taskMain() {
                     (attempt_finished_us - attempt_started_us) / 1000LL);
             }
 
+            std::uint64_t updated_acknowledged_sample_id = acknowledged_sample_id;
+            if (acknowledge_window && !upload_sample_ids.empty()) {
+                updated_acknowledged_sample_id = inflight_last_sample_id;
+                if (measurement_store_->hasSamplesAfter(updated_acknowledged_sample_id)) {
+                    next_action_time_ms =
+                        now_ms +
+                        std::min<std::uint64_t>(cycle_interval_ms_, kBacklogDrainDelayMs);
+                }
+            }
+
+            std::uint64_t prune_up_to = 0U;
             lock();
             if (index >= backends_.size()) {
                 unlock();
@@ -534,6 +601,13 @@ void UploadManager::taskMain() {
                 continue;
             }
 
+            if (acknowledge_window) {
+                backend.acknowledged_sample_id = updated_acknowledged_sample_id;
+                backend.inflight_last_sample_id = 0U;
+                backend.inflight_sample_ids.clear();
+                backend.inflight_samples.clear();
+            }
+
             backend.snapshot.last_attempt_uptime_ms = now_ms;
             backend.snapshot.last_attempt_unix_ms = unix_ms;
             backend.snapshot.last_result = aggregate_result;
@@ -542,36 +616,41 @@ void UploadManager::taskMain() {
             backend.snapshot.last_error = last_error;
             backend.snapshot.retry_count = next_retry_count;
             backend.snapshot.state = next_state;
-            backend.next_action_time_ms = now_ms + cycle_interval_ms_;
-            backend.snapshot.next_retry_uptime_ms = backend.next_action_time_ms;
+            backend.next_action_time_ms = next_action_time_ms;
+            backend.snapshot.next_retry_uptime_ms = next_action_time_ms;
 
             if (aggregate_result == UploadResultClass::kSuccess) {
                 backend.snapshot.last_success_uptime_ms = now_ms;
                 backend.snapshot.last_success_unix_ms = unix_ms;
-                backend.snapshot.retry_count = 0U;
+                backend.snapshot.last_error.clear();
+            } else if (aggregate_result == UploadResultClass::kNoData) {
                 backend.snapshot.last_error.clear();
             }
-            unlock();
-        }
 
-        if (had_active_backend && measurement_store_ != nullptr) {
-            if (all_uploads_succeeded) {
-                measurement_store_->acknowledgeInflight();
-            } else {
-                measurement_store_->restoreInflight();
+            if (acknowledge_window) {
+                bool have_active_cursor = false;
+                for (const auto& candidate : backends_) {
+                    if (!candidate.snapshot.enabled || candidate.uploader == nullptr) {
+                        continue;
+                    }
+
+                    if (!have_active_cursor ||
+                        candidate.acknowledged_sample_id < prune_up_to) {
+                        prune_up_to = candidate.acknowledged_sample_id;
+                        have_active_cursor = true;
+                    }
+                }
+
+                if (!have_active_cursor) {
+                    prune_up_to = 0U;
+                }
+            }
+            unlock();
+
+            if (acknowledge_window && prune_up_to > 0U) {
+                measurement_store_->discardUpTo(prune_up_to);
             }
         }
-
-        std::uint64_t next_cycle_delay_ms = cycle_interval_ms_;
-        if (all_uploads_succeeded &&
-            measurement_store_ != nullptr &&
-            measurement_store_->pendingCount() > 0U) {
-            next_cycle_delay_ms = std::min<std::uint64_t>(cycle_interval_ms_, kBacklogDrainDelayMs);
-        }
-
-        lock();
-        next_cycle_time_ms_ = now_ms + next_cycle_delay_ms;
-        unlock();
 
         vTaskDelay(kUploadLoopDelay);
     }
