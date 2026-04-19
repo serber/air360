@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "air360/uploads/adapters/air360_json_payload.hpp"
+#include "air360/uploads/backend_http_config.hpp"
 
 namespace air360 {
 
@@ -30,9 +31,13 @@ void replaceAll(std::string& value, const std::string& from, const std::string& 
 }
 
 std::string buildUrl(const BackendRecord& record, const MeasurementBatch& batch) {
-    std::string url = record.endpoint_url[0] != '\0'
-                          ? std::string(record.endpoint_url)
-                          : std::string(backendDefaultEndpointUrl(record.backend_type));
+    BackendHttpConfigView config;
+    std::string url;
+    std::string error;
+    if (!decodeBackendHttpRecord(record, config, error) ||
+        !buildBackendHttpUrl(config, url, error)) {
+        return "";
+    }
     const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
 
     if (url.find("{chip_id}") != std::string::npos || url.find("{batch_id}") != std::string::npos) {
@@ -58,13 +63,7 @@ const char* Air360ApiUploader::backendKey() const {
 bool Air360ApiUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    if (record.endpoint_url[0] == '\0') {
-        error = "Air360 API base URL is empty.";
-        return false;
-    }
-
-    error.clear();
-    return true;
+    return validateBackendHttpRecord(record, error);
 }
 
 bool Air360ApiUploader::buildRequests(

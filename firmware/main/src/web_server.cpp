@@ -16,6 +16,7 @@
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/uploads/backend_http_config.hpp"
 #include "air360/uploads/backend_registry.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "air360/web_assets.hpp"
@@ -261,73 +262,45 @@ const char* networkModeLabel(NetworkMode mode) {
 constexpr std::string_view kHttpScheme = "http://";
 constexpr std::string_view kHttpsScheme = "https://";
 
-std::string configuredBackendEndpointUrl(const BackendRecord* record, BackendType type) {
-    if (record != nullptr && record->endpoint_url[0] != '\0') {
-        return boundedCString(record->endpoint_url, sizeof(record->endpoint_url));
-    }
-
-    const char* endpoint = backendDefaultEndpointUrl(type);
-    return endpoint != nullptr ? std::string(endpoint) : std::string();
-}
-
-std::string_view stripUrlScheme(std::string_view url) {
-    if (url.rfind(kHttpsScheme, 0U) == 0U) {
-        url.remove_prefix(kHttpsScheme.size());
-        return url;
-    }
-
-    if (url.rfind(kHttpScheme, 0U) == 0U) {
-        url.remove_prefix(kHttpScheme.size());
-        return url;
-    }
-
-    return url;
-}
-
-std::string backendNormalizedEndpointUrl(const BackendRecord* record, BackendType type) {
-    std::string endpoint = configuredBackendEndpointUrl(record, type);
-    if (type == BackendType::kAir360Api &&
-        endpoint.find("{chip_id}") == std::string::npos &&
-        endpoint.find("{batch_id}") == std::string::npos) {
-        std::string host = std::string(stripUrlScheme(endpoint));
-        while (!host.empty() && host.back() == '/') {
-            host.pop_back();
-        }
-        endpoint = std::string(
-            endpoint.rfind(kHttpScheme, 0U) == 0U ? kHttpScheme : kHttpsScheme);
-        endpoint += host;
-        endpoint += "/v1/devices/{chip_id}/batches/{batch_id}";
-    }
-
-    return endpoint;
-}
-
-std::string backendDisplayEndpoint(const BackendRecord* record, BackendType type) {
-    return std::string(stripUrlScheme(backendNormalizedEndpointUrl(record, type)));
-}
-
 bool backendUseHttps(const BackendRecord* record, BackendType type) {
-    const std::string endpoint = configuredBackendEndpointUrl(record, type);
-    if (endpoint.rfind(kHttpsScheme, 0U) == 0U) {
+    if (type == BackendType::kCustomUpload) {
+        const std::string endpoint =
+            record != nullptr ? boundedCString(record->endpoint_url, sizeof(record->endpoint_url)) : "";
+        if (endpoint.rfind(kHttpsScheme, 0U) == 0U) {
+            return true;
+        }
+        if (endpoint.rfind(kHttpScheme, 0U) == 0U) {
+            return false;
+        }
         return true;
     }
 
-    if (endpoint.rfind(kHttpScheme, 0U) == 0U) {
-        return false;
+    if (record != nullptr) {
+        BackendHttpConfigView config;
+        std::string error;
+        if (decodeBackendHttpRecord(*record, config, error)) {
+            return config.use_https;
+        }
     }
-
-    static_cast<void>(type);
-    return true;
+    return backendDefaultUseHttps(type);
 }
 
-std::string buildBackendUrl(std::string_view endpoint_without_scheme, bool use_https) {
-    if (endpoint_without_scheme.empty()) {
-        return "";
+BackendHttpConfigView backendHttpConfigForUi(const BackendRecord* record, BackendType type) {
+    if (record != nullptr) {
+        BackendHttpConfigView config;
+        std::string error;
+        if (decodeBackendHttpRecord(*record, config, error)) {
+            return config;
+        }
     }
+    return defaultBackendHttpConfig(type);
+}
 
-    std::string url(use_https ? kHttpsScheme : kHttpScheme);
-    url += endpoint_without_scheme;
-    return url;
+std::string backendDisplayEndpoint(const BackendRecord* record, BackendType type) {
+    if (type == BackendType::kCustomUpload) {
+        return record != nullptr ? boundedCString(record->endpoint_url, sizeof(record->endpoint_url)) : "";
+    }
+    return formatBackendHttpDisplayEndpoint(backendHttpConfigForUi(record, type));
 }
 
 bool hasSupportedEndpointScheme(std::string_view url) {
@@ -371,6 +344,13 @@ struct BackendCardViewModel {
     std::string endpoint;
     bool show_endpoint_input = false;
     std::string endpoint_input_value;
+    bool show_influx_config = false;
+    std::string host;
+    std::string path;
+    std::string port;
+    std::string username;
+    std::string password;
+    std::string measurement_name;
     bool show_device_id_override = false;
     std::string device_id_override;
     bool has_status = false;
@@ -1112,7 +1092,94 @@ ConfigPageViewModel buildConfigPageViewModel(
 std::string renderBackendCard(const BackendCardViewModel& card) {
     std::string https_block;
     std::string endpoint_block;
-    if (card.show_endpoint_input) {
+    if (card.show_influx_config) {
+        https_block += "<label class='checkbox'>";
+        https_block += "<input type='checkbox' name='use_https_";
+        https_block += htmlEscape(card.backend_key);
+        https_block += "'";
+        if (card.use_https) {
+            https_block += " checked";
+        }
+        https_block += ">";
+        https_block += "<span class='checkbox__label'>Use HTTPS</span></label>";
+
+        endpoint_block += "<div class='field'><label for='host_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>Host</label>";
+        endpoint_block += "<input class='input' id='host_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='host_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' maxlength='";
+        endpoint_block += std::to_string(kBackendUrlCapacity - 1U);
+        endpoint_block += "' value='";
+        endpoint_block += htmlEscape(card.host);
+        endpoint_block += "'></div>";
+
+        endpoint_block += "<div class='field'><label for='path_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>Path</label>";
+        endpoint_block += "<input class='input' id='path_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='path_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' maxlength='";
+        endpoint_block += std::to_string(kBackendUrlCapacity - 1U);
+        endpoint_block += "' placeholder='/write?db=air360' value='";
+        endpoint_block += htmlEscape(card.path);
+        endpoint_block += "'></div>";
+
+        endpoint_block += "<div class='field'><label for='port_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>Port</label>";
+        endpoint_block += "<input class='input' id='port_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='port_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' inputmode='numeric' maxlength='5' value='";
+        endpoint_block += htmlEscape(card.port);
+        endpoint_block += "'></div>";
+
+        endpoint_block += "<div class='field'><label for='user_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>User</label>";
+        endpoint_block += "<input class='input' id='user_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='user_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' maxlength='";
+        endpoint_block += std::to_string(kBackendUsernameCapacity - 1U);
+        endpoint_block += "' value='";
+        endpoint_block += htmlEscape(card.username);
+        endpoint_block += "'></div>";
+
+        endpoint_block += "<div class='field'><label for='password_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>Password</label>";
+        endpoint_block += "<input class='input' type='password' id='password_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='password_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' maxlength='";
+        endpoint_block += std::to_string(kBackendPasswordCapacity - 1U);
+        endpoint_block += "' value='";
+        endpoint_block += htmlEscape(card.password);
+        endpoint_block += "'></div>";
+
+        endpoint_block += "<div class='field'><label for='measurement_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>Measurement</label>";
+        endpoint_block += "<input class='input' id='measurement_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='measurement_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' maxlength='";
+        endpoint_block += std::to_string(kBackendIdentifierCapacity - 1U);
+        endpoint_block += "' value='";
+        endpoint_block += htmlEscape(card.measurement_name);
+        endpoint_block += "'></div>";
+        endpoint_block += "<p class='hint'>Sends Influx line protocol with one line per sensor sample group.</p>";
+    } else if (card.show_endpoint_input) {
         endpoint_block += "<div class='field'><label for='endpoint_url_";
         endpoint_block += htmlEscape(card.backend_key);
         endpoint_block += "'>Endpoint URL</label>";
@@ -1120,7 +1187,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         endpoint_block += htmlEscape(card.backend_key);
         endpoint_block += "' name='endpoint_url_";
         endpoint_block += htmlEscape(card.backend_key);
-        endpoint_block += "' data-allow-when-disabled='true";
+        endpoint_block += "'";
         endpoint_block += "' maxlength='";
         endpoint_block += std::to_string(kBackendUrlCapacity - 1U);
         endpoint_block += "' placeholder='https://example.com/api/air360' value='";
@@ -1230,8 +1297,18 @@ BackendsPageViewModel buildBackendsPageViewModel(
         card.enabled = record != nullptr && record->enabled != 0U;
         card.use_https = backendUseHttps(record, descriptor.type);
         card.show_endpoint_input = descriptor.type == BackendType::kCustomUpload;
+        card.show_influx_config = descriptor.type == BackendType::kInfluxDb;
         if (record != nullptr) {
-            if (card.show_endpoint_input) {
+            if (card.show_influx_config) {
+                const BackendHttpConfigView config = backendHttpConfigForUi(record, descriptor.type);
+                card.use_https = config.use_https;
+                card.host = config.host;
+                card.path = config.path;
+                card.port = std::to_string(config.port);
+                card.username = config.username;
+                card.password = config.password;
+                card.measurement_name = config.measurement_name;
+            } else if (card.show_endpoint_input) {
                 card.endpoint_input_value =
                     boundedCString(record->endpoint_url, sizeof(record->endpoint_url));
             } else {
@@ -1245,6 +1322,11 @@ BackendsPageViewModel buildBackendsPageViewModel(
                     card.device_id_override = build_info.short_chip_id;
                 }
             }
+        } else if (card.show_influx_config) {
+            const BackendHttpConfigView config = defaultBackendHttpConfig(descriptor.type);
+            card.use_https = config.use_https;
+            card.port = std::to_string(config.port);
+            card.measurement_name = config.measurement_name;
         } else if (!card.show_endpoint_input) {
             card.endpoint = backendDisplayEndpoint(nullptr, descriptor.type);
         }
@@ -2352,7 +2434,52 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
 
         const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
         record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
-        if (descriptor.type == BackendType::kCustomUpload) {
+        if (record->enabled == 0U) {
+            continue;
+        }
+
+        if (descriptor.type == BackendType::kInfluxDb) {
+            BackendHttpConfigView backend_config = backendHttpConfigForUi(record, descriptor.type);
+            backend_config.use_https =
+                formHasKey(fields, (std::string("use_https_") + descriptor.backend_key).c_str());
+            backend_config.host =
+                findFormValue(fields, (std::string("host_") + descriptor.backend_key).c_str());
+            backend_config.path =
+                findFormValue(fields, (std::string("path_") + descriptor.backend_key).c_str());
+            backend_config.username =
+                findFormValue(fields, (std::string("user_") + descriptor.backend_key).c_str());
+            backend_config.password =
+                findFormValue(fields, (std::string("password_") + descriptor.backend_key).c_str());
+            backend_config.measurement_name =
+                findFormValue(fields, (std::string("measurement_") + descriptor.backend_key).c_str());
+
+            const std::string port_value =
+                findFormValue(fields, (std::string("port_") + descriptor.backend_key).c_str());
+            unsigned long port = 0UL;
+            if (!port_value.empty()) {
+                if (!parseUnsignedLong(port_value, port) || port == 0UL || port > 65535UL) {
+                    const std::string html = renderBackendsPage(
+                        *server->backend_config_list_,
+                        *server->upload_manager_,
+                        server->status_service_->buildInfo(),
+                        "InfluxDB port must be between 1 and 65535.",
+                        true);
+                    return sendHtmlResponse(request, html);
+                }
+            }
+            backend_config.port = static_cast<std::uint16_t>(port);
+
+            std::string encode_error;
+            if (!encodeBackendHttpRecord(backend_config, *record, encode_error)) {
+                const std::string html = renderBackendsPage(
+                    *server->backend_config_list_,
+                    *server->upload_manager_,
+                    server->status_service_->buildInfo(),
+                    encode_error.empty() ? "InfluxDB configuration is invalid." : encode_error,
+                    true);
+                return sendHtmlResponse(request, html);
+            }
+        } else if (descriptor.type == BackendType::kCustomUpload) {
             const std::string endpoint_field_name =
                 std::string("endpoint_url_") + descriptor.backend_key;
             const std::string endpoint_url = findFormValue(fields, endpoint_field_name.c_str());
@@ -2370,19 +2497,18 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             copyString(record->endpoint_url, sizeof(record->endpoint_url), endpoint_url);
         } else {
             const std::string use_https_name = std::string("use_https_") + descriptor.backend_key;
-            const std::string endpoint = backendDisplayEndpoint(record, descriptor.type);
-            const std::string endpoint_url =
-                buildBackendUrl(endpoint, formHasKey(fields, use_https_name.c_str()));
-            if (endpoint_url.empty() || endpoint_url.size() >= sizeof(record->endpoint_url)) {
+            BackendHttpConfigView backend_config = backendHttpConfigForUi(record, descriptor.type);
+            backend_config.use_https = formHasKey(fields, use_https_name.c_str());
+            std::string encode_error;
+            if (!encodeBackendHttpRecord(backend_config, *record, encode_error)) {
                 const std::string html = renderBackendsPage(
                     *server->backend_config_list_,
                     *server->upload_manager_,
                     server->status_service_->buildInfo(),
-                    "Backend endpoint URL is invalid.",
+                    encode_error.empty() ? "Backend configuration is invalid." : encode_error,
                     true);
                 return sendHtmlResponse(request, html);
             }
-            copyString(record->endpoint_url, sizeof(record->endpoint_url), endpoint_url);
         }
 
         if (descriptor.type == BackendType::kSensorCommunity) {

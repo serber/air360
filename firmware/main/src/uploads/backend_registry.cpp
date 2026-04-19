@@ -5,7 +5,9 @@
 
 #include "air360/uploads/adapters/air360_api_uploader.hpp"
 #include "air360/uploads/adapters/custom_upload_uploader.hpp"
+#include "air360/uploads/adapters/influxdb_uploader.hpp"
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
+#include "air360/uploads/backend_http_config.hpp"
 
 namespace air360 {
 
@@ -53,45 +55,14 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
-    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
-        error = "Sensor.Community endpoint URL is not null-terminated.";
-        return false;
-    }
-
-    if (record.enabled == 0U) {
-        error.clear();
-        return true;
-    }
-
-    if (record.endpoint_url[0] == '\0') {
-        error = "Sensor.Community endpoint URL must not be empty.";
-        return false;
-    }
-
-    return true;
+    return validateBackendHttpRecord(record, error);
 }
 
 bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
     }
-
-    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
-        error = "Air360 API base URL is not null-terminated.";
-        return false;
-    }
-
-    if (record.enabled == 0U) {
-        error.clear();
-        return true;
-    }
-
-    if (record.endpoint_url[0] == '\0') {
-        error = "Air360 API base URL must not be empty.";
-        return false;
-    }
-
-    return true;
+    return validateBackendHttpRecord(record, error);
 }
 
 bool validateCustomUploadRecord(const BackendRecord& record, std::string& error) {
@@ -115,6 +86,14 @@ bool validateCustomUploadRecord(const BackendRecord& record, std::string& error)
     }
 
     return true;
+}
+
+bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    return validateBackendHttpRecord(record, error);
 }
 
 constexpr BackendDescriptor kDescriptors[] = {
@@ -147,6 +126,16 @@ constexpr BackendDescriptor kDescriptors[] = {
         true,
         &validateCustomUploadRecord,
         &createCustomUploadUploader,
+    },
+    {
+        BackendType::kInfluxDb,
+        "influxdb",
+        "InfluxDB",
+        true,
+        false,
+        true,
+        &validateInfluxDbRecord,
+        &createInfluxDbUploader,
     },
 };
 

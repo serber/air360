@@ -13,7 +13,7 @@ Turn the current backend abstraction into a real authenticated integration surfa
 
 ## Context
 
-Air360 already has a backend registry and a `bearer_token` field in backend configuration, but the current firmware does not use that field.
+Air360 already has a backend registry and backend-specific configuration storage, but the current firmware does not yet expose token-based backend authentication as a first-class feature.
 
 This lines up with clear ecosystem demand:
 
@@ -47,10 +47,10 @@ That is a strong foundation, but it leaves the firmware unable to absorb modern 
 Backend records should support a normalized auth model such as:
 
 - `auth_mode`
-- `bearer_token`
+- dedicated auth token field
 - optional backend-specific key field names when the protocol requires a non-standard header
 
-The current reserved `bearer_token` field is a good starting point, but it should become an actual validated and runtime-used field.
+The current backend configuration model is a reasonable starting point, but token-based authentication should use an explicit validated field instead of overloading unrelated storage.
 
 ### 2. Add openSenseMap as a dedicated uploader
 

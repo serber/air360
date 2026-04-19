@@ -386,6 +386,18 @@ Use this backend when you want to send the same Air360 JSON body to your own HTT
 
 The firmware sends a single `POST` request per upload cycle with the same JSON body shape as `Air360 API`.
 
+### InfluxDB
+
+Use this backend when you want the firmware to write sensor samples as Influx line protocol:
+
+1. Open **Backends**.
+2. Enable **InfluxDB**.
+3. Fill in **Host**, **Path**, **Port**, and **Measurement**.
+4. Optionally fill in **User** and **Password** for Basic Auth.
+5. Press **Save**.
+
+The firmware sends one POST per upload cycle. The body contains multiple line protocol rows, one row per grouped sensor sample.
+
 ### Save behavior
 
 Backend settings are saved immediately when you press **Save** — there is no staged apply flow for backends.

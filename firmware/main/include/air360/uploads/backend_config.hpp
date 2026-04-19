@@ -12,17 +12,57 @@ constexpr std::uint32_t kBackendConfigMagic = 0x41333632U;
 constexpr std::uint16_t kBackendConfigSchemaVersion = 1U;
 constexpr std::uint32_t kDefaultUploadIntervalMs = 145000U;
 
-inline const char* backendDefaultEndpointUrl(BackendType type) {
+inline const char* backendDefaultHost(BackendType type) {
     switch (type) {
         case BackendType::kSensorCommunity:
-            return "https://api.sensor.community/v1/push-sensor-data/";
+            return "api.sensor.community";
         case BackendType::kAir360Api:
-            return "https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}";
+            return "api.air360.ru";
         case BackendType::kCustomUpload:
-            return "";
+        case BackendType::kInfluxDb:
         case BackendType::kUnknown:
         default:
             return "";
+    }
+}
+
+inline const char* backendDefaultPath(BackendType type) {
+    switch (type) {
+        case BackendType::kSensorCommunity:
+            return "/v1/push-sensor-data/";
+        case BackendType::kAir360Api:
+            return "/v1/devices/{chip_id}/batches/{batch_id}";
+        case BackendType::kCustomUpload:
+        case BackendType::kInfluxDb:
+        case BackendType::kUnknown:
+        default:
+            return "";
+    }
+}
+
+inline std::uint16_t backendDefaultPort(BackendType type) {
+    switch (type) {
+        case BackendType::kSensorCommunity:
+        case BackendType::kAir360Api:
+        case BackendType::kInfluxDb:
+            return 443U;
+        case BackendType::kCustomUpload:
+        case BackendType::kUnknown:
+        default:
+            return 0U;
+    }
+}
+
+inline bool backendDefaultUseHttps(BackendType type) {
+    switch (type) {
+        case BackendType::kSensorCommunity:
+        case BackendType::kAir360Api:
+        case BackendType::kInfluxDb:
+            return true;
+        case BackendType::kCustomUpload:
+        case BackendType::kUnknown:
+        default:
+            return false;
     }
 }
 
@@ -34,8 +74,14 @@ struct BackendRecord {
     char display_name[kBackendDisplayNameCapacity]{};
     char device_id_override[kBackendIdentifierCapacity]{};
     char endpoint_url[kBackendUrlCapacity]{};
-    char bearer_token[kBackendTokenCapacity]{};
-    std::uint8_t reserved1[8]{};
+    char host[kBackendHostCapacity]{};
+    char path[kBackendPathCapacity]{};
+    char username[kBackendUsernameCapacity]{};
+    char password[kBackendPasswordCapacity]{};
+    char measurement_name[kBackendMeasurementCapacity]{};
+    std::uint16_t port = 0U;
+    std::uint8_t use_https = 1U;
+    std::uint8_t reserved1[5]{};
 };
 
 struct BackendConfigList {
@@ -52,14 +98,42 @@ struct BackendConfigList {
 BackendConfigList makeDefaultBackendConfigList();
 
 inline void applyBackendStaticDefaults(BackendRecord& record) {
-    const char* endpoint = backendDefaultEndpointUrl(record.backend_type);
+    record.port = backendDefaultPort(record.backend_type);
+    record.use_https = backendDefaultUseHttps(record.backend_type) ? 1U : 0U;
+
+    const char* host = backendDefaultHost(record.backend_type);
     std::size_t index = 0U;
-    for (; index + 1U < kBackendUrlCapacity && endpoint[index] != '\0'; ++index) {
-        record.endpoint_url[index] = endpoint[index];
+    for (; index + 1U < kBackendHostCapacity && host[index] != '\0'; ++index) {
+        record.host[index] = host[index];
     }
-    record.endpoint_url[index] = '\0';
-    for (++index; index < kBackendUrlCapacity; ++index) {
-        record.endpoint_url[index] = '\0';
+    record.host[index] = '\0';
+    for (++index; index < kBackendHostCapacity; ++index) {
+        record.host[index] = '\0';
+    }
+
+    const char* path = backendDefaultPath(record.backend_type);
+    index = 0U;
+    for (; index + 1U < kBackendPathCapacity && path[index] != '\0'; ++index) {
+        record.path[index] = path[index];
+    }
+    record.path[index] = '\0';
+    for (++index; index < kBackendPathCapacity; ++index) {
+        record.path[index] = '\0';
+    }
+
+    if (record.backend_type == BackendType::kInfluxDb) {
+        constexpr char kDefaultMeasurementName[] = "air360";
+        std::size_t measurement_index = 0U;
+        for (; measurement_index + 1U < kBackendMeasurementCapacity &&
+               kDefaultMeasurementName[measurement_index] != '\0';
+             ++measurement_index) {
+            record.measurement_name[measurement_index] = kDefaultMeasurementName[measurement_index];
+        }
+        record.measurement_name[measurement_index] = '\0';
+        for (++measurement_index; measurement_index < kBackendMeasurementCapacity;
+             ++measurement_index) {
+            record.measurement_name[measurement_index] = '\0';
+        }
     }
 }
 

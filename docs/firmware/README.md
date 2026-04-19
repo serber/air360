@@ -123,7 +123,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Document | Description |
 |----------|-------------|
 | [measurement-pipeline.md](measurement-pipeline.md) | Sensor polling → queue → upload window → batch assembly → acknowledge/restore |
-| [upload-adapters.md](upload-adapters.md) | Sensor.Community, Air360 API, and Custom Upload adapters: request format, grouping, response classification |
+| [upload-adapters.md](upload-adapters.md) | Sensor.Community, Air360 API, Custom Upload, and InfluxDB adapters: request format, grouping, response classification |
 | [upload-transport.md](upload-transport.md) | HTTP execution layer: `esp_http_client` configuration, TLS, response struct |
 
 ---

@@ -13,6 +13,7 @@ This document covers the adapter-specific layer that turns Air360 measurements i
 - `firmware/main/src/uploads/adapters/air360_api_uploader.cpp`
 - `firmware/main/src/uploads/adapters/air360_json_payload.cpp`
 - `firmware/main/src/uploads/adapters/custom_upload_uploader.cpp`
+- `firmware/main/src/uploads/adapters/influxdb_uploader.cpp`
 - `firmware/main/src/uploads/adapters/sensor_community_uploader.cpp`
 - `firmware/main/src/uploads/backend_registry.cpp`
 
@@ -22,7 +23,7 @@ This document covers the adapter-specific layer that turns Air360 measurements i
 - [measurement-pipeline.md](measurement-pipeline.md)
 - [configuration-reference.md](configuration-reference.md)
 
-This document describes the three backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
+This document describes the four backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
 
 ---
 
@@ -63,7 +64,7 @@ struct UploadRequestSpec {
 ### Endpoint
 
 ```
-POST {BackendRecord.endpoint_url}
+POST {scheme}://{host}:{port}{path}
 ```
 
 Default value: `https://api.sensor.community/v1/push-sensor-data/`
@@ -204,7 +205,7 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 ### Endpoint
 
 ```
-PUT {BackendRecord.endpoint_url}
+PUT {scheme}://{host}:{port}{path}
 ```
 
 - `{chip_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
@@ -295,7 +296,7 @@ Any other HTTP status → `kHttpError`.
 ### Endpoint
 
 ```
-POST {BackendRecord.endpoint_url}
+POST {scheme}://{host}:{port}{path}
 ```
 
 - No compiled-in default URL is provided.
@@ -333,6 +334,69 @@ Any other HTTP status → `kHttpError`.
 
 ---
 
+## InfluxDB
+
+### Endpoint
+
+```
+POST http(s)://{host}:{port}{path}
+```
+
+- The URL is built from the InfluxDB form fields on the Backends page.
+- No compiled-in host or path is provided.
+- The default measurement name is `air360`.
+
+### One request per batch
+
+The adapter emits exactly **one POST per upload cycle**. The body contains multiple Influx line protocol rows, one row per grouped sample.
+
+### Grouping
+
+Batch points are grouped by `(sensor_id, sensor_type, sample_time_ms)`.
+
+Each group becomes one line:
+- measurement: configured `measurement_name`
+- tags: `node`, `sensor_type`, `sensor_id`
+- fields: one field per `SensorValueKind`
+- timestamp: `sample_time_ms` converted to nanoseconds
+
+If the same `SensorValueKind` appears more than once in one group, the latest value wins.
+
+### Headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/x-www-form-urlencoded` |
+| `User-Agent` | `air360/{project_version}` |
+| `Authorization` | `Basic ...` when username or password is configured |
+
+The `Content-Type` follows the historical airrohr InfluxDB integration.
+
+### Body format
+
+Example:
+
+```text
+air360,node=789012,sensor_type=bme280,sensor_id=1 temperature_c=24.1,humidity_percent=53.2,pressure_hpa=1013.1 1744400000000000000
+air360,node=789012,sensor_type=sps30,sensor_id=2 pm1_0_ug_m3=1.3,pm2_5_ug_m3=2.1 1744399995000000000
+```
+
+Field names use `sensorValueKindKey()`. Numeric values are sent without quotes.
+
+### Extra preconditions
+
+- `batch.created_unix_ms > 0`
+- at least one measurement point is present
+- valid InfluxDB configuration when the backend is enabled
+
+### Success condition
+
+HTTP 200–208 → `kSuccess`.
+
+Any other HTTP status → `kHttpError`.
+
+---
+
 ## Transport layer
 
 All adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
@@ -363,13 +427,13 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classi
 
 ## Comparison
 
-| Property | Sensor.Community | Air360 API | Custom Upload |
-|----------|-----------------|------------|---------------------|
-| Method | POST | PUT | POST |
-| Requests per cycle | One per supported sensor | One per batch | One per batch |
-| Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` |
-| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` | Device block inside JSON body |
-| Authentication | None | None | None |
-| Supported sensors | BME280, BME680, DHT11/22, DS18B20, GPS, SPS30 | All sensor types | All sensor types |
-| Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 |
-| Extra preconditions | None | unix_ms > 0, chip_id non-empty | unix_ms > 0, chip_id non-empty |
+| Property | Sensor.Community | Air360 API | Custom Upload | InfluxDB |
+|----------|-----------------|------------|---------------|----------|
+| Method | POST | PUT | POST | POST |
+| Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
+| Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
+| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
+| Authentication | None | None | None | Optional Basic Auth |
+| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT4X, DS18B20, SCD30, GPS, SPS30 | All sensor types | All sensor types | All sensor types |
+| Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
+| Extra preconditions | None | unix_ms > 0, chip_id non-empty | unix_ms > 0, chip_id non-empty | unix_ms > 0, valid Influx config |

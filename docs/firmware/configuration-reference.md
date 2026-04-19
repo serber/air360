@@ -227,17 +227,18 @@ Struct: `BackendConfigList` holding up to 4 `BackendRecord` entries.
 
 | Field | Type | Default | Constraints |
 |-------|------|---------|-------------|
-| `backend_count` | `uint16_t` | `3` | 0–4 |
-| `next_backend_id` | `uint32_t` | `4` | Non-zero |
+| `backend_count` | `uint16_t` | `4` | 0–4 |
+| `next_backend_id` | `uint32_t` | `5` | Non-zero |
 | `upload_interval_ms` | `uint32_t` | `145 000` | 10 000–300 000 ms |
 
-Three backends are pre-configured by default — all **disabled**:
+Four backends are pre-configured by default — all **disabled**:
 
 | ID | Type | Display name | Enabled |
 |----|------|-------------|---------|
 | 1 | Sensor.Community | `"Sensor.Community"` | `0` |
 | 2 | Air360 API | `"Air360 API"` | `0` |
 | 3 | Custom Upload | `"Custom Upload"` | `0` |
+| 4 | InfluxDB | `"InfluxDB"` | `0` |
 
 ### `BackendRecord` fields
 
@@ -248,18 +249,25 @@ Three backends are pre-configured by default — all **disabled**:
 | `backend_type` | `BackendType` (uint8_t) | — | Must be a recognised type |
 | `display_name` | `char[32]` | type name | 1–31 chars, non-empty |
 | `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short chip ID |
-| `endpoint_url` | `char[160]` | type default | Full backend URL, non-empty when `enabled == 1` |
-| `bearer_token` | `char[160]` | `""` | Reserved; not used in current firmware |
+| `endpoint_url` | `char[160]` | `""` | Custom Upload only; full `http://` or `https://` URL |
+| `host` | `char[96]` | backend default | HTTP backends; host name without protocol |
+| `path` | `char[96]` | backend default | HTTP backends; must start with `/` when set |
+| `username` | `char[48]` | `""` | Optional Basic Auth username |
+| `password` | `char[64]` | `""` | Optional Basic Auth password |
+| `measurement_name` | `char[32]` | `"air360"` for InfluxDB, else `""` | InfluxDB measurement name |
+| `port` | `uint16_t` | backend default | HTTP backends |
+| `use_https` | `uint8_t` | backend default | `1` = HTTPS, `0` = HTTP |
 
-### Default endpoint URLs
+### Default endpoint settings
 
-| Backend type | Default `endpoint_url` |
-|-------------|----------------------|
-| Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
-| Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
-| Custom Upload | `""` (must be entered manually before enable) |
+| Backend type | `host` | `path` | `port` | `use_https` |
+|-------------|--------|--------|--------|-------------|
+| Sensor.Community | `api.sensor.community` | `/v1/push-sensor-data/` | `443` | `1` |
+| Air360 API | `api.air360.ru` | `/v1/devices/{chip_id}/batches/{batch_id}` | `443` | `1` |
+| Custom Upload | `""` | `""` | `0` | `0` |
+| InfluxDB | `""` | `""` | `443` | `1` |
 
-Built-in backends store their full URL in NVS but the Backends page shows only the address without the protocol prefix and rebuilds it from the `Use HTTPS` checkbox on save. `Custom Upload` stores the exact `http://` or `https://` URL entered in the text field.
+Built-in HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` stores the exact `http://` or `https://` URL entered in the text field. `InfluxDB` uses the same common HTTP fields plus `measurement_name`.
 
 ### Validation rules
 
@@ -268,16 +276,22 @@ Built-in backends store their full URL in NVS but the Backends page shows only t
 - `display_name` must be 1–31 characters, null-terminated.
 
 **Sensor.Community:**
-- `endpoint_url` must be null-terminated.
-- If `enabled == 1`: `endpoint_url` must not be empty.
+- `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
+- If `enabled == 1`: `host`, `path`, and `port` must be valid.
 
 **Air360 API:**
-- `endpoint_url` must be null-terminated.
-- If `enabled == 1`: `endpoint_url` must not be empty.
+- `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
+- If `enabled == 1`: `host`, `path`, and `port` must be valid.
 
 **Custom Upload:**
 - `endpoint_url` must be null-terminated.
 - If `enabled == 1`: `endpoint_url` must not be empty.
+
+**InfluxDB:**
+- `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
+- If `enabled == 1`: host, path, port, and measurement name must be present and valid.
+- The path must start with `/`.
+- The port must be in range 1–65535.
 
 **List-level:**
 - `upload_interval_ms` must be in range 10 000–300 000.

@@ -9,13 +9,18 @@ constexpr std::size_t kMaxConfiguredBackends = 4U;
 constexpr std::size_t kBackendDisplayNameCapacity = 32U;
 constexpr std::size_t kBackendIdentifierCapacity = 32U;
 constexpr std::size_t kBackendUrlCapacity = 160U;
-constexpr std::size_t kBackendTokenCapacity = 160U;
+constexpr std::size_t kBackendHostCapacity = 96U;
+constexpr std::size_t kBackendPathCapacity = 96U;
+constexpr std::size_t kBackendUsernameCapacity = 48U;
+constexpr std::size_t kBackendPasswordCapacity = 64U;
+constexpr std::size_t kBackendMeasurementCapacity = 32U;
 
 enum class BackendType : std::uint8_t {
     kUnknown = 0U,
     kSensorCommunity = 1U,
     kAir360Api = 2U,
     kCustomUpload = 3U,
+    kInfluxDb = 4U,
 };
 
 enum class BackendRuntimeState : std::uint8_t {
@@ -46,6 +51,8 @@ inline const char* backendTypeKey(BackendType type) {
             return "air360_api";
         case BackendType::kCustomUpload:
             return "custom_upload";
+        case BackendType::kInfluxDb:
+            return "influxdb";
         case BackendType::kUnknown:
         default:
             return "unknown";

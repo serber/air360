@@ -242,9 +242,15 @@ struct BackendRecord {
     uint16_t    reserved0;
     char        display_name[32];
     char        device_id_override[32]; // Sensor.Community: overrides Short ID
-    char        endpoint_url[160];      // full backend URL, including http/https
-    char        bearer_token[160];      // reserved, not used in current firmware
-    uint8_t     reserved1[8];
+    char        endpoint_url[160];      // Custom Upload: full URL
+    char        host[96];               // backend host without protocol
+    char        path[96];
+    char        username[48];
+    char        password[64];
+    char        measurement_name[32];   // InfluxDB only
+    uint16_t    port;
+    uint8_t     use_https;
+    uint8_t     reserved1[5];
 };
 ```
 
@@ -256,16 +262,18 @@ struct BackendRecord {
 | 1 | Sensor.Community |
 | 2 | Air360 API |
 | 3 | Custom Upload |
+| 4 | InfluxDB |
 
-### Default endpoint URLs
+### Default endpoint settings
 
-| Backend | Default `endpoint_url` |
-|---------|----------------------|
-| Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
-| Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
-| Custom Upload | `""` |
+| Backend | `host` | `path` | `port` | `use_https` |
+|---------|--------|--------|--------|-------------|
+| Sensor.Community | `api.sensor.community` | `/v1/push-sensor-data/` | `443` | `1` |
+| Air360 API | `api.air360.ru` | `/v1/devices/{chip_id}/batches/{batch_id}` | `443` | `1` |
+| Custom Upload | `""` | `""` | `0` | `0` |
+| InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 
-Built-in backend URLs are stored in NVS as full URLs, while the Backends page displays the address without protocol and rebuilds the stored value from the per-backend `Use HTTPS` checkbox on save. `Custom Upload` stores the exact full URL entered in the `Endpoint URL` field.
+Built-in HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` stores the exact full URL entered in the `Endpoint URL` field. `InfluxDB` uses the same common HTTP fields plus `measurement_name`.
 
 ---
 
