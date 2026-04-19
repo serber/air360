@@ -164,6 +164,22 @@ MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sens
     return info;
 }
 
+std::vector<MeasurementRuntimeInfo> MeasurementStore::allLatestMeasurements() const {
+    lock();
+    std::vector<MeasurementRuntimeInfo> result;
+    result.reserve(latest_by_sensor_.size());
+    for (const auto& entry : latest_by_sensor_) {
+        MeasurementRuntimeInfo info;
+        info.sensor_id = entry.sensor_id;
+        info.measurement = entry.measurement;
+        info.last_sample_time_ms = entry.last_sample_time_ms;
+        info.queued_sample_count = 0U;
+        result.push_back(info);
+    }
+    unlock();
+    return result;
+}
+
 std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id) const {
     lock();
 

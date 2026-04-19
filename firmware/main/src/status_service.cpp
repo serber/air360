@@ -970,6 +970,10 @@ void StatusService::setWebServerStarted(bool started) {
     web_server_started_ = started;
 }
 
+void StatusService::setBleAdvertiser(const BleAdvertiser& ble) {
+    ble_advertiser_ = &ble;
+}
+
 std::string StatusService::renderRootHtml() const {
     const std::vector<SensorRuntimeInfo> sensors =
         sensor_manager_ != nullptr ? sensor_manager_->sensors() : std::vector<SensorRuntimeInfo>{};
@@ -989,6 +993,27 @@ std::string StatusService::renderRootHtml() const {
         measurement_store_,
         upload_manager_);
 
+    std::string ble_block_html;
+    if (ble_advertiser_ != nullptr) {
+        const BleState ble_state = ble_advertiser_->state();
+        if (ble_state.enabled) {
+            ble_block_html += "<section class='panel panel--identity stack'>";
+            ble_block_html += "<h2>BLE Advertising</h2>";
+            ble_block_html += "<div>";
+            if (ble_state.running) {
+                ble_block_html += "<p><span class='pill pill--ok'>Active</span></p>";
+                ble_block_html += "<p>Format: <code>BTHome v2</code> &mdash; interval: <code>";
+                ble_block_html += std::to_string(ble_state.adv_interval_ms);
+                ble_block_html += " ms</code></p>";
+                ble_block_html += "<p class='muted'>Home Assistant discovers this device automatically via its Bluetooth integration.</p>";
+            } else {
+                ble_block_html += "<p><span class='pill'>Starting&hellip;</span></p>";
+            }
+            ble_block_html += "</div>";
+            ble_block_html += "</section>";
+        }
+    }
+
     const std::string body = renderPageTemplate(
         WebTemplateKey::kHome,
         WebTemplateBindings{
@@ -1000,6 +1025,7 @@ std::string StatusService::renderRootHtml() const {
             {"SENSOR_COUNT", std::to_string(model.sensor_count)},
             {"BACKEND_BLOCK", model.backend_block_html},
             {"SENSOR_BLOCK", model.sensor_block_html},
+            {"BLE_BLOCK", ble_block_html},
         });
 
     return renderPageDocument(

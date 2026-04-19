@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "src/app_main.cpp"
         "src/app.cpp"
+        "src/ble_advertiser.cpp"
         "src/build_info.cpp"
         "src/cellular_config_repository.cpp"
         "src/cellular_manager.cpp"
@@ -78,6 +79,7 @@ idf_component_register(
         lwip
         esp_timer
         esp_wifi
+        bt
         espressif__mdns
         nordesems__esp-captive-portal
         esp_modem

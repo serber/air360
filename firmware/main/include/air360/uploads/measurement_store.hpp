@@ -34,6 +34,7 @@ class MeasurementStore {
     void restoreInflight();
 
     MeasurementRuntimeInfo runtimeInfoForSensor(std::uint32_t sensor_id) const;
+    std::vector<MeasurementRuntimeInfo> allLatestMeasurements() const;
     std::size_t queuedSampleCountForSensor(std::uint32_t sensor_id) const;
     std::size_t pendingCount() const;
     std::size_t inflightCount() const;

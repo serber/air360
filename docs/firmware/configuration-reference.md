@@ -91,6 +91,8 @@ Struct: `DeviceConfig`
 | `lab_ap_enabled` | `uint8_t` | `1` | 0 or 1 |
 | `local_auth_enabled` | `uint8_t` | `0` | Stored but not enforced |
 | `wifi_power_save_enabled` | `uint8_t` | `0` | 0 = power save off; 1 = `WIFI_PS_MIN_MODEM` |
+| `ble_advertise_enabled` | `uint8_t` | `0` | 0 = BLE off; 1 = BTHome v2 passive advertising |
+| `ble_adv_interval_index` | `uint8_t` | `2` | Index into `{100, 300, 1000, 3000}` ms table; default 1000 ms |
 | `device_name` | `char[32]` | `"air360"` | 1–31 chars, non-empty, null-terminated |
 | `wifi_sta_ssid` | `char[33]` | `""` | 0–32 chars; empty = no station config |
 | `wifi_sta_password` | `char[65]` | `""` | 0–63 chars |
@@ -122,6 +124,8 @@ Struct: `DeviceConfig`
 - `sntp_server`: when empty, `NetworkManager` uses `kDefaultSntpServer` (`pool.ntp.org`). When non-empty, the stored value is used as the NTP hostname on the next boot. The value is validated for printable ASCII before save; DNS resolution and reachability are tested via `POST /check-sntp` before committing.
 - `sta_use_static_ip`: when `1`, `NetworkManager` applies the stored address/netmask/gateway/DNS to the `WIFI_STA_DEF` netif instead of using DHCP. Applies to station mode only; the setup AP is unaffected. When the config page is loaded and `sta_ip` is empty, the form pre-fills these fields from the current DHCP lease to make conversion easier.
 - `wifi_power_save_enabled`: when `1`, `NetworkManager` calls `esp_wifi_set_ps(WIFI_PS_MIN_MODEM)` after Wi-Fi start instead of `WIFI_PS_NONE`. Reduces idle power consumption (~80–100 mA → ~20–30 mA average) at the cost of slightly increased upload latency. Applies to station mode only; the setup AP is unaffected.
+- `ble_advertise_enabled`: when `1`, `BleAdvertiser` starts broadcasting sensor readings in BTHome v2 format on boot. The advertisement is non-connectable and requires no pairing. Home Assistant detects these packets automatically via its Bluetooth integration. Works independently of Wi-Fi state.
+- `ble_adv_interval_index`: selects the BLE advertising interval from `{100, 300, 1000, 3000}` ms. Index 2 (1000 ms) is the default and is recommended for most Home Assistant setups. Shorter intervals increase radio activity and power draw; 100 ms is generally unnecessary for sensor telemetry.
 
 ---
 

@@ -122,8 +122,10 @@ After startup the firmware runs four concurrent execution contexts:
 | Sensor polling | `air360_sensor` | FreeRTOS task | 6144 B | 5 |
 | Upload scheduling | `air360_upload` | FreeRTOS task | 7168 B | 4 |
 | Cellular modem | `air360_cellular` | FreeRTOS task | 8192 B | 5 |
+| BLE advertising | `air360_ble` | FreeRTOS task | 4096 B | 3 |
+| NimBLE host | `nimble_host` | FreeRTOS task (NimBLE) | — | — |
 
-The cellular task is spawned only when `CellularConfig.enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
+The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
 
 Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. The only FreeRTOS synchronization primitive used above the driver level is an event group inside `NetworkManager` for station connect/fail signalling.
 
@@ -326,7 +328,9 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | VEML7700 | I2C | 0x10 | 5 s |
 | HTU2X | I2C | 0x40 | 5 s |
 | SHT4X | I2C | 0x44 | 5 s |
+| INA219 | I2C | 0x40 | 5 s |
 | GPS (NMEA) | UART1 | — | 5 s |
+| MH-Z19B | UART2 | — | 5 s |
 | DHT11 | GPIO | — | 2 s |
 | DHT22 | GPIO | — | 2 s |
 | DS18B20 | GPIO (1-Wire) | — | 5 s |
@@ -771,6 +775,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | `air360.http` | UploadTransport |
 | `air360.backend_cfg` | BackendConfigRepository |
 | `air360.web` | WebServer |
+| `air360.ble` | BleAdvertiser |
 
 ### Error handling patterns
 

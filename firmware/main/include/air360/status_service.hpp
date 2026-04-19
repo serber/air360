@@ -13,6 +13,8 @@
 #include "air360/uploads/upload_manager.hpp"
 #include "esp_system.h"
 
+#include "air360/ble_advertiser.hpp"
+
 namespace air360 {
 
 class StatusService {
@@ -33,6 +35,7 @@ class StatusService {
     void setMeasurements(const MeasurementStore& measurement_store);
     void setUploads(const UploadManager& upload_manager);
     void setWebServerStarted(bool started);
+    void setBleAdvertiser(const BleAdvertiser& ble);
 
     std::string renderRootHtml() const;
     std::string renderDiagnosticsHtml(std::string_view log_contents) const;
@@ -49,6 +52,7 @@ class StatusService {
     const SensorManager* sensor_manager_ = nullptr;
     const MeasurementStore* measurement_store_ = nullptr;
     const UploadManager* upload_manager_ = nullptr;
+    const BleAdvertiser* ble_advertiser_ = nullptr;
     std::uint32_t boot_count_ = 0;
     bool nvs_ready_ = false;
     bool watchdog_armed_ = false;

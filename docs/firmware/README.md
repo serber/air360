@@ -110,6 +110,14 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 
 ---
 
+## BLE advertising
+
+| Document | Description |
+|----------|-------------|
+| [ble-advertiser.md](ble-advertiser.md) | BTHome v2 passive BLE advertising: packet format, measurement encoding, Home Assistant integration |
+
+---
+
 ## Measurement pipeline and upload
 
 | Document | Description |

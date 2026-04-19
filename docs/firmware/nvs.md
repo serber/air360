@@ -62,19 +62,27 @@ Device identity and network credentials.
 
 ```cpp
 struct DeviceConfig {
-    uint32_t magic;               // 0x41333630
-    uint16_t schema_version;      // 1
+    uint32_t magic;                  // 0x41333630
+    uint16_t schema_version;         // 1
     uint16_t record_size;
-    uint16_t http_port;           // default: 80
-    uint8_t  lab_ap_enabled;      // 0 or 1
-    uint8_t  local_auth_enabled;  // reserved, not enforced
-    uint16_t reserved0;
-    char     device_name[32];     // default: "air360"
+    uint16_t http_port;              // default: 80
+    uint8_t  lab_ap_enabled;         // 0 or 1
+    uint8_t  local_auth_enabled;     // reserved, not enforced
+    uint8_t  wifi_power_save_enabled;// 0 or 1
+    uint8_t  ble_advertise_enabled;  // 0 or 1
+    char     device_name[32];        // default: "air360"
     char     wifi_sta_ssid[33];
     char     wifi_sta_password[65];
-    char     lab_ap_ssid[33];     // default: "air360"
-    char     lab_ap_password[65]; // default: "air360password"
-    char     sntp_server[64];     // default: "" (use pool.ntp.org)
+    char     lab_ap_ssid[33];        // default: "air360"
+    char     lab_ap_password[65];    // default: "air360password"
+    char     sntp_server[64];        // default: "" (use pool.ntp.org)
+    uint8_t  sta_use_static_ip;      // 0 = DHCP, 1 = static
+    uint8_t  ble_adv_interval_index; // index into kBleAdvIntervalTable {100,300,1000,3000} ms
+    uint8_t  reserved1[2];
+    char     sta_ip[16];
+    char     sta_netmask[16];
+    char     sta_gateway[16];
+    char     sta_dns[16];
 };
 ```
 
@@ -83,11 +91,15 @@ struct DeviceConfig {
 | `http_port` | `80` | Web server port |
 | `lab_ap_enabled` | `1` | Whether setup AP is enabled by default |
 | `local_auth_enabled` | `0` | Stored but not enforced in the current firmware |
-| `device_name` | `"air360"` | Also used as the DHCP hostname (lowercased, alphanumeric) |
+| `wifi_power_save_enabled` | `0` | 0 = off; 1 = `WIFI_PS_MIN_MODEM` in station mode |
+| `ble_advertise_enabled` | `0` | 0 = BLE off; 1 = BTHome v2 advertising active |
+| `device_name` | `"air360"` | Also used as the DHCP hostname and BLE device name |
 | `wifi_sta_ssid` | `""` | Empty string means no station credentials |
 | `lab_ap_ssid` | `"air360"` | From `CONFIG_AIR360_LAB_AP_SSID` |
 | `lab_ap_password` | `"air360password"` | From `CONFIG_AIR360_LAB_AP_PASSWORD` |
 | `sntp_server` | `""` | Empty means use firmware default (`pool.ntp.org`) |
+| `sta_use_static_ip` | `0` | 0 = DHCP; 1 = use static IP fields |
+| `ble_adv_interval_index` | `2` | Index into `{100, 300, 1000, 3000}` ms; default = 1000 ms |
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
 

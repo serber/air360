@@ -3,6 +3,8 @@
 #include <cinttypes>
 #include <cstdint>
 
+#include "air360/ble_advertiser.hpp"
+
 #include "air360/build_info.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
@@ -155,6 +157,7 @@ void App::run() {
     static NetworkManager network_manager;
     static WebServer web_server;
     static esp_timer_handle_t debug_window_timer = nullptr;
+    static BleAdvertiser ble_advertiser;
 
     logBufferInstall();
 
@@ -267,6 +270,9 @@ void App::run() {
     sensor_manager.applyConfig(sensor_config_list);
     status_service.setSensors(sensor_manager);
     status_service.setMeasurements(measurement_store);
+
+    ble_advertiser.start(config, measurement_store);
+    status_service.setBleAdvertiser(ble_advertiser);
 
     backend_config_list = makeDefaultBackendConfigList();
     bool backend_config_loaded = false;

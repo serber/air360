@@ -120,6 +120,24 @@
                         <p class='hint'>How long Wi-Fi station stays active alongside cellular after boot. 0 = disabled.</p>
                     </div>
                 </div>
+                <hr>
+                <h3>BLE Advertising</h3>
+                <p class='muted'>Broadcasts current sensor readings as passive BLE advertisements (BTHome v2). Compatible with Home Assistant Bluetooth integration and any BTHome scanner. No pairing required.</p>
+                <div class='field'>
+                    <label class='label--inline'>
+                        <input type='checkbox' name='ble_advertise_enabled' value='1' {{BLE_ADVERTISE_ENABLED_CHECKED}} data-ble-toggle>
+                        Enable BLE advertising
+                    </label>
+                </div>
+                <div class='stack config-group {{BLE_GROUP_DISABLED_CLASS}}' data-ble-fields>
+                    <div class='field'>
+                        <label for='ble_adv_interval_index'>Advertising interval</label>
+                        <select class='select' id='ble_adv_interval_index' name='ble_adv_interval_index'>
+                            {{BLE_ADV_INTERVAL_OPTIONS}}
+                        </select>
+                        <p class='hint'>Shorter intervals update faster but increase power draw. 1 s is a good balance for Home Assistant.</p>
+                    </div>
+                </div>
                 <div class='split-actions'>
                     <button class='button' type='submit'>Save and reboot</button>
                 </div>

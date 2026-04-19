@@ -47,7 +47,10 @@ DeviceConfig makeDefaultDeviceConfig() {
     config.lab_ap_enabled = 0U;
 #endif
     config.local_auth_enabled = 0U;
-    config.reserved0 = 0U;
+    config.ble_advertise_enabled = 0U;
+    config.ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
+    config.reserved1[0] = 0U;
+    config.reserved1[1] = 0U;
     copyString(config.device_name, sizeof(config.device_name), CONFIG_AIR360_DEVICE_NAME);
 #ifdef CONFIG_AIR360_LAB_AP_SSID
     copyString(config.lab_ap_ssid, sizeof(config.lab_ap_ssid), CONFIG_AIR360_LAB_AP_SSID);

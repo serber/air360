@@ -354,6 +354,9 @@ struct ConfigPageViewModel {
     std::string cellular_sim_pin_value;
     std::string cellular_connectivity_check_host_value;
     std::string cellular_wifi_debug_window_s_value;
+    // BLE
+    bool ble_advertise_enabled = false;
+    std::uint8_t ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
 };
 
 struct BackendCardViewModel {
@@ -494,6 +497,23 @@ const BackendRecord* findBackendRecordForDescriptor(
     const BackendConfigList& config,
     const BackendDescriptor& descriptor);
 
+std::string buildBleIntervalOptions(std::uint8_t selected_index) {
+    constexpr const char* kLabels[kBleAdvIntervalCount] = {"100 ms", "300 ms", "1 s", "3 s"};
+    std::string html;
+    for (std::uint8_t i = 0U; i < kBleAdvIntervalCount; ++i) {
+        html += "<option value='";
+        html += std::to_string(i);
+        html += "'";
+        if (i == selected_index) {
+            html += " selected";
+        }
+        html += ">";
+        html += kLabels[i];
+        html += "</option>";
+    }
+    return html;
+}
+
 std::string renderConfigPage(
     const DeviceConfig& config,
     const CellularConfig& cellular_config,
@@ -534,6 +554,9 @@ std::string renderConfigPage(
             {"CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE",
              htmlEscape(model.cellular_connectivity_check_host_value)},
             {"CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE", model.cellular_wifi_debug_window_s_value},
+            {"BLE_ADVERTISE_ENABLED_CHECKED", model.ble_advertise_enabled ? "checked" : ""},
+            {"BLE_GROUP_DISABLED_CLASS", model.ble_advertise_enabled ? "" : "field--disabled"},
+            {"BLE_ADV_INTERVAL_OPTIONS", buildBleIntervalOptions(model.ble_adv_interval_index)},
         });
 
     return renderPageDocument(
@@ -1072,6 +1095,10 @@ ConfigPageViewModel buildConfigPageViewModel(
     }
     model.cellular_wifi_debug_window_s_value =
         std::to_string(cellular_config.wifi_debug_window_s);
+
+    model.ble_advertise_enabled = config.ble_advertise_enabled != 0U;
+    model.ble_adv_interval_index = config.ble_adv_interval_index < kBleAdvIntervalCount
+        ? config.ble_adv_interval_index : kBleAdvIntervalDefaultIndex;
 
     return model;
 }
@@ -2458,6 +2485,14 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     const std::string sta_gateway = sta_use_static_ip ? findFormValue(fields, "sta_gateway") : "";
     const std::string sta_dns = sta_use_static_ip ? findFormValue(fields, "sta_dns") : "";
 
+    // --- BLE fields ---
+    const bool ble_advertise_enabled = (findFormValue(fields, "ble_advertise_enabled") == "1");
+    unsigned long ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
+    parseUnsignedLong(findFormValue(fields, "ble_adv_interval_index"), ble_adv_interval_index);
+    if (ble_adv_interval_index >= kBleAdvIntervalCount) {
+        ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
+    }
+
     // --- CellularConfig fields ---
     const bool cellular_enabled = (findFormValue(fields, "cellular_enabled") == "1");
     const std::string cellular_apn =
@@ -2498,6 +2533,8 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         copyString(preview.wifi_sta_password, sizeof(preview.wifi_sta_password), wifi_password);
         copyString(preview.sntp_server, sizeof(preview.sntp_server), sntp_server);
         preview.wifi_power_save_enabled = wifi_power_save_enabled ? 1U : 0U;
+        preview.ble_advertise_enabled = ble_advertise_enabled ? 1U : 0U;
+        preview.ble_adv_interval_index = static_cast<std::uint8_t>(ble_adv_interval_index);
         preview.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
         copyString(preview.sta_ip, sizeof(preview.sta_ip), sta_ip);
         copyString(preview.sta_netmask, sizeof(preview.sta_netmask), sta_netmask);
@@ -2536,6 +2573,8 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     copyString(updated.wifi_sta_password, sizeof(updated.wifi_sta_password), wifi_password);
     copyString(updated.sntp_server, sizeof(updated.sntp_server), sntp_server);
     updated.wifi_power_save_enabled = wifi_power_save_enabled ? 1U : 0U;
+    updated.ble_advertise_enabled = ble_advertise_enabled ? 1U : 0U;
+    updated.ble_adv_interval_index = static_cast<std::uint8_t>(ble_adv_interval_index);
     updated.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
     copyString(updated.sta_ip, sizeof(updated.sta_ip), sta_ip);
     copyString(updated.sta_netmask, sizeof(updated.sta_netmask), sta_netmask);

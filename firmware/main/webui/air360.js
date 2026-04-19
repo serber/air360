@@ -296,6 +296,15 @@ document.addEventListener("DOMContentLoaded", () => {
     setGroupEnabled(group, toggle.checked);
   }
 
+  function syncBleFields(form) {
+    const toggle = form.querySelector("[data-ble-toggle]");
+    const group = form.querySelector("[data-ble-fields]");
+    if (!(toggle instanceof HTMLInputElement) || !(group instanceof HTMLElement)) {
+      return;
+    }
+    setGroupEnabled(group, toggle.checked);
+  }
+
   function syncBackendCard(panel) {
     const checkbox = panel.querySelector("[data-backend-enabled-toggle]");
     const group = panel.querySelector("[data-backend-fields]");
@@ -392,6 +401,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cellularToggle instanceof HTMLInputElement) {
       cellularToggle.addEventListener("change", () => {
         syncCellularFields(form);
+      });
+    }
+
+    syncBleFields(form);
+    const bleToggle = form.querySelector("[data-ble-toggle]");
+    if (bleToggle instanceof HTMLInputElement) {
+      bleToggle.addEventListener("change", () => {
+        syncBleFields(form);
       });
     }
 
