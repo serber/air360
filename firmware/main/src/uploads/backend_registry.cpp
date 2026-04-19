@@ -4,6 +4,7 @@
 #include <string>
 
 #include "air360/uploads/adapters/air360_api_uploader.hpp"
+#include "air360/uploads/adapters/custom_upload_uploader.hpp"
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
 
 namespace air360 {
@@ -93,6 +94,29 @@ bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
     return true;
 }
 
+bool validateCustomUploadRecord(const BackendRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
+        error = "Custom upload endpoint URL is not null-terminated.";
+        return false;
+    }
+
+    if (record.enabled == 0U) {
+        error.clear();
+        return true;
+    }
+
+    if (record.endpoint_url[0] == '\0') {
+        error = "Custom upload endpoint URL must not be empty.";
+        return false;
+    }
+
+    return true;
+}
+
 constexpr BackendDescriptor kDescriptors[] = {
     {
         BackendType::kSensorCommunity,
@@ -113,6 +137,16 @@ constexpr BackendDescriptor kDescriptors[] = {
         true,
         &validateAir360ApiRecord,
         &createAir360ApiUploader,
+    },
+    {
+        BackendType::kCustomUpload,
+        "custom_upload",
+        "Custom Upload",
+        true,
+        false,
+        true,
+        &validateCustomUploadRecord,
+        &createCustomUploadUploader,
     },
 };
 

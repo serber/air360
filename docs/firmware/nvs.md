@@ -255,6 +255,7 @@ struct BackendRecord {
 | 0 | Unknown |
 | 1 | Sensor.Community |
 | 2 | Air360 API |
+| 3 | Custom Upload |
 
 ### Default endpoint URLs
 
@@ -262,8 +263,9 @@ struct BackendRecord {
 |---------|----------------------|
 | Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
 | Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
+| Custom Upload | `""` |
 
-Endpoint URLs are written into the record when defaults are applied. They are stored in NVS as full URLs, while the Backends page displays the address without protocol and rebuilds the stored value from the per-backend `Use HTTPS` checkbox on save.
+Built-in backend URLs are stored in NVS as full URLs, while the Backends page displays the address without protocol and rebuilds the stored value from the per-backend `Use HTTPS` checkbox on save. `Custom Upload` stores the exact full URL entered in the `Endpoint URL` field.
 
 ---
 

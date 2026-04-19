@@ -130,11 +130,13 @@ Headers: `main/include/air360/uploads/`
 Sources: `main/src/uploads/`
 
 - `measurement_store.cpp` — in-memory ring buffer (max 256 samples) with pending/inflight upload semantics
-- `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 2 backends)
+- `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 4 backends; 3 built-in descriptors)
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
 - `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle, backlog drain
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
+- `adapters/air360_json_payload.cpp` — shared Air360 JSON body builder used by multiple backend uploaders
 - `adapters/air360_api_uploader.cpp` — PUT to the configured Air360 backend URL (default `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`)
+- `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied full HTTP(S) URL
 - `adapters/sensor_community_uploader.cpp` — POST to the configured Sensor.Community URL (default `https://api.sensor.community/v1/push-sensor-data/`)
 
 ### Third-party sources

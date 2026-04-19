@@ -273,7 +273,8 @@ document.addEventListener("DOMContentLoaded", () => {
         control instanceof HTMLTextAreaElement ||
         control instanceof HTMLButtonElement
       ) {
-        control.disabled = !enabled;
+        const allowWhenDisabled = control.dataset.allowWhenDisabled === "true";
+        control.disabled = !enabled && !allowWhenDisabled;
       }
     }
   }

@@ -477,6 +477,7 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 |------|-----------------|
 | Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
 | Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
+| Custom Upload | user-supplied full `http://` or `https://` URL |
 
 ---
 

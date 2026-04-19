@@ -330,6 +330,10 @@ std::string buildBackendUrl(std::string_view endpoint_without_scheme, bool use_h
     return url;
 }
 
+bool hasSupportedEndpointScheme(std::string_view url) {
+    return url.rfind(kHttpScheme, 0U) == 0U || url.rfind(kHttpsScheme, 0U) == 0U;
+}
+
 struct ConfigPageViewModel {
     std::string network_mode;
     std::string ip_address;
@@ -365,6 +369,8 @@ struct BackendCardViewModel {
     bool enabled = false;
     bool use_https = true;
     std::string endpoint;
+    bool show_endpoint_input = false;
+    std::string endpoint_input_value;
     bool show_device_id_override = false;
     std::string device_id_override;
     bool has_status = false;
@@ -1105,21 +1111,38 @@ ConfigPageViewModel buildConfigPageViewModel(
 
 std::string renderBackendCard(const BackendCardViewModel& card) {
     std::string https_block;
-    https_block += "<label class='checkbox'>";
-    https_block += "<input type='checkbox' name='use_https_";
-    https_block += htmlEscape(card.backend_key);
-    https_block += "'";
-    if (card.use_https) {
-        https_block += " checked";
-    }
-    https_block += ">";
-    https_block += "<span class='checkbox__label'>Use HTTPS</span></label>";
-
     std::string endpoint_block;
-    if (!card.endpoint.empty()) {
-        endpoint_block += "<p>Endpoint: <code>";
-        endpoint_block += htmlEscape(card.endpoint);
-        endpoint_block += "</code></p>";
+    if (card.show_endpoint_input) {
+        endpoint_block += "<div class='field'><label for='endpoint_url_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "'>Endpoint URL</label>";
+        endpoint_block += "<input class='input' id='endpoint_url_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' name='endpoint_url_";
+        endpoint_block += htmlEscape(card.backend_key);
+        endpoint_block += "' data-allow-when-disabled='true";
+        endpoint_block += "' maxlength='";
+        endpoint_block += std::to_string(kBackendUrlCapacity - 1U);
+        endpoint_block += "' placeholder='https://example.com/api/air360' value='";
+        endpoint_block += htmlEscape(card.endpoint_input_value);
+        endpoint_block += "'>";
+        endpoint_block += "<p class='hint'>Sends a POST request with the Air360 JSON body to the exact URL above.</p></div>";
+    } else {
+        https_block += "<label class='checkbox'>";
+        https_block += "<input type='checkbox' name='use_https_";
+        https_block += htmlEscape(card.backend_key);
+        https_block += "'";
+        if (card.use_https) {
+            https_block += " checked";
+        }
+        https_block += ">";
+        https_block += "<span class='checkbox__label'>Use HTTPS</span></label>";
+
+        if (!card.endpoint.empty()) {
+            endpoint_block += "<p>Endpoint: <code>";
+            endpoint_block += htmlEscape(card.endpoint);
+            endpoint_block += "</code></p>";
+        }
     }
 
     std::string device_id_override_block;
@@ -1206,8 +1229,14 @@ BackendsPageViewModel buildBackendsPageViewModel(
         card.backend_key = descriptor.backend_key;
         card.enabled = record != nullptr && record->enabled != 0U;
         card.use_https = backendUseHttps(record, descriptor.type);
+        card.show_endpoint_input = descriptor.type == BackendType::kCustomUpload;
         if (record != nullptr) {
-            card.endpoint = backendDisplayEndpoint(record, descriptor.type);
+            if (card.show_endpoint_input) {
+                card.endpoint_input_value =
+                    boundedCString(record->endpoint_url, sizeof(record->endpoint_url));
+            } else {
+                card.endpoint = backendDisplayEndpoint(record, descriptor.type);
+            }
             card.show_device_id_override = descriptor.type == BackendType::kSensorCommunity;
             if (card.show_device_id_override) {
                 card.device_id_override =
@@ -1216,7 +1245,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
                     card.device_id_override = build_info.short_chip_id;
                 }
             }
-        } else {
+        } else if (!card.show_endpoint_input) {
             card.endpoint = backendDisplayEndpoint(nullptr, descriptor.type);
         }
 
@@ -2322,22 +2351,39 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         }
 
         const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
-        const std::string use_https_name = std::string("use_https_") + descriptor.backend_key;
         record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
-        const std::string endpoint =
-            backendDisplayEndpoint(record, descriptor.type);
-        const std::string endpoint_url =
-            buildBackendUrl(endpoint, formHasKey(fields, use_https_name.c_str()));
-        if (endpoint_url.empty() || endpoint_url.size() >= sizeof(record->endpoint_url)) {
-            const std::string html = renderBackendsPage(
-                *server->backend_config_list_,
-                *server->upload_manager_,
-                server->status_service_->buildInfo(),
-                "Backend endpoint URL is invalid.",
-                true);
-            return sendHtmlResponse(request, html);
+        if (descriptor.type == BackendType::kCustomUpload) {
+            const std::string endpoint_field_name =
+                std::string("endpoint_url_") + descriptor.backend_key;
+            const std::string endpoint_url = findFormValue(fields, endpoint_field_name.c_str());
+            if (endpoint_url.size() >= sizeof(record->endpoint_url) ||
+                (!endpoint_url.empty() && !hasSupportedEndpointScheme(endpoint_url)) ||
+                (record->enabled != 0U && endpoint_url.empty())) {
+                const std::string html = renderBackendsPage(
+                    *server->backend_config_list_,
+                    *server->upload_manager_,
+                    server->status_service_->buildInfo(),
+                    "Custom upload endpoint must be a full http:// or https:// URL.",
+                    true);
+                return sendHtmlResponse(request, html);
+            }
+            copyString(record->endpoint_url, sizeof(record->endpoint_url), endpoint_url);
+        } else {
+            const std::string use_https_name = std::string("use_https_") + descriptor.backend_key;
+            const std::string endpoint = backendDisplayEndpoint(record, descriptor.type);
+            const std::string endpoint_url =
+                buildBackendUrl(endpoint, formHasKey(fields, use_https_name.c_str()));
+            if (endpoint_url.empty() || endpoint_url.size() >= sizeof(record->endpoint_url)) {
+                const std::string html = renderBackendsPage(
+                    *server->backend_config_list_,
+                    *server->upload_manager_,
+                    server->status_service_->buildInfo(),
+                    "Backend endpoint URL is invalid.",
+                    true);
+                return sendHtmlResponse(request, html);
+            }
+            copyString(record->endpoint_url, sizeof(record->endpoint_url), endpoint_url);
         }
-        copyString(record->endpoint_url, sizeof(record->endpoint_url), endpoint_url);
 
         if (descriptor.type == BackendType::kSensorCommunity) {
             const std::string device_id_name = std::string("device_id_") + descriptor.backend_key;
@@ -2346,7 +2392,6 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 sizeof(record->device_id_override),
                 findFormValue(fields, device_id_name.c_str()));
         }
-
     }
 
     const esp_err_t save_err = server->backend_config_repository_->save(updated);

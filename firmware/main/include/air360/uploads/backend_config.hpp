@@ -18,6 +18,8 @@ inline const char* backendDefaultEndpointUrl(BackendType type) {
             return "https://api.sensor.community/v1/push-sensor-data/";
         case BackendType::kAir360Api:
             return "https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}";
+        case BackendType::kCustomUpload:
+            return "";
         case BackendType::kUnknown:
         default:
             return "";

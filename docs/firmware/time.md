@@ -162,9 +162,9 @@ The upload task skips the upload cycle entirely if any of these conditions are t
 
 In this case the task waits 1 second and checks again.
 
-### `Air360ApiUploader::buildRequests()`
+### `validateAir360JsonBatch()`
 
-The Air360 API adapter enforces an explicit precondition:
+The Air360 JSON-based adapters (`Air360ApiUploader` and `CustomUploadUploader`) enforce an explicit precondition:
 
 ```
 batch.created_unix_ms <= 0  →  returns false with error
@@ -174,7 +174,7 @@ This prevents sending a batch with an invalid timestamp to the server. The Senso
 
 ### `MeasurementBatch.created_unix_ms`
 
-Set during batch assembly from `currentUnixMilliseconds()` at the time the upload cycle begins. This is the timestamp used in the Air360 API `sent_at_unix_ms` field. Individual sample timestamps (`sample_time_ms` in each `MeasurementPoint`) come from the original `MeasurementSample.sample_time_ms`, recorded at poll time.
+Set during batch assembly from `currentUnixMilliseconds()` at the time the upload cycle begins. This is the timestamp used in the Air360 JSON `sent_at_unix_ms` field for both `Air360 API` and `Custom Upload`. Individual sample timestamps (`sample_time_ms` in each `MeasurementPoint`) come from the original `MeasurementSample.sample_time_ms`, recorded at poll time.
 
 ---
 

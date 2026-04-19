@@ -227,16 +227,17 @@ Struct: `BackendConfigList` holding up to 4 `BackendRecord` entries.
 
 | Field | Type | Default | Constraints |
 |-------|------|---------|-------------|
-| `backend_count` | `uint16_t` | `2` | 0–4 |
-| `next_backend_id` | `uint32_t` | `3` | Non-zero |
+| `backend_count` | `uint16_t` | `3` | 0–4 |
+| `next_backend_id` | `uint32_t` | `4` | Non-zero |
 | `upload_interval_ms` | `uint32_t` | `145 000` | 10 000–300 000 ms |
 
-Two backends are pre-configured by default — both **disabled**:
+Three backends are pre-configured by default — all **disabled**:
 
 | ID | Type | Display name | Enabled |
 |----|------|-------------|---------|
 | 1 | Sensor.Community | `"Sensor.Community"` | `0` |
 | 2 | Air360 API | `"Air360 API"` | `0` |
+| 3 | Custom Upload | `"Custom Upload"` | `0` |
 
 ### `BackendRecord` fields
 
@@ -256,8 +257,9 @@ Two backends are pre-configured by default — both **disabled**:
 |-------------|----------------------|
 | Sensor.Community | `https://api.sensor.community/v1/push-sensor-data/` |
 | Air360 API | `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}` |
+| Custom Upload | `""` (must be entered manually before enable) |
 
-Endpoint URLs are written into the record when defaults are applied. The Backends page shows the address without the protocol prefix and persists either `http://` or `https://` depending on the `Use HTTPS` checkbox.
+Built-in backends store their full URL in NVS but the Backends page shows only the address without the protocol prefix and rebuilds it from the `Use HTTPS` checkbox on save. `Custom Upload` stores the exact `http://` or `https://` URL entered in the text field.
 
 ### Validation rules
 
@@ -270,6 +272,10 @@ Endpoint URLs are written into the record when defaults are applied. The Backend
 - If `enabled == 1`: `endpoint_url` must not be empty.
 
 **Air360 API:**
+- `endpoint_url` must be null-terminated.
+- If `enabled == 1`: `endpoint_url` must not be empty.
+
+**Custom Upload:**
 - `endpoint_url` must be null-terminated.
 - If `enabled == 1`: `endpoint_url` must not be empty.
 

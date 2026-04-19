@@ -15,6 +15,7 @@ enum class BackendType : std::uint8_t {
     kUnknown = 0U,
     kSensorCommunity = 1U,
     kAir360Api = 2U,
+    kCustomUpload = 3U,
 };
 
 enum class BackendRuntimeState : std::uint8_t {
@@ -43,6 +44,8 @@ inline const char* backendTypeKey(BackendType type) {
             return "sensor_community";
         case BackendType::kAir360Api:
             return "air360_api";
+        case BackendType::kCustomUpload:
+            return "custom_upload";
         case BackendType::kUnknown:
         default:
             return "unknown";

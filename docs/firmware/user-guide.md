@@ -375,6 +375,17 @@ To use Sensor.Community:
 
 Enable Air360 API and press **Save**. No additional credentials are required in the current firmware version.
 
+### Custom Upload
+
+Use this backend when you want to send the same Air360 JSON body to your own HTTP endpoint:
+
+1. Open **Backends**.
+2. Enable **Custom Upload**.
+3. Enter a full `http://` or `https://` URL in **Endpoint URL**.
+4. Press **Save**.
+
+The firmware sends a single `POST` request per upload cycle with the same JSON body shape as `Air360 API`.
+
 ### Save behavior
 
 Backend settings are saved immediately when you press **Save** — there is no staged apply flow for backends.
@@ -475,6 +486,14 @@ What this means in practice:
 2. Register the device at `https://devices.sensor.community/`.
 3. Open **Backends** → enable Sensor.Community → press **Save**.
 4. Set the upload interval as needed.
+5. Monitor upload status on **Overview** or **Backends**.
+
+### Enabling custom HTTP upload
+
+1. Open **Backends**.
+2. Enable **Custom Upload**.
+3. Enter the destination URL in **Endpoint URL**.
+4. Press **Save**.
 5. Monitor upload status on **Overview** or **Backends**.
 
 ### Assigning a static IP
