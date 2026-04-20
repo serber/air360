@@ -33,6 +33,10 @@ struct SensorRuntimeInfo {
 class SensorManager {
   public:
     SensorManager();
+    SensorManager(const SensorManager&) = delete;
+    SensorManager& operator=(const SensorManager&) = delete;
+    SensorManager(SensorManager&&) = delete;
+    SensorManager& operator=(SensorManager&&) = delete;
 
     void setMeasurementStore(MeasurementStore& measurement_store);
     void applyConfig(const SensorConfigList& config);

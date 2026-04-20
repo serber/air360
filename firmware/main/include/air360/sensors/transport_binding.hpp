@@ -21,6 +21,12 @@ namespace air360 {
 // and setupDevice() instead of calling i2cdev_init() or hardcoding GPIO numbers.
 class I2cBusManager {
   public:
+    I2cBusManager() = default;
+    I2cBusManager(const I2cBusManager&) = delete;
+    I2cBusManager& operator=(const I2cBusManager&) = delete;
+    I2cBusManager(I2cBusManager&&) = delete;
+    I2cBusManager& operator=(I2cBusManager&&) = delete;
+
     // Initialise the i2cdev subsystem. Idempotent — safe to call on every
     // applyConfig(). Must be called before any driver's init().
     esp_err_t init();
@@ -49,7 +55,12 @@ class I2cBusManager {
 
 class UartPortManager {
   public:
+    UartPortManager() = default;
     ~UartPortManager();
+    UartPortManager(const UartPortManager&) = delete;
+    UartPortManager& operator=(const UartPortManager&) = delete;
+    UartPortManager(UartPortManager&&) = delete;
+    UartPortManager& operator=(UartPortManager&&) = delete;
 
     esp_err_t open(
         std::uint8_t port_id,

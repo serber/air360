@@ -21,6 +21,10 @@ namespace air360 {
 class StatusService {
   public:
     explicit StatusService(BuildInfo build_info);
+    StatusService(const StatusService&) = delete;
+    StatusService& operator=(const StatusService&) = delete;
+    StatusService(StatusService&&) = delete;
+    StatusService& operator=(StatusService&&) = delete;
 
     void markNvsReady(bool ready);
     void markWatchdogArmed(bool armed);

@@ -67,23 +67,27 @@ The state is guarded by a mutex inside `NetworkManager`; callers receive copies 
 
 ## Boot-time network selection
 
-`App::run()` decides step 7 like this:
+`App::run()` decides step 7 from the cellular and Wi-Fi config:
 
 ```text
-wifi_sta_ssid non-empty?
-  ├─ YES → connectStation()
-  │          ├─ SUCCESS → kStation, then SNTP sync
-  │          └─ FAILURE → startLabAp() fallback
-  └─ NO  → startLabAp()
+cellular_config.enabled != 0?
+  ├─ YES → cellular is primary uplink
+  │    ├─ wifi_sta_ssid non-empty? → connectStation() for boot debug window only
+  │    └─ no setup AP fallback from NetworkManager
+  └─ NO  → Wi-Fi/setup-AP flow
+       ├─ wifi_sta_ssid non-empty? → connectStation()
+       │    ├─ SUCCESS → kStation, then SNTP sync
+       │    └─ FAILURE → startLabAp() fallback
+       └─ no station config → startLabAp()
 ```
 
-Boot-time station failure is non-fatal. The device falls back to setup AP and continues booting.
+Boot-time station failure is non-fatal. In Wi-Fi-primary mode the device falls back to setup AP and continues booting. In cellular-primary mode the cellular manager owns the permanent uplink; Wi-Fi station is only an optional temporary diagnostics window.
 
 ---
 
 ## Runtime context
 
-`NetworkManager` keeps long-lived Wi-Fi runtime resources in a file-scope `RuntimeContext`:
+`NetworkManager` keeps long-lived Wi-Fi runtime resources in an instance-owned `RuntimeContext`:
 
 ```cpp
 struct RuntimeContext {
@@ -95,6 +99,8 @@ struct RuntimeContext {
     TaskHandle_t connect_attempt_task;
     esp_event_handler_instance_t wifi_handler;
     esp_event_handler_instance_t ip_handler;
+    ConnectAttemptKind connect_attempt_kind;
+    bool handlers_registered;
     bool auto_connect_on_sta_start;
     bool reconnect_cycle_active;
     uint64_t ignore_disconnect_until_ms;
@@ -104,13 +110,15 @@ struct RuntimeContext {
 };
 ```
 
-`ensureWifiInit()` now does three things once for the lifetime of the app:
+The context is a private field of `NetworkManager`, so RTOS handles and callback state belong to the same object as the public network state. ESP-IDF event callbacks and FreeRTOS timer callbacks remain static functions, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
+
+`ensureWifiInit()` does three things once for the lifetime of the manager:
 
 1. initializes the Wi-Fi driver with `WIFI_STORAGE_RAM`
 2. creates the reconnect/setup-AP retry timers
 3. registers persistent `WIFI_EVENT` and `IP_EVENT_STA_GOT_IP` handlers
 
-The handlers stay active after `connectStation()` returns, which is what enables runtime recovery.
+The handlers stay active after `connectStation()` returns, which is what enables runtime recovery. `NetworkManager` is non-copyable/non-movable so those callback registrations cannot accidentally outlive or point at a copied manager object.
 
 ---
 
@@ -169,7 +177,7 @@ The hostname is the sanitised form of `device_name` produced by `stationHostname
 
 The device becomes reachable at `{hostname}.local` on the local network immediately after DHCP succeeds. The mDNS responder advertises an `_http._tcp` service on port 80 so that local service browsers can discover the web UI automatically.
 
-`mdns_initialized` in `RuntimeContext` guards against double-init. mDNS survives Wi-Fi reconnects without any restart — the ESP-IDF mDNS implementation re-announces after interface events automatically.
+`runtime_.mdns_initialized` guards against double-init. mDNS survives Wi-Fi reconnects without any restart — the ESP-IDF mDNS implementation re-announces after interface events automatically.
 
 mDNS is not started in setup AP mode. The setup AP network is isolated, and the AP address (`192.168.4.1`) is fixed and already known.
 

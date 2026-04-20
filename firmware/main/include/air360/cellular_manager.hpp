@@ -44,6 +44,10 @@ struct CellularState {
 class CellularManager {
   public:
     CellularManager();
+    CellularManager(const CellularManager&) = delete;
+    CellularManager& operator=(const CellularManager&) = delete;
+    CellularManager(CellularManager&&) = delete;
+    CellularManager& operator=(CellularManager&&) = delete;
 
     void init(NetworkManager& network_manager);
 

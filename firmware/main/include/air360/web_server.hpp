@@ -18,6 +18,12 @@ namespace air360 {
 
 class WebServer {
   public:
+    WebServer() = default;
+    WebServer(const WebServer&) = delete;
+    WebServer& operator=(const WebServer&) = delete;
+    WebServer(WebServer&&) = delete;
+    WebServer& operator=(WebServer&&) = delete;
+
     esp_err_t start(
         StatusService& status_service,
         NetworkManager& network_manager,

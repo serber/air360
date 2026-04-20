@@ -54,6 +54,10 @@ struct UploadManagerRuntimeSnapshot {
 class UploadManager {
   public:
     UploadManager();
+    UploadManager(const UploadManager&) = delete;
+    UploadManager& operator=(const UploadManager&) = delete;
+    UploadManager(UploadManager&&) = delete;
+    UploadManager& operator=(UploadManager&&) = delete;
 
     void start(
         const BuildInfo& build_info,

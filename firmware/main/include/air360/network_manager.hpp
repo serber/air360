@@ -6,10 +6,15 @@
 
 #include "air360/config_repository.hpp"
 #include "esp_err.h"
+#include "esp_event.h"
 #include "esp_event_base.h"
+#include "esp_netif.h"
 #include "esp_wifi_types_generic.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "freertos/timers.h"
 
 namespace air360 {
 
@@ -74,6 +79,10 @@ struct SntpCheckResult {
 class NetworkManager {
   public:
     NetworkManager();
+    NetworkManager(const NetworkManager&) = delete;
+    NetworkManager& operator=(const NetworkManager&) = delete;
+    NetworkManager(NetworkManager&&) = delete;
+    NetworkManager& operator=(NetworkManager&&) = delete;
 
     esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
     esp_err_t startLabAp(const DeviceConfig& config);
@@ -97,6 +106,25 @@ class NetworkManager {
         kSetupApRetry,
     };
 
+    struct RuntimeContext {
+        EventGroupHandle_t station_events = nullptr;
+        esp_netif_t* ap_netif = nullptr;
+        esp_netif_t* sta_netif = nullptr;
+        TimerHandle_t reconnect_timer = nullptr;
+        TimerHandle_t setup_ap_retry_timer = nullptr;
+        TaskHandle_t connect_attempt_task = nullptr;
+        esp_event_handler_instance_t wifi_handler = nullptr;
+        esp_event_handler_instance_t ip_handler = nullptr;
+        ConnectAttemptKind connect_attempt_kind = ConnectAttemptKind::kInitial;
+        bool handlers_registered = false;
+        bool auto_connect_on_sta_start = false;
+        bool reconnect_cycle_active = false;
+        std::uint64_t ignore_disconnect_until_ms = 0U;
+        bool wifi_initialized = false;
+        bool sntp_initialized = false;
+        bool mdns_initialized = false;
+    };
+
     static void handleWifiEvent(
         void* arg,
         esp_event_base_t event_base,
@@ -117,11 +145,13 @@ class NetworkManager {
         std::uint32_t timeout_ms,
         ConnectAttemptKind kind);
     esp_err_t synchronizeTime(std::uint32_t timeout_ms = 15000U);
+    void startMdns(const std::string& hostname);
     void lock() const;
     void unlock() const;
 
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
+    RuntimeContext runtime_{};
     DeviceConfig last_config_{};
     bool has_last_config_ = false;
     NetworkState state_{};

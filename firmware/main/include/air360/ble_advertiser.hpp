@@ -15,6 +15,12 @@ struct BleState {
 
 class BleAdvertiser {
   public:
+    BleAdvertiser() = default;
+    BleAdvertiser(const BleAdvertiser&) = delete;
+    BleAdvertiser& operator=(const BleAdvertiser&) = delete;
+    BleAdvertiser(BleAdvertiser&&) = delete;
+    BleAdvertiser& operator=(BleAdvertiser&&) = delete;
+
     void start(const DeviceConfig& config, MeasurementStore& store);
     void stop();
     BleState state() const;

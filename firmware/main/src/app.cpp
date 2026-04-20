@@ -3,21 +3,7 @@
 #include <cinttypes>
 #include <cstdint>
 
-#include "air360/ble_advertiser.hpp"
-
-#include "air360/build_info.hpp"
-#include "air360/config_repository.hpp"
-#include "air360/network_manager.hpp"
-#include "air360/status_service.hpp"
-#include "air360/sensors/sensor_config_repository.hpp"
-#include "air360/sensors/sensor_manager.hpp"
-#include "air360/cellular_config_repository.hpp"
-#include "air360/cellular_manager.hpp"
-#include "air360/uploads/backend_config_repository.hpp"
-#include "air360/uploads/measurement_store.hpp"
-#include "air360/uploads/upload_manager.hpp"
 #include "air360/log_buffer.hpp"
-#include "air360/web_server.hpp"
 #include "esp_err.h"
 #include "led_strip.h"
 #include "esp_event.h"
@@ -138,27 +124,15 @@ esp_err_t initNetworkingCore() {
 
 }  // namespace
 
-void App::run() {
-    // Keep long-lived runtime objects out of the small ESP-IDF main task stack.
-    static BuildInfo build_info = getBuildInfo();
-    static ConfigRepository config_repository;
-    static DeviceConfig config = makeDefaultDeviceConfig();
-    static StatusService status_service(build_info);
-    static SensorConfigRepository sensor_config_repository;
-    static SensorConfigList sensor_config_list = makeDefaultSensorConfigList();
-    static SensorManager sensor_manager;
-    static MeasurementStore measurement_store;
-    static CellularConfigRepository cellular_config_repository;
-    static CellularConfig cellular_config = makeDefaultCellularConfig();
-    static CellularManager cellular_manager;
-    static BackendConfigRepository backend_config_repository;
-    static BackendConfigList backend_config_list = makeDefaultBackendConfigList();
-    static UploadManager upload_manager;
-    static NetworkManager network_manager;
-    static WebServer web_server;
-    static esp_timer_handle_t debug_window_timer = nullptr;
-    static BleAdvertiser ble_advertiser;
+App::App()
+    : build_info_(getBuildInfo()),
+      config_(makeDefaultDeviceConfig()),
+      status_service_(build_info_),
+      sensor_config_list_(makeDefaultSensorConfigList()),
+      cellular_config_(makeDefaultCellularConfig()),
+      backend_config_list_(makeDefaultBackendConfigList()) {}
 
+void App::run() {
     logBufferInstall();
 
     const esp_err_t leds_err = initRgbLed();
@@ -191,23 +165,23 @@ void App::run() {
         return;
     }
 
-    config = makeDefaultDeviceConfig();
+    config_ = makeDefaultDeviceConfig();
     bool loaded_from_storage = false;
     bool wrote_defaults = false;
 
     ESP_LOGI(kTag, "Boot step 4/9: load or create device config");
     esp_err_t config_err =
-        config_repository.loadOrCreate(config, loaded_from_storage, wrote_defaults);
+        config_repository_.loadOrCreate(config_, loaded_from_storage, wrote_defaults);
     if (config_err != ESP_OK) {
         ESP_LOGW(
             kTag,
             "Config load failed, using in-memory defaults: %s",
             esp_err_to_name(config_err));
-        config = makeDefaultDeviceConfig();
+        config_ = makeDefaultDeviceConfig();
     }
 
     std::uint32_t boot_count = 0;
-    const esp_err_t boot_count_err = config_repository.incrementBootCount(boot_count);
+    const esp_err_t boot_count_err = config_repository_.incrementBootCount(boot_count);
     if (boot_count_err != ESP_OK) {
         ESP_LOGW(
             kTag,
@@ -215,18 +189,18 @@ void App::run() {
             esp_err_to_name(boot_count_err));
     }
 
-    status_service.markWatchdogArmed(watchdog_err == ESP_OK);
-    status_service.markNvsReady(true);
-    status_service.setConfig(config, loaded_from_storage, wrote_defaults);
-    status_service.setBootCount(boot_count);
+    status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
+    status_service_.markNvsReady(true);
+    status_service_.setConfig(config_, loaded_from_storage, wrote_defaults);
+    status_service_.setBootCount(boot_count);
 
-    cellular_config = makeDefaultCellularConfig();
+    cellular_config_ = makeDefaultCellularConfig();
     bool cellular_config_loaded = false;
     bool cellular_defaults_written = false;
 
     ESP_LOGI(kTag, "Boot step 4b/9: load or create cellular config");
-    const esp_err_t cellular_config_err = cellular_config_repository.loadOrCreate(
-        cellular_config,
+    const esp_err_t cellular_config_err = cellular_config_repository_.loadOrCreate(
+        cellular_config_,
         cellular_config_loaded,
         cellular_defaults_written);
     if (cellular_config_err != ESP_OK) {
@@ -234,26 +208,26 @@ void App::run() {
             kTag,
             "Cellular config load failed, using in-memory defaults: %s",
             esp_err_to_name(cellular_config_err));
-        cellular_config = makeDefaultCellularConfig();
+        cellular_config_ = makeDefaultCellularConfig();
     }
     static_cast<void>(cellular_config_loaded);
     static_cast<void>(cellular_defaults_written);
     ESP_LOGI(
         kTag,
         "Cellular uplink: %s",
-        cellular_config.enabled ? "enabled" : "disabled");
+        cellular_config_.enabled ? "enabled" : "disabled");
 
-    cellular_manager.init(network_manager);
-    cellular_manager.start(cellular_config);
-    status_service.setCellularManager(cellular_manager);
+    cellular_manager_.init(network_manager_);
+    cellular_manager_.start(cellular_config_);
+    status_service_.setCellularManager(cellular_manager_);
 
-    sensor_config_list = makeDefaultSensorConfigList();
+    sensor_config_list_ = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;
     bool sensor_defaults_written = false;
 
     ESP_LOGI(kTag, "Boot step 5/9: load or create sensor config");
-    const esp_err_t sensor_config_err = sensor_config_repository.loadOrCreate(
-        sensor_config_list,
+    const esp_err_t sensor_config_err = sensor_config_repository_.loadOrCreate(
+        sensor_config_list_,
         sensor_config_loaded,
         sensor_defaults_written);
     if (sensor_config_err != ESP_OK) {
@@ -261,26 +235,26 @@ void App::run() {
             kTag,
             "Sensor config load failed, using in-memory defaults: %s",
             esp_err_to_name(sensor_config_err));
-        sensor_config_list = makeDefaultSensorConfigList();
+        sensor_config_list_ = makeDefaultSensorConfigList();
     }
     static_cast<void>(sensor_config_loaded);
     static_cast<void>(sensor_defaults_written);
 
-    sensor_manager.setMeasurementStore(measurement_store);
-    sensor_manager.applyConfig(sensor_config_list);
-    status_service.setSensors(sensor_manager);
-    status_service.setMeasurements(measurement_store);
+    sensor_manager_.setMeasurementStore(measurement_store_);
+    sensor_manager_.applyConfig(sensor_config_list_);
+    status_service_.setSensors(sensor_manager_);
+    status_service_.setMeasurements(measurement_store_);
 
-    ble_advertiser.start(config, measurement_store);
-    status_service.setBleAdvertiser(ble_advertiser);
+    ble_advertiser_.start(config_, measurement_store_);
+    status_service_.setBleAdvertiser(ble_advertiser_);
 
-    backend_config_list = makeDefaultBackendConfigList();
+    backend_config_list_ = makeDefaultBackendConfigList();
     bool backend_config_loaded = false;
     bool backend_defaults_written = false;
 
     ESP_LOGI(kTag, "Boot step 6/9: load or create backend config");
-    const esp_err_t backend_config_err = backend_config_repository.loadOrCreate(
-        backend_config_list,
+    const esp_err_t backend_config_err = backend_config_repository_.loadOrCreate(
+        backend_config_list_,
         backend_config_loaded,
         backend_defaults_written);
     if (backend_config_err != ESP_OK) {
@@ -288,19 +262,19 @@ void App::run() {
             kTag,
             "Backend config load failed, using in-memory defaults: %s",
             esp_err_to_name(backend_config_err));
-        backend_config_list = makeDefaultBackendConfigList();
+        backend_config_list_ = makeDefaultBackendConfigList();
     }
     static_cast<void>(backend_config_loaded);
     static_cast<void>(backend_defaults_written);
 
     ESP_LOGI(kTag, "Boot step 7/9: resolve network mode");
-    if (cellular_config.enabled != 0U) {
+    if (cellular_config_.enabled != 0U) {
         // Cellular is the primary uplink.  Wi-Fi station is started only if
         // credentials exist, giving the operator a debug window at boot.
         // No AP fallback here — if cellular also fails, the fallback cascade
         // is driven by CellularManager (Phase 1).
-        if (hasStationConfig(config)) {
-            const esp_err_t station_err = network_manager.connectStation(config);
+        if (hasStationConfig(config_)) {
+            const esp_err_t station_err = network_manager_.connectStation(config_);
             if (station_err != ESP_OK) {
                 ESP_LOGW(
                     kTag,
@@ -308,22 +282,22 @@ void App::run() {
                     esp_err_to_name(station_err));
             }
 
-            if (cellular_config.wifi_debug_window_s > 0U && debug_window_timer == nullptr) {
+            if (cellular_config_.wifi_debug_window_s > 0U && debug_window_timer_ == nullptr) {
                 esp_timer_create_args_t timer_args{};
                 timer_args.callback = debugWindowCallback;
-                timer_args.arg = &network_manager;
+                timer_args.arg = &network_manager_;
                 timer_args.name = "wifi_dbg_win";
                 const esp_err_t timer_err =
-                    esp_timer_create(&timer_args, &debug_window_timer);
+                    esp_timer_create(&timer_args, &debug_window_timer_);
                 if (timer_err == ESP_OK) {
                     const std::uint64_t window_us =
-                        static_cast<std::uint64_t>(cellular_config.wifi_debug_window_s) *
+                        static_cast<std::uint64_t>(cellular_config_.wifi_debug_window_s) *
                         1000000ULL;
-                    esp_timer_start_once(debug_window_timer, window_us);
+                    esp_timer_start_once(debug_window_timer_, window_us);
                     ESP_LOGI(
                         kTag,
                         "Wi-Fi debug window active (%" PRIu16 " s)",
-                        cellular_config.wifi_debug_window_s);
+                        cellular_config_.wifi_debug_window_s);
                 } else {
                     ESP_LOGW(
                         kTag,
@@ -336,64 +310,69 @@ void App::run() {
         }
     } else {
         // Cellular disabled — standard Wi-Fi / setup-AP flow.
-        if (hasStationConfig(config)) {
+        if (hasStationConfig(config_)) {
             ESP_LOGI(kTag, "Station config present, attempting normal mode Wi-Fi join");
-            const esp_err_t station_err = network_manager.connectStation(config);
+            const esp_err_t station_err = network_manager_.connectStation(config_);
             if (station_err != ESP_OK) {
                 ESP_LOGW(
                     kTag,
                     "Station join failed, falling back to setup AP: %s",
                     esp_err_to_name(station_err));
-                const esp_err_t ap_err = network_manager.startLabAp(config);
+                const esp_err_t ap_err = network_manager_.startLabAp(config_);
                 if (ap_err != ESP_OK) {
                     ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
                 }
             }
         } else {
             ESP_LOGI(kTag, "No station config present, entering setup AP mode");
-            const esp_err_t ap_err = network_manager.startLabAp(config);
+            const esp_err_t ap_err = network_manager_.startLabAp(config_);
             if (ap_err != ESP_OK) {
                 ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
             }
         }
     }
-    status_service.setNetworkState(network_manager.state());
-    status_service.setCellularState(cellular_manager.state());
+    status_service_.setNetworkState(network_manager_.state());
+    status_service_.setCellularState(cellular_manager_.state());
 
     ESP_LOGI(kTag, "Boot step 8/9: start upload manager");
-    upload_manager.start(build_info, config, sensor_manager, measurement_store, network_manager);
-    upload_manager.applyConfig(backend_config_list);
-    status_service.setUploads(upload_manager);
+    upload_manager_.start(
+        build_info_,
+        config_,
+        sensor_manager_,
+        measurement_store_,
+        network_manager_);
+    upload_manager_.applyConfig(backend_config_list_);
+    status_service_.setUploads(upload_manager_);
 
     ESP_LOGI(kTag, "Boot step 9/9: start status web server");
     const esp_err_t web_err =
-        web_server.start(
-            status_service,
-            network_manager,
-            config_repository,
-            config,
-            sensor_config_repository,
-            sensor_config_list,
-            sensor_manager,
-            measurement_store,
-            backend_config_repository,
-            backend_config_list,
-            upload_manager,
-            cellular_config_repository,
-            cellular_config,
-            config.http_port);
+        web_server_.start(
+            status_service_,
+            network_manager_,
+            config_repository_,
+            config_,
+            sensor_config_repository_,
+            sensor_config_list_,
+            sensor_manager_,
+            measurement_store_,
+            backend_config_repository_,
+            backend_config_list_,
+            upload_manager_,
+            cellular_config_repository_,
+            cellular_config_,
+            config_.http_port);
     if (web_err != ESP_OK) {
         ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
         setLedColor(kLedBrightness, 0U, 0U);
         return;
     }
-    status_service.setWebServerStarted(true);
+    status_service_.setWebServerStarted(true);
 
     ESP_LOGI(
         kTag,
         "Runtime ready on port %" PRIu16,
-        config.http_port);
-    if (network_manager.state().mode == NetworkMode::kSetupAp) {
+        config_.http_port);
+    if (network_manager_.state().mode == NetworkMode::kSetupAp) {
         setLedColor(kLedBrightness, 0U, kLedBrightness / 2U);  // pink — AP mode
     } else {
         setLedColor(0U, kLedBrightness, 0U);  // green — station mode
@@ -402,11 +381,11 @@ void App::run() {
     esp_task_wdt_delete(nullptr);
 
     for (;;) {
-        const NetworkState network_state = network_manager.state();
+        const NetworkState network_state = network_manager_.state();
         if (network_state.mode == NetworkMode::kStation &&
             network_state.station_connected &&
-            !network_manager.hasValidTime()) {
-            const esp_err_t time_err = network_manager.ensureStationTime(10000U);
+            !network_manager_.hasValidTime()) {
+            const esp_err_t time_err = network_manager_.ensureStationTime(10000U);
             if (time_err != ESP_OK) {
                 ESP_LOGW(
                     kTag,
@@ -415,8 +394,8 @@ void App::run() {
             }
         }
 
-        status_service.setNetworkState(network_manager.state());
-        status_service.setCellularState(cellular_manager.state());
+        status_service_.setNetworkState(network_manager_.state());
+        status_service_.setCellularState(cellular_manager_.state());
         vTaskDelay(kRuntimeMaintenanceDelay);
     }
 }

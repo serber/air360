@@ -41,30 +41,6 @@ constexpr std::uint32_t kDefaultConnectTimeoutMs = 15000U;
 constexpr std::size_t kConnectAttemptTaskStackSize = 6144U;
 constexpr UBaseType_t kConnectAttemptTaskPriority = tskIDLE_PRIORITY + 2U;
 
-struct RuntimeContext {
-    EventGroupHandle_t station_events = nullptr;
-    esp_netif_t* ap_netif = nullptr;
-    esp_netif_t* sta_netif = nullptr;
-    TimerHandle_t reconnect_timer = nullptr;
-    TimerHandle_t setup_ap_retry_timer = nullptr;
-    TaskHandle_t connect_attempt_task = nullptr;
-    esp_event_handler_instance_t wifi_handler = nullptr;
-    esp_event_handler_instance_t ip_handler = nullptr;
-    NetworkManager* manager = nullptr;
-    bool handlers_registered = false;
-    bool auto_connect_on_sta_start = false;
-    bool reconnect_cycle_active = false;
-    std::uint64_t ignore_disconnect_until_ms = 0U;
-    bool wifi_initialized = false;
-    bool sntp_initialized = false;
-    bool mdns_initialized = false;
-};
-
-RuntimeContext& runtimeContext() {
-    static RuntimeContext context;
-    return context;
-}
-
 TickType_t ticksFromMs(std::uint32_t value_ms) {
     return pdMS_TO_TICKS(value_ms == 0U ? 1U : value_ms);
 }
@@ -221,34 +197,6 @@ EventBits_t waitForStationResult(EventGroupHandle_t station_events, std::uint32_
     return bits;
 }
 
-void startMdns(const std::string& hostname) {
-    RuntimeContext& context = runtimeContext();
-    if (context.mdns_initialized) {
-        return;
-    }
-
-    esp_err_t err = mdns_init();
-    if (err != ESP_OK) {
-        ESP_LOGW(kTag, "mDNS init failed: %s", esp_err_to_name(err));
-        return;
-    }
-
-    err = mdns_hostname_set(hostname.c_str());
-    if (err != ESP_OK) {
-        ESP_LOGW(kTag, "mDNS hostname set failed: %s", esp_err_to_name(err));
-        mdns_free();
-        return;
-    }
-
-    err = mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
-    if (err != ESP_OK) {
-        ESP_LOGW(kTag, "mDNS service add failed: %s", esp_err_to_name(err));
-    }
-
-    context.mdns_initialized = true;
-    ESP_LOGI(kTag, "mDNS started: %s.local", hostname.c_str());
-}
-
 std::uint32_t reconnectDelayMs(std::uint32_t attempt_count) {
     std::uint64_t delay_ms = kReconnectBaseDelayMs;
     for (std::uint32_t attempt = 1U; attempt < attempt_count; ++attempt) {
@@ -279,9 +227,35 @@ void NetworkManager::unlock() const {
     }
 }
 
+void NetworkManager::startMdns(const std::string& hostname) {
+    if (runtime_.mdns_initialized) {
+        return;
+    }
+
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "mDNS init failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = mdns_hostname_set(hostname.c_str());
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "mDNS hostname set failed: %s", esp_err_to_name(err));
+        mdns_free();
+        return;
+    }
+
+    err = mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "mDNS service add failed: %s", esp_err_to_name(err));
+    }
+
+    runtime_.mdns_initialized = true;
+    ESP_LOGI(kTag, "mDNS started: %s.local", hostname.c_str());
+}
+
 esp_err_t NetworkManager::ensureWifiInit() {
-    RuntimeContext& context = runtimeContext();
-    context.manager = this;
+    RuntimeContext& context = runtime_;
 
     if (context.station_events == nullptr) {
         context.station_events = xEventGroupCreate();
@@ -364,7 +338,7 @@ esp_err_t NetworkManager::ensureWifiInit() {
 }
 
 esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
-    RuntimeContext& context = runtimeContext();
+    RuntimeContext& context = runtime_;
     std::string sntp_server;
 
     lock();
@@ -455,8 +429,11 @@ void NetworkManager::handleWifiEvent(
     }
 
     auto* manager = static_cast<NetworkManager*>(arg);
-    RuntimeContext& context = runtimeContext();
-    if (manager == nullptr || context.station_events == nullptr) {
+    if (manager == nullptr) {
+        return;
+    }
+    RuntimeContext& context = manager->runtime_;
+    if (context.station_events == nullptr) {
         return;
     }
 
@@ -571,8 +548,11 @@ void NetworkManager::handleIpEvent(
     }
 
     auto* manager = static_cast<NetworkManager*>(arg);
-    RuntimeContext& context = runtimeContext();
-    if (manager == nullptr || context.station_events == nullptr) {
+    if (manager == nullptr) {
+        return;
+    }
+    RuntimeContext& context = manager->runtime_;
+    if (context.station_events == nullptr) {
         return;
     }
 
@@ -604,18 +584,18 @@ void NetworkManager::handleIpEvent(
 }
 
 void NetworkManager::reconnectTimerCallback(TimerHandle_t timer) {
-    static_cast<void>(timer);
-
-    RuntimeContext& context = runtimeContext();
-    if (context.manager == nullptr || context.connect_attempt_task != nullptr) {
+    auto* manager = static_cast<NetworkManager*>(pvTimerGetTimerID(timer));
+    if (manager == nullptr || manager->runtime_.connect_attempt_task != nullptr) {
         return;
     }
 
+    RuntimeContext& context = manager->runtime_;
+    context.connect_attempt_kind = ConnectAttemptKind::kRuntimeReconnect;
     BaseType_t result = xTaskCreate(
         &NetworkManager::connectAttemptTask,
         "wifi_reconnect",
         kConnectAttemptTaskStackSize,
-        reinterpret_cast<void*>(static_cast<std::uintptr_t>(ConnectAttemptKind::kRuntimeReconnect)),
+        manager,
         kConnectAttemptTaskPriority,
         &context.connect_attempt_task);
     if (result != pdPASS) {
@@ -625,18 +605,18 @@ void NetworkManager::reconnectTimerCallback(TimerHandle_t timer) {
 }
 
 void NetworkManager::setupApRetryTimerCallback(TimerHandle_t timer) {
-    static_cast<void>(timer);
-
-    RuntimeContext& context = runtimeContext();
-    if (context.manager == nullptr || context.connect_attempt_task != nullptr) {
+    auto* manager = static_cast<NetworkManager*>(pvTimerGetTimerID(timer));
+    if (manager == nullptr || manager->runtime_.connect_attempt_task != nullptr) {
         return;
     }
 
+    RuntimeContext& context = manager->runtime_;
+    context.connect_attempt_kind = ConnectAttemptKind::kSetupApRetry;
     BaseType_t result = xTaskCreate(
         &NetworkManager::connectAttemptTask,
         "wifi_ap_retry",
         kConnectAttemptTaskStackSize,
-        reinterpret_cast<void*>(static_cast<std::uintptr_t>(ConnectAttemptKind::kSetupApRetry)),
+        manager,
         kConnectAttemptTaskPriority,
         &context.connect_attempt_task);
     if (result != pdPASS) {
@@ -646,11 +626,11 @@ void NetworkManager::setupApRetryTimerCallback(TimerHandle_t timer) {
 }
 
 void NetworkManager::connectAttemptTask(void* arg) {
-    RuntimeContext& context = runtimeContext();
-    auto* manager = context.manager;
-    const auto kind = static_cast<ConnectAttemptKind>(reinterpret_cast<std::uintptr_t>(arg));
+    auto* manager = static_cast<NetworkManager*>(arg);
 
     if (manager != nullptr) {
+        RuntimeContext& context = manager->runtime_;
+        const auto kind = context.connect_attempt_kind;
         DeviceConfig config = makeDefaultDeviceConfig();
         bool has_config = false;
         manager->lock();
@@ -660,9 +640,9 @@ void NetworkManager::connectAttemptTask(void* arg) {
         if (has_config) {
             static_cast<void>(manager->attemptStationConnect(config, kDefaultConnectTimeoutMs, kind));
         }
+        context.connect_attempt_task = nullptr;
     }
 
-    context.connect_attempt_task = nullptr;
     vTaskDelete(nullptr);
 }
 
@@ -671,7 +651,7 @@ esp_err_t NetworkManager::attemptStationConnect(
     std::uint32_t timeout_ms,
     ConnectAttemptKind kind) {
     const bool preserve_ap = (kind == ConnectAttemptKind::kSetupApRetry);
-    RuntimeContext& context = runtimeContext();
+    RuntimeContext& context = runtime_;
 
     lock();
     state_.station_config_present = hasStationConfig(config);
@@ -959,7 +939,7 @@ esp_err_t NetworkManager::connectStation(const DeviceConfig& config, std::uint32
 }
 
 esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
-    RuntimeContext& context = runtimeContext();
+    RuntimeContext& context = runtime_;
 
     lock();
     state_.station_config_present = hasStationConfig(config);
@@ -1246,7 +1226,7 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
         return result;
     }
 
-    RuntimeContext& context = runtimeContext();
+    RuntimeContext& context = runtime_;
 
     if (context.sntp_initialized) {
         esp_netif_sntp_deinit();
@@ -1349,7 +1329,7 @@ void NetworkManager::setCellularStatus(bool ppp_connected, const char* ip_addres
 }
 
 esp_err_t NetworkManager::stopStation() {
-    RuntimeContext& context = runtimeContext();
+    RuntimeContext& context = runtime_;
     stopTimerIfRunning(context.reconnect_timer);
     stopTimerIfRunning(context.setup_ap_retry_timer);
     context.reconnect_cycle_active = false;

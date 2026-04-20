@@ -68,23 +68,25 @@ firmware/
 
 ## Startup sequence
 
-Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs a static `air360::App` instance and calls `App::run()`.
+Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one static `air360::App` instance and calls `App::run()`.
 
 `App::run()` performs a 9-step initialization sequence:
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | RGB LED init | WS2812 on GPIO48 — blue while booting |
-| 2 | Watchdog arm | 10-second timeout, panic disabled |
-| 3 | NVS flash init | Auto-erase on partition mismatch |
-| 4 | Network core init | `esp_netif_init()`, default event loop |
-| 5 | Device config load/create | NVS namespace `air360`, key `device_cfg` |
-| 6 | Boot counter increment | NVS key `boot_count` (u32) |
-| 7 | Sensor config load/create | NVS key `sensor_cfg` |
-| 8 | Sensor manager start | Builds managed sensors, launches `air360_sensor` task |
-| 9 | Network mode resolution | Station join → SNTP → fallback to Lab AP |
+| pre | RGB LED init | WS2812 on GPIO48 - blue while booting |
+| 1 | Watchdog arm | 10-second timeout, panic disabled |
+| 2 | NVS flash init | Auto-erase on partition mismatch |
+| 3 | Network core init | `esp_netif_init()`, default event loop |
+| 4 | Device config load/create | NVS namespace `air360`, key `device_cfg`; boot counter increment |
+| 4b | Cellular config load/create and manager start | NVS key `cellular_cfg`; may launch `air360_cellular` |
+| 5 | Sensor config load/create and manager start | NVS key `sensor_cfg`; may launch `air360_sensor`; BLE advertising may start after this |
+| 6 | Backend config load/create | NVS key `backend_cfg` |
+| 7 | Network mode resolution | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
+| 8 | Upload manager start | Launches `air360_upload` when enabled backends exist |
+| 9 | Web server start | Starts `esp_http_server`; main task leaves TWDT |
 
-After the startup sequence, `App::run()` starts `UploadManager` and `WebServer`, then enters a 10-second maintenance loop that retries SNTP synchronization when station uplink is available.
+After the startup sequence, `App::run()` enters a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots.
 
 Full startup order with dependencies:
 
@@ -127,7 +129,7 @@ After startup the firmware runs four concurrent execution contexts:
 
 The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
 
-Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. The only FreeRTOS synchronization primitive used above the driver level is an event group inside `NetworkManager` for station connect/fail signalling.
+Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. `NetworkManager` also owns instance-scoped Wi-Fi runtime handles: a station event group, reconnect/setup-AP retry timers, the background connect-attempt task handle, and ESP-IDF event handler registrations.
 
 ---
 
@@ -135,7 +137,9 @@ Modules are not event-driven at the application layer. Inter-module communicatio
 
 ### `App` — `app.cpp` / `app_main.cpp`
 
-Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, and the 10-second maintenance loop. Constructs all other modules as static locals. No persistent state of its own.
+Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, the 10-second maintenance loop, and the long-lived runtime graph as explicit fields. The single `App` instance is static in `app_main()`, keeping managers out of the 8 KB main task stack without hiding ownership in function-local statics.
+
+`App` is non-copyable/non-movable. Manager classes that own RTOS handles, callbacks, mutexes, or shared runtime state are also non-copyable/non-movable.
 
 **Log tag:** `air360.app`
 
@@ -203,7 +207,7 @@ Manages the `CellularConfig` NVS blob (schema version 1). Independent of `Device
 
 ### `NetworkManager` — `network_manager.cpp`
 
-Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
+Manages Wi-Fi station join, Lab AP fallback, reconnect timers, mDNS, and SNTP synchronization.
 
 **Network modes:**
 
@@ -231,9 +235,11 @@ Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
 - Optionally scans for available station networks
 - Stores scan results for the `/wifi-scan` endpoint
 
-`NetworkManager` keeps its runtime state and scan cache behind a mutex. Callers consume copies through `state()` and `wifiScanSnapshot()` rather than reading live shared members.
+`NetworkManager` keeps its visible runtime state and scan cache behind a mutex. Callers consume copies through `state()` and `wifiScanSnapshot()` rather than reading live shared members.
 
-**Synchronization:** Static FreeRTOS event group `station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
+Wi-Fi driver handles, ESP-IDF event registrations, reconnect/setup-AP retry timers, station event bits, and mDNS/SNTP initialization flags live in the instance-owned `RuntimeContext`. ESP-IDF and FreeRTOS callbacks are static trampolines, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
+
+**Synchronization:** Instance-owned FreeRTOS event group `runtime_.station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
 
 **Log tag:** `air360.net`
 
@@ -844,7 +850,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | `MeasurementStore` | Static mutex | `queued_`, `latest_by_sensor_`, queued counters |
 | `UploadManager` | Static mutex | `backends_`, runtime state |
 | `I2cBusManager` | Static mutex | bus handles, device list |
-| `NetworkManager` | Static event group | station connected / failed bits |
+| `NetworkManager` | Instance mutex + event group + timers | state snapshot, Wi-Fi scan cache, station connected / failed bits, reconnect scheduling |
 
 No application-level RTOS queues. Upload delivery progress is tracked via per-backend cursors and retry windows in `UploadManager`, while `MeasurementStore` owns the shared retained sample queue.
 

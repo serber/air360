@@ -38,6 +38,10 @@ struct MeasurementStoreSnapshot {
 class MeasurementStore {
   public:
     MeasurementStore();
+    MeasurementStore(const MeasurementStore&) = delete;
+    MeasurementStore& operator=(const MeasurementStore&) = delete;
+    MeasurementStore(MeasurementStore&&) = delete;
+    MeasurementStore& operator=(MeasurementStore&&) = delete;
 
     void recordMeasurement(
         std::uint32_t sensor_id,

@@ -55,38 +55,41 @@ This phase is handled entirely by ESP-IDF and the hardware bootloader. The appli
 
 ## Phase 1 — Entry point (`app_main`)
 
-`app_main.cpp` is a three-line C entry point. It constructs an `air360::App` on the main task stack and calls `run()`.
+`app_main.cpp` is a small C entry point. It keeps the top-level `air360::App` object in static storage and calls `run()`.
 
 ```cpp
 extern "C" void app_main(void) {
-    air360::App app;
+    static air360::App app;
     app.run();
 }
 ```
 
-`App::run()` is where all initialization happens and where the main task spends the rest of its life. To prevent large objects from overflowing the 8 KB main task stack, every long-lived runtime object inside `run()` is declared `static`:
+`App::run()` is where all initialization happens and where the main task spends the rest of its life. To prevent large objects from overflowing the 8 KB main task stack, `App` owns long-lived runtime objects as explicit members and the single `App` instance itself lives in static storage:
 
 ```cpp
-static BuildInfo build_info = getBuildInfo();
-static ConfigRepository config_repository;
-static DeviceConfig config = makeDefaultDeviceConfig();
-static StatusService status_service(build_info);
-static SensorConfigRepository sensor_config_repository;
-static SensorConfigList sensor_config_list = ...;
-static SensorManager sensor_manager;
-static MeasurementStore measurement_store;
-static CellularConfigRepository cellular_config_repository;
-static CellularConfig cellular_config = makeDefaultCellularConfig();
-static CellularManager cellular_manager;
-static BackendConfigRepository backend_config_repository;
-static BackendConfigList backend_config_list = ...;
-static UploadManager upload_manager;
-static NetworkManager network_manager;
-static WebServer web_server;
-static esp_timer_handle_t debug_window_timer = nullptr;
+class App {
+    BuildInfo build_info_;
+    ConfigRepository config_repository_;
+    DeviceConfig config_;
+    StatusService status_service_;
+    SensorConfigRepository sensor_config_repository_;
+    SensorConfigList sensor_config_list_;
+    SensorManager sensor_manager_;
+    MeasurementStore measurement_store_;
+    CellularConfigRepository cellular_config_repository_;
+    CellularConfig cellular_config_;
+    CellularManager cellular_manager_;
+    BackendConfigRepository backend_config_repository_;
+    BackendConfigList backend_config_list_;
+    UploadManager upload_manager_;
+    NetworkManager network_manager_;
+    WebServer web_server_;
+    esp_timer_handle_t debug_window_timer_ = nullptr;
+    BleAdvertiser ble_advertiser_;
+};
 ```
 
-Static allocation places these objects in BSS/data segment rather than on the stack.
+This makes lifecycle ownership visible in `app.hpp` while still placing the runtime graph in BSS/data rather than on the main task stack. `App`, the manager classes, the web server, BLE advertiser, and transport managers are non-copyable so RTOS handles, callback registrations, and shared mutex-protected state cannot be accidentally duplicated.
 
 ---
 
