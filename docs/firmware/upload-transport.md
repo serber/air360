@@ -44,8 +44,8 @@ The client handle is created and destroyed within a single `execute()` call — 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | Timeout | `request.timeout_ms` | Set by adapter; default 15 000 ms |
-| RX buffer | 512 bytes | `config.buffer_size` |
-| TX buffer | 512 bytes | `config.buffer_size_tx` |
+| RX buffer | 2 048 bytes | `config.buffer_size` — sized for Cloudflare/WAF header sets |
+| TX buffer | 1 024 bytes | `config.buffer_size_tx` |
 | Keep-alive | disabled | `keep_alive_enable = false` |
 | Auto-redirect | disabled | `disable_auto_redirect = true` |
 | Address type | IPv4 (`HTTP_ADDR_TYPE_INET`) | |
@@ -59,14 +59,15 @@ TLS is supported via the ESP-IDF built-in certificate bundle (`esp_crt_bundle`).
 
 ```cpp
 struct UploadTransportResponse {
-    esp_err_t  transport_err;          // ESP_OK or ESP-IDF error code
-    int        http_status;            // HTTP status code; 0 if request failed
-    int        response_size;          // Content-Length from response; 0 if absent
-    uint32_t   response_time_ms;       // Total wall-clock duration in ms
-    uint32_t   connect_time_ms;        // Reserved — always 0
-    uint32_t   request_send_time_ms;   // Reserved — always 0
-    uint32_t   first_response_time_ms; // Reserved — always 0
-    string     body_snippet;           // Error description on failure; empty on success
+    esp_err_t  transport_err;           // ESP_OK or ESP-IDF error code
+    int        http_status;             // HTTP status code; 0 if request failed
+    int        response_size;           // Content-Length from response; 0 if absent
+    uint32_t   response_time_ms;        // Total wall-clock duration in ms
+    uint32_t   connect_time_ms;         // Reserved — always 0
+    uint32_t   request_send_time_ms;    // Reserved — always 0
+    uint32_t   first_response_time_ms;  // Reserved — always 0
+    uint32_t   retry_after_seconds;     // Parsed Retry-After value; 0 if absent or > 3600
+    string     body_snippet;            // Error description on failure; empty on success
 };
 ```
 
@@ -83,6 +84,8 @@ struct UploadTransportResponse {
 
 If `esp_http_client_perform` fails (network error, DNS failure, timeout), `transport_err` is set to the ESP-IDF error code and `http_status` remains 0. `body_snippet` is empty in this case — the error is in `transport_err`.
 
+`retry_after_seconds` is populated whenever `transport_err == ESP_OK` and the response contains a numeric `Retry-After` header in the range 1–3600. Values outside that range, HTTP-date format, and absent headers all result in `retry_after_seconds == 0`.
+
 ---
 
 ## Response classification
@@ -95,6 +98,8 @@ If `esp_http_client_perform` fails (network error, DNS failure, timeout), `trans
 
 See [upload-adapters.md](upload-adapters.md) for the per-adapter classification rules.
 
+When a request fails and `retry_after_seconds > 0`, `UploadManager` overrides the backend's next-action time to `now + retry_after_seconds` instead of the normal upload interval. This is an override in both directions: the server may request a longer wait (e.g. HTTP 429 throttle) or a shorter one. Values capped at 3600 s by the transport; values above that are silently zeroed and the normal interval applies.
+
 ---
 
 ## Logging
@@ -103,6 +108,12 @@ Every request is logged at `INFO` level before execution:
 
 ```
 air360.http: HTTP request: method=POST url=https://api.sensor.community/... body_len=142
+```
+
+If `esp_http_client_perform` returns `ESP_ERR_HTTP_FETCH_HEADER`, the transport logs an explicit `ERROR`-level message including the URL, distinguishing this failure mode from generic transport errors:
+
+```
+air360.http: HTTP header parse failed (buffer too small?): https://...
 ```
 
 Log tag: `air360.http`.

@@ -1,5 +1,6 @@
 # H2 — HTTP response buffer 512 B is too small
 
+- **Status:** Implemented
 - **Severity:** High
 - **Area:** Upload transport / reliability
 - **Files:**
@@ -46,6 +47,10 @@ When the buffer is too small for headers, `esp_http_client` can return errors li
 - Point at a Cloudflare-proxied test endpoint; verify headers parse cleanly.
 - Inject a 429 with `Retry-After: 60`; verify the adapter honors it.
 - Heap impact: 1.5 KB extra per active client — acceptable given H1 caches one per backend.
+
+## Outstanding
+
+- **Step 5 (large-body endpoints) — not implemented.** The fix plan asked to verify that any endpoint returning a significant JSON body (e.g. health checks) uses chunked reads rather than full-body buffering. The current transport calls `esp_http_client_perform()` and reads only `Content-Length`; it does not read the response body at all. No upload adapter currently issues health-check requests, so there is no large-body path to fix. If a future adapter adds body-reading (`esp_http_client_read()`), it must use a chunked loop rather than a single blocking read.
 
 ## Related
 

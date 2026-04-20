@@ -577,6 +577,7 @@ void UploadManager::taskMain() {
                             next_state = BackendRuntimeState::kOk;
                             acknowledge_window = true;
                             next_retry_count = 0U;
+                            std::uint32_t retry_after_seconds = 0U;
 
                             for (const auto& request : requests) {
                                 if (stopRequested()) {
@@ -597,6 +598,7 @@ void UploadManager::taskMain() {
                                     next_state = BackendRuntimeState::kError;
                                     acknowledge_window = false;
                                     ++next_retry_count;
+                                    retry_after_seconds = response.retry_after_seconds;
                                     if (response.transport_err != ESP_OK) {
                                         last_error = esp_err_to_name(response.transport_err);
                                     } else if (!response.body_snippet.empty()) {
@@ -610,6 +612,11 @@ void UploadManager::taskMain() {
                                     }
                                     break;
                                 }
+                            }
+
+                            if (retry_after_seconds > 0U) {
+                                next_action_time_ms =
+                                    now_ms + static_cast<std::uint64_t>(retry_after_seconds) * 1000U;
                             }
                         }
                     }
