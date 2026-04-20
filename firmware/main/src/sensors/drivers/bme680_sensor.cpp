@@ -58,7 +58,7 @@ esp_err_t Bme680Sensor::init(
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    state_ = new Bme680DriverState{};
+    state_ = std::make_unique<Bme680DriverState>();
     std::memset(&state_->device, 0, sizeof(state_->device));
 
     esp_err_t err = bme680_init_desc(
@@ -95,7 +95,7 @@ esp_err_t Bme680Sensor::init(
 }
 
 esp_err_t Bme680Sensor::poll() {
-    if (!initialized_ || state_ == nullptr) {
+    if (!initialized_ || !state_) {
         setError("BME680 is not initialized.");
         return ESP_ERR_INVALID_STATE;
     }
@@ -195,7 +195,7 @@ esp_err_t Bme680Sensor::configureSensor() {
 
 void Bme680Sensor::reset() {
     initialized_ = false;
-    if (state_ == nullptr) {
+    if (!state_) {
         return;
     }
 
@@ -205,8 +205,7 @@ void Bme680Sensor::reset() {
         state_->descriptor_initialized = false;
     }
 
-    delete state_;
-    state_ = nullptr;
+    state_.reset();
 }
 
 void Bme680Sensor::setError(const std::string& message) {

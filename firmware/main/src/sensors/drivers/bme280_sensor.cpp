@@ -47,7 +47,7 @@ esp_err_t Bme280Sensor::init(
 
     destroyState();
 
-    state_ = new Bme280DriverState{};
+    state_ = std::make_unique<Bme280DriverState>();
 
     std::memset(&state_->dev, 0, sizeof(state_->dev));
     esp_err_t err = context.i2c_bus_manager->setupDevice(record, kBme280I2cSpeedHz, state_->dev);
@@ -98,7 +98,7 @@ esp_err_t Bme280Sensor::init(
 }
 
 esp_err_t Bme280Sensor::poll() {
-    if (!initialized_ || state_ == nullptr) {
+    if (!initialized_ || !state_) {
         setError("BME280 is not initialized.");
         return ESP_ERR_INVALID_STATE;
     }
@@ -169,7 +169,7 @@ esp_err_t Bme280Sensor::configureSensor() {
 }
 
 void Bme280Sensor::destroyState() {
-    if (state_ == nullptr) {
+    if (!state_) {
         return;
     }
 
@@ -183,8 +183,7 @@ void Bme280Sensor::destroyState() {
         i2c_dev_delete_mutex(&state_->dev);
     }
 
-    delete state_;
-    state_ = nullptr;
+    state_.reset();
     initialized_ = false;
 }
 

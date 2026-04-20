@@ -11,6 +11,7 @@ This document covers the local firmware web interface, including routes, page pu
 ## Source of truth in code
 
 - `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web/web_form.cpp`
 - `firmware/main/src/web/web_runtime_routes.cpp`
 - `firmware/main/src/web/web_mutating_routes.cpp`
 - `firmware/main/src/web/web_server_helpers.cpp`
@@ -45,7 +46,7 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
-`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, `/check-sntp`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. Shared request-body, form decoding, and chunked HTML response helpers live in `main/src/web/web_server_helpers.cpp`.
+`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, `/check-sntp`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
 
 ---
 

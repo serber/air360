@@ -14,6 +14,7 @@ This document explains how the firmware project is laid out on disk and which di
 - `firmware/main/CMakeLists.txt`
 - `firmware/main/include/air360/`
 - `firmware/main/src/`
+- `firmware/test/host/`
 
 ## Read next
 
@@ -42,6 +43,8 @@ firmware/
 │   ├── webui/
 │   └── third_party/
 ├── managed_components/
+├── test/
+│   └── host/
 ├── partitions.csv
 ├── sdkconfig
 ├── sdkconfig.defaults
@@ -58,6 +61,7 @@ firmware/
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom partition table (nvs, otadata, phy_init, factory, storage)
 - `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
+- `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware
 
 ---
 
@@ -78,7 +82,7 @@ firmware/
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
 - `main/src/web_server.cpp` — `esp_http_server` setup, URI registration, and page rendering helpers used by web route files
-- `main/src/web/` — decomposed web route/support files: `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, and `web_server_helpers.cpp` for shared request/form helpers
+- `main/src/web/` — decomposed web route/support files: `web_form.cpp` for host-testable URL/form parsing, `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, and `web_server_helpers.cpp` for HTTP request/response helpers
 - `main/webui/` — hand-authored frontend assets embedded into the firmware image (`air360.css`, `air360.js`, page body templates)
 
 ### Public headers
@@ -87,7 +91,7 @@ Headers under `main/include/air360/` define the public C++ interfaces used insid
 
 - `app.hpp`, `build_info.hpp`, `config_repository.hpp`, `network_manager.hpp`
 - `cellular_config_repository.hpp`, `cellular_manager.hpp`, `connectivity_checker.hpp`, `modem_gpio.hpp`
-- `status_service.hpp`, `time_utils.hpp`, `web_server.hpp`, `web_server_internal.hpp`, `web_assets.hpp`, `web_ui.hpp`
+- `status_service.hpp`, `time_utils.hpp`, `web_form.hpp`, `web_server.hpp`, `web_server_internal.hpp`, `web_assets.hpp`, `web_ui.hpp`
 - `sensors/` — sensor types, registry, transport, config, driver interface
 - `uploads/` — backend config, measurement store, upload transport, uploader interfaces
 

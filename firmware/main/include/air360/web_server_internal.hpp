@@ -2,8 +2,6 @@
 
 #include <cstdint>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "air360/build_info.hpp"
 #include "air360/cellular_config_repository.hpp"
@@ -15,19 +13,13 @@
 #include "air360/uploads/backend_config.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
+#include "air360/web_form.hpp"
 #include "esp_err.h"
 #include "esp_http_server.h"
 
 namespace air360::web {
 
 inline constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
-
-using FormFields = std::vector<std::pair<std::string, std::string>>;
-
-std::string urlDecode(const std::string& input);
-FormFields parseFormBody(const std::string& body);
-std::string findFormValue(const FormFields& fields, const char* key);
-bool formHasKey(const FormFields& fields, const char* key);
 
 esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body);
 esp_err_t sendRequestBodyTooLarge(httpd_req_t* request);

@@ -2,24 +2,27 @@
 
 ## Status
 
-Proposed.
+Partially implemented.
 
 ## Decision Summary
 
-Add a native host-compiled test suite for firmware business logic using ESP-IDF's built-in Unity test framework, covering `MeasurementStore`, the sensor state machine in `SensorManager`, and config validation in the repository layer.
+Add a native host-compiled test suite for firmware business logic, covering `MeasurementStore`, the sensor state machine in `SensorManager`, config validation in the repository layer, and web form parsing.
+
+The first Phase 8 slice is implemented under `firmware/test/host/`: a CMake/CTest target compiles production `main/src/web/web_form.cpp` directly and tests URL decoding plus `application/x-www-form-urlencoded` parsing behavior. It intentionally avoids ESP-IDF stubs because this first target is pure C++17 logic.
 
 ## Context
 
-The firmware currently has no automated tests. All validation is done manually by flashing the device and observing behavior. This works for hardware-dependent code (driver communication, GPIO), but a significant portion of the codebase is pure logic with no hardware dependency:
+Before Phase 8, the firmware had no automated tests. Most validation was done manually by flashing the device and observing behavior. This works for hardware-dependent code (driver communication, GPIO), but a significant portion of the codebase is pure logic with no hardware dependency:
 
 - `MeasurementStore` — queue semantics, overflow, window mechanics, acknowledge/restore cycle
 - `SensorManager` state machine — transitions between `kConfigured`, `kInitialized`, `kPolling`, `kError`, `kAbsent`
 - Config validation in `ConfigRepository`, `SensorConfigRepository` — magic/version checks, field bounds
 - Batch assembly in `UploadManager` — `MeasurementSample` → `MeasurementBatch` → `MeasurementPoint` expansion
+- Web form parsing — URL decoding, duplicate keys, checkbox-style keys without values
 
 Regressions in any of these are only caught by full hardware testing, which is slow and requires physical access to the device.
 
-ESP-IDF includes [Unity](https://github.com/ThrowTheSwitch/Unity) and has first-class support for host-compiled tests (`idf.py -C test build` or direct CMake on host), removing the need to introduce a third-party test framework.
+ESP-IDF includes [Unity](https://github.com/ThrowTheSwitch/Unity) and has first-class support for host-compiled tests (`idf.py -C test build` or direct CMake on host), removing the need to introduce a third-party test framework. The initial implementation uses plain C++ assertions through CTest to avoid pulling Unity into the host harness before ESP-IDF stubs are needed.
 
 ## Goals
 
@@ -44,6 +47,7 @@ firmware/
   test/
     host/
       CMakeLists.txt
+      test_web_form.cpp
       stubs/
         freertos_stubs.cpp   # xSemaphoreCreateMutexStatic, xSemaphoreTake, etc.
         esp_log_stubs.cpp    # ESP_LOGI/W/E/D → printf
@@ -56,7 +60,7 @@ firmware/
 
 ### Stub strategy
 
-Only stub symbols that the test targets actually link against. The goal is minimal stubs, not a complete ESP-IDF emulation:
+Only stub symbols that the test targets actually link against. The goal is minimal stubs, not a complete ESP-IDF emulation. The current `test_web_form` target needs no stubs.
 
 - FreeRTOS mutex: `xSemaphoreCreateMutexStatic` returns a pointer to a static buffer; `xSemaphoreTake` / `xSemaphoreGive` are no-ops (tests are single-threaded).
 - ESP logging: redirect to `printf`.
@@ -69,7 +73,13 @@ The test `CMakeLists.txt` compiles tested `.cpp` files directly as native host b
 
 ### Test cases (initial set)
 
-**`test_measurement_store.cpp`**
+**`test_web_form.cpp`** — implemented
+- `urlDecode` converts `+`, uppercase/lowercase hex escapes, and preserves invalid/trailing escapes
+- `parseFormBody` decodes names and values
+- key-only fields are treated as present with an empty value
+- duplicate keys keep first-match `findFormValue` behavior
+
+**`test_measurement_store.cpp`** — planned
 - `recordMeasurement` with unix_ms=0 does not enqueue
 - `recordMeasurement` with valid unix_ms enqueues
 - Queue overflow drops oldest samples, increments dropped count
@@ -93,12 +103,13 @@ The test `CMakeLists.txt` compiles tested `.cpp` files directly as native host b
 
 ## Affected Files
 
-- `firmware/test/host/` — new directory (all new files)
-- `firmware/test/host/CMakeLists.txt` — new
-- `firmware/test/host/stubs/` — new stub implementations
-- `firmware/test/host/test_*.cpp` — new test files
+- `firmware/main/include/air360/web_form.hpp` — pure form parsing interface
+- `firmware/main/src/web/web_form.cpp` — production URL/form parsing implementation
+- `firmware/main/src/web/web_server_helpers.cpp` — HTTP-only helpers after form parsing moved out
+- `firmware/test/host/` — native CMake/CTest host harness
+- `firmware/test/host/test_web_form.cpp` — first host test target
 
-No existing source files are modified. The test build is fully separate from the firmware build.
+The test build is fully separate from the ESP-IDF firmware build.
 
 ## Alternatives Considered
 
@@ -116,4 +127,12 @@ Fast feedback (sub-second), no hardware required, CI-friendly. Covers the highes
 
 ## Practical Conclusion
 
-Create `firmware/test/host/` with a CMake-based host build, Unity framework, minimal FreeRTOS/ESP-IDF stubs, and test files for `MeasurementStore`, sensor state machine, and config validation. No existing code is changed. Run with `cmake -S firmware/test/host -B firmware/test/host/build && cmake --build firmware/test/host/build && ctest --test-dir firmware/test/host/build`.
+Create `firmware/test/host/` with a CMake-based host build. The first target covers `web_form.cpp` without ESP-IDF stubs. Future targets should add minimal FreeRTOS/ESP-IDF stubs only when testing `MeasurementStore`, sensor state machine, config validation, or batch assembly requires them.
+
+Run with:
+
+```bash
+cmake -S firmware/test/host -B firmware/test/host/build
+cmake --build firmware/test/host/build
+ctest --test-dir firmware/test/host/build --output-on-failure
+```

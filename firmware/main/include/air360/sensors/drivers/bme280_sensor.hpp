@@ -28,7 +28,7 @@ class Bme280Sensor final : public SensorDriver {
 
     SensorMeasurement measurement_{};
     std::string last_error_;
-    Bme280DriverState* state_ = nullptr;
+    std::unique_ptr<Bme280DriverState> state_;
     bool initialized_ = false;
 };
 

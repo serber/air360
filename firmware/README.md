@@ -224,6 +224,17 @@ Generated artifacts are written under `build/`. For the current project that inc
 - `build/air360_firmware.map`
 - `build/compile_commands.json`
 
+### Host tests
+
+Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. The first target covers web form URL decoding and form parsing by compiling the production `main/src/web/web_form.cpp` directly.
+
+```bash
+cd firmware
+cmake -S test/host -B test/host/build
+cmake --build test/host/build
+ctest --test-dir test/host/build --output-on-failure
+```
+
 ## Release Packaging
 
 To package the current build for a GitHub beta or stable release, use the repo-local release skill script:
