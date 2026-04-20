@@ -181,25 +181,37 @@ def sentence_from_subject(subject: str) -> str:
 
 
 def categorize_change(change: GitChange) -> str:
-    files_text = " ".join(change.files).lower()
     subject = change.subject.lower()
-    text = f"{subject} {files_text}"
-
     non_doc_files = [
         path for path in change.files
         if not path.lower().endswith(".md") and not path.startswith("docs/")
     ]
+
+    if any(token in subject for token in ["documentation", "docs", "readme"]):
+        return "Documentation"
+    if any(token in subject for token in ["sensor", "upload", "backend", "measurement", "bme", "gps", "sps", "sds", "sds011", "dht", "ina", "mhz", "no2", "uart", "transport"]):
+        return "Sensors and Uploads"
+    if any(token in subject for token in ["config", "nvs", "schema", "migration", "sdkconfig", "kconfig", "partition", "psram"]):
+        return "Configuration and Release Behavior"
+    if any(token in subject for token in ["network", "wifi", "wi-fi", "cellular", "sntp", "connectivity", "status", "watchdog", "led", "rgb"]):
+        return "Connectivity and Runtime"
+    if any(token in subject for token in ["web", "ui", "diagnostic", "diagnostics", "page"]):
+        return "Web UI"
+
     if change.files and not non_doc_files:
         return "Documentation"
 
-    if any(token in text for token in ["webui", "web_server", "web_", "/web", "diagnostics", "config page", "ui"]):
-        return "Web UI"
-    if any(token in text for token in ["network", "wifi", "wi-fi", "cellular", "sntp", "connectivity", "status_service", "watchdog", "led"]):
-        return "Connectivity and Runtime"
-    if any(token in text for token in ["sensor", "upload", "backend", "measurement", "bme", "gps", "sps", "dht", "ina", "mhz", "no2"]):
+    files_text = " ".join(non_doc_files).lower()
+    text = f"{subject} {files_text}"
+
+    if any(token in text for token in ["sensor", "upload", "backend", "measurement", "bme", "gps", "sps", "sds", "sds011", "dht", "ina", "mhz", "no2", "uart", "transport"]):
         return "Sensors and Uploads"
-    if any(token in text for token in ["config", "nvs", "schema", "migration", "sdkconfig", "kconfig", "partition"]):
+    if any(token in text for token in ["config", "nvs", "schema", "migration", "sdkconfig", "kconfig", "partition", "psram"]):
         return "Configuration and Release Behavior"
+    if any(token in text for token in ["network", "wifi", "wi-fi", "cellular", "sntp", "connectivity", "status_service", "watchdog", "led", "rgb"]):
+        return "Connectivity and Runtime"
+    if any(token in text for token in ["webui", "web_server", "web_", "/web", "diagnostics", "diagnostic page", "config page", "ui"]):
+        return "Web UI"
     if any(token in text for token in ["release", "bundle", "cmake", "build", ".agents/skills", "skill"]):
         return "Build and Tooling"
     return "Maintenance"
