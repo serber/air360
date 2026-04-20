@@ -46,6 +46,9 @@ idf_component_register(
         "src/status_service.cpp"
         "src/log_buffer.cpp"
         "src/web_server.cpp"
+        "src/web/web_runtime_routes.cpp"
+        "src/web/web_mutating_routes.cpp"
+        "src/web/web_server_helpers.cpp"
     INCLUDE_DIRS
         "include"
         "third_party/sps30"

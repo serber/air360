@@ -2,15 +2,17 @@
 
 ## Status
 
-Proposed.
+Partially implemented.
 
 ## Decision Summary
 
-Split `web_server.cpp` (79 KB) and `status_service.cpp` (36 KB) into per-route handler files and a separate rendering layer to eliminate God-object compilation units.
+Split `web_server.cpp` and `status_service.cpp` into per-route handler files and a separate rendering layer to eliminate God-object compilation units.
+
+Phase 7 has started the incremental split: read-only/runtime routes moved to `main/src/web/web_runtime_routes.cpp`, mutating config/sensor/backend routes moved to `main/src/web/web_mutating_routes.cpp`, and shared HTTP body/form helpers moved to `main/src/web/web_server_helpers.cpp`. `web_server.cpp` still owns URI registration and page rendering helpers.
 
 ## Context
 
-`web_server.cpp` contains all 12 HTTP route handler implementations in a single translation unit. `status_service.cpp` combines runtime state aggregation with full HTML and JSON rendering. Both files are among the largest in the firmware.
+Before Phase 7, `web_server.cpp` contained all HTTP route handler implementations in a single translation unit. `status_service.cpp` combines runtime state aggregation with full HTML and JSON rendering. Both files are among the largest in the firmware.
 
 The practical consequences:
 
@@ -50,6 +52,8 @@ Create one `.cpp` file per logical route group under `main/src/web/`:
 
 `web_server.cpp` becomes a thin registration file: constructs the server, calls `esp_http_server_register_uri()` for each handler, passes dependencies. Each handler file declares its registration function and implements only its own handler(s).
 
+Current incremental implementation uses `web_runtime_routes.cpp` for `/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, and `/check-sntp`, and `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`. Page rendering helpers remain in `web_server.cpp`; a later step can move them to a dedicated renderer file without touching persistence flows.
+
 ### 2. Split `status_service.cpp` into aggregator + renderer
 
 - `status_service.cpp` — keeps only state fields, setters, and getters. No string building, no HTML, no JSON.
@@ -63,9 +67,12 @@ Add all new `.cpp` files to `idf_component_register(SRCS ...)` in `main/CMakeLis
 
 ## Affected Files
 
-- `firmware/main/src/web_server.cpp` — becomes registration-only (~100 lines)
+- `firmware/main/src/web_server.cpp` — target end state is registration-only; current state keeps registration plus page rendering helpers
 - `firmware/main/src/status_service.cpp` — remove rendering logic
-- `firmware/main/src/web/web_handler_*.cpp` — new files (one per route group)
+- `firmware/main/src/web/web_runtime_routes.cpp` — implemented first route group for read-only/runtime endpoints
+- `firmware/main/src/web/web_mutating_routes.cpp` — implemented route group for config, sensor, and backend mutation flows
+- `firmware/main/src/web/web_server_helpers.cpp` — implemented shared request body, form parsing, and chunked HTML helpers
+- `firmware/main/src/web/web_handler_*.cpp` — future files for remaining route groups
 - `firmware/main/src/web/status_renderer.cpp` — new file
 - `firmware/main/include/air360/web/` — new headers for handler registration functions
 - `firmware/main/CMakeLists.txt` — add new sources

@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "air360/log_buffer.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/sensors/sensor_manager.hpp"
@@ -19,14 +18,10 @@
 #include "air360/uploads/backend_config.hpp"
 #include "air360/uploads/backend_registry.hpp"
 #include "air360/uploads/upload_manager.hpp"
-#include "air360/web_assets.hpp"
+#include "air360/web_server_internal.hpp"
 #include "air360/web_ui.hpp"
 #include "esp_log.h"
 #include "esp_netif.h"
-#include "esp_system.h"
-#include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "captive_portal.h"
 #include "sdkconfig.h"
 
@@ -37,174 +32,7 @@ namespace {
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
 constexpr std::size_t kHttpServerMaxUriHandlers = 14U;
-constexpr std::size_t kHttpMaxRequestBodySize = 4096U;
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
-
-int decodeHex(char value) {
-    if (value >= '0' && value <= '9') {
-        return value - '0';
-    }
-    if (value >= 'a' && value <= 'f') {
-        return value - 'a' + 10;
-    }
-    if (value >= 'A' && value <= 'F') {
-        return value - 'A' + 10;
-    }
-    return -1;
-}
-
-std::string urlDecode(const std::string& input) {
-    std::string decoded;
-    decoded.reserve(input.size());
-
-    for (std::size_t i = 0; i < input.size(); ++i) {
-        const char ch = input[i];
-        if (ch == '+') {
-            decoded.push_back(' ');
-            continue;
-        }
-
-        if (ch == '%' && (i + 2U) < input.size()) {
-            const int hi = decodeHex(input[i + 1U]);
-            const int lo = decodeHex(input[i + 2U]);
-            if (hi >= 0 && lo >= 0) {
-                decoded.push_back(static_cast<char>((hi << 4) | lo));
-                i += 2U;
-                continue;
-            }
-        }
-
-        decoded.push_back(ch);
-    }
-
-    return decoded;
-}
-
-using FormFields = std::vector<std::pair<std::string, std::string>>;
-
-FormFields parseFormBody(const std::string& body) {
-    FormFields fields;
-    std::size_t cursor = 0U;
-
-    while (cursor <= body.size()) {
-        const std::size_t delimiter = body.find('&', cursor);
-        const std::size_t end = delimiter == std::string::npos ? body.size() : delimiter;
-        const std::size_t equals = body.find('=', cursor);
-
-        if (equals != std::string::npos && equals < end) {
-            fields.emplace_back(
-                urlDecode(body.substr(cursor, equals - cursor)),
-                urlDecode(body.substr(equals + 1U, end - equals - 1U)));
-        } else if (end > cursor) {
-            fields.emplace_back(urlDecode(body.substr(cursor, end - cursor)), "");
-        }
-
-        if (delimiter == std::string::npos) {
-            break;
-        }
-        cursor = delimiter + 1U;
-    }
-
-    return fields;
-}
-
-std::string findFormValue(const FormFields& fields, const char* key) {
-    for (const auto& [name, value] : fields) {
-        if (name == key) {
-            return value;
-        }
-    }
-    return "";
-}
-
-bool formHasKey(const FormFields& fields, const char* key) {
-    for (const auto& [name, value] : fields) {
-        if (name == key) {
-            static_cast<void>(value);
-            return true;
-        }
-    }
-    return false;
-}
-
-esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body) {
-    out_body.clear();
-    if (request->content_len <= 0) {
-        return ESP_OK;
-    }
-    if (request->content_len > static_cast<int>(kHttpMaxRequestBodySize)) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    out_body.resize(static_cast<std::size_t>(request->content_len));
-    int received_total = 0;
-    while (received_total < request->content_len) {
-        const int received = httpd_req_recv(
-            request,
-            out_body.data() + received_total,
-            request->content_len - received_total);
-        if (received <= 0) {
-            return ESP_FAIL;
-        }
-        received_total += received;
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t sendRequestBodyTooLarge(httpd_req_t* request) {
-    httpd_resp_set_status(request, "413 Payload Too Large");
-    httpd_resp_set_type(request, "text/plain; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_sendstr(request, "Request body exceeds the 4096-byte limit.");
-}
-
-esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html) {
-    constexpr std::size_t kChunkSize = 1024U;
-
-    for (std::size_t offset = 0; offset < html.size(); offset += kChunkSize) {
-        const std::size_t remaining = html.size() - offset;
-        const std::size_t chunk_size = remaining < kChunkSize ? remaining : kChunkSize;
-        const esp_err_t err =
-            httpd_resp_send_chunk(request, html.data() + offset, chunk_size);
-        if (err != ESP_OK) {
-            return err;
-        }
-    }
-
-    return httpd_resp_send_chunk(request, nullptr, 0);
-}
-
-std::string_view assetPathFromUri(const char* uri) {
-    if (uri == nullptr) {
-        return {};
-    }
-
-    std::string_view path(uri);
-    constexpr std::string_view kPrefix = "/assets/";
-    if (path.size() < kPrefix.size() || path.substr(0, kPrefix.size()) != kPrefix) {
-        return {};
-    }
-
-    path.remove_prefix(kPrefix.size());
-    const std::size_t query = path.find('?');
-    if (query != std::string_view::npos) {
-        path = path.substr(0, query);
-    }
-    return path;
-}
-
-esp_err_t sendAssetResponse(httpd_req_t* request, std::string_view asset_path) {
-    const WebAssetView* asset = findEmbeddedWebAsset(asset_path);
-    if (asset == nullptr || asset->data == nullptr) {
-        httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Asset not found");
-        return ESP_ERR_NOT_FOUND;
-    }
-
-    httpd_resp_set_type(request, asset->content_type);
-    httpd_resp_set_hdr(request, "Cache-Control", "no-cache");
-    return httpd_resp_send(request, asset->data, asset->size);
-}
 
 const char* networkModeLabel(NetworkMode mode) {
     switch (mode) {
@@ -1734,29 +1562,122 @@ bool validateConfigForm(
     return true;
 }
 
-void restartCallback(void* arg) {
-    static_cast<void>(arg);
-    esp_restart();
-}
-
-void scheduleRestart() {
-    static esp_timer_handle_t restart_timer = nullptr;
-    if (restart_timer == nullptr) {
-        esp_timer_create_args_t args{};
-        args.callback = &restartCallback;
-        args.name = "air360_reboot";
-        ESP_ERROR_CHECK(esp_timer_create(&args, &restart_timer));
-    }
-
-    const esp_err_t stop_err = esp_timer_stop(restart_timer);
-    if (stop_err != ESP_OK && stop_err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(kTag, "Failed to stop restart timer: %s", esp_err_to_name(stop_err));
-    }
-
-    ESP_ERROR_CHECK(esp_timer_start_once(restart_timer, 400000));
-}
-
 }  // namespace
+
+namespace web {
+
+bool parseUnsignedLong(const std::string& input, unsigned long& value, int base) {
+    return ::air360::parseUnsignedLong(input, value, base);
+}
+
+bool parseSignedLong(const std::string& input, long& value) {
+    return ::air360::parseSignedLong(input, value);
+}
+
+bool parseI2cAddress(const std::string& input, std::uint8_t& value) {
+    return ::air360::parseI2cAddress(input, value);
+}
+
+TransportKind inferredTransportKind(const SensorDescriptor& descriptor) {
+    return ::air360::inferredTransportKind(descriptor);
+}
+
+std::int16_t defaultBoardGpioPin() {
+    return ::air360::defaultBoardGpioPin();
+}
+
+bool validateSensorCategorySelection(
+    const SensorConfigList& sensor_config_list,
+    const SensorRecord& record,
+    std::string& error) {
+    return ::air360::validateSensorCategorySelection(sensor_config_list, record, error);
+}
+
+bool validateConfigForm(
+    const std::string& device_name,
+    const std::string& wifi_ssid,
+    const std::string& wifi_password,
+    const std::string& sntp_server,
+    bool sta_use_static_ip,
+    const std::string& sta_ip,
+    const std::string& sta_netmask,
+    const std::string& sta_gateway,
+    const std::string& sta_dns,
+    bool cellular_enabled,
+    const std::string& cellular_apn,
+    const std::string& cellular_username,
+    const std::string& cellular_password,
+    const std::string& cellular_sim_pin,
+    const std::string& cellular_connectivity_check_host,
+    unsigned long cellular_wifi_debug_window_s,
+    std::string& error) {
+    return ::air360::validateConfigForm(
+        device_name,
+        wifi_ssid,
+        wifi_password,
+        sntp_server,
+        sta_use_static_ip,
+        sta_ip,
+        sta_netmask,
+        sta_gateway,
+        sta_dns,
+        cellular_enabled,
+        cellular_apn,
+        cellular_username,
+        cellular_password,
+        cellular_sim_pin,
+        cellular_connectivity_check_host,
+        cellular_wifi_debug_window_s,
+        error);
+}
+
+std::string renderConfigPage(
+    const DeviceConfig& config,
+    const CellularConfig& cellular_config,
+    const NetworkState& network_state,
+    const NetworkManager& network_manager,
+    const std::string& notice,
+    bool error_notice) {
+    return ::air360::renderConfigPage(
+        config,
+        cellular_config,
+        network_state,
+        network_manager,
+        notice,
+        error_notice);
+}
+
+std::string renderBackendsPage(
+    const BackendConfigList& backend_config_list,
+    const UploadManager& upload_manager,
+    const BuildInfo& build_info,
+    const std::string& notice,
+    bool error_notice) {
+    return ::air360::renderBackendsPage(
+        backend_config_list,
+        upload_manager,
+        build_info,
+        notice,
+        error_notice);
+}
+
+std::string renderSensorsPage(
+    const SensorConfigList& sensor_config_list,
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    bool has_pending_changes,
+    const std::string& notice,
+    bool error_notice) {
+    return ::air360::renderSensorsPage(
+        sensor_config_list,
+        sensor_manager,
+        measurement_store,
+        has_pending_changes,
+        notice,
+        error_notice);
+}
+
+}  // namespace web
 
 esp_err_t WebServer::start(
     StatusService& status_service,
@@ -1945,805 +1866,11 @@ esp_err_t WebServer::start(
     return ESP_OK;
 }
 
-esp_err_t WebServer::handleAsset(httpd_req_t* request) {
-    return sendAssetResponse(request, assetPathFromUri(request->uri));
-}
-
-esp_err_t WebServer::handleSensors(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
-        httpd_resp_set_status(request, "302 Found");
-        httpd_resp_set_hdr(request, "Location", "/config");
-        return httpd_resp_send(request, nullptr, 0);
-    }
-
-    httpd_resp_set_type(request, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-
-    if (request->method == HTTP_GET) {
-        const std::string html = renderSensorsPage(
-            server->staged_sensor_config_,
-            *server->sensor_manager_,
-            *server->measurement_store_,
-            server->has_pending_sensor_changes_,
-            "",
-            false);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    std::string body;
-    const esp_err_t body_err = readRequestBody(request, body);
-    if (body_err == ESP_ERR_INVALID_SIZE) {
-        return sendRequestBodyTooLarge(request);
-    }
-    if (body_err != ESP_OK) {
-        const std::string html = renderSensorsPage(
-            server->staged_sensor_config_,
-            *server->sensor_manager_,
-            *server->measurement_store_,
-            server->has_pending_sensor_changes_,
-            "Failed to read form body.",
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    const FormFields fields = parseFormBody(body);
-    const std::string action = findFormValue(fields, "action");
-    SensorConfigList updated = server->staged_sensor_config_;
-    SensorRegistry registry;
-
-    if (action == "apply") {
-        const esp_err_t save_err = server->sensor_config_repository_->save(server->staged_sensor_config_);
-        if (save_err != ESP_OK) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-
-        *server->sensor_config_list_ = server->staged_sensor_config_;
-        const esp_err_t apply_err =
-            server->sensor_manager_->applyConfig(*server->sensor_config_list_);
-        server->has_pending_sensor_changes_ = false;
-        if (apply_err != ESP_OK) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                std::string("Sensor configuration saved, but runtime apply failed: ") +
-                    esp_err_to_name(apply_err) + ". Reboot to apply it.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-        const std::string html = renderSensorsPage(
-            server->staged_sensor_config_,
-            *server->sensor_manager_,
-            *server->measurement_store_,
-            server->has_pending_sensor_changes_,
-            "Sensor configuration saved and applied.",
-            false);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    } else if (action == "discard") {
-        server->staged_sensor_config_ = *server->sensor_config_list_;
-        server->has_pending_sensor_changes_ = false;
-        const std::string html = renderSensorsPage(
-            server->staged_sensor_config_,
-            *server->sensor_manager_,
-            *server->measurement_store_,
-            server->has_pending_sensor_changes_,
-            "Pending sensor changes discarded.",
-            false);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    } else if (action == "delete") {
-        unsigned long sensor_id = 0UL;
-        if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id) ||
-            !eraseSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id))) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                "Failed to delete sensor: invalid sensor id.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-    } else if (action == "add" || action == "update") {
-        const std::string sensor_type_value = findFormValue(fields, "sensor_type");
-        const SensorDescriptor* descriptor = registry.findByTypeKey(sensor_type_value);
-        if (descriptor == nullptr) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                "Unsupported sensor type.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-
-        unsigned long poll_interval_ms = 0UL;
-        if (!parseUnsignedLong(findFormValue(fields, "poll_interval_ms"), poll_interval_ms)) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                "Invalid numeric sensor fields.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-        if (poll_interval_ms < kMinSensorPollIntervalMs) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                "Poll interval must be at least 5000 ms.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-
-        const std::string analog_gpio_pin_value = findFormValue(fields, "analog_gpio_pin");
-        std::int16_t analog_pin = -1;
-        long parsed_signed = -1;
-        if (!analog_gpio_pin_value.empty() &&
-            !parseSignedLong(analog_gpio_pin_value, parsed_signed)) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                "Sensor pin must be a valid integer.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-        analog_pin = static_cast<std::int16_t>(parsed_signed);
-
-        const std::string i2c_address_value = findFormValue(fields, "i2c_address");
-        std::uint8_t parsed_i2c_address = 0U;
-        if (!i2c_address_value.empty() &&
-            !parseI2cAddress(i2c_address_value, parsed_i2c_address)) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                "I2C address must be a valid value like 0x76.",
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-
-        SensorRecord record{};
-        const SensorRecord* existing = nullptr;
-        if (action == "update") {
-            unsigned long sensor_id = 0UL;
-            if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id)) {
-                const std::string html = renderSensorsPage(
-                    server->staged_sensor_config_,
-                    *server->sensor_manager_,
-                    *server->measurement_store_,
-                    server->has_pending_sensor_changes_,
-                    "Invalid sensor id.",
-                    true);
-                return httpd_resp_send(request, html.c_str(), html.size());
-            }
-
-            existing = findSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id));
-            if (existing == nullptr) {
-                const std::string html = renderSensorsPage(
-                    server->staged_sensor_config_,
-                    *server->sensor_manager_,
-                    *server->measurement_store_,
-                    server->has_pending_sensor_changes_,
-                    "Sensor not found.",
-                    true);
-                return httpd_resp_send(request, html.c_str(), html.size());
-            }
-
-            record = *existing;
-            record.id = static_cast<std::uint32_t>(sensor_id);
-        }
-
-        const bool type_changed = existing == nullptr || existing->sensor_type != descriptor->type;
-        if (type_changed) {
-            const std::uint32_t preserved_id = record.id;
-            const std::uint8_t preserved_enabled = formHasKey(fields, "enabled") ? 1U : 0U;
-            SensorRecord rebuilt{};
-            rebuilt.id = preserved_id;
-            rebuilt.enabled = preserved_enabled;
-            rebuilt.analog_gpio_pin = defaultBoardGpioPin();
-            record = rebuilt;
-        }
-
-        record.enabled = formHasKey(fields, "enabled") ? 1U : 0U;
-        record.sensor_type = descriptor->type;
-        record.poll_interval_ms = static_cast<std::uint32_t>(poll_interval_ms);
-
-        record.transport_kind = inferredTransportKind(*descriptor);
-        switch (record.transport_kind) {
-            case TransportKind::kI2c:
-                if (type_changed) {
-                    record.i2c_bus_id = descriptor->default_i2c_bus_id;
-                    record.i2c_address = descriptor->default_i2c_address;
-                }
-                if (!i2c_address_value.empty()) {
-                    record.i2c_address = parsed_i2c_address;
-                }
-                break;
-            case TransportKind::kUart:
-                record.uart_port_id = descriptor->default_uart_port_id;
-                record.uart_rx_gpio_pin = descriptor->default_uart_rx_gpio_pin;
-                record.uart_tx_gpio_pin = descriptor->default_uart_tx_gpio_pin;
-                if (type_changed || record.uart_baud_rate == 0U) {
-                    record.uart_baud_rate = descriptor->default_uart_baud_rate;
-                }
-                break;
-            case TransportKind::kGpio:
-            case TransportKind::kAnalog:
-                if (!analog_gpio_pin_value.empty()) {
-                    record.analog_gpio_pin = analog_pin;
-                } else if (type_changed || record.analog_gpio_pin < 0) {
-                    record.analog_gpio_pin = defaultBoardGpioPin();
-                }
-                break;
-            case TransportKind::kUnknown:
-            default:
-                break;
-        }
-
-        if (action == "add") {
-            if (updated.sensor_count >= kMaxConfiguredSensors) {
-                const std::string html = renderSensorsPage(
-                    server->staged_sensor_config_,
-                    *server->sensor_manager_,
-                    *server->measurement_store_,
-                    server->has_pending_sensor_changes_,
-                    "Sensor list is full.",
-                    true);
-                return httpd_resp_send(request, html.c_str(), html.size());
-            }
-            record.id = updated.next_sensor_id++;
-            updated.sensors[updated.sensor_count++] = record;
-        } else {
-            *findSensorRecordById(updated, record.id) = record;
-        }
-
-        std::string validation_error;
-        if (!registry.validateRecord(record, validation_error)) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                validation_error,
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-
-        if (!validateSensorCategorySelection(updated, record, validation_error)) {
-            const std::string html = renderSensorsPage(
-                server->staged_sensor_config_,
-                *server->sensor_manager_,
-                *server->measurement_store_,
-                server->has_pending_sensor_changes_,
-                validation_error,
-                true);
-            return httpd_resp_send(request, html.c_str(), html.size());
-        }
-    } else {
-        const std::string html = renderSensorsPage(
-            server->staged_sensor_config_,
-            *server->sensor_manager_,
-            *server->measurement_store_,
-            server->has_pending_sensor_changes_,
-            "Unsupported sensor action.",
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    server->staged_sensor_config_ = updated;
-    server->has_pending_sensor_changes_ = true;
-    const std::string html = renderSensorsPage(
-        server->staged_sensor_config_,
-        *server->sensor_manager_,
-        *server->measurement_store_,
-        server->has_pending_sensor_changes_,
-        action == "delete" ? "Sensor deletion staged." : "Sensor changes staged in memory.",
-        false);
-    return httpd_resp_send(request, html.c_str(), html.size());
-}
-
-esp_err_t WebServer::handleBackends(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
-        httpd_resp_set_status(request, "302 Found");
-        httpd_resp_set_hdr(request, "Location", "/config");
-        return httpd_resp_send(request, nullptr, 0);
-    }
-
-    httpd_resp_set_type(request, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-
-    if (request->method == HTTP_GET) {
-        const std::string html = renderBackendsPage(
-            *server->backend_config_list_,
-            *server->upload_manager_,
-            server->status_service_->buildInfo(),
-            "",
-            false);
-        return sendHtmlResponse(request, html);
-    }
-
-    std::string body;
-    const esp_err_t body_err = readRequestBody(request, body);
-    if (body_err == ESP_ERR_INVALID_SIZE) {
-        return sendRequestBodyTooLarge(request);
-    }
-    if (body_err != ESP_OK) {
-        const std::string html = renderBackendsPage(
-            *server->backend_config_list_,
-            *server->upload_manager_,
-            server->status_service_->buildInfo(),
-            "Failed to read form body.",
-            true);
-        return sendHtmlResponse(request, html);
-    }
-
-    const FormFields fields = parseFormBody(body);
-    BackendRegistry registry;
-    BackendConfigList updated = *server->backend_config_list_;
-
-    const std::string upload_interval_value = findFormValue(fields, "upload_interval_ms");
-    unsigned long upload_interval_ms = 0UL;
-    if (!parseUnsignedLong(upload_interval_value, upload_interval_ms) ||
-        upload_interval_ms < 10000UL ||
-        upload_interval_ms > 300000UL) {
-        const std::string html = renderBackendsPage(
-            *server->backend_config_list_,
-            *server->upload_manager_,
-            server->status_service_->buildInfo(),
-            "Upload interval must be between 10000 ms and 300000 ms.",
-            true);
-        return sendHtmlResponse(request, html);
-    }
-    updated.upload_interval_ms = static_cast<std::uint32_t>(upload_interval_ms);
-
-    for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
-        const BackendDescriptor& descriptor = registry.descriptors()[index];
-        BackendRecord* record = findBackendRecordByType(updated, descriptor.type);
-        if (record == nullptr) {
-            const std::string html = renderBackendsPage(
-                *server->backend_config_list_,
-                *server->upload_manager_,
-                server->status_service_->buildInfo(),
-                "Backend configuration is incomplete.",
-                true);
-            return sendHtmlResponse(request, html);
-        }
-
-        const std::string checkbox_name = std::string("enabled_") + descriptor.backend_key;
-        record->enabled = formHasKey(fields, checkbox_name.c_str()) ? 1U : 0U;
-        if (record->enabled == 0U) {
-            continue;
-        }
-
-        const std::string key = descriptor.backend_key;
-        record->protocol =
-            formHasKey(fields, (std::string("use_https_") + key).c_str())
-                ? BackendProtocol::kHttps
-                : BackendProtocol::kHttp;
-
-        switch (descriptor.type) {
-            case BackendType::kSensorCommunity:
-                copyString(
-                    record->sensor_community_device_id,
-                    sizeof(record->sensor_community_device_id),
-                    findFormValue(fields, (std::string("device_id_") + key).c_str()));
-                break;
-
-            case BackendType::kAir360Api:
-                break;
-
-            case BackendType::kCustomUpload: {
-                const std::string port_value =
-                    findFormValue(fields, (std::string("port_") + key).c_str());
-                unsigned long port = 0UL;
-                if (!port_value.empty() &&
-                    (!parseUnsignedLong(port_value, port) || port == 0UL || port > 65535UL)) {
-                    const std::string html = renderBackendsPage(
-                        *server->backend_config_list_,
-                        *server->upload_manager_,
-                        server->status_service_->buildInfo(),
-                        "Port must be between 1 and 65535.",
-                        true);
-                    return sendHtmlResponse(request, html);
-                }
-                record->port = static_cast<std::uint16_t>(port);
-                copyString(record->host, sizeof(record->host),
-                    findFormValue(fields, (std::string("host_") + key).c_str()));
-                copyString(record->path, sizeof(record->path),
-                    findFormValue(fields, (std::string("path_") + key).c_str()));
-                break;
-            }
-
-            case BackendType::kInfluxDb: {
-                const std::string port_value =
-                    findFormValue(fields, (std::string("port_") + key).c_str());
-                unsigned long port = 0UL;
-                if (!port_value.empty() &&
-                    (!parseUnsignedLong(port_value, port) || port == 0UL || port > 65535UL)) {
-                    const std::string html = renderBackendsPage(
-                        *server->backend_config_list_,
-                        *server->upload_manager_,
-                        server->status_service_->buildInfo(),
-                        "Port must be between 1 and 65535.",
-                        true);
-                    return sendHtmlResponse(request, html);
-                }
-                record->port = static_cast<std::uint16_t>(port);
-                copyString(record->host, sizeof(record->host),
-                    findFormValue(fields, (std::string("host_") + key).c_str()));
-                copyString(record->path, sizeof(record->path),
-                    findFormValue(fields, (std::string("path_") + key).c_str()));
-                const std::string username =
-                    findFormValue(fields, (std::string("user_") + key).c_str());
-                const std::string password =
-                    findFormValue(fields, (std::string("password_") + key).c_str());
-                record->auth.auth_type = (!username.empty() || !password.empty())
-                    ? BackendAuthType::kBasic : BackendAuthType::kNone;
-                copyString(record->auth.basic_username,
-                    sizeof(record->auth.basic_username), username);
-                copyString(record->auth.basic_password,
-                    sizeof(record->auth.basic_password), password);
-                copyString(record->influxdb_measurement, sizeof(record->influxdb_measurement),
-                    findFormValue(fields, (std::string("measurement_") + key).c_str()));
-                break;
-            }
-
-            default:
-                break;
-        }
-    }
-
-    const esp_err_t save_err = server->backend_config_repository_->save(updated);
-    if (save_err != ESP_OK) {
-        const std::string html = renderBackendsPage(
-            *server->backend_config_list_,
-            *server->upload_manager_,
-            server->status_service_->buildInfo(),
-            std::string("Failed to save backend configuration: ") + esp_err_to_name(save_err),
-            true);
-        return sendHtmlResponse(request, html);
-    }
-
-    *server->backend_config_list_ = updated;
-    const esp_err_t apply_err = server->upload_manager_->applyConfig(updated);
-    server->status_service_->setUploads(*server->upload_manager_);
-
-    if (apply_err != ESP_OK) {
-        const std::string html = renderBackendsPage(
-            *server->backend_config_list_,
-            *server->upload_manager_,
-            server->status_service_->buildInfo(),
-            std::string("Backend configuration saved, but runtime apply failed: ") +
-                esp_err_to_name(apply_err) + ". Reboot to apply it.",
-            true);
-        return sendHtmlResponse(request, html);
-    }
-
-    const std::string html = renderBackendsPage(
-        *server->backend_config_list_,
-        *server->upload_manager_,
-        server->status_service_->buildInfo(),
-        "Backend selection saved.",
-        false);
-    return sendHtmlResponse(request, html);
-}
-
 void WebServer::stop() {
     if (handle_ != nullptr) {
         httpd_stop(handle_);
         handle_ = nullptr;
     }
-}
-
-esp_err_t WebServer::handleRoot(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
-        httpd_resp_set_status(request, "302 Found");
-        httpd_resp_set_hdr(request, "Location", "/config");
-        return httpd_resp_send(request, nullptr, 0);
-    }
-
-    const std::string html = server->status_service_->renderRootHtml();
-    httpd_resp_set_type(request, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, html.c_str(), html.size());
-}
-
-esp_err_t WebServer::handleDiagnostics(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    const std::string html = server->status_service_->renderDiagnosticsHtml(logBufferGetContents());
-    httpd_resp_set_type(request, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, html.c_str(), html.size());
-}
-
-esp_err_t WebServer::handleLogsData(httpd_req_t* request) {
-    const std::string contents = logBufferGetContents();
-    httpd_resp_set_type(request, "text/plain; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, contents.c_str(), contents.size());
-}
-
-esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    httpd_resp_set_type(request, "application/json");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-
-    WifiScanSnapshot scan_snapshot = server->network_manager_->wifiScanSnapshot();
-    if (scan_snapshot.last_scan_uptime_ms == 0U) {
-        server->network_manager_->scanAvailableNetworks();
-        scan_snapshot = server->network_manager_->wifiScanSnapshot();
-    }
-
-    std::string json;
-    json.reserve(1024U);
-    json += "{";
-    json += "\"networks\":[";
-    for (std::size_t index = 0; index < scan_snapshot.networks.size(); ++index) {
-        if (index > 0U) {
-            json += ",";
-        }
-
-        json += "{";
-        json += "\"ssid\":\"";
-        json += jsonEscape(scan_snapshot.networks[index].ssid);
-        json += "\",\"rssi\":";
-        json += std::to_string(scan_snapshot.networks[index].rssi);
-        json += "}";
-    }
-    json += "],\"last_scan_uptime_ms\":";
-    json += std::to_string(scan_snapshot.last_scan_uptime_ms);
-    json += ",\"last_scan_error\":\"";
-    json += jsonEscape(scan_snapshot.last_scan_error);
-    json += "\"}";
-    return httpd_resp_send(request, json.c_str(), json.size());
-}
-
-esp_err_t WebServer::handleConfig(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    httpd_resp_set_type(request, "text/html; charset=utf-8");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-
-    if (request->method == HTTP_GET) {
-        const std::string html = renderConfigPage(
-            *server->config_,
-            *server->cellular_config_,
-            server->status_service_->networkState(),
-            *server->network_manager_,
-            "",
-            false);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    std::string body;
-    const esp_err_t body_err = readRequestBody(request, body);
-    if (body_err == ESP_ERR_INVALID_SIZE) {
-        return sendRequestBodyTooLarge(request);
-    }
-    if (body_err != ESP_OK) {
-        const std::string html = renderConfigPage(
-            *server->config_,
-            *server->cellular_config_,
-            server->status_service_->networkState(),
-            *server->network_manager_,
-            "Failed to read form body.",
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    const FormFields fields = parseFormBody(body);
-
-    // --- DeviceConfig fields ---
-    const std::string device_name = findFormValue(fields, "device_name");
-    const std::string wifi_ssid = findFormValue(fields, "wifi_ssid");
-    const std::string wifi_password = findFormValue(fields, "wifi_password");
-    const std::string sntp_server = findFormValue(fields, "sntp_server");
-    const bool wifi_power_save_enabled = (findFormValue(fields, "wifi_power_save") == "1");
-    const bool sta_use_static_ip = (findFormValue(fields, "sta_use_static_ip") == "1");
-    const std::string sta_ip = sta_use_static_ip ? findFormValue(fields, "sta_ip") : "";
-    const std::string sta_netmask = sta_use_static_ip ? findFormValue(fields, "sta_netmask") : "";
-    const std::string sta_gateway = sta_use_static_ip ? findFormValue(fields, "sta_gateway") : "";
-    const std::string sta_dns = sta_use_static_ip ? findFormValue(fields, "sta_dns") : "";
-
-    // --- BLE fields ---
-    const bool ble_advertise_enabled = (findFormValue(fields, "ble_advertise_enabled") == "1");
-    unsigned long ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
-    parseUnsignedLong(findFormValue(fields, "ble_adv_interval_index"), ble_adv_interval_index);
-    if (ble_adv_interval_index >= kBleAdvIntervalCount) {
-        ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
-    }
-
-    // --- CellularConfig fields ---
-    const bool cellular_enabled = (findFormValue(fields, "cellular_enabled") == "1");
-    const std::string cellular_apn =
-        cellular_enabled ? findFormValue(fields, "cellular_apn") : "";
-    const std::string cellular_username = findFormValue(fields, "cellular_username");
-    const std::string cellular_password = findFormValue(fields, "cellular_password");
-    const std::string cellular_sim_pin = findFormValue(fields, "cellular_sim_pin");
-    const std::string cellular_connectivity_check_host =
-        findFormValue(fields, "cellular_connectivity_check_host");
-
-    unsigned long cellular_wifi_debug_window_s = server->cellular_config_->wifi_debug_window_s;
-    parseUnsignedLong(findFormValue(fields, "cellular_wifi_debug_window_s"),
-                      cellular_wifi_debug_window_s);
-
-    // --- Validate ---
-    std::string validation_error;
-    if (!validateConfigForm(
-            device_name,
-            wifi_ssid,
-            wifi_password,
-            sntp_server,
-            sta_use_static_ip,
-            sta_ip,
-            sta_netmask,
-            sta_gateway,
-            sta_dns,
-            cellular_enabled,
-            cellular_apn,
-            cellular_username,
-            cellular_password,
-            cellular_sim_pin,
-            cellular_connectivity_check_host,
-            cellular_wifi_debug_window_s,
-            validation_error)) {
-        DeviceConfig preview = *server->config_;
-        copyString(preview.device_name, sizeof(preview.device_name), device_name);
-        copyString(preview.wifi_sta_ssid, sizeof(preview.wifi_sta_ssid), wifi_ssid);
-        copyString(preview.wifi_sta_password, sizeof(preview.wifi_sta_password), wifi_password);
-        copyString(preview.sntp_server, sizeof(preview.sntp_server), sntp_server);
-        preview.wifi_power_save_enabled = wifi_power_save_enabled ? 1U : 0U;
-        preview.ble_advertise_enabled = ble_advertise_enabled ? 1U : 0U;
-        preview.ble_adv_interval_index = static_cast<std::uint8_t>(ble_adv_interval_index);
-        preview.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
-        copyString(preview.sta_ip, sizeof(preview.sta_ip), sta_ip);
-        copyString(preview.sta_netmask, sizeof(preview.sta_netmask), sta_netmask);
-        copyString(preview.sta_gateway, sizeof(preview.sta_gateway), sta_gateway);
-        copyString(preview.sta_dns, sizeof(preview.sta_dns), sta_dns);
-
-        CellularConfig preview_cellular = *server->cellular_config_;
-        preview_cellular.enabled = cellular_enabled ? 1U : 0U;
-        copyString(preview_cellular.apn, sizeof(preview_cellular.apn), cellular_apn);
-        copyString(preview_cellular.username, sizeof(preview_cellular.username), cellular_username);
-        copyString(preview_cellular.password, sizeof(preview_cellular.password), cellular_password);
-        copyString(preview_cellular.sim_pin, sizeof(preview_cellular.sim_pin), cellular_sim_pin);
-        copyString(preview_cellular.connectivity_check_host,
-                   sizeof(preview_cellular.connectivity_check_host),
-                   cellular_connectivity_check_host);
-        preview_cellular.wifi_debug_window_s =
-            static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
-
-        const std::string html = renderConfigPage(
-            preview,
-            preview_cellular,
-            server->status_service_->networkState(),
-            *server->network_manager_,
-            validation_error,
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    // --- Build and save DeviceConfig ---
-    DeviceConfig updated = *server->config_;
-    updated.magic = kDeviceConfigMagic;
-    updated.schema_version = kDeviceConfigSchemaVersion;
-    updated.record_size = static_cast<std::uint16_t>(sizeof(DeviceConfig));
-    copyString(updated.device_name, sizeof(updated.device_name), device_name);
-    copyString(updated.wifi_sta_ssid, sizeof(updated.wifi_sta_ssid), wifi_ssid);
-    copyString(updated.wifi_sta_password, sizeof(updated.wifi_sta_password), wifi_password);
-    copyString(updated.sntp_server, sizeof(updated.sntp_server), sntp_server);
-    updated.wifi_power_save_enabled = wifi_power_save_enabled ? 1U : 0U;
-    updated.ble_advertise_enabled = ble_advertise_enabled ? 1U : 0U;
-    updated.ble_adv_interval_index = static_cast<std::uint8_t>(ble_adv_interval_index);
-    updated.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
-    copyString(updated.sta_ip, sizeof(updated.sta_ip), sta_ip);
-    copyString(updated.sta_netmask, sizeof(updated.sta_netmask), sta_netmask);
-    copyString(updated.sta_gateway, sizeof(updated.sta_gateway), sta_gateway);
-    copyString(updated.sta_dns, sizeof(updated.sta_dns), sta_dns);
-
-    const esp_err_t save_err = server->config_repository_->save(updated);
-    if (save_err != ESP_OK) {
-        const std::string html = renderConfigPage(
-            updated,
-            *server->cellular_config_,
-            server->status_service_->networkState(),
-            *server->network_manager_,
-            std::string("Failed to save device configuration: ") + esp_err_to_name(save_err),
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    // --- Build and save CellularConfig ---
-    CellularConfig updated_cellular = *server->cellular_config_;
-    updated_cellular.magic = kCellularConfigMagic;
-    updated_cellular.schema_version = kCellularConfigSchemaVersion;
-    updated_cellular.record_size = static_cast<std::uint16_t>(sizeof(CellularConfig));
-    updated_cellular.enabled = cellular_enabled ? 1U : 0U;
-    copyString(updated_cellular.apn, sizeof(updated_cellular.apn), cellular_apn);
-    copyString(updated_cellular.username, sizeof(updated_cellular.username), cellular_username);
-    copyString(updated_cellular.password, sizeof(updated_cellular.password), cellular_password);
-    copyString(updated_cellular.sim_pin, sizeof(updated_cellular.sim_pin), cellular_sim_pin);
-    copyString(updated_cellular.connectivity_check_host,
-               sizeof(updated_cellular.connectivity_check_host),
-               cellular_connectivity_check_host);
-    updated_cellular.wifi_debug_window_s =
-        static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
-
-    const esp_err_t cellular_save_err =
-        server->cellular_config_repository_->save(updated_cellular);
-    if (cellular_save_err != ESP_OK) {
-        const std::string html = renderConfigPage(
-            updated,
-            updated_cellular,
-            server->status_service_->networkState(),
-            *server->network_manager_,
-            std::string("Failed to save cellular configuration: ") +
-                esp_err_to_name(cellular_save_err),
-            true);
-        return httpd_resp_send(request, html.c_str(), html.size());
-    }
-
-    *server->config_ = updated;
-    *server->cellular_config_ = updated_cellular;
-    server->status_service_->setConfig(updated, true, false);
-    const std::string html = renderConfigPage(
-        updated,
-        updated_cellular,
-        server->status_service_->networkState(),
-        *server->network_manager_,
-        "Configuration saved. Device is rebooting now.",
-        false);
-    esp_err_t response_err = httpd_resp_send(request, html.c_str(), html.size());
-    if (response_err == ESP_OK) {
-        scheduleRestart();
-    }
-    return response_err;
-}
-
-esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {
-    auto* server = static_cast<WebServer*>(request->user_ctx);
-    httpd_resp_set_type(request, "application/json");
-    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-
-    std::string body;
-    const esp_err_t body_err = readRequestBody(request, body);
-    if (body_err == ESP_ERR_INVALID_SIZE) {
-        return sendRequestBodyTooLarge(request);
-    }
-    if (body_err != ESP_OK) {
-        return httpd_resp_sendstr(request, "{\"success\":false,\"error\":\"sync_failed\"}");
-    }
-
-    const FormFields fields = parseFormBody(body);
-    const std::string sntp_server = findFormValue(fields, "server");
-
-    const SntpCheckResult result = server->network_manager_->checkSntp(sntp_server);
-
-    if (result.success) {
-        return httpd_resp_sendstr(request, "{\"success\":true}");
-    }
-
-    std::string response = "{\"success\":false,\"error\":\"";
-    response += jsonEscape(result.error);
-    response += "\"}";
-    return httpd_resp_sendstr(request, response.c_str());
 }
 
 }  // namespace air360

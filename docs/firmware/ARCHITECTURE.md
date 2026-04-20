@@ -13,6 +13,7 @@ This document is the high-level system map for the firmware: component boundarie
 - `firmware/main/src/app.cpp`
 - `firmware/main/src/network_manager.cpp`
 - `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web/`
 - `firmware/main/src/sensors/sensor_manager.cpp`
 - `firmware/main/src/uploads/upload_manager.cpp`
 
@@ -109,6 +110,8 @@ NetworkManager                (station join or Lab AP)
 CellularManager               (PPP modem; spawned only when enabled)
  └─ ConnectivityChecker       (ICMP ping after PPP up)
 WebServer                     (esp_http_server on port 80)
+ └─ src/web runtime routes    (assets, status pages, logs, Wi-Fi scan, SNTP check)
+ └─ src/web mutating routes   (config, sensors, backends)
 StatusService                 (HTML/JSON rendering for web routes)
 ```
 
@@ -581,13 +584,15 @@ Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
 
 ---
 
-### `WebServer` — `web_server.cpp`
+### `WebServer` — `web_server.cpp`, `src/web/`
 
 HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 
 **esp_http_server configuration:**
 - Stack size: 10 KB
-- Max URI handlers: 12
+- Max URI handlers: 14
+
+`web_server.cpp` owns `esp_http_server` startup, URI registration, and page rendering helpers. `main/src/web/web_runtime_routes.cpp` owns read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, `/check-sntp`). `main/src/web/web_mutating_routes.cpp` owns config, sensor, and backend persistence/runtime-apply handlers. `main/src/web/web_server_helpers.cpp` contains shared form decoding, request-body limit handling, and chunked HTML response helpers.
 
 **Registered routes:**
 
@@ -595,6 +600,7 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 |-------|-------------|
 | `GET /` | Overview page (HTML) |
 | `GET /diagnostics` | Diagnostics page (HTML with raw status JSON dump) |
+| `GET /logs/data` | Plain-text in-memory log buffer for the diagnostics page |
 | `GET /config` | Device config page (HTML) |
 | `POST /config` | Save device config |
 | `GET /sensors` | Sensor management page (HTML) |
@@ -602,6 +608,7 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 | `GET /backends` | Backend management page (HTML) |
 | `POST /backends` | Save backend config |
 | `GET /wifi-scan` | JSON list of scanned SSIDs |
+| `POST /check-sntp` | JSON reachability check for the configured SNTP server |
 | `GET /assets/*` | Embedded CSS/JS assets |
 
 In **setup AP mode**: `/`, `/sensors`, and `/backends` redirect to `/config`. Navigation is restricted to the device section.

@@ -77,7 +77,8 @@ firmware/
 - `main/src/status_service.cpp` — HTML rendering for `/` and `/diagnostics`, plus raw status JSON generation for the diagnostics page
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
-- `main/src/web_server.cpp` — `esp_http_server` routes: `/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/check-sntp`, `/assets/*`
+- `main/src/web_server.cpp` — `esp_http_server` setup, URI registration, and page rendering helpers used by web route files
+- `main/src/web/` — decomposed web route/support files: `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, and `web_server_helpers.cpp` for shared request/form helpers
 - `main/webui/` — hand-authored frontend assets embedded into the firmware image (`air360.css`, `air360.js`, page body templates)
 
 ### Public headers
@@ -86,7 +87,7 @@ Headers under `main/include/air360/` define the public C++ interfaces used insid
 
 - `app.hpp`, `build_info.hpp`, `config_repository.hpp`, `network_manager.hpp`
 - `cellular_config_repository.hpp`, `cellular_manager.hpp`, `connectivity_checker.hpp`, `modem_gpio.hpp`
-- `status_service.hpp`, `time_utils.hpp`, `web_server.hpp`, `web_assets.hpp`, `web_ui.hpp`
+- `status_service.hpp`, `time_utils.hpp`, `web_server.hpp`, `web_server_internal.hpp`, `web_assets.hpp`, `web_ui.hpp`
 - `sensors/` — sensor types, registry, transport, config, driver interface
 - `uploads/` — backend config, measurement store, upload transport, uploader interfaces
 
@@ -182,7 +183,7 @@ VS Code: open `firmware/` directly or `firmware/firmware.code-workspace` with th
 ## How to navigate as a contributor
 
 - **Boot order** → `main/src/app.cpp`
-- **Web routes and UI** → `main/src/web_server.cpp`, `status_service.cpp`, `web_ui.cpp`
+- **Web routes and UI** → `main/src/web_server.cpp`, `main/src/web/`, `status_service.cpp`, `web_ui.cpp`
 - **Device persistence** → `main/src/config_repository.cpp`
 - **Cellular modem** → `main/src/cellular_manager.cpp` (lifecycle), `cellular_config_repository.cpp` (persistence)
 - **Sensor catalog** → `main/src/sensors/sensor_registry.cpp` (read before any driver)
