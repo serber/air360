@@ -15,13 +15,13 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [C1 — Global mutable I²C context in the Sensirion HAL shim](C1-sensirion-hal-global-state.md)
 - [C2 — Measurement queue is RAM-only, bounded at 256](C2-measurement-queue-ram-only.md)
 - [C3 — Cellular reconnect blocks on `portMAX_DELAY` with no watchdog](C3-cellular-portmax-delay.md)
-- [C4 — Main task removes itself from watchdog, subsystem coverage incomplete](C4-watchdog-audit-gap.md)
+- [C4 — Main task removes itself from watchdog, subsystem coverage incomplete](C4-watchdog-audit-gap-implemented.md)
 - [C5 — `BleAdvertiser::stop()` kills BLE task from foreign context](C5-ble-vtaskdelete-foreign.md)
 - [C6 — Timer daemon callbacks spawn full tasks](C6-timer-spawns-tasks.md)
 
 ### High
 - [H1 — `esp_http_client_init`/`cleanup` per upload, no keep-alive](H1-http-no-keepalive.md)
-- [H2 — HTTP response buffer 512 B is too small](H2-http-response-buffer.md)
+- [H2 — HTTP response buffer 512 B is too small](H2-http-response-buffer-implemented.md)
 - [H3 — Homegrown HTML templating in `web_server.cpp`, no escaping](H3-web-server-xss.md)
 - [H4 — In-place NVS schema evolution via reserved bytes](H4-nvs-schema-reserved-bytes.md)
 - [H5 — Wipe-and-default on NVS corruption](H5-nvs-wipe-to-default.md)

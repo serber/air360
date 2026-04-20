@@ -71,6 +71,14 @@ When code changes, update the matching docs in the same change:
 - Upload semantics or backend config changes: update `docs/firmware/measurement-pipeline.md`, `docs/firmware/upload-adapters.md`, and `docs/firmware/configuration-reference.md`.
 - Structural refactors: update `docs/firmware/PROJECT_STRUCTURE.md` and, if responsibilities move, `docs/firmware/ARCHITECTURE.md`.
 
+## Universal completion rule
+
+Before reporting any task as done — regardless of type (code, docs, refactor, rename, issue fix):
+
+1. **Re-read the original request or plan step by step.** Tick every item. If something is skipped, say so explicitly (e.g. `## Outstanding` in an issue file, or a note in the response).
+2. **Self-review the diff.** Read every changed line as a reviewer would. Check for: redundant conditions already implied by context; inconsistent application of a pattern across similar call sites; logic that silently changes behaviour in both directions when the intent was one-directional.
+3. **Check for inbound references** to any renamed or moved file (`grep -r "<old-name>" docs/ firmware/ --include="*.md"`), update them, and run `python3 scripts/check_firmware_docs.py`.
+
 ## Agent-oriented files
 
 - Firmware-local working contract: [`firmware/AGENTS.md`](firmware/AGENTS.md)

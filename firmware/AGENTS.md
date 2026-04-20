@@ -65,6 +65,7 @@ Before closing firmware work, do the smallest applicable set:
 4. Run the canonical firmware build if the change touched C++ or build config.
 5. Run `python3 ../scripts/check_firmware_docs.py`.
 6. If the change introduced a new document or link, confirm the doc checker stays clean.
+7. **Self-review the diff before reporting done.** Read every changed line as a reviewer would. Check for: redundant conditions already implied by surrounding context; skipped plan steps without an `## Outstanding` entry; logic that silently changes behaviour in both directions when the intent was one-directional; inconsistent application of a pattern across similar call sites in the same file.
 
 ## Documentation conventions
 
