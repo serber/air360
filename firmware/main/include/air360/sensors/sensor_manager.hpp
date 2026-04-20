@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -11,7 +12,9 @@
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/sensors/transport_binding.hpp"
 #include "air360/uploads/measurement_store.hpp"
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
@@ -39,8 +42,8 @@ class SensorManager {
     SensorManager& operator=(SensorManager&&) = delete;
 
     void setMeasurementStore(MeasurementStore& measurement_store);
-    void applyConfig(const SensorConfigList& config);
-    void stop();
+    esp_err_t applyConfig(const SensorConfigList& config);
+    esp_err_t stop();
 
     std::vector<SensorRuntimeInfo> sensors() const;
     std::size_t configuredCount() const;
@@ -60,14 +63,19 @@ class SensorManager {
     void lock() const;
     void unlock() const;
     std::vector<ManagedSensor> buildManagedSensors(const SensorConfigList& config);
-    void startLocked();
+    esp_err_t startLocked();
+    bool stopRequested() const;
     static void taskEntry(void* arg);
     void taskMain();
 
+    static constexpr EventBits_t kTaskStoppedBit = BIT0;
+
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
+    StaticEventGroup_t lifecycle_events_buffer_{};
+    EventGroupHandle_t lifecycle_events_ = nullptr;
     TaskHandle_t task_ = nullptr;
-    bool stop_requested_ = false;
+    std::atomic_bool stop_requested_{false};
     std::vector<ManagedSensor> sensors_;
     I2cBusManager i2c_bus_manager_;
     UartPortManager uart_port_manager_;

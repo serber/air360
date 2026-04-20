@@ -218,15 +218,31 @@ bool CellularManager::attemptConnect() {
     }
 
     {
-        esp_event_handler_instance_t h;
-        esp_event_handler_instance_register(
+        esp_event_handler_instance_t h = nullptr;
+        const esp_err_t err = esp_event_handler_instance_register(
             IP_EVENT, IP_EVENT_PPP_GOT_IP, onGotIpEvent, this, &h);
+        if (err != ESP_OK) {
+            lock();
+            state_.last_error = std::string("PPP GOT_IP handler registration failed: ") +
+                                esp_err_to_name(err);
+            unlock();
+            teardownModem();
+            return false;
+        }
         ip_got_handler_ = h;
     }
     {
-        esp_event_handler_instance_t h;
-        esp_event_handler_instance_register(
+        esp_event_handler_instance_t h = nullptr;
+        const esp_err_t err = esp_event_handler_instance_register(
             IP_EVENT, IP_EVENT_PPP_LOST_IP, onLostIpEvent, this, &h);
+        if (err != ESP_OK) {
+            lock();
+            state_.last_error = std::string("PPP LOST_IP handler registration failed: ") +
+                                esp_err_to_name(err);
+            unlock();
+            teardownModem();
+            return false;
+        }
         ip_lost_handler_ = h;
     }
 
@@ -381,6 +397,10 @@ void CellularManager::teardownModem() {
 void CellularManager::onGotIpEvent(
     void* arg, esp_event_base_t /*base*/, int32_t /*id*/, void* event_data) {
     auto* self = static_cast<CellularManager*>(arg);
+    if (self == nullptr || self->ppp_event_group_ == nullptr) {
+        return;
+    }
+
     const auto* ev = static_cast<ip_event_got_ip_t*>(event_data);
 
     esp_ip4addr_ntoa(&ev->ip_info.ip, self->pending_ip_, sizeof(self->pending_ip_));
@@ -392,6 +412,9 @@ void CellularManager::onGotIpEvent(
 void CellularManager::onLostIpEvent(
     void* arg, esp_event_base_t /*base*/, int32_t /*id*/, void* /*event_data*/) {
     auto* self = static_cast<CellularManager*>(arg);
+    if (self == nullptr || self->ppp_event_group_ == nullptr) {
+        return;
+    }
 
     // Notify NetworkManager immediately so uplinkStatus() reflects the loss.
     self->onPppDisconnected("PPP link lost");

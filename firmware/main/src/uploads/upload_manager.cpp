@@ -1,6 +1,7 @@
 #include "air360/uploads/upload_manager.hpp"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -19,6 +20,7 @@ constexpr std::uint32_t kUploadTaskStackSize = 7168U;
 constexpr UBaseType_t kUploadTaskPriority = 4U;
 constexpr std::size_t kMaxSamplesPerUploadWindow = 32U;
 constexpr std::uint32_t kBacklogDrainDelayMs = 5000U;
+constexpr std::uint32_t kStopTimeoutMs = 30000U;
 
 std::string defaultDisplayName(
     const BackendDescriptor* descriptor,
@@ -48,6 +50,7 @@ bool isDegraded(const BackendStatusSnapshot& backend) {
 
 UploadManager::UploadManager() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+    lifecycle_events_ = xEventGroupCreateStatic(&lifecycle_events_buffer_);
 }
 
 void UploadManager::start(
@@ -63,7 +66,7 @@ void UploadManager::start(
     network_manager_ = &network_manager;
 }
 
-void UploadManager::applyConfig(const BackendConfigList& config) {
+esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
     std::vector<std::pair<std::uint32_t, std::uint64_t>> acknowledged_by_id;
     lock();
     acknowledged_by_id.reserve(backends_.size());
@@ -72,7 +75,14 @@ void UploadManager::applyConfig(const BackendConfigList& config) {
     }
     unlock();
 
-    stop();
+    const esp_err_t stop_err = stop();
+    if (stop_err != ESP_OK) {
+        ESP_LOGE(
+            kTag,
+            "Upload reconfigure aborted: previous task did not stop within %" PRIu32 " ms",
+            kStopTimeoutMs);
+        return stop_err;
+    }
 
     std::vector<ManagedBackend> next_backends = buildManagedBackends(config);
     for (auto& backend : next_backends) {
@@ -88,8 +98,9 @@ void UploadManager::applyConfig(const BackendConfigList& config) {
     backends_ = std::move(next_backends);
     cycle_interval_ms_ = config.upload_interval_ms;
     next_cycle_time_ms_ = uptimeMilliseconds();
-    startLocked();
+    const esp_err_t start_err = startLocked();
     unlock();
+    return start_err;
 }
 
 std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
@@ -209,27 +220,33 @@ bool UploadManager::hasNetworkForUpload(std::string& last_error) const {
     return false;
 }
 
-void UploadManager::stop() {
+esp_err_t UploadManager::stop() {
     lock();
-    const bool had_task = task_ != nullptr;
-    stop_requested_ = true;
+    const TaskHandle_t task = task_;
+    if (task != nullptr) {
+        stop_requested_.store(true, std::memory_order_release);
+        xTaskNotifyGive(task);
+    }
     unlock();
 
-    if (had_task) {
-        for (;;) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-            lock();
-            const bool task_stopped = task_ == nullptr;
-            unlock();
-            if (task_stopped) {
-                break;
-            }
+    if (task != nullptr) {
+        const EventBits_t bits = xEventGroupWaitBits(
+            lifecycle_events_,
+            kTaskStoppedBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(kStopTimeoutMs));
+        if ((bits & kTaskStoppedBit) == 0U) {
+            ESP_LOGE(
+                kTag,
+                "Timed out waiting for upload manager task to stop (%" PRIu32 " ms)",
+                kStopTimeoutMs);
+            return ESP_ERR_TIMEOUT;
         }
     }
 
-    lock();
-    stop_requested_ = false;
-    unlock();
+    stop_requested_.store(false, std::memory_order_release);
+    return ESP_OK;
 }
 
 std::vector<BackendStatusSnapshot> UploadManager::backends() const {
@@ -355,9 +372,9 @@ void UploadManager::unlock() const {
     xSemaphoreGive(mutex_);
 }
 
-void UploadManager::startLocked() {
+esp_err_t UploadManager::startLocked() {
     if (task_ != nullptr) {
-        return;
+        return ESP_OK;
     }
 
     bool has_pollable_backend = false;
@@ -369,8 +386,11 @@ void UploadManager::startLocked() {
     }
 
     if (!has_pollable_backend) {
-        return;
+        return ESP_OK;
     }
+
+    stop_requested_.store(false, std::memory_order_release);
+    xEventGroupClearBits(lifecycle_events_, kTaskStoppedBit);
 
     const BaseType_t created = xTaskCreate(
         &UploadManager::taskEntry,
@@ -389,7 +409,14 @@ void UploadManager::startLocked() {
                 backend.snapshot.last_error = "Failed to start upload manager task.";
             }
         }
+        return ESP_FAIL;
     }
+
+    return ESP_OK;
+}
+
+bool UploadManager::stopRequested() const {
+    return stop_requested_.load(std::memory_order_acquire);
 }
 
 void UploadManager::taskEntry(void* arg) {
@@ -403,7 +430,7 @@ void UploadManager::taskMain() {
         std::vector<std::size_t> due_indices;
 
         lock();
-        const bool stop_requested = stop_requested_;
+        const bool stop_requested = stop_requested_.load(std::memory_order_acquire);
         due_indices.reserve(backends_.size());
         for (std::size_t index = 0; index < backends_.size(); ++index) {
             const auto& backend = backends_[index];
@@ -426,11 +453,15 @@ void UploadManager::taskMain() {
             due_indices.empty() ||
             measurement_store_ == nullptr ||
             network_manager_ == nullptr) {
-            vTaskDelay(kUploadLoopDelay);
+            static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
             continue;
         }
 
         for (const std::size_t index : due_indices) {
+            if (stopRequested()) {
+                break;
+            }
+
             IBackendUploader* uploader = nullptr;
             BackendRecord record{};
             BackendStatusSnapshot base_snapshot{};
@@ -543,6 +574,14 @@ void UploadManager::taskMain() {
                             next_retry_count = 0U;
 
                             for (const auto& request : requests) {
+                                if (stopRequested()) {
+                                    aggregate_result = UploadResultClass::kUnknown;
+                                    next_state = BackendRuntimeState::kIdle;
+                                    acknowledge_window = false;
+                                    last_error = "Upload stopped before request completed.";
+                                    break;
+                                }
+
                                 const UploadTransportResponse response = transport_.execute(request);
                                 const UploadResultClass request_result =
                                     uploader->classifyResponse(response);
@@ -652,12 +691,13 @@ void UploadManager::taskMain() {
             }
         }
 
-        vTaskDelay(kUploadLoopDelay);
+        static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
     }
 
     lock();
     task_ = nullptr;
     unlock();
+    xEventGroupSetBits(lifecycle_events_, kTaskStoppedBit);
     vTaskDelete(nullptr);
 }
 

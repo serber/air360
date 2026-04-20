@@ -285,6 +285,26 @@ The **backlog drain** shortens the next attempt to 5 seconds only for the backen
 
 ---
 
+## Runtime reconfiguration and shutdown
+
+Sensor and backend configuration can be applied at runtime from the web UI. Both managers use explicit task synchronization instead of polling a task handle in a loop:
+
+| Manager | Stop signal | Stop acknowledgement | Stop timeout |
+|---------|-------------|----------------------|--------------|
+| `SensorManager` | `stop_requested_ = true` plus task notification | `lifecycle_events_` bit from `air360_sensor` exit path | 5 000 ms |
+| `UploadManager` | `stop_requested_ = true` plus task notification | `lifecycle_events_` bit from `air360_upload` exit path | 30 000 ms |
+
+`applyConfig()` first asks the existing task to stop and waits for the acknowledgement bit. If the task does not stop before the timeout, reconfiguration is aborted and the existing runtime objects are left untouched. This prevents replacing `sensors_`, backend uploaders, UART handles, or inflight upload windows while the old task may still be executing against them.
+
+The stop request wakes idle task waits immediately. It does not forcibly kill a task that is currently inside a driver call or HTTP request:
+
+- sensor shutdown is bounded by the current driver's `init()` / `poll()` behavior; normal bus transfers use the transport timeouts documented in [transport-binding.md](transport-binding.md)
+- upload shutdown is bounded by the current `UploadTransport::execute()` call; the HTTP client timeout is 15 000 ms per request, and stop handling prevents starting another request after a stop request is observed
+
+If runtime apply fails after the config has been saved, the web UI reports that the saved config will apply on reboot.
+
+---
+
 ## Conditions that block enqueueing
 
 A measurement is silently dropped from the upload queue (but still updates the UI) if:
@@ -328,6 +348,8 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 |----------|-------|----------|
 | Sensor task loop period | 250 ms | `sensor_manager.cpp` |
 | Upload task loop period | 1 000 ms | `upload_manager.cpp` |
+| Sensor reconfigure stop timeout | 5 000 ms | `sensor_manager.cpp` |
+| Upload reconfigure stop timeout | 30 000 ms | `upload_manager.cpp` |
 | Max queue size | 256 samples | `measurement_store.cpp` |
 | Upload window size | 32 samples | `upload_manager.cpp` |
 | Max values per measurement | 16 | `sensor_types.hpp` |

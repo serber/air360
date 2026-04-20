@@ -1235,7 +1235,6 @@ void StatusService::setBleAdvertiser(const BleAdvertiser& ble) {
 
 std::string StatusService::renderRootHtml() const {
     StatusServiceRenderSnapshot render_snapshot;
-    const CellularManager* cellular_manager = nullptr;
     const SensorManager* sensor_manager = nullptr;
     const MeasurementStore* measurement_store = nullptr;
     const UploadManager* upload_manager = nullptr;
@@ -1252,7 +1251,6 @@ std::string StatusService::renderRootHtml() const {
     render_snapshot.wrote_default_config = wrote_default_config_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
-    cellular_manager = cellular_manager_;
     sensor_manager = sensor_manager_;
     measurement_store = measurement_store_;
     upload_manager = upload_manager_;
@@ -1261,20 +1259,12 @@ std::string StatusService::renderRootHtml() const {
 
     if (sensor_manager != nullptr) {
         render_snapshot.sensors = sensor_manager->sensors();
-        render_snapshot.sensor_task_stack_free_bytes =
-            sensor_manager->taskStackHighWaterMarkBytes();
     }
     if (measurement_store != nullptr) {
         render_snapshot.measurement_store = measurement_store->snapshot();
     }
     if (upload_manager != nullptr) {
         render_snapshot.upload = upload_manager->runtimeSnapshot();
-        render_snapshot.upload_task_stack_free_bytes =
-            upload_manager->taskStackHighWaterMarkBytes();
-    }
-    if (cellular_manager != nullptr) {
-        render_snapshot.cellular_task_stack_free_bytes =
-            cellular_manager->taskStackHighWaterMarkBytes();
     }
     if (ble_advertiser != nullptr) {
         render_snapshot.has_ble_state = true;

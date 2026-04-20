@@ -328,7 +328,7 @@ After the boot sequence completes, the following tasks run concurrently:
 | ESP-IDF Wi-Fi task | (IDF managed) | (IDF managed) | event-driven | Step 7 — `esp_netif_init` / `esp_wifi_start` |
 | ESP-IDF event loop task | (IDF managed) | (IDF managed) | event-driven | Step 3 — `esp_event_loop_create_default` |
 
-`air360_sensor` and `air360_upload` can be stopped and restarted at runtime — `air360_sensor` is restarted by `SensorManager::applyConfig()` when the user applies sensor changes through the web UI, and `air360_upload` is restarted when backend config changes.
+`air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task.
 
 ---
 

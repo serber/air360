@@ -2006,8 +2006,20 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         }
 
         *server->sensor_config_list_ = server->staged_sensor_config_;
-        server->sensor_manager_->applyConfig(*server->sensor_config_list_);
+        const esp_err_t apply_err =
+            server->sensor_manager_->applyConfig(*server->sensor_config_list_);
         server->has_pending_sensor_changes_ = false;
+        if (apply_err != ESP_OK) {
+            const std::string html = renderSensorsPage(
+                server->staged_sensor_config_,
+                *server->sensor_manager_,
+                *server->measurement_store_,
+                server->has_pending_sensor_changes_,
+                std::string("Sensor configuration saved, but runtime apply failed: ") +
+                    esp_err_to_name(apply_err) + ". Reboot to apply it.",
+                true);
+            return httpd_resp_send(request, html.c_str(), html.size());
+        }
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
             *server->sensor_manager_,
@@ -2410,8 +2422,19 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     }
 
     *server->backend_config_list_ = updated;
-    server->upload_manager_->applyConfig(updated);
+    const esp_err_t apply_err = server->upload_manager_->applyConfig(updated);
     server->status_service_->setUploads(*server->upload_manager_);
+
+    if (apply_err != ESP_OK) {
+        const std::string html = renderBackendsPage(
+            *server->backend_config_list_,
+            *server->upload_manager_,
+            server->status_service_->buildInfo(),
+            std::string("Backend configuration saved, but runtime apply failed: ") +
+                esp_err_to_name(apply_err) + ". Reboot to apply it.",
+            true);
+        return sendHtmlResponse(request, html);
+    }
 
     const std::string html = renderBackendsPage(
         *server->backend_config_list_,

@@ -57,6 +57,8 @@ Two-phase setup:
 
 When `config.enabled == 0` the modem GPIOs are still configured (idle LOW) but no task is created and no UART traffic is generated.
 
+Cellular settings are not reconfigured in place. The web UI saves `CellularConfig` together with the device config and then schedules `esp_restart()`, so the cellular task is created only during boot with the saved config. There is no runtime `stop()` path for `CellularManager`; PPP/DCE/DTE teardown happens inside `attemptConnect()` whenever a setup step fails or an established PPP session drops.
+
 ---
 
 ## FreeRTOS task

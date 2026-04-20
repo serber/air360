@@ -169,7 +169,7 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-sensor address rules, and poll interval ranges are in [configuration-reference.md](configuration-reference.md#sensor-configuration-sensor_cfg).
 
 1. Each form action (`add`, `update`, `delete`) modifies an in-memory **staged config** (`staged_sensor_config_`) and sets `has_pending_sensor_changes_ = true`. Nothing is written to NVS yet.
-2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes take effect immediately without a reboot.
+2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes normally take effect immediately without a reboot. If the old sensor task does not acknowledge stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 3. "Discard pending changes" (`action=discard`) resets the staged config to the last saved config.
 
 **Staging banner** — shown at the top of the page whenever `has_pending_sensor_changes_` is true. Displays current pending status and the Apply / Discard buttons.
@@ -203,7 +203,7 @@ For single-sensor categories, the "Add sensor" form is hidden if the category al
 | `add` | Creates a new `SensorRecord`, assigns next ID, stages it |
 | `update` | Updates the existing record with matching `sensor_id`, stages it |
 | `delete` | Removes the record by `sensor_id`, stages the deletion |
-| `apply` | Writes staged config to NVS, calls `applyConfig()` |
+| `apply` | Writes staged config to NVS, calls `applyConfig()`, reports runtime apply failure if the old task cannot stop |
 | `discard` | Resets staged config to last saved config |
 
 Category uniqueness is enforced at stage time — staging a second sensor in a single-sensor category returns an error.
@@ -231,7 +231,7 @@ A single form containing upload settings and one card per backend type.
 - Updates `Sensor.Community` and `Air360 API` by changing only the stored `use_https` flag; host and path stay in dedicated config fields.
 - Validates `Custom Upload` as a full `http://` or `https://` URL and stores it verbatim.
 - Validates and stores `InfluxDB` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`, `username`, `password`) plus `measurement_name`.
-- Saves to NVS and calls `UploadManager::applyConfig()` — takes effect immediately without a reboot.
+- Saves to NVS and calls `UploadManager::applyConfig()` — normally takes effect immediately without a reboot. If the old upload task cannot stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 
 ---
 

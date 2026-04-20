@@ -1,6 +1,7 @@
 #include "air360/sensors/sensor_manager.hpp"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdint>
 #include <string>
@@ -19,6 +20,7 @@ constexpr std::uint64_t kRetryDelayMs = 5000U;
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
 constexpr uint32_t kManagerTaskStackSize = 6144U;
 constexpr UBaseType_t kManagerTaskPriority = 5U;
+constexpr std::uint32_t kStopTimeoutMs = 5000U;
 
 SensorRuntimeState classifyFailureState(esp_err_t err) {
     if (err == ESP_ERR_NOT_FOUND ||
@@ -108,14 +110,22 @@ const ClaimedUartBinding* findClaimedUartBinding(
 
 SensorManager::SensorManager() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+    lifecycle_events_ = xEventGroupCreateStatic(&lifecycle_events_buffer_);
 }
 
 void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
     measurement_store_ = &measurement_store;
 }
 
-void SensorManager::applyConfig(const SensorConfigList& config) {
-    stop();
+esp_err_t SensorManager::applyConfig(const SensorConfigList& config) {
+    const esp_err_t stop_err = stop();
+    if (stop_err != ESP_OK) {
+        ESP_LOGE(
+            kTag,
+            "Sensor reconfigure aborted: previous task did not stop within %" PRIu32 " ms",
+            kStopTimeoutMs);
+        return stop_err;
+    }
 
     const esp_err_t i2c_err = i2c_bus_manager_.init();
     if (i2c_err != ESP_OK) {
@@ -126,8 +136,9 @@ void SensorManager::applyConfig(const SensorConfigList& config) {
 
     lock();
     sensors_ = std::move(next_sensors);
-    startLocked();
+    const esp_err_t start_err = startLocked();
     unlock();
+    return start_err;
 }
 
 std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
@@ -215,28 +226,34 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     return sensors;
 }
 
-void SensorManager::stop() {
+esp_err_t SensorManager::stop() {
     lock();
-    const bool had_task = task_ != nullptr;
-    stop_requested_ = true;
+    const TaskHandle_t task = task_;
+    if (task != nullptr) {
+        stop_requested_.store(true, std::memory_order_release);
+        xTaskNotifyGive(task);
+    }
     unlock();
 
-    if (had_task) {
-        for (;;) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-            lock();
-            const bool task_stopped = task_ == nullptr;
-            unlock();
-            if (task_stopped) {
-                break;
-            }
+    if (task != nullptr) {
+        const EventBits_t bits = xEventGroupWaitBits(
+            lifecycle_events_,
+            kTaskStoppedBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(kStopTimeoutMs));
+        if ((bits & kTaskStoppedBit) == 0U) {
+            ESP_LOGE(
+                kTag,
+                "Timed out waiting for sensor manager task to stop (%" PRIu32 " ms)",
+                kStopTimeoutMs);
+            return ESP_ERR_TIMEOUT;
         }
     }
 
-    lock();
-    stop_requested_ = false;
-    unlock();
+    stop_requested_.store(false, std::memory_order_release);
     uart_port_manager_.shutdown();
+    return ESP_OK;
 }
 
 std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
@@ -289,9 +306,9 @@ void SensorManager::unlock() const {
     xSemaphoreGive(mutex_);
 }
 
-void SensorManager::startLocked() {
+esp_err_t SensorManager::startLocked() {
     if (task_ != nullptr) {
-        return;
+        return ESP_OK;
     }
 
     bool has_pollable_sensor = false;
@@ -303,8 +320,11 @@ void SensorManager::startLocked() {
     }
 
     if (!has_pollable_sensor) {
-        return;
+        return ESP_OK;
     }
+
+    stop_requested_.store(false, std::memory_order_release);
+    xEventGroupClearBits(lifecycle_events_, kTaskStoppedBit);
 
     const BaseType_t created = xTaskCreate(
         &SensorManager::taskEntry,
@@ -322,7 +342,14 @@ void SensorManager::startLocked() {
                 sensor.runtime.last_error = "Failed to start sensor manager task.";
             }
         }
+        return ESP_FAIL;
     }
+
+    return ESP_OK;
+}
+
+bool SensorManager::stopRequested() const {
+    return stop_requested_.load(std::memory_order_acquire);
 }
 
 void SensorManager::taskEntry(void* arg) {
@@ -333,10 +360,7 @@ void SensorManager::taskMain() {
     const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
 
     for (;;) {
-        lock();
-        const bool stop_requested = stop_requested_;
-        unlock();
-        if (stop_requested) {
+        if (stopRequested()) {
             break;
         }
 
@@ -347,6 +371,10 @@ void SensorManager::taskMain() {
         unlock();
 
         for (std::size_t index = 0; index < sensor_count; ++index) {
+            if (stopRequested()) {
+                break;
+            }
+
             SensorDriver* driver = nullptr;
             SensorRecord record{};
             bool needs_init = false;
@@ -413,12 +441,13 @@ void SensorManager::taskMain() {
             unlock();
         }
 
-        vTaskDelay(kManagerLoopDelay);
+        static_cast<void>(ulTaskNotifyTake(pdTRUE, kManagerLoopDelay));
     }
 
     lock();
     task_ = nullptr;
     unlock();
+    xEventGroupSetBits(lifecycle_events_, kTaskStoppedBit);
     vTaskDelete(nullptr);
 }
 

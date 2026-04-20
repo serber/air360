@@ -241,7 +241,13 @@ void App::run() {
     static_cast<void>(sensor_defaults_written);
 
     sensor_manager_.setMeasurementStore(measurement_store_);
-    sensor_manager_.applyConfig(sensor_config_list_);
+    const esp_err_t sensor_apply_err = sensor_manager_.applyConfig(sensor_config_list_);
+    if (sensor_apply_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Sensor manager apply failed: %s",
+            esp_err_to_name(sensor_apply_err));
+    }
     status_service_.setSensors(sensor_manager_);
     status_service_.setMeasurements(measurement_store_);
 
@@ -341,7 +347,13 @@ void App::run() {
         sensor_manager_,
         measurement_store_,
         network_manager_);
-    upload_manager_.applyConfig(backend_config_list_);
+    const esp_err_t upload_apply_err = upload_manager_.applyConfig(backend_config_list_);
+    if (upload_apply_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Upload manager apply failed: %s",
+            esp_err_to_name(upload_apply_err));
+    }
     status_service_.setUploads(upload_manager_);
 
     ESP_LOGI(kTag, "Boot step 9/9: start status web server");

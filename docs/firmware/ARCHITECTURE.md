@@ -378,7 +378,7 @@ Owns the sensor runtime lifecycle.
 - Thread-safe sensors collection protected by static mutex
 
 **Lifecycle methods:**
-- `applyConfig(SensorConfigList)` — validates config, stops old task, instantiates drivers, starts task
+- `applyConfig(SensorConfigList)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
 - `buildManagedSensors()` — validates transport bindings, calls `SensorRegistry::createDriver()` for each enabled sensor
 - `taskMain()` — polls each sensor at its configured interval, updates measurements, handles errors
 
@@ -515,6 +515,8 @@ Manages the upload cycle and per-backend runtime state.
 5. On `kSuccess` or `kNoData`, advance only that backend cursor
 6. On failure, keep only that backend window for retry
 7. Retire shared queue entries once every active backend has acknowledged them
+
+Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If an HTTP request is already in flight, the task finishes that request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
 
 **Backend runtime states:**
 
@@ -835,6 +837,8 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Upload interval default | 145 s | `backend_config.hpp` |
 | Upload interval range | 10–300 s | `backend_config_repository.cpp` |
 | Sensor poll interval range | 5 000–3 600 000 ms | `sensor_registry.cpp` |
+| Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
+| Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |
 | Upload backlog drain interval | 5 s | `upload_manager.cpp` |
 | SNTP poll period | 250 ms | `network_manager.cpp` |
 | Maintenance loop period | 10 s | `app.cpp` |
