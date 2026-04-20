@@ -1,6 +1,7 @@
 # C4 — Main task removes itself from watchdog, subsystem coverage incomplete
 
-- **Severity:** Critical — **RESOLVED** (branch `code_review`)
+- **Status:** Implemented
+- **Severity:** Critical
 - **Area:** Reliability / watchdog discipline
 - **Files:**
   - `firmware/main/src/app.cpp` (line 393: `esp_task_wdt_delete(nullptr);`)
