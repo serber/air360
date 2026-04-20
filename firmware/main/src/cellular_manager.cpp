@@ -1,5 +1,6 @@
 #include "air360/cellular_manager.hpp"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdio>
 
@@ -8,6 +9,7 @@
 #include "air360/network_manager.hpp"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 // esp_modem_api.h (C API) uses PdpContext from the C++ layer — pull it in first.
 #include "cxx_include/esp_modem_types.hpp"
 using namespace esp_modem;  // NOLINT(google-build-using-namespace)
@@ -26,6 +28,19 @@ namespace {
 constexpr char kTag[] = "air360.cellular";
 constexpr std::uint32_t kCheckTimeoutMs = 5000U;
 constexpr std::uint32_t kCheckRetries   = 3U;
+// Maximum sleep slice between watchdog resets during backoff waits.
+constexpr std::uint32_t kWdtFeedSliceMs = 5000U;
+
+// Sleep for total_ms while feeding the task watchdog every kWdtFeedSliceMs.
+// Must only be called from a task subscribed to the TWDT.
+void wdtFeedingDelay(std::uint32_t total_ms) {
+    while (total_ms > 0U) {
+        const std::uint32_t slice = std::min(total_ms, kWdtFeedSliceMs);
+        vTaskDelay(pdMS_TO_TICKS(slice));
+        esp_task_wdt_reset();
+        total_ms -= slice;
+    }
+}
 
 }  // namespace
 
@@ -105,11 +120,14 @@ std::size_t CellularManager::taskStackHighWaterMarkBytes() const {
 // static
 void CellularManager::taskEntry(void* arg) {
     static_cast<CellularManager*>(arg)->taskBody();
+    esp_task_wdt_delete(nullptr);
     vTaskDelete(nullptr);
 }
 
 void CellularManager::taskBody() {
     ESP_LOGI(kTag, "Cellular task running");
+    esp_task_wdt_add(nullptr);
+    ESP_LOGI(kTag, "TWDT: air360_cellular subscribed");
 
     for (;;) {
         // Ensure the modem is awake before connecting.
@@ -118,6 +136,7 @@ void CellularManager::taskBody() {
         // attemptConnect() blocks until the session is fully over
         // (either never established, or established then dropped).
         const bool was_connected = attemptConnect();
+        esp_task_wdt_reset();
 
         if (was_connected) {
             // Clean disconnect — reset backoff counter for next cycle.
@@ -140,6 +159,7 @@ void CellularManager::taskBody() {
         if (reconnect_attempts >= kMaxReconnectAttempts) {
             ESP_LOGW(kTag, "Max attempts reached — hardware reset");
             doHardwareReset();
+            esp_task_wdt_reset();
             lock();
             state_.reconnect_attempts = 0U;
             state_.next_reconnect_uptime_ms = 0U;
@@ -159,7 +179,7 @@ void CellularManager::taskBody() {
         ESP_LOGI(kTag, "Backoff %" PRIu32 " ms", backoff_ms);
 
         setModemSleepPin(config_.sleep_gpio, true);
-        vTaskDelay(pdMS_TO_TICKS(backoff_ms));
+        wdtFeedingDelay(backoff_ms);
         setModemSleepPin(config_.sleep_gpio, false);
     }
 }

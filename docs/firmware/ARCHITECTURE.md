@@ -85,7 +85,7 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 | 6 | Backend config load/create | NVS key `backend_cfg` |
 | 7 | Network mode resolution | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
 | 8 | Upload manager start | Launches `air360_upload` when enabled backends exist |
-| 9 | Web server start | Starts `esp_http_server`; main task leaves TWDT |
+| 9 | Web server start | Starts `esp_http_server`; main task enters maintenance loop |
 
 After the startup sequence, `App::run()` enters a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots.
 

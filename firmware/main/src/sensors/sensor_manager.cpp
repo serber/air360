@@ -10,6 +10,7 @@
 #include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 
 namespace air360 {
 
@@ -357,6 +358,9 @@ void SensorManager::taskEntry(void* arg) {
 }
 
 void SensorManager::taskMain() {
+    esp_task_wdt_add(nullptr);
+    ESP_LOGI(kTag, "TWDT: air360_sensor subscribed");
+
     const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
 
     for (;;) {
@@ -442,11 +446,13 @@ void SensorManager::taskMain() {
         }
 
         static_cast<void>(ulTaskNotifyTake(pdTRUE, kManagerLoopDelay));
+        esp_task_wdt_reset();
     }
 
     lock();
     task_ = nullptr;
     unlock();
+    esp_task_wdt_delete(nullptr);
     xEventGroupSetBits(lifecycle_events_, kTaskStoppedBit);
     vTaskDelete(nullptr);
 }

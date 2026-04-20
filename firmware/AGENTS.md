@@ -40,6 +40,12 @@ Run it verbatim from this directory.
 - Web UI: `main/src/web_server.cpp`, `main/src/web_ui.cpp`, `main/webui/*`
 - Uploads: `main/src/uploads/upload_manager.cpp`, `main/src/uploads/measurement_store.cpp`, `main/src/uploads/upload_transport.cpp`, `main/src/uploads/adapters/*`
 
+## Invariants
+
+**TWDT:** Every `xTaskCreate`-spawned task that runs for more than ~5 seconds MUST call `esp_task_wdt_add(nullptr)` on entry, `esp_task_wdt_reset()` at its natural loop checkpoint, and `esp_task_wdt_delete(nullptr)` before `vTaskDelete(nullptr)`. If the task can sleep longer than 15 s, use `wdtFeedingDelay()` or an equivalent chunked wait instead of a single `vTaskDelay`. See [`../docs/firmware/watchdog.md`](../docs/firmware/watchdog.md).
+
+**Timer callbacks:** Timer callbacks MUST NOT call `xTaskCreate`, allocate memory, or block. Their only permitted actions are setting atomic flags, calling `xTaskNotifyGive`, or posting to a queue with `xQueueSendFromISR`-style non-blocking primitives.
+
 ## Co-change expectations
 
 - If you touch `main/Kconfig.projbuild` or `sdkconfig.defaults`, review `../docs/firmware/configuration-reference.md`, `../docs/firmware/ARCHITECTURE.md`, and any affected subsystem doc.
@@ -47,15 +53,18 @@ Run it verbatim from this directory.
 - If you change NVS blob layout or defaults, review `../docs/firmware/nvs.md`, `../docs/firmware/configuration-reference.md`, and any matching ADR.
 - If you add a sensor or transport option, review `../docs/firmware/sensors/README.md`, `../docs/firmware/sensors/supported-sensors.md`, `../docs/firmware/sensors/adding-new-sensor.md`, and `../docs/firmware/transport-binding.md`.
 - If you change queue, batching, or backend semantics, review `../docs/firmware/measurement-pipeline.md`, `../docs/firmware/upload-adapters.md`, and `../docs/firmware/upload-transport.md`.
+- **If you add a new FreeRTOS task**, subscribe it to the TWDT, add it to the table in `../docs/firmware/watchdog.md`, and update `../docs/firmware/startup-pipeline.md` if it is spawned during boot.
 
 ## Verification checklist
 
 Before closing firmware work, do the smallest applicable set:
 
-1. Re-read the affected subsystem docs and make them match the code.
-2. Run the canonical firmware build if the change touched C++ or build config.
-3. Run `python3 ../scripts/check_firmware_docs.py`.
-4. If the change introduced a new document or link, confirm the doc checker stays clean.
+1. **Re-read the issue/plan that motivated the change.** Tick every numbered step in the Fix plan. If a step is skipped, document it in `## Outstanding` in the issue file — never leave it implied.
+2. **Check Co-change expectations below** for every file touched. Apply all matching rules.
+3. Re-read the affected subsystem docs and make them match the code.
+4. Run the canonical firmware build if the change touched C++ or build config.
+5. Run `python3 ../scripts/check_firmware_docs.py`.
+6. If the change introduced a new document or link, confirm the doc checker stays clean.
 
 ## Documentation conventions
 

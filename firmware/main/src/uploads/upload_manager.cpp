@@ -9,6 +9,7 @@
 #include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 
 namespace air360 {
 
@@ -424,6 +425,9 @@ void UploadManager::taskEntry(void* arg) {
 }
 
 void UploadManager::taskMain() {
+    esp_task_wdt_add(nullptr);
+    ESP_LOGI(kTag, "TWDT: air360_upload subscribed");
+
     for (;;) {
         const std::uint64_t now_ms = uptimeMilliseconds();
         bool has_active_backend = false;
@@ -454,6 +458,7 @@ void UploadManager::taskMain() {
             measurement_store_ == nullptr ||
             network_manager_ == nullptr) {
             static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
+            esp_task_wdt_reset();
             continue;
         }
 
@@ -692,11 +697,13 @@ void UploadManager::taskMain() {
         }
 
         static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
+        esp_task_wdt_reset();
     }
 
     lock();
     task_ = nullptr;
     unlock();
+    esp_task_wdt_delete(nullptr);
     xEventGroupSetBits(lifecycle_events_, kTaskStoppedBit);
     vTaskDelete(nullptr);
 }

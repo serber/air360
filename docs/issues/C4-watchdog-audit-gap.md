@@ -1,6 +1,6 @@
 # C4 — Main task removes itself from watchdog, subsystem coverage incomplete
 
-- **Severity:** Critical
+- **Severity:** Critical — **RESOLVED** (branch `code_review`)
 - **Area:** Reliability / watchdog discipline
 - **Files:**
   - `firmware/main/src/app.cpp` (line 393: `esp_task_wdt_delete(nullptr);`)
@@ -56,3 +56,16 @@ The real problem is coverage: the code does not systematically subscribe every l
 
 - C3 (cellular portMAX_DELAY) depends on this discipline being real.
 - C5 (BLE shutdown) should also subscribe/unsubscribe the BLE task cleanly.
+
+## Resolved
+
+**What was changed:**
+
+- `app.cpp` — removed `esp_task_wdt_delete(nullptr)` before the runtime loop; added `esp_task_wdt_reset()` inside the loop; changed TWDT timeout from 10 000 ms to 30 000 ms; changed `trigger_panic = false` → `true`.
+- `sensors/sensor_manager.cpp` — added `esp_task_wdt_add(nullptr)` on task entry; `esp_task_wdt_reset()` after `ulTaskNotifyTake`; `esp_task_wdt_delete(nullptr)` before self-delete.
+- `uploads/upload_manager.cpp` — same TWDT subscribe/reset/delete pattern; reset in both the early-continue path and the end-of-loop path.
+- `cellular_manager.cpp` — added TWDT subscribe on entry; `esp_task_wdt_reset()` after `attemptConnect()` and after `doHardwareReset()`; replaced `vTaskDelay(pdMS_TO_TICKS(backoff_ms))` with `wdtFeedingDelay(backoff_ms)` (feeds the watchdog every 5 s during backoffs up to 5 min).
+
+**Outstanding tasks (not subscribed):**
+- `air360_ble` — deferred to C5; its watchdog subscription is coupled to the cooperative-shutdown redesign.
+- `wifi_reconnect` / `wifi_ap_retry` helper tasks spawned by `NetworkManager::reconnectTimerCallback` and `setupApRetryTimerCallback` — these are short-lived, but `resetCurrentTaskWatchdogIfSubscribed()` (`network_manager.cpp:165`) silently becomes a no-op because they are not subscribed. Full fix is part of C6 (persistent worker-task refactor). Until C6 lands, a hung Wi-Fi reconnect task will not trigger TWDT.

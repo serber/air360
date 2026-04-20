@@ -81,9 +81,9 @@ esp_err_t initWatchdog() {
     }
 
     esp_task_wdt_config_t config{};
-    config.timeout_ms = 10000;
+    config.timeout_ms = 30000;
     config.idle_core_mask = (1U << portNUM_PROCESSORS) - 1U;
-    config.trigger_panic = false;
+    config.trigger_panic = true;
 
     err = esp_task_wdt_init(&config);
     if (err == ESP_OK) {
@@ -144,6 +144,8 @@ void App::run() {
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
+    } else {
+        ESP_LOGI(kTag, "TWDT: app_main subscribed (30 s, panic enabled)");
     }
 
     ESP_LOGI(kTag, "Boot step 2/9: initialize NVS");
@@ -390,8 +392,6 @@ void App::run() {
         setLedColor(0U, kLedBrightness, 0U);  // green — station mode
     }
 
-    esp_task_wdt_delete(nullptr);
-
     for (;;) {
         const NetworkState network_state = network_manager_.state();
         if (network_state.mode == NetworkMode::kStation &&
@@ -408,6 +408,7 @@ void App::run() {
 
         status_service_.setNetworkState(network_manager_.state());
         status_service_.setCellularState(cellular_manager_.state());
+        esp_task_wdt_reset();
         vTaskDelay(kRuntimeMaintenanceDelay);
     }
 }

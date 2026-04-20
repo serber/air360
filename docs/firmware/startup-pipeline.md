@@ -100,7 +100,7 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | Step | Action | Fatal? | Side effect |
 |------|--------|--------|-------------|
 | pre | Init RGB LED (GPIO48 WS2812) | No | LED turns blue |
-| 1/9 | Arm task watchdog (10 s, no panic) | No | Main task subscribed to TWDT |
+| 1/9 | Arm task watchdog (30 s, panic on timeout) | No | Main task subscribed to TWDT |
 | 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | Red LED on failure |
 | 3/9 | Initialize network core (`netif` + event loop) | **Yes** | Red LED on failure |
 | 4/9 | Load or create `device_cfg` | No | `boot_count` incremented; `StatusService` updated |
@@ -109,7 +109,7 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | 6/9 | Load or create `backend_cfg` | No | — |
 | 7/9 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `StatusService` updated with network and cellular state |
 | 8/9 | Start upload manager; apply backend config | No | **`air360_upload` task spawned** |
-| 9/9 | Start web server | **Yes** | Green or pink LED on success; WDT removed from main task |
+| 9/9 | Start web server | **Yes** | Green or pink LED on success; main task enters maintenance loop |
 
 ---
 
@@ -130,12 +130,14 @@ The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via th
 
 `esp_task_wdt_add(nullptr)` subscribes the main task to the Task Watchdog Timer (TWDT).
 
-- Timeout: 10 seconds
-- Panic on timeout: **disabled** (logs warning, does not reboot)
+- Timeout: **30 seconds**
+- Panic on timeout: **enabled** (triggers `esp_system_abort`, device reboots via panic handler)
 - If TWDT was already initialized by ESP-IDF (from `sdkconfig`), the call simply attaches to it
 - If TWDT is not pre-initialized, the firmware initializes it with the parameters above
 
-The watchdog is fed (reset) implicitly at long-blocking calls during steps 7 and 8 by the respective subsystems. After step 9 is complete, the main task **removes itself** from the watchdog (`esp_task_wdt_delete(nullptr)`) — the maintenance loop does not need watchdog supervision.
+The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `air360_cellular`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
+
+Spawned helper tasks created by `NetworkManager` during Wi-Fi reconnect (issue C6) are **not yet subscribed** — they are short-lived and addressed as part of the C6 refactor.
 
 ---
 
@@ -286,7 +288,7 @@ Failure is **fatal** — sets red LED, returns from `run()`.
 On success:
 - `StatusService` is updated (web server started flag)
 - LED turns green (station mode) or pink (setup AP mode)
-- Main task **removes itself from the watchdog**
+- Main task enters the maintenance loop (remains subscribed to TWDT)
 
 ---
 
@@ -301,14 +303,16 @@ for (;;) {
     }
     status_service.setNetworkState(network_manager.state());
     status_service.setCellularState(cellular_manager.state());
+    esp_task_wdt_reset();   // feed TWDT before sleeping
     vTaskDelay(10000 ms);
 }
 ```
 
-The loop has three responsibilities:
+The loop has four responsibilities:
 - **SNTP retry** — if the device is in station mode but time sync has not succeeded yet, it retries every 10 seconds
 - **Network state refresh** — keeps `StatusService` in sync with the current Wi-Fi network state so the web UI reflects live uplink status
 - **Cellular state refresh** — keeps `StatusService` in sync with the current cellular state (PPP IP, RSSI, ping result)
+- **Watchdog feed** — resets the TWDT on every iteration; the 30-second timeout gives a comfortable margin above the 10-second sleep
 
 The main task runs at the default FreeRTOS task priority and stays alive for the lifetime of the firmware.
 
@@ -318,15 +322,16 @@ The main task runs at the default FreeRTOS task priority and stays alive for the
 
 After the boot sequence completes, the following tasks run concurrently:
 
-| Task | Stack | Priority | Loop period | Spawned at |
-|------|-------|----------|-------------|------------|
-| `app_main` (main task) | 8 192 B | default | 10 s | ESP-IDF runtime |
-| `air360_cellular` | 8 192 B | 5 | event-driven | Step 4b — `CellularManager::start()` (when enabled) |
-| `air360_sensor` | 6 144 B | 5 | 250 ms | Step 5 — `SensorManager::applyConfig()` |
-| `air360_upload` | 7 168 B | 4 | 1 s | Step 8 — `UploadManager::start()` |
-| `esp_httpd` (web server) | 10 240 B | default | event-driven | Step 9 — `WebServer::start()` |
-| ESP-IDF Wi-Fi task | (IDF managed) | (IDF managed) | event-driven | Step 7 — `esp_netif_init` / `esp_wifi_start` |
-| ESP-IDF event loop task | (IDF managed) | (IDF managed) | event-driven | Step 3 — `esp_event_loop_create_default` |
+| Task | Stack | Priority | Loop period | TWDT | Spawned at |
+|------|-------|----------|-------------|------|------------|
+| `app_main` (main task) | 8 192 B | default | 10 s | ✓ subscribed | ESP-IDF runtime |
+| `air360_cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 4b — `CellularManager::start()` (when enabled) |
+| `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()` |
+| `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 8 — `UploadManager::start()` |
+| `air360_ble` | 4 096 B | 3 | 5 s | ✗ pending C5 | Step 5 — `BleAdvertiser::start()` (when enabled) |
+| `esp_httpd` (web server) | 10 240 B | default | event-driven | ✗ IDF-managed | Step 9 — `WebServer::start()` |
+| `wifi_reconnect` (short-lived) | IDF-managed | IDF-managed | one-shot | ✗ pending C6 | Wi-Fi disconnect event |
+| ESP-IDF Wi-Fi / event loop | (IDF managed) | (IDF managed) | event-driven | ✗ IDF-managed | Steps 3 / 7 |
 
 `air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task.
 
