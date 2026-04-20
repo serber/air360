@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,7 +21,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "requested_version",
-        help="Requested release version, for example v0.1-beta.1 or v0.1",
+        nargs="?",
+        help="Optional release tag override. Defaults to the latest git tag.",
     )
     parser.add_argument(
         "--firmware-dir",
@@ -56,6 +59,188 @@ def normalize_prefix(project_version: str) -> str:
     if not version.startswith("v"):
         version = f"v{version}"
     return f"air360-{version}"
+
+
+@dataclass(frozen=True)
+class GitChange:
+    commit: str
+    subject: str
+    author: str
+    date: str
+    files: tuple[str, ...]
+
+
+def run_git(repo_root: Path, args: list[str]) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            "git command failed: git "
+            + " ".join(args)
+            + ("\n" + result.stderr.strip() if result.stderr.strip() else "")
+        )
+    return result.stdout.strip()
+
+
+def git_tags(repo_root: Path) -> list[str]:
+    output = run_git(repo_root, ["tag", "--list", "--sort=-v:refname"])
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def latest_release_tag(repo_root: Path, requested_version: str | None) -> str:
+    tags = git_tags(repo_root)
+    if requested_version:
+        if requested_version not in tags:
+            raise SystemExit(f"Requested release tag does not exist in git: {requested_version}")
+        return requested_version
+    if not tags:
+        raise SystemExit("No git tags found. Create a release tag before bundling firmware.")
+    return tags[0]
+
+
+def previous_same_convention_tag(repo_root: Path, release_tag: str) -> str | None:
+    match = re.match(r"^(.*?)(\d+)$", release_tag)
+    if match is None:
+        return None
+
+    prefix = match.group(1)
+    release_number = int(match.group(2))
+    candidates: list[tuple[int, str]] = []
+    for tag in git_tags(repo_root):
+        candidate_match = re.match(r"^(.*?)(\d+)$", tag)
+        if candidate_match is None or candidate_match.group(1) != prefix:
+            continue
+        candidate_number = int(candidate_match.group(2))
+        if candidate_number < release_number:
+            candidates.append((candidate_number, tag))
+
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[0])[1]
+
+
+def git_commit_range(previous_tag: str | None, release_tag: str) -> str:
+    if previous_tag:
+        return f"{previous_tag}..{release_tag}"
+    return release_tag
+
+
+def changed_files_for_commit(repo_root: Path, commit: str) -> tuple[str, ...]:
+    output = run_git(
+        repo_root,
+        ["diff-tree", "--no-commit-id", "--name-only", "-r", commit],
+    )
+    return tuple(line.strip() for line in output.splitlines() if line.strip())
+
+
+def git_changes(repo_root: Path, previous_tag: str | None, release_tag: str) -> list[GitChange]:
+    output = run_git(
+        repo_root,
+        [
+            "log",
+            "--no-merges",
+            "--date=short",
+            "--pretty=format:%H%x1f%s%x1f%an%x1f%ad",
+            git_commit_range(previous_tag, release_tag),
+        ],
+    )
+    changes: list[GitChange] = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("\x1f")
+        if len(parts) != 4:
+            continue
+        commit, subject, author, date = parts
+        changes.append(
+            GitChange(
+                commit=commit,
+                subject=subject,
+                author=author,
+                date=date,
+                files=changed_files_for_commit(repo_root, commit),
+            )
+        )
+    return changes
+
+
+def sentence_from_subject(subject: str) -> str:
+    cleaned = re.sub(r"^[a-zA-Z]+(?:\([^)]+\))?:\s*", "", subject).strip()
+    if not cleaned:
+        cleaned = subject.strip()
+    cleaned = cleaned[:1].upper() + cleaned[1:]
+    if cleaned[-1:] not in {".", "!", "?"}:
+        cleaned += "."
+    return cleaned
+
+
+def categorize_change(change: GitChange) -> str:
+    files_text = " ".join(change.files).lower()
+    subject = change.subject.lower()
+    text = f"{subject} {files_text}"
+
+    non_doc_files = [
+        path for path in change.files
+        if not path.lower().endswith(".md") and not path.startswith("docs/")
+    ]
+    if change.files and not non_doc_files:
+        return "Documentation"
+
+    if any(token in text for token in ["webui", "web_server", "web_", "/web", "diagnostics", "config page", "ui"]):
+        return "Web UI"
+    if any(token in text for token in ["network", "wifi", "wi-fi", "cellular", "sntp", "connectivity", "status_service", "watchdog", "led"]):
+        return "Connectivity and Runtime"
+    if any(token in text for token in ["sensor", "upload", "backend", "measurement", "bme", "gps", "sps", "dht", "ina", "mhz", "no2"]):
+        return "Sensors and Uploads"
+    if any(token in text for token in ["config", "nvs", "schema", "migration", "sdkconfig", "kconfig", "partition"]):
+        return "Configuration and Release Behavior"
+    if any(token in text for token in ["release", "bundle", "cmake", "build", ".agents/skills", "skill"]):
+        return "Build and Tooling"
+    return "Maintenance"
+
+
+def grouped_changes(changes: list[GitChange]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {
+        "Connectivity and Runtime": [],
+        "Web UI": [],
+        "Sensors and Uploads": [],
+        "Configuration and Release Behavior": [],
+        "Documentation": [],
+        "Build and Tooling": [],
+        "Maintenance": [],
+    }
+    seen_by_group: dict[str, set[str]] = {name: set() for name in groups}
+    for change in reversed(changes):
+        category = categorize_change(change)
+        item = sentence_from_subject(change.subject)
+        if item in seen_by_group[category]:
+            continue
+        groups[category].append(item)
+        seen_by_group[category].add(item)
+    return groups
+
+
+def highlight_items(groups: dict[str, list[str]]) -> list[str]:
+    highlights: list[str] = []
+    for category in [
+        "Connectivity and Runtime",
+        "Web UI",
+        "Sensors and Uploads",
+        "Configuration and Release Behavior",
+        "Build and Tooling",
+    ]:
+        highlights.extend(groups.get(category, [])[:2])
+        if len(highlights) >= 6:
+            break
+    if not highlights:
+        highlights.extend(groups.get("Documentation", [])[:4])
+    return highlights[:6]
 
 
 def flash_size_slug(flash_size: str) -> str:
@@ -148,67 +333,82 @@ def write_checksums(path: Path, files: Iterable[Path], bundle_dir: Path) -> None
 
 def write_release_notes(
     path: Path,
-    requested_version: str,
+    release_tag: str,
+    previous_tag: str | None,
+    build_project_version: str,
     bundle_prefix: str,
     target: str,
     flash_size: str,
     full_zip: Path,
     split_zip: Path,
+    changes: list[GitChange],
 ) -> None:
-    notes = f"""## Air360 Firmware {requested_version}
+    groups = grouped_changes(changes)
+    highlights = highlight_items(groups)
+    range_label = f"{previous_tag}...{release_tag}" if previous_tag else release_tag
+    intro = (
+        "This release is generated from the git changes in "
+        f"`{range_label}` and packages the current local firmware build for {target.upper()}."
+    )
 
-Pre-release firmware build for Air360 on {target.upper()}.
+    lines = [
+        "# Release Notes — Air360 Firmware",
+        "",
+        f"Version: `{release_tag}`",
+        f"Changes: `{range_label}`",
+        f"Build project version: `{build_project_version}`",
+        "",
+        intro,
+        "",
+    ]
 
-### Status
+    if highlights:
+        lines.extend(["## Highlights", ""])
+        lines.extend(f"- {item}" for item in highlights)
+        lines.append("")
 
-This bundle was generated from the current local firmware build.
-Use it for GitHub Release publication and real-device testing.
+    for section in [
+        "Connectivity and Runtime",
+        "Web UI",
+        "Sensors and Uploads",
+        "Configuration and Release Behavior",
+        "Documentation",
+        "Build and Tooling",
+        "Maintenance",
+    ]:
+        items = groups.get(section, [])
+        if not items:
+            continue
+        lines.extend([f"## {section}", ""])
+        lines.extend(f"- {item}" for item in items)
+        lines.append("")
 
-### Hardware Target
+    if changes:
+        lines.extend(["## Commit Range", ""])
+        for change in changes:
+            lines.append(f"- `{change.commit[:8]}` {change.date} — {change.subject}")
+        lines.append("")
 
-- {target.upper()}
-- {flash_size} flash
+    lines.extend([
+        "## Artifacts",
+        "",
+        f"- Recommended full image: `{full_zip.name}`",
+        f"- Manual split-image bundle: `{split_zip.name}`",
+        f"- Bundle prefix: `{bundle_prefix}`",
+        f"- Hardware target: `{target.upper()}`",
+        f"- Flash size: `{flash_size}`",
+        "",
+    ])
 
-### Recommended Asset
+    if not previous_tag:
+        lines.extend([
+            "## Notes",
+            "",
+            "- No previous tag with the same trailing-number naming convention was found; release notes include the selected tag history only.",
+            "",
+        ])
 
-For most users, upload and recommend:
-
-- `{full_zip.name}`
-
-Advanced/manual flashing bundle:
-
-- `{split_zip.name}`
-
-### Bundle Prefix
-
-- `{bundle_prefix}`
-
-### Included Sensor Support
-
-- Climate: `BME280`, `BME680`
-- Temperature / Humidity: `DHT11`, `DHT22`
-- Air Quality: `ENS160`
-- Particulate Matter: `SPS30`
-- Location: `GPS (NMEA)`
-- Gas: `ME3-NO2`
-
-### Known Limitations
-
-- beta quality; behavior may still change
-- no OTA update flow yet
-- local auth is not enabled yet
-- sensor changes still require `Apply and reboot`
-
-### Feedback
-
-When reporting issues, include:
-
-- connected sensors
-- backend used
-- `/status` output
-- `boot_count`
-- `reset_reason` and `reset_reason_label`
-"""
+    notes = "\n".join(lines)
     path.write_text(notes, encoding="utf-8")
 
 
@@ -216,6 +416,10 @@ def main() -> int:
     args = parse_args()
 
     repo_root = repo_root_from_script()
+    release_tag = latest_release_tag(repo_root, args.requested_version)
+    previous_tag = previous_same_convention_tag(repo_root, release_tag)
+    changes = git_changes(repo_root, previous_tag, release_tag)
+
     firmware_dir = (args.firmware_dir or (repo_root / "firmware")).resolve()
     build_dir = firmware_dir / "build"
     release_root = (args.release_dir or (firmware_dir / "release")).resolve()
@@ -235,7 +439,7 @@ def main() -> int:
     flash_size = flasher_args["flash_settings"]["flash_size"]
     flash_files: dict[str, str] = flasher_args["flash_files"]
 
-    bundle_prefix = normalize_prefix(project_version)
+    bundle_prefix = normalize_prefix(release_tag)
     bundle_dir = release_root / bundle_prefix
     full_dir = bundle_dir / "full"
     split_dir = bundle_dir / "split"
@@ -290,12 +494,15 @@ def main() -> int:
 
     write_release_notes(
         bundle_dir / "release-notes.md",
-        requested_version=args.requested_version,
+        release_tag=release_tag,
+        previous_tag=previous_tag,
+        build_project_version=project_version,
         bundle_prefix=bundle_prefix,
         target=target,
         flash_size=flash_size,
         full_zip=full_zip,
         split_zip=split_zip,
+        changes=changes,
     )
 
     checksum_files = [
@@ -310,6 +517,8 @@ def main() -> int:
     write_checksums(bundle_dir / "sha256sums.txt", checksum_files, bundle_dir)
 
     print(f"Created release bundle: {bundle_dir}")
+    print(f"Release tag: {release_tag}")
+    print(f"Previous comparable tag: {previous_tag or 'not found'}")
     print(f"Merged image: {merged_bin}")
     print(f"Full zip: {full_zip}")
     print(f"Split zip: {split_zip}")
