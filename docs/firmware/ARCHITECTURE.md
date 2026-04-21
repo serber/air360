@@ -119,7 +119,7 @@ StatusService                 (HTML/JSON rendering for web routes)
 
 ## Runtime model
 
-After startup the firmware runs four concurrent execution contexts:
+After startup the firmware runs several concurrent execution contexts:
 
 | Context | Name | Type | Stack | Priority |
 |---------|------|------|-------|----------|
@@ -127,12 +127,13 @@ After startup the firmware runs four concurrent execution contexts:
 | Sensor polling | `air360_sensor` | FreeRTOS task | 6144 B | 5 |
 | Upload scheduling | `air360_upload` | FreeRTOS task | 7168 B | 4 |
 | Cellular modem | `air360_cellular` | FreeRTOS task | 8192 B | 5 |
+| Network worker | `air360_net` | FreeRTOS task | 6144 B | 2 |
 | BLE advertising | `air360_ble` | FreeRTOS task | 4096 B | 3 |
 | NimBLE host | `nimble_host` | FreeRTOS task (NimBLE) | — | — |
 
 The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
 
-Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. `NetworkManager` also owns instance-scoped Wi-Fi runtime handles: a station event group, reconnect/setup-AP retry timers, the background connect-attempt task handle, and ESP-IDF event handler registrations.
+Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. `NetworkManager` also owns instance-scoped Wi-Fi runtime handles: a station event group, reconnect/setup-AP retry timers, the persistent `air360_net` worker task, and ESP-IDF event handler registrations.
 
 ---
 
@@ -240,7 +241,7 @@ Manages Wi-Fi station join, Lab AP fallback, reconnect timers, mDNS, and SNTP sy
 
 `NetworkManager` keeps its visible runtime state and scan cache behind a mutex. Callers consume copies through `state()` and `wifiScanSnapshot()` rather than reading live shared members.
 
-Wi-Fi driver handles, ESP-IDF event registrations, reconnect/setup-AP retry timers, station event bits, and mDNS/SNTP initialization flags live in the instance-owned `RuntimeContext`. ESP-IDF and FreeRTOS callbacks are static trampolines, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
+Wi-Fi driver handles, ESP-IDF event registrations, reconnect/setup-AP retry timers, station event bits, the `air360_net` worker task, and mDNS/SNTP initialization flags live in the instance-owned `RuntimeContext`. ESP-IDF and FreeRTOS callbacks are static trampolines, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
 
 **Synchronization:** Instance-owned FreeRTOS event group `runtime_.station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
 

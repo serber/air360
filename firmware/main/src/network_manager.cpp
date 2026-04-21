@@ -5,6 +5,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 #include "air360/string_utils.hpp"
@@ -38,8 +39,14 @@ constexpr std::uint32_t kReconnectMaxDelayMs = 300000U;
 constexpr std::uint32_t kSetupApRetryDelayMs = 180000U;
 constexpr std::uint32_t kDisconnectIgnoreWindowMs = 2000U;
 constexpr std::uint32_t kDefaultConnectTimeoutMs = 15000U;
-constexpr std::size_t kConnectAttemptTaskStackSize = 6144U;
-constexpr UBaseType_t kConnectAttemptTaskPriority = tskIDLE_PRIORITY + 2U;
+constexpr std::size_t kNetworkWorkerTaskStackSize = 6144U;
+constexpr UBaseType_t kNetworkWorkerTaskPriority = tskIDLE_PRIORITY + 2U;
+constexpr TickType_t kNetworkWorkerWait = pdMS_TO_TICKS(5000U);
+constexpr TickType_t kScanRequestTimeout = pdMS_TO_TICKS(20000U);
+constexpr std::uint32_t kWorkerReconnectReq = (1UL << 0);
+constexpr std::uint32_t kWorkerSetupApRetryReq = (1UL << 1);
+constexpr std::uint32_t kWorkerScanReq = (1UL << 2);
+constexpr std::uint32_t kAllWorkerReqBits = std::numeric_limits<std::uint32_t>::max();
 
 TickType_t ticksFromMs(std::uint32_t value_ms) {
     return pdMS_TO_TICKS(value_ms == 0U ? 1U : value_ms);
@@ -284,6 +291,35 @@ esp_err_t NetworkManager::ensureWifiInit() {
             this,
             &NetworkManager::setupApRetryTimerCallback);
         if (context.setup_ap_retry_timer == nullptr) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    if (context.scan_request_mutex == nullptr) {
+        context.scan_request_mutex =
+            xSemaphoreCreateMutexStatic(&context.scan_request_mutex_buf);
+        if (context.scan_request_mutex == nullptr) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    if (context.scan_done == nullptr) {
+        context.scan_done = xSemaphoreCreateBinaryStatic(&context.scan_done_buf);
+        if (context.scan_done == nullptr) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    if (context.worker_task == nullptr) {
+        const BaseType_t result = xTaskCreate(
+            &NetworkManager::workerTask,
+            "air360_net",
+            kNetworkWorkerTaskStackSize,
+            this,
+            kNetworkWorkerTaskPriority,
+            &context.worker_task);
+        if (result != pdPASS) {
+            context.worker_task = nullptr;
             return ESP_ERR_NO_MEM;
         }
     }
@@ -585,65 +621,78 @@ void NetworkManager::handleIpEvent(
 
 void NetworkManager::reconnectTimerCallback(TimerHandle_t timer) {
     auto* manager = static_cast<NetworkManager*>(pvTimerGetTimerID(timer));
-    if (manager == nullptr || manager->runtime_.connect_attempt_task != nullptr) {
-        return;
-    }
-
-    RuntimeContext& context = manager->runtime_;
-    context.connect_attempt_kind = ConnectAttemptKind::kRuntimeReconnect;
-    BaseType_t result = xTaskCreate(
-        &NetworkManager::connectAttemptTask,
-        "wifi_reconnect",
-        kConnectAttemptTaskStackSize,
-        manager,
-        kConnectAttemptTaskPriority,
-        &context.connect_attempt_task);
-    if (result != pdPASS) {
-        context.connect_attempt_task = nullptr;
-        ESP_LOGW(kTag, "Failed to create Wi-Fi reconnect task");
+    if (manager != nullptr) {
+        manager->notifyWorker(kWorkerReconnectReq);
     }
 }
 
 void NetworkManager::setupApRetryTimerCallback(TimerHandle_t timer) {
     auto* manager = static_cast<NetworkManager*>(pvTimerGetTimerID(timer));
-    if (manager == nullptr || manager->runtime_.connect_attempt_task != nullptr) {
-        return;
-    }
-
-    RuntimeContext& context = manager->runtime_;
-    context.connect_attempt_kind = ConnectAttemptKind::kSetupApRetry;
-    BaseType_t result = xTaskCreate(
-        &NetworkManager::connectAttemptTask,
-        "wifi_ap_retry",
-        kConnectAttemptTaskStackSize,
-        manager,
-        kConnectAttemptTaskPriority,
-        &context.connect_attempt_task);
-    if (result != pdPASS) {
-        context.connect_attempt_task = nullptr;
-        ESP_LOGW(kTag, "Failed to create setup-AP Wi-Fi retry task");
+    if (manager != nullptr) {
+        manager->notifyWorker(kWorkerSetupApRetryReq);
     }
 }
 
-void NetworkManager::connectAttemptTask(void* arg) {
-    auto* manager = static_cast<NetworkManager*>(arg);
+void NetworkManager::workerTask(void* arg) {
+    static_cast<NetworkManager*>(arg)->workerLoop();
+}
 
-    if (manager != nullptr) {
-        RuntimeContext& context = manager->runtime_;
-        const auto kind = context.connect_attempt_kind;
-        DeviceConfig config = makeDefaultDeviceConfig();
-        bool has_config = false;
-        manager->lock();
-        config = manager->last_config_;
-        has_config = manager->has_last_config_;
-        manager->unlock();
-        if (has_config) {
-            static_cast<void>(manager->attemptStationConnect(config, kDefaultConnectTimeoutMs, kind));
-        }
-        context.connect_attempt_task = nullptr;
+void NetworkManager::notifyWorker(std::uint32_t request_bits) {
+    const TaskHandle_t worker = runtime_.worker_task;
+    if (worker == nullptr) {
+        return;
     }
 
-    vTaskDelete(nullptr);
+    static_cast<void>(xTaskNotify(worker, request_bits, eSetBits));
+}
+
+void NetworkManager::workerLoop() {
+    bool wdt_subscribed = false;
+    const esp_err_t wdt_err = esp_task_wdt_add(nullptr);
+    if (wdt_err == ESP_OK) {
+        wdt_subscribed = true;
+        ESP_LOGI(kTag, "TWDT: air360_net subscribed");
+    } else {
+        ESP_LOGW(kTag, "TWDT subscribe failed: %s", esp_err_to_name(wdt_err));
+    }
+
+    for (;;) {
+        std::uint32_t bits = 0U;
+        static_cast<void>(xTaskNotifyWait(0U, kAllWorkerReqBits, &bits, kNetworkWorkerWait));
+        if (wdt_subscribed) {
+            static_cast<void>(esp_task_wdt_reset());
+        }
+
+        if ((bits & (kWorkerReconnectReq | kWorkerSetupApRetryReq)) != 0U) {
+            DeviceConfig config = makeDefaultDeviceConfig();
+            bool has_config = false;
+            lock();
+            config = last_config_;
+            has_config = has_last_config_;
+            unlock();
+
+            if (has_config && (bits & kWorkerReconnectReq) != 0U) {
+                static_cast<void>(attemptStationConnect(
+                    config,
+                    kDefaultConnectTimeoutMs,
+                    ConnectAttemptKind::kRuntimeReconnect));
+            }
+
+            if (has_config && (bits & kWorkerSetupApRetryReq) != 0U) {
+                static_cast<void>(attemptStationConnect(
+                    config,
+                    kDefaultConnectTimeoutMs,
+                    ConnectAttemptKind::kSetupApRetry));
+            }
+        }
+
+        if ((bits & kWorkerScanReq) != 0U) {
+            runtime_.last_worker_scan_result = scanAvailableNetworksBlocking();
+            if (runtime_.scan_done != nullptr) {
+                xSemaphoreGive(runtime_.scan_done);
+            }
+        }
+    }
 }
 
 esp_err_t NetworkManager::attemptStationConnect(
@@ -1126,6 +1175,41 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
 }
 
 esp_err_t NetworkManager::scanAvailableNetworks() {
+    RuntimeContext& context = runtime_;
+    esp_err_t init_err = ensureWifiInit();
+    if (init_err != ESP_OK) {
+        return init_err;
+    }
+
+    if (xTaskGetCurrentTaskHandle() == context.worker_task) {
+        return scanAvailableNetworksBlocking();
+    }
+
+    if (context.scan_request_mutex == nullptr || context.scan_done == nullptr) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    xSemaphoreTake(context.scan_request_mutex, portMAX_DELAY);
+    while (xSemaphoreTake(context.scan_done, 0U) == pdTRUE) {
+    }
+    context.last_worker_scan_result = ESP_ERR_TIMEOUT;
+    notifyWorker(kWorkerScanReq);
+    const BaseType_t done = xSemaphoreTake(context.scan_done, kScanRequestTimeout);
+    const esp_err_t result =
+        done == pdTRUE ? context.last_worker_scan_result : ESP_ERR_TIMEOUT;
+    xSemaphoreGive(context.scan_request_mutex);
+
+    if (done != pdTRUE) {
+        lock();
+        available_networks_.clear();
+        last_scan_uptime_ms_ = 0U;
+        last_scan_error_ = "Wi-Fi scan worker timeout";
+        unlock();
+    }
+    return result;
+}
+
+esp_err_t NetworkManager::scanAvailableNetworksBlocking() {
     const auto fail = [this](esp_err_t err, const char* message = nullptr) -> esp_err_t {
         lock();
         available_networks_.clear();

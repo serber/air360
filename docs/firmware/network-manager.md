@@ -96,10 +96,11 @@ struct RuntimeContext {
     esp_netif_t* sta_netif;
     TimerHandle_t reconnect_timer;
     TimerHandle_t setup_ap_retry_timer;
-    TaskHandle_t connect_attempt_task;
+    TaskHandle_t worker_task;
+    SemaphoreHandle_t scan_request_mutex;
+    SemaphoreHandle_t scan_done;
     esp_event_handler_instance_t wifi_handler;
     esp_event_handler_instance_t ip_handler;
-    ConnectAttemptKind connect_attempt_kind;
     bool handlers_registered;
     bool auto_connect_on_sta_start;
     bool reconnect_cycle_active;
@@ -112,11 +113,14 @@ struct RuntimeContext {
 
 The context is a private field of `NetworkManager`, so RTOS handles and callback state belong to the same object as the public network state. ESP-IDF event callbacks and FreeRTOS timer callbacks remain static functions, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
 
-`ensureWifiInit()` does three things once for the lifetime of the manager:
+`worker_task` is the single long-lived `air360_net` FreeRTOS task for blocking Wi-Fi recovery and scan work. Timer callbacks never allocate, create tasks, or block; they only notify this worker with request bits. The worker is subscribed to TWDT and feeds it after each notification wait.
+
+`ensureWifiInit()` does four things once for the lifetime of the manager:
 
 1. initializes the Wi-Fi driver with `WIFI_STORAGE_RAM`
 2. creates the reconnect/setup-AP retry timers
-3. registers persistent `WIFI_EVENT` and `IP_EVENT_STA_GOT_IP` handlers
+3. creates the `air360_net` worker and scan request synchronization primitives
+4. registers persistent `WIFI_EVENT` and `IP_EVENT_STA_GOT_IP` handlers
 
 The handlers stay active after `connectStation()` returns, which is what enables runtime recovery. `NetworkManager` is non-copyable/non-movable so those callback registrations cannot accidentally outlive or point at a copied manager object.
 
@@ -214,7 +218,7 @@ Backoff sequence:
 10 s → 20 s → 40 s → 80 s → 160 s → 300 s (cap)
 ```
 
-When the timer fires, `NetworkManager` creates a dedicated FreeRTOS task and performs another blocking `attemptStationConnect(...)`. The shared FreeRTOS timer task itself is not blocked by the 15-second station wait.
+When the timer fires, the callback only notifies the persistent `air360_net` worker. The worker performs the blocking `attemptStationConnect(...)`, so the shared FreeRTOS timer task is not blocked by the 15-second station wait and no per-attempt tasks are spawned.
 
 `IP_EVENT_STA_GOT_IP` resets the reconnect counter to zero and clears the backoff state.
 
@@ -223,7 +227,7 @@ When the timer fires, `NetworkManager` creates a dedicated FreeRTOS task and per
 If setup AP is active and stored station credentials exist, the firmware now keeps retrying station mode in the background:
 
 - the setup AP remains available during the wait period
-- every 3 minutes a retry task attempts station association in `WIFI_MODE_APSTA`
+- every 3 minutes the `air360_net` worker attempts station association in `WIFI_MODE_APSTA`
 - on success the firmware switches back to `WIFI_MODE_STA`
 - on failure the AP stays up and the retry timer is armed again
 
@@ -278,7 +282,7 @@ The Diagnostics page raw JSON dump exposes the same fields in machine-readable f
 
 ## Wi-Fi scan
 
-`scanAvailableNetworks()` remains blocking and still requires `WIFI_MODE_STA` or `WIFI_MODE_APSTA`.
+`scanAvailableNetworks()` remains a synchronous public API, but the blocking Wi-Fi scan itself runs inside the `air360_net` worker. The caller posts a scan request bit, waits for the worker's completion semaphore, and then reads the updated scan cache. The scan still requires `WIFI_MODE_STA` or `WIFI_MODE_APSTA`.
 
 - hidden SSIDs are skipped
 - duplicate SSIDs are collapsed
@@ -321,7 +325,7 @@ for (;;) {
 }
 ```
 
-Wi-Fi reconnect itself no longer depends on this loop; it is driven by the persistent event handlers, timers, and retry task.
+Wi-Fi reconnect itself no longer depends on this loop; it is driven by the persistent event handlers, timers, and the `air360_net` worker.
 
 ---
 

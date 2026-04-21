@@ -17,7 +17,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [C3 — Cellular reconnect blocks on `portMAX_DELAY` with no watchdog](C3-cellular-portmax-delay-implemented.md)
 - [C4 — Main task removes itself from watchdog, subsystem coverage incomplete](C4-watchdog-audit-gap-implemented.md)
 - [C5 — `BleAdvertiser::stop()` kills BLE task from foreign context](C5-ble-vtaskdelete-foreign-implemented.md)
-- [C6 — Timer daemon callbacks spawn full tasks](C6-timer-spawns-tasks.md)
+- [C6 — Timer daemon callbacks spawn full tasks](C6-timer-spawns-tasks-implemented.md)
 
 ### High
 - [H1 — `esp_http_client_init`/`cleanup` per upload, no keep-alive](H1-http-no-keepalive.md)

@@ -27,6 +27,10 @@ Do not try `which idf.py`, do not search for it, do not try other paths. Use the
 - Avoid documenting generated files in `firmware/build/` except when narrow factual hints are needed.
 - Preserve project-specific terminology and avoid generic boilerplate.
 
+## Firmware concurrency rules
+
+- Timer callbacks MUST NOT call `xTaskCreate`, allocate memory, or block. They may only set atomic flags, notify existing tasks, or post to queues with non-blocking FreeRTOS primitives.
+
 ## Firmware entry points
 
 Start here depending on the task:

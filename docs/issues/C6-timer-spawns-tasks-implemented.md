@@ -67,3 +67,7 @@ The pointer is read and written from multiple tasks without synchronization.
 
 - C4 (watchdog) — the new worker must be subscribed.
 - M10 (`connect_attempt_task` race) is fully subsumed by this refactor.
+
+## Implemented
+
+Implemented.

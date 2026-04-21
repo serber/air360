@@ -112,10 +112,14 @@ class NetworkManager {
         esp_netif_t* sta_netif = nullptr;
         TimerHandle_t reconnect_timer = nullptr;
         TimerHandle_t setup_ap_retry_timer = nullptr;
-        TaskHandle_t connect_attempt_task = nullptr;
+        TaskHandle_t worker_task = nullptr;
+        StaticSemaphore_t scan_request_mutex_buf = {};
+        SemaphoreHandle_t scan_request_mutex = nullptr;
+        StaticSemaphore_t scan_done_buf = {};
+        SemaphoreHandle_t scan_done = nullptr;
+        esp_err_t last_worker_scan_result = ESP_OK;
         esp_event_handler_instance_t wifi_handler = nullptr;
         esp_event_handler_instance_t ip_handler = nullptr;
-        ConnectAttemptKind connect_attempt_kind = ConnectAttemptKind::kInitial;
         bool handlers_registered = false;
         bool auto_connect_on_sta_start = false;
         bool reconnect_cycle_active = false;
@@ -137,14 +141,17 @@ class NetworkManager {
         void* event_data);
     static void reconnectTimerCallback(TimerHandle_t timer);
     static void setupApRetryTimerCallback(TimerHandle_t timer);
-    static void connectAttemptTask(void* arg);
+    static void workerTask(void* arg);
 
     esp_err_t ensureWifiInit();
     esp_err_t attemptStationConnect(
         const DeviceConfig& config,
         std::uint32_t timeout_ms,
         ConnectAttemptKind kind);
+    esp_err_t scanAvailableNetworksBlocking();
     esp_err_t synchronizeTime(std::uint32_t timeout_ms = 15000U);
+    void workerLoop();
+    void notifyWorker(std::uint32_t request_bits);
     void startMdns(const std::string& hostname);
     void lock() const;
     void unlock() const;

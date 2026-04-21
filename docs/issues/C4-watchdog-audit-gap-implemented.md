@@ -31,7 +31,7 @@ The real problem is coverage: the code does not systematically subscribe every l
 1. **Inventory every long-lived task.** Expected list:
    - `SensorManager` task
    - `UploadManager` worker(s)
-   - `NetworkManager` connect-attempt tasks (spawned — see C6; that refactor simplifies this)
+   - `NetworkManager` worker task (implemented by C6; timer callbacks now only notify it)
    - `CellularManager` taskBody
    - `BleAdvertiser` taskMain and NimBLE host task
    - `web_server` httpd internal tasks (these have their own watchdog considerations)
@@ -66,7 +66,8 @@ The real problem is coverage: the code does not systematically subscribe every l
 - `sensors/sensor_manager.cpp` — added `esp_task_wdt_add(nullptr)` on task entry; `esp_task_wdt_reset()` after `ulTaskNotifyTake`; `esp_task_wdt_delete(nullptr)` before self-delete.
 - `uploads/upload_manager.cpp` — same TWDT subscribe/reset/delete pattern; reset in both the early-continue path and the end-of-loop path.
 - `cellular_manager.cpp` — added TWDT subscribe on entry; `esp_task_wdt_reset()` after `attemptConnect()` and after `doHardwareReset()`; replaced `vTaskDelay(pdMS_TO_TICKS(backoff_ms))` with `wdtFeedingDelay(backoff_ms)` (feeds the watchdog every 5 s during backoffs up to 5 min).
+- `network_manager.cpp` — C6 replaced short-lived reconnect/setup-AP retry tasks with the subscribed `air360_net` worker.
 
 **Follow-up status:**
 - `air360_ble` — implemented by C5; the task now subscribes to TWDT as part of its cooperative-shutdown redesign.
-- `wifi_reconnect` / `wifi_ap_retry` helper tasks spawned by `NetworkManager::reconnectTimerCallback` and `setupApRetryTimerCallback` — these are short-lived, but `resetCurrentTaskWatchdogIfSubscribed()` (`network_manager.cpp:165`) silently becomes a no-op because they are not subscribed. Full fix is part of C6 (persistent worker-task refactor). Until C6 lands, a hung Wi-Fi reconnect task will not trigger TWDT.
+- `wifi_reconnect` / `wifi_ap_retry` helper tasks — removed by C6; reconnect/setup-AP retry work now runs inside the subscribed `air360_net` worker.

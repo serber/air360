@@ -257,7 +257,7 @@ A single form containing upload settings and one card per backend type.
 }
 ```
 
-If in `kSetupAp` mode and no scan has been done yet (`last_scan_uptime_ms == 0`), a new scan is triggered synchronously on this request. Otherwise the cached result from the last scan is returned. Duplicate SSIDs and hidden networks are already filtered by `NetworkManager::scanAvailableNetworks()`.
+If in `kSetupAp` mode and no scan has been done yet (`last_scan_uptime_ms == 0`), the request asks `NetworkManager` to run a scan through its `air360_net` worker and waits for the updated cache. Otherwise the cached result from the last scan is returned. Duplicate SSIDs and hidden networks are already filtered by `NetworkManager::scanAvailableNetworks()`.
 
 ---
 
