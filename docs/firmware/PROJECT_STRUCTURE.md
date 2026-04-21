@@ -137,12 +137,12 @@ Sources: `main/src/uploads/`
 - `measurement_store.cpp` — in-memory ring buffer (max 256 samples) with pending/inflight upload semantics
 - `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 4 backends)
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
-- `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle, backlog drain
+- `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle and per-backend cursors
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
 - `backend_http_config.cpp` — parse, validate, and serialize shared backend HTTP endpoint fields
 - `adapters/air360_json_payload.cpp` — shared Air360 JSON body builder used by multiple backend uploaders
 - `adapters/air360_api_uploader.cpp` — PUT Air360 JSON to the configured Air360 backend host/path
-- `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied full HTTP(S) URL
+- `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied protocol/host/path/port endpoint
 - `adapters/influxdb_uploader.cpp` — POST Influx line protocol to a user-supplied host/path/port with optional Basic Auth
 - `adapters/sensor_community_uploader.cpp` — POST to the configured Sensor.Community host/path
 

@@ -249,7 +249,6 @@ Four backends are pre-configured by default — all **disabled**:
 | `backend_type` | `BackendType` (uint8_t) | — | Must be a recognised type |
 | `display_name` | `char[32]` | type name | 1–31 chars, non-empty |
 | `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short chip ID |
-| `endpoint_url` | `char[160]` | `""` | Custom Upload only; full `http://` or `https://` URL |
 | `host` | `char[96]` | backend default | HTTP backends; host name without protocol |
 | `path` | `char[96]` | backend default | HTTP backends; must start with `/` when set |
 | `username` | `char[48]` | `""` | Optional Basic Auth username |
@@ -267,7 +266,7 @@ Four backends are pre-configured by default — all **disabled**:
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` |
 
-Built-in HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` stores the exact `http://` or `https://` URL entered in the text field. `InfluxDB` uses the same common HTTP fields plus `measurement_name`.
+HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` and `InfluxDB` use the same common HTTP fields; `InfluxDB` also stores `measurement_name`. On save, an omitted port becomes the selected protocol default (`443` for HTTPS, `80` for HTTP). Generated request URLs omit the port when it is the selected protocol default.
 
 ### Validation rules
 
@@ -284,8 +283,10 @@ Built-in HTTP backends store host, path, port, and `use_https` separately in NVS
 - If `enabled == 1`: `host`, `path`, and `port` must be valid.
 
 **Custom Upload:**
-- `endpoint_url` must be null-terminated.
-- If `enabled == 1`: `endpoint_url` must not be empty.
+- `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
+- If `enabled == 1`: host, path, and port must be present and valid.
+- The path must start with `/`.
+- The port must be in range 1–65535.
 
 **InfluxDB:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
@@ -299,4 +300,4 @@ Built-in HTTP backends store host, path, port, and `use_https` separately in NVS
 
 ### `upload_interval_ms` behaviour
 
-The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. When the upload queue has a backlog (pending samples after a successful upload), the next cycle fires after `min(upload_interval_ms, 5000 ms)` to drain the queue faster. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.
+The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. When a backend becomes due, it drains the samples that were already queued at the start of that cycle in bounded upload windows, then schedules the next cycle after the configured interval. Failed attempts retry after the configured interval. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.

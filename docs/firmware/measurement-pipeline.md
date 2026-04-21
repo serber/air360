@@ -277,11 +277,11 @@ The upload task loop runs every **1 second** (`kUploadLoopDelay`). Each backend 
 | Per-backend condition | Next attempt delay |
 |-----------------------|--------------------|
 | No data after cursor | `upload_interval_ms` (default 145 s) |
-| Upload succeeded, no more backlog for that backend | `upload_interval_ms` |
-| Upload succeeded, backlog still exists for that backend | `min(upload_interval_ms, 5000 ms)` |
+| Upload succeeded, queued samples from cycle start remain | immediate next upload window |
+| Upload succeeded, cycle-start queue drained | `upload_interval_ms` |
 | Upload failed | `upload_interval_ms` |
 
-The **backlog drain** shortens the next attempt to 5 seconds only for the backend that just made progress and still has more samples behind its current cursor.
+When a backend becomes due, the upload task snapshots the latest queued sample ID as the cycle high-water mark. It then drains windows of up to 32 samples as quickly as each HTTP request sequence completes until that high-water mark is acknowledged. Samples recorded while this drain is running are left for the next scheduled interval, so continuous sensor writes cannot keep the upload task in an infinite drain loop.
 
 ---
 
@@ -353,6 +353,5 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 | Max queue size | 256 samples | `measurement_store.cpp` |
 | Upload window size | 32 samples | `upload_manager.cpp` |
 | Max values per measurement | 16 | `sensor_types.hpp` |
-| Backlog drain interval | 5 000 ms | `upload_manager.cpp` |
 | Default upload interval | 145 000 ms | `backend_config.hpp` |
 | Sensor retry delay on error | 5 000 ms | `sensor_manager.cpp` |

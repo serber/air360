@@ -381,8 +381,9 @@ Use this backend when you want to send the same Air360 JSON body to your own HTT
 
 1. Open **Backends**.
 2. Enable **Custom Upload**.
-3. Enter a full `http://` or `https://` URL in **Endpoint URL**.
-4. Press **Save**.
+3. Set **Use HTTPS** as needed.
+4. Fill in **Host**, **Path**, and **Port**.
+5. Press **Save**.
 
 The firmware sends a single `POST` request per upload cycle with the same JSON body shape as `Air360 API`.
 
@@ -392,9 +393,10 @@ Use this backend when you want the firmware to write sensor samples as Influx li
 
 1. Open **Backends**.
 2. Enable **InfluxDB**.
-3. Fill in **Host**, **Path**, **Port**, and **Measurement**.
-4. Optionally fill in **User** and **Password** for Basic Auth.
-5. Press **Save**.
+3. Set **Use HTTPS** as needed.
+4. Fill in **Host**, **Path**, **Port**, and **Measurement**.
+5. Optionally fill in **User** and **Password** for Basic Auth.
+6. Press **Save**.
 
 The firmware sends one POST per upload cycle. The body contains multiple line protocol rows, one row per grouped sensor sample.
 
@@ -407,7 +409,7 @@ Backend settings are saved immediately when you press **Save** — there is no s
 Each backend card shows:
 
 - Enabled or disabled state
-- Endpoint URL
+- Endpoint
 - Last upload attempt time
 - HTTP status code
 - Response time in ms
@@ -504,9 +506,10 @@ What this means in practice:
 
 1. Open **Backends**.
 2. Enable **Custom Upload**.
-3. Enter the destination URL in **Endpoint URL**.
-4. Press **Save**.
-5. Monitor upload status on **Overview** or **Backends**.
+3. Set **Use HTTPS** as needed.
+4. Fill in **Host**, **Path**, and **Port**.
+5. Press **Save**.
+6. Monitor upload status on **Overview** or **Backends**.
 
 ### Assigning a static IP
 

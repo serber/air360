@@ -832,7 +832,7 @@ std::string renderHttpsCheckbox(const BackendCardViewModel& card) {
     html += "<label class='checkbox'>";
     html += "<input type='checkbox' name='use_https_";
     html += htmlEscape(card.backend_key);
-    html += "'";
+    html += "' value='1' data-backend-https-toggle";
     if (card.use_https) {
         html += " checked";
     }
@@ -872,7 +872,7 @@ std::string renderEndpointFields(const BackendCardViewModel& card) {
     html += htmlEscape(card.backend_key);
     html += "' name='port_";
     html += htmlEscape(card.backend_key);
-    html += "' inputmode='numeric' maxlength='5' value='";
+    html += "' inputmode='numeric' maxlength='5' data-backend-port-input value='";
     html += htmlEscape(card.port);
     html += "'></div>";
     return html;

@@ -241,16 +241,15 @@ struct BackendRecord {
     BackendType backend_type;     // uint8_t enum
     uint16_t    reserved0;
     char        display_name[32];
-    char        device_id_override[32]; // Sensor.Community: overrides Short ID
-    char        endpoint_url[160];      // Custom Upload: full URL
     char        host[96];               // backend host without protocol
     char        path[96];
-    char        username[48];
-    char        password[64];
-    char        measurement_name[32];   // InfluxDB only
     uint16_t    port;
-    uint8_t     use_https;
-    uint8_t     reserved1[5];
+    BackendProtocol protocol;           // uint8_t enum
+    uint8_t     reserved1;
+    BackendAuthConfig auth;             // auth type + Basic Auth credentials
+    char        device_id_override[32]; // Sensor.Community: overrides Short ID
+    char        measurement_name[32];   // InfluxDB only
+    uint8_t     reserved2[8];
 };
 ```
 
@@ -273,7 +272,7 @@ struct BackendRecord {
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 
-Built-in HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` stores the exact full URL entered in the `Endpoint URL` field. `InfluxDB` uses the same common HTTP fields plus `measurement_name`.
+HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` uses the same common HTTP fields as the built-in backends. `InfluxDB` also stores `measurement_name`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
 
 ---
 

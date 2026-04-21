@@ -52,7 +52,12 @@ class MeasurementStore {
     MeasurementQueueWindow uploadWindowAfter(
         std::uint64_t after_sample_id,
         std::size_t max_samples = SIZE_MAX) const;
+    MeasurementQueueWindow uploadWindowAfterUntil(
+        std::uint64_t after_sample_id,
+        std::uint64_t until_sample_id,
+        std::size_t max_samples = SIZE_MAX) const;
     bool hasSamplesAfter(std::uint64_t after_sample_id) const;
+    std::uint64_t latestSampleId() const;
     void discardUpTo(std::uint64_t sample_id);
 
     MeasurementRuntimeInfo runtimeInfoForSensor(std::uint32_t sensor_id) const;

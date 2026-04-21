@@ -224,19 +224,20 @@ A single form containing upload settings and one card per backend type.
 
 **Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
 - Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.
-- `Sensor.Community` and `Air360 API`: `Use HTTPS` checkbox — enabled by default for new configs; saving updates the stored `use_https` flag while host and path stay in dedicated config fields.
-- `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix.
-- `Custom Upload`: editable `Endpoint URL` field that stores the exact full `http://` or `https://` target.
-- `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, `Port`, `User`, `Password`, and `Measurement` fields.
+- `Use HTTPS` checkbox — enabled by default for new configs; saving updates the stored protocol.
+- `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
+- `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
+- `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
 - Sensor.Community only: `device_id_override` field (overrides the short chip ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`
 - Validates upload interval.
 - Reads enabled state from checkboxes (unchecked = absent from form body = `enabled = 0`).
-- Updates `Sensor.Community` and `Air360 API` by changing only the stored `use_https` flag; host and path stay in dedicated config fields.
-- Validates `Custom Upload` as a full `http://` or `https://` URL and stores it verbatim.
+- Updates `Sensor.Community` and `Air360 API` by changing the stored protocol; host and path stay in dedicated config fields.
+- Validates and stores `Custom Upload` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`).
 - Validates and stores `InfluxDB` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`, `username`, `password`) plus `measurement_name`.
+- Empty editable port fields save as the selected protocol default. Request URLs omit `:443` for HTTPS and `:80` for HTTP.
 - Saves to NVS and calls `UploadManager::applyConfig()` — normally takes effect immediately without a reboot. If the old upload task cannot stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 
 ---

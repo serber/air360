@@ -315,6 +315,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     panel.classList.toggle("panel--inactive", !checkbox.checked);
     setGroupEnabled(group, checkbox.checked);
+    syncBackendProtocolPort(panel);
+  }
+
+  function defaultBackendPort(useHttps) {
+    return useHttps ? "443" : "80";
+  }
+
+  function syncBackendProtocolPort(panel) {
+    const httpsToggle = panel.querySelector("[data-backend-https-toggle]");
+    const portInput = panel.querySelector("[data-backend-port-input]");
+    if (!(httpsToggle instanceof HTMLInputElement) || !(portInput instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const nextDefaultPort = defaultBackendPort(httpsToggle.checked);
+    const currentPort = portInput.value.trim();
+
+    if (currentPort.length === 0 || currentPort === "80" || currentPort === "443") {
+      portInput.value = nextDefaultPort;
+    }
   }
 
   for (const button of document.querySelectorAll("[data-secret-toggle]")) {
@@ -443,6 +463,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (checkbox instanceof HTMLInputElement) {
       checkbox.addEventListener("change", () => {
         syncBackendCard(panel);
+      });
+    }
+
+    const httpsToggle = panel.querySelector("[data-backend-https-toggle]");
+    if (httpsToggle instanceof HTMLInputElement) {
+      httpsToggle.addEventListener("change", () => {
+        syncBackendProtocolPort(panel);
       });
     }
   }

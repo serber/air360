@@ -105,6 +105,13 @@ void MeasurementStore::append(const MeasurementSample& sample) {
 MeasurementQueueWindow MeasurementStore::uploadWindowAfter(
     std::uint64_t after_sample_id,
     std::size_t max_samples) const {
+    return uploadWindowAfterUntil(after_sample_id, UINT64_MAX, max_samples);
+}
+
+MeasurementQueueWindow MeasurementStore::uploadWindowAfterUntil(
+    std::uint64_t after_sample_id,
+    std::uint64_t until_sample_id,
+    std::size_t max_samples) const {
     lock();
 
     MeasurementQueueWindow window;
@@ -113,6 +120,9 @@ MeasurementQueueWindow MeasurementStore::uploadWindowAfter(
     for (const auto& entry : queued_) {
         if (entry.id <= after_sample_id) {
             continue;
+        }
+        if (entry.id > until_sample_id) {
+            break;
         }
 
         window.sample_ids.push_back(entry.id);
@@ -137,6 +147,13 @@ bool MeasurementStore::hasSamplesAfter(std::uint64_t after_sample_id) const {
     }
     unlock();
     return found;
+}
+
+std::uint64_t MeasurementStore::latestSampleId() const {
+    lock();
+    const std::uint64_t sample_id = queued_.empty() ? 0U : queued_.back().id;
+    unlock();
+    return sample_id;
 }
 
 void MeasurementStore::discardUpTo(std::uint64_t sample_id) {

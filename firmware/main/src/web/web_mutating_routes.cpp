@@ -58,6 +58,24 @@ void scheduleRestart() {
     ESP_ERROR_CHECK(esp_timer_start_once(restart_timer, 400000));
 }
 
+bool parseBackendPortValue(
+    const std::string& port_value,
+    BackendProtocol protocol,
+    std::uint16_t& out_port) {
+    if (port_value.empty()) {
+        out_port = defaultBackendPort(protocol);
+        return out_port != 0U;
+    }
+
+    unsigned long port = 0UL;
+    if (!parseUnsignedLong(port_value, port) || port == 0UL || port > 65535UL) {
+        return false;
+    }
+
+    out_port = static_cast<std::uint16_t>(port);
+    return true;
+}
+
 }  // namespace
 
 esp_err_t WebServer::handleSensors(httpd_req_t* request) {
@@ -449,6 +467,20 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 ? BackendProtocol::kHttps
                 : BackendProtocol::kHttp;
 
+        const std::string port_value =
+            findFormValue(fields, (std::string("port_") + key).c_str());
+        std::uint16_t port = 0U;
+        if (!parseBackendPortValue(port_value, record->protocol, port)) {
+            const std::string html = renderBackendsPage(
+                *server->backend_config_list_,
+                *server->upload_manager_,
+                server->status_service_->buildInfo(),
+                "Port must be between 1 and 65535.",
+                true);
+            return sendHtmlResponse(request, html);
+        }
+        record->port = port;
+
         switch (descriptor.type) {
             case BackendType::kSensorCommunity:
                 copyString(
@@ -461,20 +493,6 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 break;
 
             case BackendType::kCustomUpload: {
-                const std::string port_value =
-                    findFormValue(fields, (std::string("port_") + key).c_str());
-                unsigned long port = 0UL;
-                if (!port_value.empty() &&
-                    (!parseUnsignedLong(port_value, port) || port == 0UL || port > 65535UL)) {
-                    const std::string html = renderBackendsPage(
-                        *server->backend_config_list_,
-                        *server->upload_manager_,
-                        server->status_service_->buildInfo(),
-                        "Port must be between 1 and 65535.",
-                        true);
-                    return sendHtmlResponse(request, html);
-                }
-                record->port = static_cast<std::uint16_t>(port);
                 copyString(record->host, sizeof(record->host),
                     findFormValue(fields, (std::string("host_") + key).c_str()));
                 copyString(record->path, sizeof(record->path),
@@ -483,20 +501,6 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             }
 
             case BackendType::kInfluxDb: {
-                const std::string port_value =
-                    findFormValue(fields, (std::string("port_") + key).c_str());
-                unsigned long port = 0UL;
-                if (!port_value.empty() &&
-                    (!parseUnsignedLong(port_value, port) || port == 0UL || port > 65535UL)) {
-                    const std::string html = renderBackendsPage(
-                        *server->backend_config_list_,
-                        *server->upload_manager_,
-                        server->status_service_->buildInfo(),
-                        "Port must be between 1 and 65535.",
-                        true);
-                    return sendHtmlResponse(request, html);
-                }
-                record->port = static_cast<std::uint16_t>(port);
                 copyString(record->host, sizeof(record->host),
                     findFormValue(fields, (std::string("host_") + key).c_str()));
                 copyString(record->path, sizeof(record->path),

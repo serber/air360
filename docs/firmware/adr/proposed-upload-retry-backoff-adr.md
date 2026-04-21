@@ -13,7 +13,6 @@ Replace the fixed `upload_interval_ms` retry delay on upload failures with cappe
 The upload task currently retries failed uploads after the same fixed interval regardless of failure count:
 
 - Normal cycle: 145 s
-- Backlog drain: 5 s
 - Failed upload: 145 s (same as success)
 
 If a backend is unreachable for hours (server down, DNS failure, bad API key), the device makes a full HTTP request attempt every 145 seconds indefinitely. Each attempt involves a TCP connection, TLS handshake, and a timeout wait — consuming CPU cycles and Wi-Fi radio time for zero benefit.
@@ -41,7 +40,7 @@ The larger fault-isolation work is captured separately in [proposed-backend-faul
 
 - Distinguishing transient from permanent failures in the first version (all failures back off equally).
 - User-configurable backoff parameters.
-- Changing the 5 s backlog drain interval (that only fires on success).
+- Changing successful-upload cadence.
 
 ## Architectural Decision
 

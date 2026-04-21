@@ -464,9 +464,8 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | type | `BackendType` enum |
 | enabled | Active flag |
 | display_name | `char[32]` |
-| endpoint_url | `char[160]` (Custom Upload full URL) |
 | device_id_override | `char[32]` (Sensor.Community only) |
-| host / path / port / use_https | shared HTTP endpoint fields for built-in backends |
+| host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
 | upload_interval_s | 10–300 seconds (default 145 s) |
@@ -480,7 +479,7 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 Static catalog of supported backend types. Each entry (`BackendDescriptor`) holds:
 - type enum value
 - display name
-- default endpoint URL
+- default endpoint fields
 - `validateRecord()` validator
 - `createUploader()` factory function
 
@@ -490,8 +489,8 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 |------|-----------------|
 | Sensor.Community | `api.sensor.community` + `/v1/push-sensor-data/` |
 | Air360 API | `api.air360.ru` + `/v1/devices/{chip_id}/batches/{batch_id}` |
-| Custom Upload | user-supplied full `http://` or `https://` URL |
-| InfluxDB | user-supplied `http(s)://host:port/path` plus measurement name |
+| Custom Upload | user-supplied protocol, host, path, and port |
+| InfluxDB | user-supplied protocol, host, path, and port plus measurement name |
 
 ---
 
@@ -504,7 +503,7 @@ Manages the upload cycle and per-backend runtime state.
 - Priority: 4
 - Normal loop delay: 1000 ms
 - Upload interval: 145 s (global backend config value, 10–300 s)
-- Backlog drain interval: 5 s (applied per backend when that backend still has backlog)
+- Due backends drain the cycle-start backlog in bounded windows, then wait for the configured interval.
 
 **Upload preconditions (checked every cycle):**
 - Network uplink active (Wi-Fi station connected **or** cellular PPP connected)
@@ -846,7 +845,6 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Sensor poll interval range | 5 000–3 600 000 ms | `sensor_registry.cpp` |
 | Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
 | Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |
-| Upload backlog drain interval | 5 s | `upload_manager.cpp` |
 | SNTP poll period | 250 ms | `network_manager.cpp` |
 | Maintenance loop period | 10 s | `app.cpp` |
 | Sensor task loop period | 250 ms | `sensor_manager.cpp` |
@@ -876,7 +874,7 @@ No application-level RTOS queues. Upload delivery progress is tracked via per-ba
 - FreeRTOS sensor polling task with per-sensor scheduling
 - 12 sensor driver types across I2C, UART, GPIO, and ADC transports
 - In-memory measurement queue with pending/inflight upload semantics
-- FreeRTOS upload task with backlog drain
+- FreeRTOS upload task with per-backend cursors
 - Air360 API and Sensor.Community adapters
 - Server-rendered web UI with 5 HTML pages and embedded CSS/JS
 - Lab AP mode at `192.168.4.1` with `/wifi-scan` endpoint

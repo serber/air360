@@ -16,3 +16,15 @@ target_include_directories(test_web_form PRIVATE
 target_compile_features(test_web_form PRIVATE cxx_std_17)
 
 add_test(NAME web_form COMMAND test_web_form)
+
+add_executable(test_backend_config
+    test_backend_config.cpp
+)
+
+target_include_directories(test_backend_config PRIVATE
+    ../../main/include
+)
+
+target_compile_features(test_backend_config PRIVATE cxx_std_17)
+
+add_test(NAME backend_config COMMAND test_backend_config)

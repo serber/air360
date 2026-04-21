@@ -64,10 +64,12 @@ struct UploadRequestSpec {
 ### Endpoint
 
 ```
-POST {scheme}://{host}:{port}{path}
+POST {scheme}://{host}{:port}{path}
 ```
 
 Default value: `https://api.sensor.community/v1/push-sensor-data/`
+
+The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### Grouping — one request per sensor
 
@@ -205,13 +207,14 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 ### Endpoint
 
 ```
-PUT {scheme}://{host}:{port}{path}
+PUT {scheme}://{host}{:port}{path}
 ```
 
 - `{chip_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
 - `{batch_id}` — unique `uint64_t` batch identifier from `MeasurementBatch`
 - Default value: `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`
 - Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{chip_id}/batches/{batch_id}` for backward compatibility.
+- The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### One request per batch
 
@@ -296,11 +299,12 @@ Any other HTTP status → `kHttpError`.
 ### Endpoint
 
 ```
-POST {scheme}://{host}:{port}{path}
+POST {scheme}://{host}{:port}{path}
 ```
 
 - No compiled-in default URL is provided.
-- The user must enter a full `http://` or `https://` URL before enabling the backend.
+- The user must enter host and path before enabling the backend.
+- The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### One request per batch
 
@@ -339,12 +343,13 @@ Any other HTTP status → `kHttpError`.
 ### Endpoint
 
 ```
-POST http(s)://{host}:{port}{path}
+POST {scheme}://{host}{:port}{path}
 ```
 
 - The URL is built from the InfluxDB form fields on the Backends page.
 - No compiled-in host or path is provided.
 - The default measurement name is `air360`.
+- The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### One request per batch
 
