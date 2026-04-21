@@ -1,8 +1,10 @@
 #include "air360/connectivity_checker.hpp"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "lwip/ip_addr.h"
@@ -13,6 +15,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.connectivity";
+constexpr std::uint32_t kWaitSliceMs = 1000U;
 
 struct PingCtx {
     EventGroupHandle_t done_event = nullptr;
@@ -73,10 +76,23 @@ ConnectivityCheckResult runConnectivityCheck(
 
     esp_ping_start(ping);
 
-    // Budget: retries × (timeout + interval) + 1 s margin
-    const TickType_t wait_ticks =
-        pdMS_TO_TICKS(retries * (timeout_ms + ping_config.interval_ms) + 1000U);
-    xEventGroupWaitBits(ctx.done_event, PingCtx::kDoneBit, pdFALSE, pdTRUE, wait_ticks);
+    // Budget: retries × (timeout + interval) + 1 s margin. Wait in bounded
+    // slices so cellular task callers can stay subscribed to the TWDT safely.
+    const std::uint32_t wait_budget_ms =
+        retries * (timeout_ms + ping_config.interval_ms) + 1000U;
+    std::uint32_t waited_ms = 0U;
+    while (waited_ms < wait_budget_ms) {
+        const std::uint32_t remaining_ms = wait_budget_ms - waited_ms;
+        const std::uint32_t slice_ms = std::min(remaining_ms, kWaitSliceMs);
+        const EventBits_t bits = xEventGroupWaitBits(
+            ctx.done_event, PingCtx::kDoneBit, pdFALSE, pdTRUE,
+            pdMS_TO_TICKS(slice_ms));
+        (void)esp_task_wdt_reset();
+        if ((bits & PingCtx::kDoneBit) != 0U) {
+            break;
+        }
+        waited_ms += slice_ms;
+    }
 
     esp_ping_stop(ping);
     esp_ping_delete_session(ping);

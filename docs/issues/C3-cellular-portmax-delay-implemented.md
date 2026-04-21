@@ -73,3 +73,19 @@ When that happens:
 
 - C4 (watchdog coverage gap) — fixing this issue partially addresses C4 for the cellular task.
 - H8 (PWRKEY cadence) — once this loop unblocks reliably, the PWRKEY escalation becomes meaningful again.
+
+## implemented
+
+Implementation status:
+
+- Fix plan 1 — implemented. The PPP connected state no longer waits with `portMAX_DELAY`; it waits in bounded 25 s windows, feeds TWDT, and exits on `kLostIpBit`.
+- Fix plan 2 — implemented. `probeLink()` uses the existing `ConnectivityChecker` against `connectivity_check_host`; one failed probe is inconclusive and two consecutive failed probes mark the link dead.
+- Fix plan 3 — implemented. `forceDisconnect()` returns the DCE to command mode, marks the PPP netif disconnected, publishes the same disconnected state as a normal PPP loss, and posts `kLostIpBit`.
+- Fix plan 4 — implemented. The cellular task subscribes to TWDT on entry and feeds it during setup waits, PPP monitoring, connectivity checks, reconnect backoff, and hardware reset waits.
+- Fix plan 5 — implemented. `cellular_manager.cpp` no longer contains `portMAX_DELAY`.
+- Fix plan 6 — implemented. `docs/firmware/cellular-manager.md`, `docs/firmware/sensors/sim7600e.md`, and `docs/firmware/watchdog.md` document the recovery timeline and watchdog behavior.
+
+Verification performed in code/docs:
+
+- Static audit: `rg "portMAX_DELAY" firmware/main/src/cellular_manager.cpp firmware/main/include/air360/cellular_manager.hpp` returns no matches.
+- Pending hardware verification: bench UART-kill test, 48 h injected-drop soak, and fleet alert validation require real device/lab access.

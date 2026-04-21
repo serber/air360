@@ -69,6 +69,7 @@ Cellular settings are not reconfigured in place. The web UI saves `CellularConfi
 | Stack | 8 192 bytes |
 | Priority | 5 |
 | Lifecycle | runs indefinitely while cellular is enabled |
+| TWDT | subscribed on task entry; reset during setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits |
 
 The task body is a loop that calls `attemptConnect()` and handles the outcome:
 
@@ -100,7 +101,7 @@ loop:
 | 8 | Enter PPP data mode (`ESP_MODEM_MODE_DATA`) | return false |
 | 9 | Wait up to 30 s for `IP_EVENT_PPP_GOT_IP` | return false |
 | 10 | PPP is up: set PPP netif as default; call `onPppConnected()` (runs connectivity check) | — |
-| 11 | Block indefinitely on `IP_EVENT_PPP_LOST_IP`; then teardown and return true | — |
+| 11 | Monitor PPP in bounded 25 s waits; on `IP_EVENT_PPP_LOST_IP` tear down and return true; if no event arrives, run a liveness probe | — |
 
 `teardownModem()` is called on every exit path. It unregisters event handlers, deletes the event group, destroys the DCE (best-effort `ESP_MODEM_MODE_COMMAND` exit first), and destroys the PPP netif.
 
@@ -116,6 +117,20 @@ After PPP is up, `runConnectivityCheck(host, timeout_ms=5000, retries=3)` runs:
 4. If at least one reply received — `connectivity_ok = true`; otherwise `connectivity_ok = false`
 
 The check result is visible in the Overview page Connection panel and in the Diagnostics raw JSON.
+
+While PPP remains up, the cellular task also runs a liveness probe when no `IP_EVENT_PPP_LOST_IP` event has arrived for 25 s. The probe uses the same configured `connectivity_check_host`, but only sends one ICMP echo with a 1 s timeout. One failed probe is treated as inconclusive; two consecutive failed probes mark the PPP link dead, force the modem back to command mode, mark the PPP netif disconnected, publish the same disconnected state as a normal lost-IP event, and enter the reconnect loop. If `connectivity_check_host` is empty, runtime probes are skipped and the task can only react to real PPP lost-IP events.
+
+Recovery timeline for a silent PPP failure:
+
+| Stage | Timing |
+|-------|--------|
+| Native `IP_EVENT_PPP_LOST_IP` | immediate disconnect handling |
+| First missing-event probe | after 25 s |
+| Second consecutive failed probe | after another 25 s |
+| Forced reconnect deadline | about 56 s worst case, including two 3 s probe budgets |
+| TWDT feed while connected | every bounded wait/probe slice, at most 2 s apart |
+
+The firmware watchdog target timeout is 30 s when `initWatchdog()` owns TWDT initialization. If ESP-IDF pre-initializes TWDT from `sdkconfig`, the effective timeout comes from that config; the cellular task still feeds in shorter slices.
 
 ---
 
@@ -184,8 +199,9 @@ On PPP disconnect: the teardown code looks up `"WIFI_STA_DEF"` via `esp_netif_ge
   └─ failure → backoff or hardware reset
 
 [connected]
-  blocking on IP_EVENT_PPP_LOST_IP
-  └─ drop → ppp_connected = false; teardown; reconnect cycle
+  bounded wait for IP_EVENT_PPP_LOST_IP
+  ├─ drop event → ppp_connected = false; teardown; reconnect cycle
+  └─ two failed liveness probes → force disconnect; teardown; reconnect cycle
 ```
 
 ---
@@ -199,6 +215,10 @@ On PPP disconnect: the teardown code looks up `"WIFI_STA_DEF"` via `esp_netif_ge
 | Registration poll interval | 2 000 ms |
 | Registration timeout | 60 000 ms |
 | PPP IP assignment timeout | 30 000 ms |
+| PPP monitor wait | 25 000 ms |
+| PPP liveness probe timeout | 1 000 ms |
+| PPP liveness probe retries | 1 |
+| PPP liveness probe failures before forced disconnect | 2 |
 | Connectivity check timeout | 5 000 ms |
 | Connectivity check retries | 3 |
 | Backoff base | 10 000 ms |

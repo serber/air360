@@ -65,17 +65,17 @@ Rules:
 | `app_main` | ✓ | After `status_service` update, before `vTaskDelay` | Stays subscribed for lifetime |
 | `air360_sensor` | ✓ | After `ulTaskNotifyTake` | 250 ms loop |
 | `air360_upload` | ✓ | After `ulTaskNotifyTake` (two paths) | 1 s loop |
-| `air360_cellular` | ✓ | After `attemptConnect()`, every 5 s in backoff | `wdtFeedingDelay()` handles up-to-5-min backoffs |
+| `air360_cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
 | `air360_ble` | ✗ pending C5 | — | Coupled to cooperative-shutdown redesign |
 | `wifi_reconnect` (short-lived) | ✗ pending C6 | — | Dynamically-spawned; subsumed by C6 worker-task refactor |
 | `esp_httpd` | ✗ IDF-managed | — | httpd has its own internal timeout handling |
 
 ## Long-blocking tasks: `wdtFeedingDelay`
 
-`cellular_manager.cpp` includes a helper for sleeps that can exceed the TWDT timeout:
+`cellular_manager.cpp` includes helpers for sleeps and event waits that can exceed the TWDT timeout:
 
 ```cpp
-// Sleep for total_ms while feeding the TWDT every kWdtFeedSliceMs (5 s).
+// Sleep for total_ms while feeding the TWDT every kWdtFeedSliceMs (2 s).
 void wdtFeedingDelay(std::uint32_t total_ms) {
     while (total_ms > 0U) {
         const std::uint32_t slice = std::min(total_ms, kWdtFeedSliceMs);
@@ -86,7 +86,9 @@ void wdtFeedingDelay(std::uint32_t total_ms) {
 }
 ```
 
-Use this (or a similar pattern) whenever a task must sleep longer than `timeout / 2`. Do **not** raise the TWDT timeout to accommodate long sleeps — that defeats the purpose.
+`waitEventBitsWithWatchdog()` uses the same bounded-slice pattern for PPP IP assignment and PPP lost-IP monitoring. `ConnectivityChecker` also waits for ping completion in 1 s slices and feeds TWDT for the cellular caller.
+
+Use these helpers (or a similar pattern) whenever a task must sleep or wait longer than `timeout / 2`. Do **not** raise the TWDT timeout to accommodate long waits — that defeats the purpose.
 
 ## Adding a new task
 

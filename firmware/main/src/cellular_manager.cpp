@@ -28,8 +28,17 @@ namespace {
 constexpr char kTag[] = "air360.cellular";
 constexpr std::uint32_t kCheckTimeoutMs = 5000U;
 constexpr std::uint32_t kCheckRetries   = 3U;
-// Maximum sleep slice between watchdog resets during backoff waits.
-constexpr std::uint32_t kWdtFeedSliceMs = 5000U;
+constexpr std::uint32_t kMutexTakeSliceMs = 1000U;
+constexpr std::uint32_t kPppMonitorWaitMs = 25000U;
+constexpr std::uint32_t kPppProbeTimeoutMs = 1000U;
+constexpr std::uint32_t kPppProbeRetries = 1U;
+constexpr std::uint8_t kPppProbeFailureThreshold = 2U;
+// Maximum wait/sleep slice between watchdog resets.
+constexpr std::uint32_t kWdtFeedSliceMs = 2000U;
+
+void resetTaskWatchdog() {
+    (void)esp_task_wdt_reset();
+}
 
 // Sleep for total_ms while feeding the task watchdog every kWdtFeedSliceMs.
 // Must only be called from a task subscribed to the TWDT.
@@ -37,9 +46,32 @@ void wdtFeedingDelay(std::uint32_t total_ms) {
     while (total_ms > 0U) {
         const std::uint32_t slice = std::min(total_ms, kWdtFeedSliceMs);
         vTaskDelay(pdMS_TO_TICKS(slice));
-        esp_task_wdt_reset();
+        resetTaskWatchdog();
         total_ms -= slice;
     }
+}
+
+EventBits_t waitEventBitsWithWatchdog(
+    EventGroupHandle_t event_group,
+    EventBits_t bits_to_wait_for,
+    BaseType_t clear_on_exit,
+    BaseType_t wait_for_all_bits,
+    std::uint32_t timeout_ms) {
+    EventBits_t bits = 0U;
+    std::uint32_t waited_ms = 0U;
+    while (waited_ms < timeout_ms) {
+        const std::uint32_t remaining_ms = timeout_ms - waited_ms;
+        const std::uint32_t slice_ms = std::min(remaining_ms, kWdtFeedSliceMs);
+        bits = xEventGroupWaitBits(
+            event_group, bits_to_wait_for, clear_on_exit, wait_for_all_bits,
+            pdMS_TO_TICKS(slice_ms));
+        resetTaskWatchdog();
+        if ((bits & bits_to_wait_for) != 0U) {
+            return bits;
+        }
+        waited_ms += slice_ms;
+    }
+    return bits;
 }
 
 }  // namespace
@@ -54,7 +86,9 @@ CellularManager::CellularManager() {
 
 void CellularManager::lock() const {
     if (mutex_ != nullptr) {
-        xSemaphoreTake(mutex_, portMAX_DELAY);
+        while (xSemaphoreTake(mutex_, pdMS_TO_TICKS(kMutexTakeSliceMs)) != pdTRUE) {
+            resetTaskWatchdog();
+        }
     }
 }
 
@@ -126,7 +160,10 @@ void CellularManager::taskEntry(void* arg) {
 
 void CellularManager::taskBody() {
     ESP_LOGI(kTag, "Cellular task running");
-    esp_task_wdt_add(nullptr);
+    const esp_err_t wdt_err = esp_task_wdt_add(nullptr);
+    if (wdt_err != ESP_OK) {
+        ESP_LOGW(kTag, "TWDT subscribe failed: %s", esp_err_to_name(wdt_err));
+    }
     ESP_LOGI(kTag, "TWDT: air360_cellular subscribed");
 
     for (;;) {
@@ -136,7 +173,7 @@ void CellularManager::taskBody() {
         // attemptConnect() blocks until the session is fully over
         // (either never established, or established then dropped).
         const bool was_connected = attemptConnect();
-        esp_task_wdt_reset();
+        resetTaskWatchdog();
 
         if (was_connected) {
             // Clean disconnect — reset backoff counter for next cycle.
@@ -159,7 +196,7 @@ void CellularManager::taskBody() {
         if (reconnect_attempts >= kMaxReconnectAttempts) {
             ESP_LOGW(kTag, "Max attempts reached — hardware reset");
             doHardwareReset();
-            esp_task_wdt_reset();
+            resetTaskWatchdog();
             lock();
             state_.reconnect_attempts = 0U;
             state_.next_reconnect_uptime_ms = 0U;
@@ -281,6 +318,7 @@ bool CellularManager::attemptConnect() {
                 return false;
             }
             vTaskDelay(pdMS_TO_TICKS(3000U));
+            resetTaskWatchdog();
         }
     }
 
@@ -303,6 +341,7 @@ bool CellularManager::attemptConnect() {
                 break;
             }
             vTaskDelay(pdMS_TO_TICKS(kRegPollMs));
+            resetTaskWatchdog();
         }
         if (!registered) {
             lock();
@@ -333,11 +372,11 @@ bool CellularManager::attemptConnect() {
     }
 
     // --- 9. Wait for IP assignment ------------------------------------------
-    EventBits_t bits = xEventGroupWaitBits(
+    EventBits_t bits = waitEventBitsWithWatchdog(
         ppp_event_group_,
         kGotIpBit | kLostIpBit,
         pdTRUE, pdFALSE,
-        pdMS_TO_TICKS(kPppIpTimeoutMs));
+        kPppIpTimeoutMs);
 
     if (!(bits & kGotIpBit)) {
         lock();
@@ -355,11 +394,31 @@ bool CellularManager::attemptConnect() {
 
     onPppConnected(pending_ip_, config_.connectivity_check_host);
 
-    // --- 11. Block until PPP drops ------------------------------------------
-    xEventGroupWaitBits(
-        ppp_event_group_, kLostIpBit, pdTRUE, pdFALSE, portMAX_DELAY);
+    // --- 11. Monitor PPP until it drops or stops passing traffic ------------
+    std::uint8_t consecutive_probe_failures = 0U;
+    for (;;) {
+        bits = waitEventBitsWithWatchdog(
+            ppp_event_group_, kLostIpBit, pdTRUE, pdFALSE, kPppMonitorWaitMs);
+        if ((bits & kLostIpBit) != 0U) {
+            break;
+        }
 
-    // onPppDisconnected() was already called by the onLostIpEvent handler.
+        if (probeLink()) {
+            consecutive_probe_failures = 0U;
+            continue;
+        }
+
+        consecutive_probe_failures++;
+        ESP_LOGW(kTag, "PPP liveness probe failed (%u/%u)",
+                 consecutive_probe_failures, kPppProbeFailureThreshold);
+        if (consecutive_probe_failures >= kPppProbeFailureThreshold) {
+            forceDisconnect("PPP liveness probe failed");
+            break;
+        }
+    }
+
+    // onPppDisconnected() was already called by the lost-IP handler or by
+    // forceDisconnect() after liveness probe failure.
     // Restore WiFi station as default netif if it is available.
     {
         esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -394,6 +453,7 @@ void CellularManager::teardownModem() {
         // Best-effort: try to exit data mode before destroying the DTE/DCE.
         esp_modem_set_mode(static_cast<esp_modem_dce_t*>(dce_), ESP_MODEM_MODE_COMMAND);
         vTaskDelay(pdMS_TO_TICKS(500U));
+        resetTaskWatchdog();
         esp_modem_destroy(static_cast<esp_modem_dce_t*>(dce_));
         dce_ = nullptr;
     }
@@ -449,11 +509,13 @@ void CellularManager::onLostIpEvent(
 void CellularManager::doHardwareReset() {
     ESP_LOGI(kTag, "HW reset: power-off pulse (%" PRIu32 " ms)", kPwrkeyPowerOffMs);
     pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOffMs);
-    vTaskDelay(pdMS_TO_TICKS(kModemShutdownWaitMs));
+    resetTaskWatchdog();
+    wdtFeedingDelay(kModemShutdownWaitMs);
 
     ESP_LOGI(kTag, "HW reset: power-on pulse (%" PRIu32 " ms)", kPwrkeyPowerOnMs);
     pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOnMs);
-    vTaskDelay(pdMS_TO_TICKS(kModemBootWaitMs));
+    resetTaskWatchdog();
+    wdtFeedingDelay(kModemBootWaitMs);
 
     ESP_LOGI(kTag, "HW reset complete");
 }
@@ -516,6 +578,65 @@ void CellularManager::onPppConnected(const char* ip_address, const char* check_h
             ESP_LOGW(kTag, "Connectivity check failed (%s)",
                      (check_host != nullptr) ? check_host : "");
             break;
+    }
+}
+
+bool CellularManager::probeLink() {
+    const ConnectivityCheckResult result =
+        runConnectivityCheck(config_.connectivity_check_host,
+                             kPppProbeTimeoutMs,
+                             kPppProbeRetries);
+
+    switch (result) {
+        case ConnectivityCheckResult::kSkipped:
+            lock();
+            state_.connectivity_check_skipped = true;
+            state_.connectivity_ok = false;
+            unlock();
+            ESP_LOGD(kTag, "PPP liveness probe skipped (no host configured)");
+            return true;
+        case ConnectivityCheckResult::kOk:
+            lock();
+            state_.connectivity_check_skipped = false;
+            state_.connectivity_ok = true;
+            unlock();
+            ESP_LOGD(kTag, "PPP liveness probe OK (%s)",
+                     config_.connectivity_check_host);
+            return true;
+        case ConnectivityCheckResult::kFailed:
+            lock();
+            state_.connectivity_check_skipped = false;
+            state_.connectivity_ok = false;
+            unlock();
+            return false;
+    }
+
+    return false;
+}
+
+void CellularManager::forceDisconnect(const char* reason) {
+    ESP_LOGW(kTag, "Forcing PPP disconnect: %s",
+             (reason != nullptr && reason[0] != '\0') ? reason : "unknown reason");
+
+    if (dce_ != nullptr) {
+        const esp_err_t err =
+            esp_modem_set_mode(static_cast<esp_modem_dce_t*>(dce_),
+                               ESP_MODEM_MODE_COMMAND);
+        if (err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to return modem to command mode: %s",
+                     esp_err_to_name(err));
+        }
+    }
+
+    if (ppp_netif_ != nullptr) {
+        esp_netif_action_disconnected(
+            ppp_netif_, IP_EVENT, IP_EVENT_PPP_LOST_IP, nullptr);
+    }
+
+    onPppDisconnected(reason);
+
+    if (ppp_event_group_ != nullptr) {
+        xEventGroupSetBits(ppp_event_group_, kLostIpBit);
     }
 }
 

@@ -80,6 +80,11 @@ class CellularManager {
     // Release all modem resources allocated by attemptConnect().
     void teardownModem();
 
+    // Probe and forcibly unwind an established PPP session when no LOST_IP
+    // event arrives but the link stops passing traffic.
+    bool probeLink();
+    void forceDisconnect(const char* reason);
+
     // Pulse PWRKEY to force the modem off then back on.
     void doHardwareReset();
 
