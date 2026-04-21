@@ -135,7 +135,7 @@ The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via th
 - If TWDT was already initialized by ESP-IDF (from `sdkconfig`), the call simply attaches to it
 - If TWDT is not pre-initialized, the firmware initializes it with the parameters above
 
-The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `air360_cellular`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
+The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `air360_cellular`, `air360_ble`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
 
 Spawned helper tasks created by `NetworkManager` during Wi-Fi reconnect (issue C6) are **not yet subscribed** — they are short-lived and addressed as part of the C6 refactor.
 
@@ -328,12 +328,12 @@ After the boot sequence completes, the following tasks run concurrently:
 | `air360_cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 4b — `CellularManager::start()` (when enabled) |
 | `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()` |
 | `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 8 — `UploadManager::start()` |
-| `air360_ble` | 4 096 B | 3 | 5 s | ✗ pending C5 | Step 5 — `BleAdvertiser::start()` (when enabled) |
+| `air360_ble` | 4 096 B | 3 | 5 s | ✓ subscribed | Step 5 — `BleAdvertiser::start()` (when enabled) |
 | `esp_httpd` (web server) | 10 240 B | default | event-driven | ✗ IDF-managed | Step 9 — `WebServer::start()` |
 | `wifi_reconnect` (short-lived) | IDF-managed | IDF-managed | one-shot | ✗ pending C6 | Wi-Fi disconnect event |
 | ESP-IDF Wi-Fi / event loop | (IDF managed) | (IDF managed) | event-driven | ✗ IDF-managed | Steps 3 / 7 |
 
-`air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task.
+`air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task. `BleAdvertiser::stop()` also uses task notification plus a stop-acknowledge semaphore; the `air360_ble` task self-deletes after leaving NimBLE calls so no caller deletes it from a foreign task context.
 
 ---
 

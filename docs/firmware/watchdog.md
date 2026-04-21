@@ -14,6 +14,7 @@ Describes the Task Watchdog Timer (TWDT) configuration, per-task subscription co
 - `firmware/main/src/sensors/sensor_manager.cpp` — `taskMain()`
 - `firmware/main/src/uploads/upload_manager.cpp` — `taskMain()`
 - `firmware/main/src/cellular_manager.cpp` — `taskBody()`, `wdtFeedingDelay()`
+- `firmware/main/src/ble_advertiser.cpp` — `taskMain()`
 
 ## Configuration
 
@@ -66,7 +67,7 @@ Rules:
 | `air360_sensor` | ✓ | After `ulTaskNotifyTake` | 250 ms loop |
 | `air360_upload` | ✓ | After `ulTaskNotifyTake` (two paths) | 1 s loop |
 | `air360_cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
-| `air360_ble` | ✗ pending C5 | — | Coupled to cooperative-shutdown redesign |
+| `air360_ble` | ✓ | After sync waits and notification/timeout wakeups | 5 s advertisement refresh loop; cooperative shutdown via task notification |
 | `wifi_reconnect` (short-lived) | ✗ pending C6 | — | Dynamically-spawned; subsumed by C6 worker-task refactor |
 | `esp_httpd` | ✗ IDF-managed | — | httpd has its own internal timeout handling |
 
@@ -116,5 +117,5 @@ To confirm the TWDT actually fires on a real hang:
 - [`startup-pipeline.md`](startup-pipeline.md) — full boot sequence and task spawn order
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — runtime task map
 - [`docs/issues/C4-watchdog-audit-gap-implemented.md`](../../docs/issues/C4-watchdog-audit-gap-implemented.md) — original issue and resolved status
-- [`docs/issues/C5-ble-vtaskdelete-foreign.md`](../../docs/issues/C5-ble-vtaskdelete-foreign.md) — BLE task pending
+- [`docs/issues/C5-ble-vtaskdelete-foreign-implemented.md`](../../docs/issues/C5-ble-vtaskdelete-foreign-implemented.md) — BLE task cooperative shutdown and TWDT coverage
 - [`docs/issues/C6-timer-spawns-tasks.md`](../../docs/issues/C6-timer-spawns-tasks.md) — Wi-Fi reconnect tasks pending

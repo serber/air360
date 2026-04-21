@@ -42,6 +42,8 @@ The firmware uses the ESP-IDF NimBLE stack (advertising-only profile). Two FreeR
 
 **Log tag:** `air360.ble`
 
+`air360_ble` is subscribed to the Task Watchdog Timer. It feeds TWDT while waiting for NimBLE host sync and after each advertisement update wakeup. Shutdown is cooperative: `BleAdvertiser::stop()` clears the atomic enable flag, wakes the task with a notification, waits on a stop-acknowledge semaphore, and only then stops the NimBLE host. When the configured NimBLE role set links ESP-IDF's full port deinit path, `stop()` also deinitializes the port; the current broadcaster-only role keeps the initialized port reusable after host stop because ESP-IDF 6.0 does not link the security-manager deinit symbol for that role set. The BLE task always exits through `vTaskDelete(nullptr)`.
+
 ---
 
 ## BTHome v2 packet format

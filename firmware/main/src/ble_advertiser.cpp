@@ -5,14 +5,18 @@
 #include <cstring>
 
 #include "air360/sensors/sensor_types.hpp"
+#include "esp_err.h"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "host/ble_gap.h"
 #include "host/ble_hs.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
+#include "sdkconfig.h"
 
 namespace air360 {
 
@@ -21,6 +25,8 @@ namespace {
 constexpr char kTag[] = "air360.ble";
 constexpr EventBits_t kSyncedBit = (1U << 0);
 constexpr std::uint32_t kUpdateIntervalMs = 5000U;
+constexpr TickType_t kSyncWaitSlice = pdMS_TO_TICKS(1000U);
+constexpr TickType_t kStopTimeout = pdMS_TO_TICKS(2000U);
 constexpr std::uint8_t kBthomeUuidLo = 0xD2U;
 constexpr std::uint8_t kBthomeUuidHi = 0xFCU;
 constexpr std::uint8_t kBthomeDeviceInfo = 0x40U;  // no encryption, BTHome v2
@@ -67,16 +73,53 @@ void nimbleHostTask(void* param) {
     nimble_port_freertos_deinit();
 }
 
+bool deinitNimblePortIfSupported() {
+#if CONFIG_BT_NIMBLE_STATIC_TO_DYNAMIC && CONFIG_BT_NIMBLE_SECURITY_ENABLE && \
+    !CONFIG_BT_NIMBLE_ROLE_PERIPHERAL && !CONFIG_BT_NIMBLE_ROLE_CENTRAL
+    ESP_LOGW(
+        kTag,
+        "Skipping NimBLE port deinit in broadcaster-only config; host task was stopped");
+    return false;
+#else
+    const esp_err_t deinit_err = nimble_port_deinit();
+    if (deinit_err != ESP_OK) {
+        ESP_LOGW(kTag, "NimBLE deinit failed: %s", esp_err_to_name(deinit_err));
+        return false;
+    }
+    return true;
+#endif
+}
+
 }  // namespace
 
 void BleAdvertiser::start(const DeviceConfig& config, MeasurementStore& store) {
+    if (running_.load(std::memory_order_acquire)) {
+        ESP_LOGW(kTag, "BLE advertiser already running, stopping before restart");
+        stop();
+        if (running_.load(std::memory_order_acquire)) {
+            ESP_LOGE(kTag, "BLE advertiser restart aborted because previous task did not stop");
+            return;
+        }
+    }
+
     if (config.ble_advertise_enabled == 0U) {
         ESP_LOGI(kTag, "BLE advertising disabled in config");
+        enabled_.store(false, std::memory_order_release);
         return;
     }
 
+    if (stop_done_ == nullptr) {
+        stop_done_ = xSemaphoreCreateBinaryStatic(&stop_done_buf_);
+        if (stop_done_ == nullptr) {
+            ESP_LOGE(kTag, "Failed to create BLE stop semaphore");
+            return;
+        }
+    }
+    while (xSemaphoreTake(stop_done_, 0) == pdTRUE) {
+    }
+
     store_ = &store;
-    enabled_ = true;
+    enabled_.store(true, std::memory_order_release);
 
     const std::uint8_t idx = config.ble_adv_interval_index < kBleAdvIntervalCount
         ? config.ble_adv_interval_index : kBleAdvIntervalDefaultIndex;
@@ -86,41 +129,83 @@ void BleAdvertiser::start(const DeviceConfig& config, MeasurementStore& store) {
     device_name_[sizeof(device_name_) - 1U] = '\0';
 
     g_sync_event = xEventGroupCreateStatic(&g_sync_event_buf);
+    xEventGroupClearBits(g_sync_event, kSyncedBit);
 
-    nimble_port_init();
+    if (!nimble_initialized_) {
+        const esp_err_t init_err = nimble_port_init();
+        if (init_err != ESP_OK) {
+            ESP_LOGE(kTag, "NimBLE init failed: %s", esp_err_to_name(init_err));
+            enabled_.store(false, std::memory_order_release);
+            return;
+        }
+        nimble_initialized_ = true;
+    }
     ble_hs_cfg.sync_cb = onSync;
     ble_hs_cfg.reset_cb = onReset;
     nimble_port_freertos_init(nimbleHostTask);
 
+    TaskHandle_t task = nullptr;
     const BaseType_t ret = xTaskCreate(
         taskEntry,
         "air360_ble",
         4096U,
         this,
         3U,
-        reinterpret_cast<TaskHandle_t*>(&task_handle_));
+        &task);
     if (ret != pdPASS) {
         ESP_LOGE(kTag, "Failed to create BLE task");
-        enabled_ = false;
+        enabled_.store(false, std::memory_order_release);
+        const int stop_err = nimble_port_stop();
+        if (stop_err != 0) {
+            ESP_LOGW(kTag, "NimBLE stop after task create failure failed: %d", stop_err);
+        }
+        if (deinitNimblePortIfSupported()) {
+            nimble_initialized_ = false;
+        }
         return;
     }
 
-    running_ = true;
+    task_handle_.store(task, std::memory_order_release);
+    running_.store(true, std::memory_order_release);
     ESP_LOGI(kTag, "BLE advertiser started, interval=%" PRIu16 " ms", adv_interval_ms_);
 }
 
 void BleAdvertiser::stop() {
-    enabled_ = false;
-    running_ = false;
-    ble_gap_adv_stop();
-    if (task_handle_ != nullptr) {
-        vTaskDelete(static_cast<TaskHandle_t>(task_handle_));
-        task_handle_ = nullptr;
+    if (!running_.load(std::memory_order_acquire)) {
+        enabled_.store(false, std::memory_order_release);
+        return;
     }
+
+    enabled_.store(false, std::memory_order_release);
+    static_cast<void>(ble_gap_adv_stop());
+
+    TaskHandle_t task = task_handle_.load(std::memory_order_acquire);
+    if (task != nullptr) {
+        xTaskNotifyGive(task);
+        if (stop_done_ == nullptr ||
+            xSemaphoreTake(stop_done_, kStopTimeout) != pdTRUE) {
+            ESP_LOGE(kTag, "Timed out waiting for BLE advertiser task to stop");
+            return;
+        }
+    }
+
+    task_handle_.store(nullptr, std::memory_order_release);
+
+    const int stop_err = nimble_port_stop();
+    if (stop_err != 0) {
+        ESP_LOGW(kTag, "NimBLE stop failed: %d", stop_err);
+    }
+    if (deinitNimblePortIfSupported()) {
+        nimble_initialized_ = false;
+    }
+    running_.store(false, std::memory_order_release);
 }
 
 BleState BleAdvertiser::state() const {
-    return {enabled_, running_, adv_interval_ms_};
+    return {
+        enabled_.load(std::memory_order_acquire),
+        running_.load(std::memory_order_acquire),
+        adv_interval_ms_};
 }
 
 void BleAdvertiser::taskEntry(void* arg) {
@@ -128,18 +213,48 @@ void BleAdvertiser::taskEntry(void* arg) {
 }
 
 void BleAdvertiser::taskMain() {
-    xEventGroupWaitBits(g_sync_event, kSyncedBit, pdFALSE, pdTRUE, portMAX_DELAY);
+    bool wdt_subscribed = false;
+    const esp_err_t wdt_err = esp_task_wdt_add(nullptr);
+    if (wdt_err == ESP_OK) {
+        wdt_subscribed = true;
+        ESP_LOGI(kTag, "TWDT: air360_ble subscribed");
+    } else {
+        ESP_LOGW(kTag, "TWDT subscribe failed: %s", esp_err_to_name(wdt_err));
+    }
 
-    updateAdvertisement();
+    while (enabled_.load(std::memory_order_acquire)) {
+        const EventBits_t bits =
+            xEventGroupWaitBits(g_sync_event, kSyncedBit, pdFALSE, pdTRUE, kSyncWaitSlice);
+        if (wdt_subscribed) {
+            static_cast<void>(esp_task_wdt_reset());
+        }
+        if ((bits & kSyncedBit) != 0U) {
+            break;
+        }
+    }
 
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(kUpdateIntervalMs));
-        if (!enabled_) {
+    if (enabled_.load(std::memory_order_acquire)) {
+        updateAdvertisement();
+    }
+
+    while (enabled_.load(std::memory_order_acquire)) {
+        static_cast<void>(ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kUpdateIntervalMs)));
+        if (wdt_subscribed) {
+            static_cast<void>(esp_task_wdt_reset());
+        }
+        if (!enabled_.load(std::memory_order_acquire)) {
             break;
         }
         updateAdvertisement();
     }
 
+    task_handle_.store(nullptr, std::memory_order_release);
+    if (wdt_subscribed) {
+        static_cast<void>(esp_task_wdt_delete(nullptr));
+    }
+    if (stop_done_ != nullptr) {
+        xSemaphoreGive(stop_done_);
+    }
     vTaskDelete(nullptr);
 }
 

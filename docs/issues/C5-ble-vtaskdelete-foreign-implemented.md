@@ -93,3 +93,7 @@ Two independent defects:
 
 - C4 (watchdog audit) applies to the BLE task too.
 - M8 (manual advertisement build) is adjacent but independent.
+
+## Implemented
+
+Implemented.

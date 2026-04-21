@@ -16,7 +16,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [C2 — Measurement queue is RAM-only, bounded at 256](C2-measurement-queue-ram-only.md)
 - [C3 — Cellular reconnect blocks on `portMAX_DELAY` with no watchdog](C3-cellular-portmax-delay-implemented.md)
 - [C4 — Main task removes itself from watchdog, subsystem coverage incomplete](C4-watchdog-audit-gap-implemented.md)
-- [C5 — `BleAdvertiser::stop()` kills BLE task from foreign context](C5-ble-vtaskdelete-foreign.md)
+- [C5 — `BleAdvertiser::stop()` kills BLE task from foreign context](C5-ble-vtaskdelete-foreign-implemented.md)
 - [C6 — Timer daemon callbacks spawn full tasks](C6-timer-spawns-tasks.md)
 
 ### High

@@ -67,6 +67,6 @@ The real problem is coverage: the code does not systematically subscribe every l
 - `uploads/upload_manager.cpp` — same TWDT subscribe/reset/delete pattern; reset in both the early-continue path and the end-of-loop path.
 - `cellular_manager.cpp` — added TWDT subscribe on entry; `esp_task_wdt_reset()` after `attemptConnect()` and after `doHardwareReset()`; replaced `vTaskDelay(pdMS_TO_TICKS(backoff_ms))` with `wdtFeedingDelay(backoff_ms)` (feeds the watchdog every 5 s during backoffs up to 5 min).
 
-**Outstanding tasks (not subscribed):**
-- `air360_ble` — deferred to C5; its watchdog subscription is coupled to the cooperative-shutdown redesign.
+**Follow-up status:**
+- `air360_ble` — implemented by C5; the task now subscribes to TWDT as part of its cooperative-shutdown redesign.
 - `wifi_reconnect` / `wifi_ap_retry` helper tasks spawned by `NetworkManager::reconnectTimerCallback` and `setupApRetryTimerCallback` — these are short-lived, but `resetCurrentTaskWatchdogIfSubscribed()` (`network_manager.cpp:165`) silently becomes a no-op because they are not subscribed. Full fix is part of C6 (persistent worker-task refactor). Until C6 lands, a hung Wi-Fi reconnect task will not trigger TWDT.
