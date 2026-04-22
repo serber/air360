@@ -32,7 +32,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [H10 — Cross-backend prune cursor lacks property tests](H10-upload-manager-prune-tests-implemented.md)
 
 ### Medium
-- [M1 — `scanAvailableNetworks` uses blocking Wi-Fi scan](M1-wifi-scan-blocking.md)
+- [M1 — `scanAvailableNetworks` uses blocking Wi-Fi scan](M1-wifi-scan-blocking-implemented.md)
 - [M2 — Positional aggregate initialization of `SensorDescriptor`](M2-sensor-descriptor-positional-init.md)
 - [M3 — Transport binding hardcodes bus 0 and UART 1/2](M3-transport-binding-hardcoded.md)
 - [M4 — Ignored return values via `static_cast<void>`](M4-void-cast-returns.md)

@@ -31,7 +31,7 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerStackSize = 10240U;
-constexpr std::size_t kHttpServerMaxUriHandlers = 14U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 15U;
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 
 const char* networkModeLabel(NetworkMode mode) {
@@ -1807,6 +1807,17 @@ esp_err_t WebServer::start(
     wifi_scan_uri.handler = &WebServer::handleWifiScan;
     wifi_scan_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &wifi_scan_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t wifi_scan_refresh_uri{};
+    wifi_scan_refresh_uri.uri = "/wifi-scan";
+    wifi_scan_refresh_uri.method = HTTP_POST;
+    wifi_scan_refresh_uri.handler = &WebServer::handleWifiScanRefresh;
+    wifi_scan_refresh_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &wifi_scan_refresh_uri);
     if (err != ESP_OK) {
         stop();
         return err;

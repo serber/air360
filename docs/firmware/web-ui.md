@@ -36,7 +36,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 |-----------|-------|
 | Port | `http_port` from `DeviceConfig` (default 80) |
 | Task stack | 10 240 bytes |
-| URI handlers | up to 14 |
+| URI handlers | up to 15 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
 | Response caching | `Cache-Control: no-store` on all pages |
 | Log tag | `air360.web` |
@@ -46,7 +46,7 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
-`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, `/check-sntp`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
+`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
 
 ---
 
@@ -58,7 +58,8 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `GET` | `/diagnostics` | Diagnostics page (includes live log console) |
 | `GET` | `/logs/data` | Plain-text log buffer (polled by diagnostics page JS) |
 | `GET` | `/assets/*` | Static assets (CSS, JS) |
-| `GET` | `/wifi-scan` | JSON Wi-Fi scan results |
+| `GET` | `/wifi-scan` | JSON Wi-Fi scan results (cached; non-blocking) |
+| `POST` | `/wifi-scan` | Trigger a new async Wi-Fi scan (202 / 429) |
 | `GET` / `POST` | `/config` | Device configuration page |
 | `POST` | `/check-sntp` | SNTP server reachability check |
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
@@ -245,7 +246,17 @@ A single form containing upload settings and one card per backend type.
 
 ## Endpoint: `/wifi-scan`
 
-`GET /wifi-scan` returns JSON with the last Wi-Fi scan result:
+The Wi-Fi scan endpoint uses an async, event-driven model. Scans run on the `air360_net` worker task and complete via `WIFI_EVENT_SCAN_DONE`. The HTTP handlers never block waiting for a scan to finish.
+
+### `GET /wifi-scan`
+
+Returns the **cached** scan result immediately, regardless of whether a scan is in progress. The response always includes:
+
+- `X-Scan-Age: <seconds>` — seconds since the last successful scan (`"none"` if no scan has run yet)
+- `Content-Type: application/json`
+- `Cache-Control: no-store`
+
+Response body:
 
 ```json
 {
@@ -254,11 +265,24 @@ A single form containing upload settings and one card per backend type.
     { "ssid": "OtherNet",  "rssi": -78 }
   ],
   "last_scan_uptime_ms": 12345,
+  "scan_in_progress": false,
   "last_scan_error": ""
 }
 ```
 
-If in `kSetupAp` mode and no scan has been done yet (`last_scan_uptime_ms == 0`), the request asks `NetworkManager` to run a scan through its `air360_net` worker and waits for the updated cache. Otherwise the cached result from the last scan is returned. Duplicate SSIDs and hidden networks are already filtered by `NetworkManager::scanAvailableNetworks()`.
+When `scan_in_progress` is `true`, the cached `networks` list is from the previous scan. Clients should poll `GET /wifi-scan` until `scan_in_progress` becomes `false` to see fresh results. Duplicate SSIDs and hidden networks (empty SSID) are filtered by `NetworkManager` before storing.
+
+### `POST /wifi-scan`
+
+Triggers a new async Wi-Fi scan. Returns immediately — the scan runs in the background and results become available via `GET /wifi-scan`.
+
+| Condition | Status | Body |
+|-----------|--------|------|
+| Scan started | `202 Accepted` | `{"scanning":true}` |
+| Scan already running | `429 Too Many Requests` | `{"scanning":true}` |
+| WiFi not ready | `503 Service Unavailable` | `{"error":"<reason>"}` |
+
+A scan started by `startLabAp()` at boot (when the device enters setup AP mode) counts as an in-progress scan for the purposes of the 429 response. The client should call `GET /wifi-scan` and wait for `scan_in_progress: false` before retrying.
 
 ---
 
@@ -303,7 +327,7 @@ CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.
 | **Dirty tracking** | Forms with `data-dirty-track` mark their parent panel with `panel--dirty` when any field changes. A `beforeunload` guard warns if unsaved changes exist when leaving the page. |
 | **Sensor form sync** | When the sensor type `<select>` changes, the I2C address field or GPIO pin selector is shown/hidden and the default I2C address is injected. |
 | **Config form sync** | When the Wi-Fi SSID field is cleared, the password field is disabled and the hint text updates. |
-| **Wi-Fi network selector** | On the config page in setup AP mode, `loadWifiNetworks()` calls `GET /wifi-scan` asynchronously and populates the SSID dropdown. Selecting an option fills the SSID text input. |
+| **Wi-Fi network selector** | On the config page in setup AP mode, `loadWifiNetworks()` calls `GET /wifi-scan` and populates the SSID dropdown. If `scan_in_progress` is true, it polls until the scan completes. Selecting an option fills the SSID text input. A "Refresh" action fires `POST /wifi-scan` and then polls `GET /wifi-scan` until `scan_in_progress` is false. |
 | **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status paragraph. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |

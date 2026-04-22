@@ -474,6 +474,73 @@ void NetworkManager::handleWifiEvent(
     }
 
     switch (event_id) {
+        case WIFI_EVENT_SCAN_DONE: {
+            const auto* done_event =
+                static_cast<const wifi_event_sta_scan_done_t*>(event_data);
+            const bool aborted = (done_event == nullptr || done_event->status != 0U);
+
+            if (!aborted) {
+                std::uint16_t ap_count = 0U;
+                const esp_err_t num_err = esp_wifi_scan_get_ap_num(&ap_count);
+                std::vector<WifiNetworkRecord> networks;
+                std::string scan_error;
+
+                if (num_err == ESP_OK && ap_count > 0U) {
+                    std::vector<wifi_ap_record_t> records(ap_count);
+                    std::uint16_t to_fetch = ap_count;
+                    const esp_err_t rec_err =
+                        esp_wifi_scan_get_ap_records(&to_fetch, records.data());
+                    if (rec_err == ESP_OK) {
+                        networks.reserve(to_fetch);
+                        for (std::uint16_t i = 0U; i < to_fetch; ++i) {
+                            const wifi_ap_record_t& rec = records[i];
+                            if (rec.ssid[0] == '\0') {
+                                continue;
+                            }
+                            const std::string ssid(
+                                reinterpret_cast<const char*>(rec.ssid));
+                            bool dup = false;
+                            for (const auto& existing : networks) {
+                                if (existing.ssid == ssid) {
+                                    dup = true;
+                                    break;
+                                }
+                            }
+                            if (!dup) {
+                                WifiNetworkRecord net;
+                                net.ssid = ssid;
+                                net.rssi = rec.rssi;
+                                net.auth_mode = rec.authmode;
+                                networks.push_back(std::move(net));
+                            }
+                        }
+                    } else {
+                        scan_error = esp_err_to_name(rec_err);
+                    }
+                } else if (num_err == ESP_OK) {
+                    esp_wifi_clear_ap_list();
+                } else {
+                    scan_error = esp_err_to_name(num_err);
+                }
+
+                manager->lock();
+                manager->available_networks_ = std::move(networks);
+                manager->last_scan_error_ = std::move(scan_error);
+                manager->last_scan_uptime_ms_ = air360::uptimeMilliseconds();
+                manager->scan_in_progress_ = false;
+                manager->unlock();
+            } else {
+                manager->lock();
+                manager->scan_in_progress_ = false;
+                manager->unlock();
+            }
+
+            if (context.scan_done != nullptr) {
+                xSemaphoreGive(context.scan_done);
+            }
+            break;
+        }
+
         case WIFI_EVENT_STA_START:
             if (context.auto_connect_on_sta_start) {
                 ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
@@ -687,10 +754,7 @@ void NetworkManager::workerLoop() {
         }
 
         if ((bits & kWorkerScanReq) != 0U) {
-            runtime_.last_worker_scan_result = scanAvailableNetworksBlocking();
-            if (runtime_.scan_done != nullptr) {
-                xSemaphoreGive(runtime_.scan_done);
-            }
+            startAsyncScanAndWait();
         }
     }
 }
@@ -1176,114 +1240,79 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
 
 esp_err_t NetworkManager::scanAvailableNetworks() {
     RuntimeContext& context = runtime_;
-    esp_err_t init_err = ensureWifiInit();
+    const esp_err_t init_err = ensureWifiInit();
     if (init_err != ESP_OK) {
         return init_err;
     }
 
+    lock();
+    if (scan_in_progress_) {
+        unlock();
+        return ESP_ERR_INVALID_STATE;
+    }
+    scan_in_progress_ = true;
+    unlock();
+
     if (xTaskGetCurrentTaskHandle() == context.worker_task) {
-        return scanAvailableNetworksBlocking();
+        return startAsyncScanAndWait();
     }
 
-    if (context.scan_request_mutex == nullptr || context.scan_done == nullptr) {
+    if (context.scan_done == nullptr) {
+        lock();
+        scan_in_progress_ = false;
+        unlock();
         return ESP_ERR_INVALID_STATE;
     }
 
-    xSemaphoreTake(context.scan_request_mutex, portMAX_DELAY);
-    while (xSemaphoreTake(context.scan_done, 0U) == pdTRUE) {
-    }
-    context.last_worker_scan_result = ESP_ERR_TIMEOUT;
     notifyWorker(kWorkerScanReq);
-    const BaseType_t done = xSemaphoreTake(context.scan_done, kScanRequestTimeout);
-    const esp_err_t result =
-        done == pdTRUE ? context.last_worker_scan_result : ESP_ERR_TIMEOUT;
-    xSemaphoreGive(context.scan_request_mutex);
-
-    if (done != pdTRUE) {
-        lock();
-        available_networks_.clear();
-        last_scan_uptime_ms_ = 0U;
-        last_scan_error_ = "Wi-Fi scan worker timeout";
-        unlock();
-    }
-    return result;
+    return ESP_OK;
 }
 
-esp_err_t NetworkManager::scanAvailableNetworksBlocking() {
+esp_err_t NetworkManager::startAsyncScanAndWait() {
+    RuntimeContext& context = runtime_;
+
     const auto fail = [this](esp_err_t err, const char* message = nullptr) -> esp_err_t {
         lock();
         available_networks_.clear();
         last_scan_uptime_ms_ = 0U;
         last_scan_error_ =
             message != nullptr ? std::string(message) : std::string(esp_err_to_name(err));
+        scan_in_progress_ = false;
         unlock();
         return err;
     };
 
     wifi_mode_t mode = WIFI_MODE_NULL;
-    esp_err_t err = esp_wifi_get_mode(&mode);
-    if (err != ESP_OK) {
-        return fail(err);
+    const esp_err_t mode_err = esp_wifi_get_mode(&mode);
+    if (mode_err != ESP_OK) {
+        return fail(mode_err);
     }
 
     if (mode != WIFI_MODE_STA && mode != WIFI_MODE_APSTA) {
         return fail(ESP_ERR_WIFI_MODE, "Wi-Fi scan requires STA or APSTA mode");
     }
 
-    err = esp_wifi_scan_start(nullptr, true);
-    if (err != ESP_OK) {
-        return fail(err);
+    if (context.scan_done == nullptr) {
+        return fail(ESP_ERR_INVALID_STATE);
     }
 
-    std::uint16_t ap_count = 0U;
-    err = esp_wifi_scan_get_ap_num(&ap_count);
-    if (err != ESP_OK) {
-        return fail(err);
+    // Drain any stale signal from a prior scan cycle
+    while (xSemaphoreTake(context.scan_done, 0U) == pdTRUE) {
     }
 
-    std::vector<WifiNetworkRecord> networks;
-    if (ap_count > 0U) {
-        std::vector<wifi_ap_record_t> records(ap_count);
-        std::uint16_t records_to_fetch = ap_count;
-        err = esp_wifi_scan_get_ap_records(&records_to_fetch, records.data());
-        if (err != ESP_OK) {
-            return fail(err);
-        }
-
-        networks.reserve(records_to_fetch);
-        for (std::uint16_t index = 0; index < records_to_fetch; ++index) {
-            const wifi_ap_record_t& record = records[index];
-            if (record.ssid[0] == '\0') {
-                continue;
-            }
-
-            const std::string ssid(reinterpret_cast<const char*>(record.ssid));
-            bool duplicate = false;
-            for (const auto& existing : networks) {
-                if (existing.ssid == ssid) {
-                    duplicate = true;
-                    break;
-                }
-            }
-            if (duplicate) {
-                continue;
-            }
-
-            WifiNetworkRecord network;
-            network.ssid = ssid;
-            network.rssi = record.rssi;
-            network.auth_mode = record.authmode;
-            networks.push_back(std::move(network));
-        }
-    } else {
-        esp_wifi_clear_ap_list();
+    const esp_err_t start_err = esp_wifi_scan_start(nullptr, false);
+    if (start_err != ESP_OK) {
+        return fail(start_err);
     }
 
-    lock();
-    available_networks_ = std::move(networks);
-    last_scan_error_.clear();
-    last_scan_uptime_ms_ = air360::uptimeMilliseconds();
-    unlock();
+    // Block until WIFI_EVENT_SCAN_DONE gives the semaphore (or timeout)
+    const BaseType_t taken = xSemaphoreTake(context.scan_done, kScanRequestTimeout);
+    if (taken != pdTRUE) {
+        esp_wifi_scan_stop();
+        return fail(ESP_ERR_TIMEOUT, "Wi-Fi scan timeout");
+    }
+
+    // Results were stored and scan_in_progress_ cleared by the event handler
     return ESP_OK;
 }
 
@@ -1462,6 +1491,7 @@ WifiScanSnapshot NetworkManager::wifiScanSnapshot() const {
     snapshot.networks = available_networks_;
     snapshot.last_scan_error = last_scan_error_;
     snapshot.last_scan_uptime_ms = last_scan_uptime_ms_;
+    snapshot.scan_in_progress = scan_in_progress_;
     unlock();
     return snapshot;
 }

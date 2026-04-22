@@ -69,6 +69,7 @@ struct WifiScanSnapshot {
     std::vector<WifiNetworkRecord> networks;
     std::string last_scan_error;
     std::uint64_t last_scan_uptime_ms = 0U;
+    bool scan_in_progress = false;
 };
 
 struct SntpCheckResult {
@@ -117,7 +118,6 @@ class NetworkManager {
         SemaphoreHandle_t scan_request_mutex = nullptr;
         StaticSemaphore_t scan_done_buf = {};
         SemaphoreHandle_t scan_done = nullptr;
-        esp_err_t last_worker_scan_result = ESP_OK;
         esp_event_handler_instance_t wifi_handler = nullptr;
         esp_event_handler_instance_t ip_handler = nullptr;
         bool handlers_registered = false;
@@ -148,7 +148,7 @@ class NetworkManager {
         const DeviceConfig& config,
         std::uint32_t timeout_ms,
         ConnectAttemptKind kind);
-    esp_err_t scanAvailableNetworksBlocking();
+    esp_err_t startAsyncScanAndWait();
     esp_err_t synchronizeTime(std::uint32_t timeout_ms = 15000U);
     void workerLoop();
     void notifyWorker(std::uint32_t request_bits);
@@ -165,6 +165,7 @@ class NetworkManager {
     std::vector<WifiNetworkRecord> available_networks_{};
     std::string last_scan_error_{};
     std::uint64_t last_scan_uptime_ms_ = 0U;
+    bool scan_in_progress_ = false;
     std::string configured_sntp_server_{};
 };
 

@@ -6,8 +6,10 @@
 
 #include "air360/log_buffer.hpp"
 #include "air360/string_utils.hpp"
+#include "air360/time_utils.hpp"
 #include "air360/web_assets.hpp"
 #include "air360/web_server_internal.hpp"
+#include "esp_err.h"
 
 namespace air360 {
 
@@ -81,37 +83,79 @@ esp_err_t WebServer::handleLogsData(httpd_req_t* request) {
 
 esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
+
+    WifiScanSnapshot scan = server->network_manager_->wifiScanSnapshot();
+
+    // No cached data yet and no scan running — kick one off asynchronously.
+    // The client re-polls GET /wifi-scan using scan_in_progress until results arrive.
+    if (scan.last_scan_uptime_ms == 0U && !scan.scan_in_progress) {
+        static_cast<void>(server->network_manager_->scanAvailableNetworks());
+        scan = server->network_manager_->wifiScanSnapshot();
+    }
+
+    // Compute scan age for the X-Scan-Age response header
+    std::string age_str;
+    if (scan.last_scan_uptime_ms > 0U) {
+        const std::uint64_t now_ms = air360::uptimeMilliseconds();
+        const std::uint64_t age_ms = (now_ms >= scan.last_scan_uptime_ms)
+            ? (now_ms - scan.last_scan_uptime_ms)
+            : 0U;
+        age_str = std::to_string(age_ms / 1000U);
+    } else {
+        age_str = "none";
+    }
+
     httpd_resp_set_type(request, "application/json");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-
-    WifiScanSnapshot scan_snapshot = server->network_manager_->wifiScanSnapshot();
-    if (scan_snapshot.last_scan_uptime_ms == 0U) {
-        server->network_manager_->scanAvailableNetworks();
-        scan_snapshot = server->network_manager_->wifiScanSnapshot();
-    }
+    httpd_resp_set_hdr(request, "X-Scan-Age", age_str.c_str());
 
     std::string json;
     json.reserve(1024U);
-    json += "{";
-    json += "\"networks\":[";
-    for (std::size_t index = 0; index < scan_snapshot.networks.size(); ++index) {
+    json += "{\"networks\":[";
+    for (std::size_t index = 0U; index < scan.networks.size(); ++index) {
         if (index > 0U) {
             json += ",";
         }
-
-        json += "{";
-        json += "\"ssid\":\"";
-        json += jsonEscape(scan_snapshot.networks[index].ssid);
+        json += "{\"ssid\":\"";
+        json += jsonEscape(scan.networks[index].ssid);
         json += "\",\"rssi\":";
-        json += std::to_string(scan_snapshot.networks[index].rssi);
+        json += std::to_string(scan.networks[index].rssi);
         json += "}";
     }
     json += "],\"last_scan_uptime_ms\":";
-    json += std::to_string(scan_snapshot.last_scan_uptime_ms);
+    json += std::to_string(scan.last_scan_uptime_ms);
+    json += ",\"scan_in_progress\":";
+    json += scan.scan_in_progress ? "true" : "false";
     json += ",\"last_scan_error\":\"";
-    json += jsonEscape(scan_snapshot.last_scan_error);
+    json += jsonEscape(scan.last_scan_error);
     json += "\"}";
     return httpd_resp_send(request, json.c_str(), json.size());
+}
+
+esp_err_t WebServer::handleWifiScanRefresh(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+
+    const esp_err_t err = server->network_manager_->scanAvailableNetworks();
+
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_set_status(request, "429 Too Many Requests");
+        httpd_resp_set_type(request, "application/json");
+        return httpd_resp_sendstr(request, "{\"scanning\":true}");
+    }
+
+    if (err != ESP_OK) {
+        httpd_resp_set_status(request, "503 Service Unavailable");
+        httpd_resp_set_type(request, "application/json");
+        std::string response;
+        response += "{\"error\":\"";
+        response += jsonEscape(std::string(esp_err_to_name(err)));
+        response += "\"}";
+        return httpd_resp_sendstr(request, response.c_str());
+    }
+
+    httpd_resp_set_status(request, "202 Accepted");
+    httpd_resp_set_type(request, "application/json");
+    return httpd_resp_sendstr(request, "{\"scanning\":true}");
 }
 
 esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {
