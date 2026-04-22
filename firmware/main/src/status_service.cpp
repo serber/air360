@@ -891,6 +891,10 @@ std::string renderDiagnosticsNetworkBlock(
     if (cellular_state.enabled) {
         html += "<span class='pill'>retry attempts ";
         html += std::to_string(cellular_state.reconnect_attempts);
+        html += "</span><span class='pill'>failures ";
+        html += std::to_string(cellular_state.consecutive_failures);
+        html += "</span><span class='pill'>PWRKEY ";
+        html += std::to_string(cellular_state.pwrkey_cycles_total);
         html += "</span>";
         if (!cellular_state.ppp_connected &&
             cellular_state.next_reconnect_uptime_ms > now_uptime_ms) {
@@ -1035,6 +1039,25 @@ std::string buildStatusJsonDocument(
     json += boolString(render_snapshot.cellular_state.connectivity_ok);
     json += ",\"connectivity_check_skipped\":";
     json += boolString(render_snapshot.cellular_state.connectivity_check_skipped);
+    json += ",\"reconnect_attempts\":";
+    json += std::to_string(render_snapshot.cellular_state.reconnect_attempts);
+    json += ",\"consecutive_failures\":";
+    json += std::to_string(render_snapshot.cellular_state.consecutive_failures);
+    json += ",\"next_reconnect_uptime_ms\":";
+    json += std::to_string(render_snapshot.cellular_state.next_reconnect_uptime_ms);
+    json += ",\"pwrkey_cycles_total\":";
+    json += std::to_string(render_snapshot.cellular_state.pwrkey_cycles_total);
+    json += ",\"last_pwrkey_ms_ago\":";
+    if (render_snapshot.cellular_state.last_pwrkey_uptime_ms == 0U) {
+        json += "0";
+    } else {
+        const std::uint64_t now_ms = uptimeMilliseconds();
+        const std::uint64_t age_ms =
+            now_ms > render_snapshot.cellular_state.last_pwrkey_uptime_ms
+                ? now_ms - render_snapshot.cellular_state.last_pwrkey_uptime_ms
+                : 0U;
+        json += std::to_string(age_ms);
+    }
     json += ",\"last_error\":\"" + jsonEscape(render_snapshot.cellular_state.last_error) + "\"";
     json += "},";
     json += "\"configured_sensors_count\":" + std::to_string(render_snapshot.sensors.size()) + ",";

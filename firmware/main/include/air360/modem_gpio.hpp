@@ -15,7 +15,7 @@ void initModemGpios(const CellularConfig& config);
 // on the module side (active-LOW on the SIM7600E pin).
 // Recommended durations: power-on ≥2 s, power-off / reset ≥3.5 s.
 // No-op if gpio_pin is 0xFF.
-void pulseModemPwrkey(std::uint8_t gpio_pin, std::uint32_t duration_ms);
+bool pulseModemPwrkey(std::uint8_t gpio_pin, std::uint32_t duration_ms);
 
 // Drive the SLEEP/DTR line: HIGH = sleep, LOW = wake.
 // No-op if gpio_pin is 0xFF.

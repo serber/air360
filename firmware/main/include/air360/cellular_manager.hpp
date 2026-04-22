@@ -26,8 +26,11 @@ struct CellularState {
     std::string ip_address;
     int rssi_dbm = 0;
     std::string last_error;
-    // Reconnect tracking (Phase 7)
+    // Reconnect and hardware escalation tracking.
     std::uint32_t reconnect_attempts = 0U;
+    std::uint32_t consecutive_failures = 0U;
+    std::uint32_t pwrkey_cycles_total = 0U;
+    std::uint64_t last_pwrkey_uptime_ms = 0U;
     std::uint64_t next_reconnect_uptime_ms = 0U;
 };
 
@@ -39,8 +42,8 @@ struct CellularState {
 //
 // The reconnect task runs indefinitely:
 //   attemptConnect() brings up PPP and blocks until the session drops.
-//   On failure: exponential backoff; after kMaxReconnectAttempts consecutive
-//   failures the modem is hard-reset via PWRKEY.
+//   On failure: fixed exponential backoff, time-based hard retry/PWRKEY
+//   escalation, and PWRKEY rate limiting.
 class CellularManager {
   public:
     CellularManager();
@@ -86,9 +89,11 @@ class CellularManager {
     void forceDisconnect(const char* reason);
 
     // Pulse PWRKEY to force the modem off then back on.
-    void doHardwareReset();
+    bool doHardwareReset();
+    bool waitForNetworkRegistration(void* dce);
+    void resetFailureWindow();
 
-    // Exponential backoff capped at kMaxBackoffMs.
+    // Fixed exponential backoff capped at 15 min.
     static std::uint32_t computeBackoffMs(std::uint32_t attempt);
 
     // ESP event handlers (static, called from the system event loop task).
@@ -111,6 +116,10 @@ class CellularManager {
     void* ip_lost_handler_ = nullptr;  // esp_event_handler_instance_t
     EventGroupHandle_t ppp_event_group_ = nullptr;
     char pending_ip_[16]{};            // written by event handler, read by task
+    std::uint64_t failure_window_start_ms_ = 0U;
+    std::uint32_t pwrkey_cycles_in_failure_window_ = 0U;
+    bool hard_retry_logged_ = false;
+    bool pwrkey_escalation_logged_ = false;
 
     static constexpr EventBits_t kGotIpBit  = BIT0;
     static constexpr EventBits_t kLostIpBit = BIT1;
@@ -118,9 +127,10 @@ class CellularManager {
     static constexpr std::uint32_t kTaskStackBytes = 8192U;
     static constexpr UBaseType_t   kTaskPriority   = 5U;
 
-    static constexpr std::uint32_t kMaxReconnectAttempts = 5U;
-    static constexpr std::uint32_t kBaseBackoffMs        = 10000U;   // 10 s
-    static constexpr std::uint32_t kMaxBackoffMs         = 300000U;  // 5 min
+    static constexpr std::uint32_t kHardRetryAfterMs = 120000U;       // 2 min
+    static constexpr std::uint32_t kPwrkeyAfterMs = 600000U;          // 10 min
+    static constexpr std::uint32_t kMinPwrkeyIntervalMs = 3600000U;   // 1 h
+    static constexpr std::uint32_t kMaxPwrkeyBeforeReboot = 2U;
 
     // SIM7600E PWRKEY pulse durations (GPIO HIGH asserts the line).
     static constexpr std::uint32_t kPwrkeyPowerOffMs   = 3500U;

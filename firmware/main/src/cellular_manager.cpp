@@ -9,6 +9,7 @@
 #include "air360/network_manager.hpp"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_task_wdt.h"
 // esp_modem_api.h (C API) uses PdpContext from the C++ layer — pull it in first.
 #include "cxx_include/esp_modem_types.hpp"
@@ -35,6 +36,10 @@ constexpr std::uint32_t kPppProbeRetries = 1U;
 constexpr std::uint8_t kPppProbeFailureThreshold = 2U;
 // Maximum wait/sleep slice between watchdog resets.
 constexpr std::uint32_t kWdtFeedSliceMs = 2000U;
+
+std::uint64_t uptimeMilliseconds() {
+    return static_cast<std::uint64_t>(esp_timer_get_time()) / 1000ULL;
+}
 
 void resetTaskWatchdog() {
     (void)esp_task_wdt_reset();
@@ -72,6 +77,11 @@ EventBits_t waitEventBitsWithWatchdog(
         waited_ms += slice_ms;
     }
     return bits;
+}
+
+bool registrationStateIsRegistered(int state) {
+    return state == 1 || state == 5 || state == 6 || state == 7 ||
+           state == 9 || state == 10;
 }
 
 }  // namespace
@@ -166,6 +176,8 @@ void CellularManager::taskBody() {
     }
     ESP_LOGI(kTag, "TWDT: air360_cellular subscribed");
 
+    resetFailureWindow();
+
     for (;;) {
         // Ensure the modem is awake before connecting.
         setModemSleepPin(config_.sleep_gpio, false);
@@ -176,44 +188,95 @@ void CellularManager::taskBody() {
         resetTaskWatchdog();
 
         if (was_connected) {
-            // Clean disconnect — reset backoff counter for next cycle.
-            lock();
-            state_.reconnect_attempts = 0U;
-            state_.next_reconnect_uptime_ms = 0U;
-            unlock();
+            resetFailureWindow();
             continue;
         }
 
-        // Setup failure — apply backoff.
-        std::uint32_t reconnect_attempts = 0U;
+        // Setup failure. Escalation is based on elapsed failure-window time,
+        // not raw attempt count.
+        const std::uint64_t now_ms = uptimeMilliseconds();
+        if (failure_window_start_ms_ == 0U) {
+            failure_window_start_ms_ = now_ms;
+        }
+
+        std::uint32_t consecutive_failures = 0U;
         lock();
         state_.reconnect_attempts++;
-        reconnect_attempts = state_.reconnect_attempts;
+        state_.consecutive_failures++;
+        consecutive_failures = state_.consecutive_failures;
         unlock();
 
-        ESP_LOGW(kTag, "Attempt %" PRIu32 " failed", reconnect_attempts);
+        const std::uint64_t failure_elapsed_ms = now_ms - failure_window_start_ms_;
+        ESP_LOGW(
+            kTag,
+            "Cellular failure %" PRIu32 ", failure window %" PRIu64 " ms",
+            consecutive_failures,
+            failure_elapsed_ms);
 
-        if (reconnect_attempts >= kMaxReconnectAttempts) {
-            ESP_LOGW(kTag, "Max attempts reached — hardware reset");
-            doHardwareReset();
-            resetTaskWatchdog();
-            lock();
-            state_.reconnect_attempts = 0U;
-            state_.next_reconnect_uptime_ms = 0U;
-            unlock();
-            // doHardwareReset() already waits for modem boot — go straight to
-            // next attempt without an extra backoff sleep.
-            continue;
+        if (!hard_retry_logged_ && failure_elapsed_ms >= kHardRetryAfterMs) {
+            hard_retry_logged_ = true;
+            ESP_LOGE(
+                kTag,
+                "Cellular escalation: soft retry -> hard command/data retry "
+                "after %" PRIu64 " ms of continuous failure",
+                failure_elapsed_ms);
         }
 
-        const std::uint32_t backoff_ms = computeBackoffMs(reconnect_attempts);
-        const std::uint64_t now_ms =
-            static_cast<std::uint64_t>(esp_timer_get_time()) / 1000ULL;
+        if (failure_elapsed_ms >= kPwrkeyAfterMs) {
+            if (pwrkey_cycles_in_failure_window_ >= kMaxPwrkeyBeforeReboot) {
+                ESP_LOGE(
+                    kTag,
+                    "Cellular escalation: PWRKEY -> system reboot after %" PRIu32
+                    " PWRKEY cycle(s) in the current failure window",
+                    pwrkey_cycles_in_failure_window_);
+                esp_restart();
+            }
+
+            std::uint64_t last_pwrkey_ms = 0U;
+            lock();
+            last_pwrkey_ms = state_.last_pwrkey_uptime_ms;
+            unlock();
+            const bool pwrkey_allowed =
+                last_pwrkey_ms == 0U ||
+                now_ms >= last_pwrkey_ms + kMinPwrkeyIntervalMs;
+            if (pwrkey_allowed) {
+                if (!pwrkey_escalation_logged_) {
+                    pwrkey_escalation_logged_ = true;
+                    ESP_LOGE(
+                        kTag,
+                        "Cellular escalation: hard retry -> PWRKEY after %" PRIu64
+                        " ms of continuous failure",
+                        failure_elapsed_ms);
+                }
+
+                if (doHardwareReset()) {
+                    ++pwrkey_cycles_in_failure_window_;
+                    resetTaskWatchdog();
+                    continue;
+                }
+            }
+        }
+
+        std::uint32_t backoff_ms = computeBackoffMs(consecutive_failures);
+        std::uint64_t last_pwrkey_ms = 0U;
+        lock();
+        last_pwrkey_ms = state_.last_pwrkey_uptime_ms;
+        unlock();
+        if (failure_elapsed_ms >= kPwrkeyAfterMs && last_pwrkey_ms != 0U) {
+            const std::uint64_t next_allowed_pwrkey_ms =
+                last_pwrkey_ms + kMinPwrkeyIntervalMs;
+            if (next_allowed_pwrkey_ms > now_ms) {
+                const std::uint32_t pwrkey_wait_ms =
+                    static_cast<std::uint32_t>(next_allowed_pwrkey_ms - now_ms);
+                backoff_ms = std::min(backoff_ms, pwrkey_wait_ms);
+            }
+        }
+
         lock();
         state_.next_reconnect_uptime_ms = now_ms + backoff_ms;
         unlock();
 
-        ESP_LOGI(kTag, "Backoff %" PRIu32 " ms", backoff_ms);
+        ESP_LOGI(kTag, "Cellular backoff %" PRIu32 " ms", backoff_ms);
 
         setModemSleepPin(config_.sleep_gpio, true);
         wdtFeedingDelay(backoff_ms);
@@ -323,33 +386,9 @@ bool CellularManager::attemptConnect() {
     }
 
     // --- 6. Wait for network registration -----------------------------------
-    // Poll signal quality; rssi == 99 means "no signal / not registered".
-    {
-        bool registered = false;
-        for (std::uint32_t waited = 0U; waited < kRegMaxWaitMs; waited += kRegPollMs) {
-            int rssi = 99;
-            int ber  = 0;
-            if (esp_modem_get_signal_quality(dce, rssi, ber) == ESP_OK && rssi != 99) {
-                // Convert AT+CSQ rssi value to dBm: 0 = -113 dBm, step 2 dBm
-                const int rssi_dbm = (rssi == 0) ? -113 : (-113 + 2 * rssi);
-                lock();
-                state_.rssi_dbm = rssi_dbm;
-                state_.registered = true;
-                unlock();
-                registered = true;
-                ESP_LOGI(kTag, "Network registered, RSSI %d dBm", rssi_dbm);
-                break;
-            }
-            vTaskDelay(pdMS_TO_TICKS(kRegPollMs));
-            resetTaskWatchdog();
-        }
-        if (!registered) {
-            lock();
-            state_.last_error = "Network registration timeout";
-            unlock();
-            teardownModem();
-            return false;
-        }
+    if (!waitForNetworkRegistration(dce)) {
+        teardownModem();
+        return false;
     }
 
     // --- 7. PPP authentication (username/password) --------------------------
@@ -469,6 +508,86 @@ void CellularManager::teardownModem() {
     unlock();
 }
 
+bool CellularManager::waitForNetworkRegistration(void* dce_handle) {
+    auto* dce = static_cast<esp_modem_dce_t*>(dce_handle);
+    bool saw_searching = false;
+
+    for (std::uint32_t waited = 0U;; waited += kRegPollMs) {
+        int registration_state = -1;
+        const esp_err_t reg_err =
+            esp_modem_get_network_registration_state(dce, registration_state);
+        if (reg_err == ESP_OK) {
+            if (registrationStateIsRegistered(registration_state)) {
+                int rssi = 99;
+                int ber = 0;
+                int rssi_dbm = 0;
+                if (esp_modem_get_signal_quality(dce, rssi, ber) == ESP_OK && rssi != 99) {
+                    rssi_dbm = (rssi == 0) ? -113 : (-113 + 2 * rssi);
+                }
+
+                lock();
+                state_.rssi_dbm = rssi_dbm;
+                state_.registered = true;
+                state_.last_error.clear();
+                unlock();
+                ESP_LOGI(
+                    kTag,
+                    "Network registered (state %d), RSSI %d dBm",
+                    registration_state,
+                    rssi_dbm);
+                return true;
+            }
+
+            if (registration_state == 2) {
+                if (!saw_searching) {
+                    ESP_LOGI(kTag, "Network registration searching; polling without escalation");
+                    saw_searching = true;
+                }
+                lock();
+                state_.registered = false;
+                state_.last_error = "Network registration searching";
+                unlock();
+                wdtFeedingDelay(kRegPollMs);
+                continue;
+            }
+
+            if (registration_state == 3) {
+                lock();
+                state_.registered = false;
+                state_.last_error = "Network registration denied";
+                unlock();
+                ESP_LOGW(kTag, "Network registration denied");
+                return false;
+            }
+        }
+
+        if (reg_err != ESP_OK) {
+            int rssi = 99;
+            int ber = 0;
+            if (esp_modem_get_signal_quality(dce, rssi, ber) == ESP_OK && rssi != 99) {
+                const int rssi_dbm = (rssi == 0) ? -113 : (-113 + 2 * rssi);
+                lock();
+                state_.rssi_dbm = rssi_dbm;
+                state_.registered = true;
+                state_.last_error.clear();
+                unlock();
+                ESP_LOGI(kTag, "Network registered by CSQ fallback, RSSI %d dBm", rssi_dbm);
+                return true;
+            }
+        }
+
+        if (waited >= kRegMaxWaitMs) {
+            lock();
+            state_.registered = false;
+            state_.last_error = "Network registration timeout";
+            unlock();
+            return false;
+        }
+
+        wdtFeedingDelay(kRegPollMs);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Static event handlers
 // ---------------------------------------------------------------------------
@@ -506,18 +625,29 @@ void CellularManager::onLostIpEvent(
 // Hardware reset
 // ---------------------------------------------------------------------------
 
-void CellularManager::doHardwareReset() {
+bool CellularManager::doHardwareReset() {
     ESP_LOGI(kTag, "HW reset: power-off pulse (%" PRIu32 " ms)", kPwrkeyPowerOffMs);
-    pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOffMs);
+    const bool power_off_pulsed = pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOffMs);
+    if (!power_off_pulsed) {
+        ESP_LOGW(kTag, "HW reset skipped: PWRKEY GPIO is not wired");
+        return false;
+    }
     resetTaskWatchdog();
     wdtFeedingDelay(kModemShutdownWaitMs);
 
     ESP_LOGI(kTag, "HW reset: power-on pulse (%" PRIu32 " ms)", kPwrkeyPowerOnMs);
-    pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOnMs);
+    static_cast<void>(pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOnMs));
     resetTaskWatchdog();
     wdtFeedingDelay(kModemBootWaitMs);
 
+    lock();
+    ++state_.pwrkey_cycles_total;
+    state_.last_pwrkey_uptime_ms = uptimeMilliseconds();
+    state_.next_reconnect_uptime_ms = 0U;
+    unlock();
+
     ESP_LOGI(kTag, "HW reset complete");
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,11 +656,36 @@ void CellularManager::doHardwareReset() {
 
 // static
 std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
-    std::uint32_t backoff = kBaseBackoffMs;
-    for (std::uint32_t i = 0U; i < attempt && backoff < kMaxBackoffMs; ++i) {
-        backoff = (backoff <= kMaxBackoffMs / 2U) ? backoff * 2U : kMaxBackoffMs;
+    constexpr std::uint32_t kBackoffTableMs[] = {
+        10000U,
+        30000U,
+        60000U,
+        120000U,
+        300000U,
+        600000U,
+        900000U,
+    };
+    if (attempt == 0U) {
+        return kBackoffTableMs[0];
     }
-    return (backoff < kMaxBackoffMs) ? backoff : kMaxBackoffMs;
+    constexpr std::size_t kBackoffTableSize =
+        sizeof(kBackoffTableMs) / sizeof(kBackoffTableMs[0]);
+    const std::size_t index =
+        std::min<std::size_t>(attempt - 1U, kBackoffTableSize - 1U);
+    return kBackoffTableMs[index];
+}
+
+void CellularManager::resetFailureWindow() {
+    failure_window_start_ms_ = 0U;
+    pwrkey_cycles_in_failure_window_ = 0U;
+    hard_retry_logged_ = false;
+    pwrkey_escalation_logged_ = false;
+
+    lock();
+    state_.reconnect_attempts = 0U;
+    state_.consecutive_failures = 0U;
+    state_.next_reconnect_uptime_ms = 0U;
+    unlock();
 }
 
 // ---------------------------------------------------------------------------
@@ -539,10 +694,16 @@ std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
 
 void CellularManager::onPppConnected(const char* ip_address, const char* check_host) {
     const std::string ip = (ip_address != nullptr) ? ip_address : "";
+    failure_window_start_ms_ = 0U;
+    pwrkey_cycles_in_failure_window_ = 0U;
+    hard_retry_logged_ = false;
+    pwrkey_escalation_logged_ = false;
     lock();
     state_.ppp_connected = true;
     state_.ip_address = ip;
     state_.last_error.clear();
+    state_.reconnect_attempts = 0U;
+    state_.consecutive_failures = 0U;
     state_.next_reconnect_uptime_ms = 0U;
     unlock();
 

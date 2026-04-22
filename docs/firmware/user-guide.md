@@ -263,7 +263,7 @@ When cellular is enabled it becomes the primary uplink — the device connects t
 - The Connection block shows the PPP IP address, signal strength (RSSI in dBm), and ping result if a connectivity check host is configured.
 - Uploads and SNTP proceed through the cellular link.
 
-**Reconnect behaviour:** if the PPP session drops, the firmware reconnects automatically with exponential backoff (10 s → up to 5 min). After 5 consecutive failures the modem is power-cycled via PWRKEY before the next attempt.
+**Reconnect behaviour:** if the PPP session drops, the firmware reconnects automatically with table backoff (10 s, 30 s, 1 min, 2 min, 5 min, 10 min, then 15 min). PWRKEY is only used after at least 10 minutes of continuous failure and is capped at one cycle per hour; registration state `searching` keeps polling without PWRKEY escalation.
 
 **To disable cellular**, uncheck **Enable cellular uplink** and save.
 
@@ -423,7 +423,7 @@ The Diagnostics page includes a formatted raw runtime JSON dump at the bottom:
 
 This page is useful for advanced troubleshooting. The raw dump includes build information, boot count, reset reason, network state, sensor runtime state with latest measurements and queued sample counts, and backend runtime state.
 
-The JSON also includes a top-level `diagnostics` object with heap totals, heap headroom, largest free block, task stack high watermarks, and measurement queue counters.
+The JSON also includes a top-level `diagnostics` object with heap totals, heap headroom, largest free block, task stack high watermarks, and measurement queue counters. The `cellular` object includes reconnect attempts, consecutive setup failures, `pwrkey_cycles_total`, and `last_pwrkey_ms_ago` for modem escalation diagnostics.
 
 ### Diagnostics page
 
@@ -577,7 +577,7 @@ The modem is not reaching the network. Check:
 - PAP username/password are correct if your carrier requires them.
 - Serial monitor logs from the modem task (`air360.cellular`) may show the exact failure reason.
 
-The firmware retries automatically with backoff. After 5 failures the modem is power-cycled — you do not need to reboot the device manually.
+The firmware retries automatically with backoff. If the modem reports "searching", it keeps polling without PWRKEY cycling. PWRKEY is only used after a long continuous failure window and is rate-limited, so you normally do not need to reboot the device manually.
 
 ### Cellular connected but uploads are not going through
 

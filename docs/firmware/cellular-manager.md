@@ -40,6 +40,9 @@ struct CellularState {
     int rssi_dbm;
     string last_error;
     uint32_t reconnect_attempts;
+    uint32_t consecutive_failures;
+    uint32_t pwrkey_cycles_total;
+    uint64_t last_pwrkey_uptime_ms;
     uint64_t next_reconnect_uptime_ms;
 };
 ```
@@ -78,9 +81,11 @@ loop:
   wake modem (de-assert SLEEP pin)
   attemptConnect()          ← blocks until session is fully over
   ├─ returned true  → clean disconnect; reset backoff counter; next iteration
-  └─ returned false → setup failure; increment reconnect_attempts
-       ├─ attempts < 5  → compute backoff; assert SLEEP; wait; de-assert SLEEP; next iteration
-       └─ attempts ≥ 5  → hardware reset (PWRKEY pulse); reset counter; next iteration
+  └─ returned false → setup failure; increment consecutive failure counters
+       ├─ < 2 min continuous failure   → soft retries with table backoff
+       ├─ ≥ 2 min continuous failure   → hard retry tier (full command/data cycle)
+       ├─ ≥ 10 min continuous failure  → PWRKEY tier if hourly cap allows it
+       └─ third PWRKEY need in window   → full ESP restart
 ```
 
 ---
@@ -96,7 +101,7 @@ loop:
 | 3 | Create SIM7600E DCE via `esp_modem_new_dev` | return false |
 | 4 | Allocate PPP event group; register `IP_EVENT_PPP_GOT_IP` / `IP_EVENT_PPP_LOST_IP` handlers | return false |
 | 5 | SIM PIN unlock (if `sim_pin` non-empty; skipped if PIN not required) | return false |
-| 6 | Poll for network registration: check signal quality every 2 s, up to 60 s | return false |
+| 6 | Poll for network registration every 2 s with `AT+CEREG?` / registration-state API plus CSQ fallback | return false only on denied, unknown timeout, or no non-searching registration; "searching" keeps polling |
 | 7 | Set PPP authentication (PAP) if `username` non-empty | — |
 | 8 | Enter PPP data mode (`ESP_MODEM_MODE_DATA`) | return false |
 | 9 | Wait up to 30 s for `IP_EVENT_PPP_GOT_IP` | return false |
@@ -136,7 +141,7 @@ The firmware watchdog target timeout is 30 s when `initWatchdog()` owns TWDT ini
 
 ## Hardware reset
 
-After `kMaxReconnectAttempts` (5) consecutive setup failures the modem is hard-reset via PWRKEY:
+PWRKEY is a last-resort escalation, not an attempt-count threshold. It is only considered after **10 minutes of continuous setup failure** and is rate-limited to **one PWRKEY cycle per hour**:
 
 ```text
 PWRKEY HIGH for 3 500 ms   → modem power-off
@@ -145,25 +150,34 @@ PWRKEY HIGH for 2 000 ms   → modem power-on
 wait 5 000 ms              → boot settling time
 ```
 
-`0xFF` in the GPIO field means "not wired" — all GPIO operations are skipped for that pin. After a hardware reset the reconnect counter is zeroed and the next `attemptConnect()` runs immediately (no additional backoff sleep).
+`0xFF` in the GPIO field means "not wired" — all GPIO operations are skipped for that pin. Skipped PWRKEY requests do not increment `pwrkey_cycles_total`. If the same continuous failure window reaches a third PWRKEY need, the firmware logs the escalation and calls `esp_restart()` instead of cycling the modem indefinitely.
 
 ---
 
 ## Reconnect backoff
 
-Applied only after setup failures (not after clean disconnects):
+Applied only after setup failures (not after clean disconnects). The backoff is table-driven and capped at 15 minutes:
 
 ```text
 attempt 1 → 10 s
-attempt 2 → 20 s
-attempt 3 → 40 s
-attempt 4 → 80 s
-attempt 5+ → hardware reset (no sleep)
+attempt 2 → 30 s
+attempt 3 → 1 min
+attempt 4 → 2 min
+attempt 5 → 5 min
+attempt 6 → 10 min
+attempt 7+ → 15 min
 ```
 
-Cap: 300 s (unreachable with the current 5-attempt limit before reset).
+Escalation is based on elapsed time in the current failure window:
+
+- **soft retry** — initial retry tier; backoff table applies
+- **hard retry** — logged once after 2 minutes of continuous failure; the next cycle performs the full command/data setup again without PWRKEY
+- **PWRKEY** — logged once after 10 minutes of continuous failure if the 1-hour cap allows it
+- **reboot** — if the modem would need more than two PWRKEY cycles in the same continuous failure window
 
 During the backoff window the SLEEP pin is asserted (if wired). `next_reconnect_uptime_ms` is published to the UI during the wait.
+
+If the modem reports registration state `2` ("not registered, searching"), the task keeps the modem alive and polls registration without treating the condition as a failure. This avoids PWRKEY cycling during carrier search or marginal-signal windows.
 
 ---
 
@@ -222,8 +236,11 @@ On PPP disconnect: the teardown code looks up `"WIFI_STA_DEF"` via `esp_netif_ge
 | Connectivity check timeout | 5 000 ms |
 | Connectivity check retries | 3 |
 | Backoff base | 10 000 ms |
-| Backoff cap | 300 000 ms |
-| Max attempts before HW reset | 5 |
+| Backoff table | 10 s, 30 s, 1 min, 2 min, 5 min, 10 min, 15 min |
+| Hard retry escalation | 2 min continuous failure |
+| PWRKEY escalation | 10 min continuous failure |
+| PWRKEY frequency cap | 1 cycle per hour |
+| System reboot escalation | after the second PWRKEY cycle in one continuous failure window |
 | PWRKEY power-off pulse | 3 500 ms |
 | PWRKEY power-on pulse | 2 000 ms |
 | Modem shutdown wait | 2 000 ms |

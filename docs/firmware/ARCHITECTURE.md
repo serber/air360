@@ -264,13 +264,13 @@ Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled 
 3. Create SIM7600E DCE
 4. Set APN (PDP context)
 5. Unlock SIM PIN if configured
-6. Poll signal quality until registered (up to 60 s, 2 s intervals)
+6. Poll modem registration state and signal quality every 2 s; state `searching` keeps polling without failure escalation
 7. Set PPP PAP auth if username/password configured
 8. Enter PPP data mode
 9. Wait for IP event; run connectivity check if host configured
 10. Block until PPP session drops, then tear down
 
-**Reconnect backoff:** exponential from 10 s, capped at 5 min. After 5 consecutive failures, performs PWRKEY hardware reset before next attempt.
+**Reconnect backoff:** table backoff of 10 s, 30 s, 1 min, 2 min, 5 min, 10 min, then 15 min. Escalation is time-based: hard retry tier after 2 minutes of continuous failure, PWRKEY only after 10 minutes and no more than once per hour, then system reboot if the same failure window would need more than two PWRKEY cycles.
 
 **Wi-Fi debug window:** after PPP is up, the task schedules a call to `NetworkManager` to stop the Wi-Fi station after `wifi_debug_window_s` seconds.
 
@@ -287,6 +287,10 @@ Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled 
 | `rssi_dbm` | Signal strength in dBm (from AT+CSQ) |
 | `connectivity_ok` | Last ICMP ping result |
 | `connectivity_check_skipped` | True when check host is empty |
+| `reconnect_attempts` | Current setup failure counter in the active failure window |
+| `consecutive_failures` | Continuous setup failure count |
+| `pwrkey_cycles_total` | Successful PWRKEY cycles since boot |
+| `last_pwrkey_uptime_ms` | Uptime timestamp of the last successful PWRKEY cycle |
 | `last_error` | Last failure reason string |
 
 **Log tag:** `air360.cellular`

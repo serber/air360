@@ -41,14 +41,15 @@ void initModemGpios(const CellularConfig& config) {
     configureOutputPin(config.reset_gpio,  "RESET");
 }
 
-void pulseModemPwrkey(std::uint8_t gpio_u8, std::uint32_t duration_ms) {
+bool pulseModemPwrkey(std::uint8_t gpio_u8, std::uint32_t duration_ms) {
     if (gpio_u8 == kNotWired) {
-        return;
+        return false;
     }
     const auto gpio = static_cast<gpio_num_t>(gpio_u8);
     gpio_set_level(gpio, 1);
     vTaskDelay(pdMS_TO_TICKS(duration_ms));
     gpio_set_level(gpio, 0);
+    return true;
 }
 
 void setModemSleepPin(std::uint8_t gpio_u8, bool assert_sleep) {

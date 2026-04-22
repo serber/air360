@@ -1,5 +1,6 @@
 # H8 — Cellular 5-attempt PWRKEY cadence is wear-prone
 
+- **Status:** Implemented
 - **Severity:** High
 - **Area:** Cellular reliability / hardware longevity
 - **Files:**
