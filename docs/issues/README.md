@@ -25,7 +25,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [H3 — Homegrown HTML templating in `web_server.cpp`, no escaping](H3-web-server-xss.md)
 - [H4 — In-place NVS schema evolution via reserved bytes](H4-nvs-schema-reserved-bytes.md)
 - [H5 — Wipe-and-default on NVS corruption](H5-nvs-wipe-to-default.md)
-- [H6 — `SensorManager` retries driver init with no backoff](H6-sensor-init-no-backoff.md)
+- [H6 — `SensorManager` retries driver init with no backoff](H6-sensor-init-no-backoff-implemented.md)
 - [H7 — STL containers on hot paths, heap fragmentation risk](H7-stl-hot-paths.md)
 - [H8 — Cellular 5-attempt PWRKEY cadence is wear-prone](H8-cellular-pwrkey-cadence.md)
 - [H9 — `using namespace esp_modem;` in a translation unit](H9-using-namespace-esp-modem.md)

@@ -10,6 +10,8 @@
 
 namespace air360 {
 
+constexpr std::uint32_t kSensorPollFailureReinitThreshold = 3U;
+
 class I2cBusManager;
 class UartPortManager;
 

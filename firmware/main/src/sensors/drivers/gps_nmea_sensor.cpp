@@ -18,6 +18,8 @@ constexpr std::size_t kGpsMaxBytesPerPoll = 2048U;
 
 }  // namespace
 
+GpsNmeaSensor::GpsNmeaSensor() : parser_(std::make_unique<TinyGPSPlus>()) {}
+
 GpsNmeaSensor::~GpsNmeaSensor() = default;
 
 SensorType GpsNmeaSensor::type() const {
@@ -27,9 +29,12 @@ SensorType GpsNmeaSensor::type() const {
 esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     record_ = record;
     uart_port_manager_ = context.uart_port_manager;
-    parser_ = std::make_unique<TinyGPSPlus>();
+    if (parser_ != nullptr) {
+        *parser_ = TinyGPSPlus();
+    }
     measurement_.clear();
     last_error_.clear();
+    poll_failure_count_ = 0U;
     initialized_ = false;
 
     if (uart_port_manager_ == nullptr || parser_ == nullptr) {
@@ -67,7 +72,9 @@ esp_err_t GpsNmeaSensor::poll() {
         kGpsReadTimeoutTicks);
     if (bytes_read < 0) {
         setError("Failed to read GPS UART data.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return ESP_FAIL;
     }
 
@@ -91,17 +98,21 @@ esp_err_t GpsNmeaSensor::poll() {
             0);
         if (bytes_read < 0) {
             setError("Failed to read GPS UART data.");
-            initialized_ = false;
+            if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+                initialized_ = false;
+            }
             return ESP_FAIL;
         }
     }
 
     if (total_bytes_read == 0U) {
+        poll_failure_count_ = 0U;
         setError("No GPS UART data received.");
         return ESP_OK;
     }
 
     rebuildMeasurement();
+    poll_failure_count_ = 0U;
     return ESP_OK;
 }
 

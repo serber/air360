@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -11,6 +12,7 @@ namespace air360 {
 
 class GpsNmeaSensor final : public SensorDriver {
   public:
+    GpsNmeaSensor();
     ~GpsNmeaSensor() override;
 
     SensorType type() const override;
@@ -30,6 +32,7 @@ class GpsNmeaSensor final : public SensorDriver {
     std::unique_ptr<TinyGPSPlus> parser_;
     SensorMeasurement measurement_{};
     std::string last_error_;
+    std::uint32_t poll_failure_count_ = 0U;
     bool initialized_ = false;
 };
 

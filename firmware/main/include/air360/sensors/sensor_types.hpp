@@ -42,6 +42,7 @@ enum class SensorRuntimeState : std::uint8_t {
     kAbsent = 4U,
     kUnsupported = 5U,
     kError = 6U,
+    kFailed = 7U,
 };
 
 inline const char* transportKindKey(TransportKind kind) {
@@ -350,6 +351,8 @@ inline const char* sensorRuntimeStateKey(SensorRuntimeState state) {
             return "absent";
         case SensorRuntimeState::kUnsupported:
             return "unsupported";
+        case SensorRuntimeState::kFailed:
+            return "failed";
         case SensorRuntimeState::kError:
         default:
             return "error";

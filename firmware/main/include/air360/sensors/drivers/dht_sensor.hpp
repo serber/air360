@@ -34,6 +34,7 @@ class DhtSensor final : public SensorDriver {
     SensorRecord record_{};
     SensorMeasurement measurement_{};
     std::string last_error_;
+    std::uint32_t poll_failure_count_ = 0U;
     bool initialized_ = false;
 };
 

@@ -1,5 +1,6 @@
 # H6 — `SensorManager` retries driver init with no backoff
 
+- **Status:** Implemented
 - **Severity:** High
 - **Area:** Sensor runtime / bus health
 - **Files:**

@@ -114,7 +114,7 @@ The page currently shows:
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error and cellular reconnect counters
 - **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
-- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, and diagnostics fields
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, and diagnostics fields. Each sensor object includes `status`, `failures`, and `next_retry_ms`.
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.
@@ -193,9 +193,10 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 
 **Per-sensor card** — each configured sensor shows:
-- Runtime state pill (`kInitialized`, `kPolling`, `kAbsent`, `kError`)
+- Runtime state pill (`kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`)
 - Transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`)
 - Poll interval and queued sample count
+- Consecutive failure count and next retry uptime when a sensor is backing off
 - Latest reading values
 - Edit form (model selector, poll interval, I2C address or GPIO pin, enabled checkbox)
 - "Stage sensor deletion" button

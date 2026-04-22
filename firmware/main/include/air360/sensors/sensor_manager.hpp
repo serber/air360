@@ -30,6 +30,8 @@ struct SensorRuntimeInfo {
     std::string binding_summary;
     std::uint32_t poll_interval_ms = 0U;
     SensorRuntimeState state = SensorRuntimeState::kUnsupported;
+    std::uint32_t failures = 0U;
+    std::uint64_t next_retry_ms = 0U;
     std::string last_error;
 };
 
@@ -57,6 +59,8 @@ class SensorManager {
         std::unique_ptr<SensorDriver> driver;
         SensorRuntimeInfo runtime{};
         bool driver_ready = false;
+        std::uint32_t consecutive_poll_failures = 0U;
+        std::uint64_t next_init_allowed_ms = 0U;
         std::uint64_t next_action_time_ms = 0U;
     };
 

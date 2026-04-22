@@ -39,6 +39,7 @@ esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContex
     record_ = record;
     measurement_.clear();
     last_error_.clear();
+    poll_failure_count_ = 0U;
 
     i2c_port_t port = I2C_NUM_0;
     gpio_num_t sda = GPIO_NUM_NC;
@@ -94,12 +95,15 @@ esp_err_t Scd30Sensor::poll() {
     esp_err_t err = scd30_get_data_ready_status(&device_, &data_ready);
     if (err != ESP_OK) {
         setError("Failed to query SCD30 data-ready status.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
     if (!data_ready) {
         measurement_.clear();
+        poll_failure_count_ = 0U;
         last_error_ = "Waiting for new SCD30 sample.";
         return ESP_OK;
     }
@@ -110,13 +114,17 @@ esp_err_t Scd30Sensor::poll() {
     err = scd30_read_measurement(&device_, &co2_ppm, &temperature_c, &humidity_percent);
     if (err != ESP_OK) {
         setError("Failed to read SCD30 measurement.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
     if (std::isnan(co2_ppm) || std::isnan(temperature_c) || std::isnan(humidity_percent)) {
         setError("SCD30 driver returned invalid values.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return ESP_ERR_INVALID_RESPONSE;
     }
 
@@ -125,6 +133,7 @@ esp_err_t Scd30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kCo2Ppm, co2_ppm);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
+    poll_failure_count_ = 0U;
     last_error_.clear();
     return ESP_OK;
 }
@@ -139,6 +148,7 @@ std::string Scd30Sensor::lastError() const {
 
 void Scd30Sensor::reset() {
     initialized_ = false;
+    poll_failure_count_ = 0U;
     if (descriptor_initialized_) {
         if (measurement_running_) {
             scd30_stop_continuous_measurement(&device_);

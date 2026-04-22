@@ -30,6 +30,7 @@ esp_err_t Sht4xSensor::init(const SensorRecord& record, const SensorDriverContex
     record_ = record;
     measurement_.clear();
     last_error_.clear();
+    poll_failure_count_ = 0U;
 
     i2c_port_t port = I2C_NUM_0;
     gpio_num_t sda = GPIO_NUM_NC;
@@ -75,13 +76,17 @@ esp_err_t Sht4xSensor::poll() {
     esp_err_t err = sht4x_measure(&device_, &temperature_c, &humidity_percent);
     if (err != ESP_OK) {
         setError(std::string("Failed to read SHT4X measurement: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
     if (std::isnan(temperature_c) || std::isnan(humidity_percent)) {
         setError("SHT4X driver returned invalid values.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return ESP_ERR_INVALID_RESPONSE;
     }
 
@@ -89,6 +94,7 @@ esp_err_t Sht4xSensor::poll() {
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
+    poll_failure_count_ = 0U;
     last_error_.clear();
     return ESP_OK;
 }
@@ -103,6 +109,7 @@ std::string Sht4xSensor::lastError() const {
 
 void Sht4xSensor::reset() {
     initialized_ = false;
+    poll_failure_count_ = 0U;
     if (descriptor_initialized_) {
         sht4x_free_desc(&device_);
         std::memset(&device_, 0, sizeof(device_));

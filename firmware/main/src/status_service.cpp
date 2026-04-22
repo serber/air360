@@ -406,6 +406,7 @@ bool sensorIsReporting(
         case SensorRuntimeState::kDisabled:
         case SensorRuntimeState::kAbsent:
         case SensorRuntimeState::kUnsupported:
+        case SensorRuntimeState::kFailed:
         case SensorRuntimeState::kError:
         default:
             return false;
@@ -640,6 +641,7 @@ std::string renderSensorOverviewBlock(
     }
 
     html += "<div class='list'>";
+    const std::uint64_t now_uptime_ms = uptimeMilliseconds();
     for (const auto& sensor : sensors) {
         const MeasurementRuntimeInfo* measurement_runtime =
             measurementRuntimeForSensor(measurement_store, sensor.id);
@@ -654,6 +656,15 @@ std::string renderSensorOverviewBlock(
         if (!sensor.last_error.empty()) {
             last_error_block += "<p class='muted'>";
             last_error_block += htmlEscape(sensor.last_error);
+            last_error_block += "</p>";
+        }
+        if (sensor.failures > 0U) {
+            last_error_block += "<p class='muted'>Failures: ";
+            last_error_block += std::to_string(sensor.failures);
+            if (sensor.next_retry_ms > 0U) {
+                last_error_block += "; retry in ";
+                last_error_block += htmlEscape(formatDelayFromNow(sensor.next_retry_ms, now_uptime_ms));
+            }
             last_error_block += "</p>";
         }
 
@@ -1115,6 +1126,8 @@ std::string buildStatusJsonDocument(
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
         json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
+        json += "\"failures\":" + std::to_string(sensor.failures) + ",";
+        json += "\"next_retry_ms\":" + std::to_string(sensor.next_retry_ms) + ",";
         json += "\"last_sample_time_ms\":" + std::to_string(runtime.last_sample_time_ms) + ",";
         json += "\"queued_sample_count\":" + std::to_string(runtime.queued_sample_count) + ",";
         json += "\"measurements\":";

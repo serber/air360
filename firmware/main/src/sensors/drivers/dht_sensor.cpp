@@ -31,6 +31,7 @@ esp_err_t DhtSensor::init(const SensorRecord& record, const SensorDriverContext&
     record_ = record;
     measurement_.clear();
     last_error_.clear();
+    poll_failure_count_ = 0U;
     initialized_ = false;
 
     if (record_.analog_gpio_pin < 0) {
@@ -57,13 +58,17 @@ esp_err_t DhtSensor::poll() {
         &temperature_c);
     if (err != ESP_OK) {
         setError(std::string("Failed to read DHT sample: ") + esp_err_to_name(err) + ".");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
     if (std::isnan(temperature_c) || std::isnan(humidity_percent)) {
         setError("DHT component returned invalid values.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return ESP_ERR_INVALID_RESPONSE;
     }
 
@@ -71,6 +76,7 @@ esp_err_t DhtSensor::poll() {
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
+    poll_failure_count_ = 0U;
     last_error_.clear();
     return ESP_OK;
 }

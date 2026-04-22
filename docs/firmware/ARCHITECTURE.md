@@ -396,13 +396,14 @@ Owns the sensor runtime lifecycle.
 | `kPolling` | Actively polling |
 | `kAbsent` | Poll timed out (device not found) |
 | `kUnsupported` | No driver available |
-| `kError` | Init or poll failed, 5-second retry backoff |
+| `kError` | Init or poll failed; retry is governed by per-sensor backoff |
+| `kFailed` | 16 consecutive failures reached; automatic retries stop until config reload or manual re-enable |
 
 ---
 
 ### Sensor drivers — `sensors/drivers/`
 
-Each driver wraps an ESP-IDF managed component or vendored library and implements a common `ISensorDriver` interface. Drivers are stateless between `init()` / `read()` calls and are owned exclusively by `SensorManager`.
+Each driver wraps an ESP-IDF managed component or vendored library and implements a common `ISensorDriver` interface. Drivers are owned exclusively by `SensorManager`; they retain their component handles between successful polls and only force re-init after 3 consecutive poll failures.
 
 | Driver file | Sensor | Managed component |
 |-------------|--------|-------------------|

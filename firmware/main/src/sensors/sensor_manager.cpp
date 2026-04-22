@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -17,11 +18,22 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor";
-constexpr std::uint64_t kRetryDelayMs = 5000U;
+constexpr std::uint32_t kInitBackoffBaseMs = 1000U;
+constexpr std::uint32_t kInitBackoffCapMs = 5U * 60U * 1000U;
+constexpr std::uint32_t kInitBackoffShiftCap = 8U;
+constexpr std::uint32_t kSensorFailureStopThreshold = 16U;
+constexpr std::uint64_t kSoftPollRetryDelayMs = 5000U;
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
 constexpr uint32_t kManagerTaskStackSize = 6144U;
 constexpr UBaseType_t kManagerTaskPriority = 5U;
 constexpr std::uint32_t kStopTimeoutMs = 5000U;
+
+std::uint32_t initBackoffDelayMs(std::uint32_t consecutive_failures) {
+    const std::uint32_t shift =
+        std::min<std::uint32_t>(consecutive_failures, kInitBackoffShiftCap);
+    const std::uint32_t delay = kInitBackoffBaseMs << shift;
+    return std::min(delay, kInitBackoffCapMs);
+}
 
 SensorRuntimeState classifyFailureState(esp_err_t err) {
     if (err == ESP_ERR_NOT_FOUND ||
@@ -205,6 +217,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                     managed.driver_ready = false;
                     managed.runtime.state = SensorRuntimeState::kConfigured;
                     managed.runtime.last_error.clear();
+                    managed.next_init_allowed_ms = now_ms;
                     managed.next_action_time_ms = now_ms;
                 }
             }
@@ -217,6 +230,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                 managed.driver_ready = false;
                 managed.runtime.state = SensorRuntimeState::kConfigured;
                 managed.runtime.last_error.clear();
+                managed.next_init_allowed_ms = now_ms;
                 managed.next_action_time_ms = now_ms;
             }
         }
@@ -387,6 +401,7 @@ void SensorManager::taskMain() {
             if (index < sensors_.size()) {
                 auto& sensor = sensors_[index];
                 if (sensor.runtime.enabled && sensor.driver != nullptr &&
+                    sensor.runtime.state != SensorRuntimeState::kFailed &&
                     now_ms >= sensor.next_action_time_ms) {
                     driver = sensor.driver.get();
                     record = sensor.record;
@@ -430,17 +445,71 @@ void SensorManager::taskMain() {
 
             if (op_err == ESP_OK) {
                 sensor.driver_ready = true;
+                sensor.consecutive_poll_failures = 0U;
                 sensor.runtime.state = needs_init ? SensorRuntimeState::kInitialized
                                                   : SensorRuntimeState::kPolling;
+                if (!needs_init) {
+                    sensor.runtime.failures = 0U;
+                }
+                sensor.runtime.next_retry_ms = 0U;
                 sensor.runtime.last_error = driver_status;
                 sensor.next_action_time_ms =
                     now_ms + (needs_init ? 0U : sensor.record.poll_interval_ms);
             } else {
-                sensor.driver_ready = false;
                 sensor.runtime.state = classifyFailureState(op_err);
                 sensor.runtime.last_error = last_error;
-                sensor.next_action_time_ms =
-                    now_ms + std::min<std::uint32_t>(sensor.record.poll_interval_ms, kRetryDelayMs);
+                sensor.runtime.failures++;
+
+                if (!needs_init) {
+                    sensor.consecutive_poll_failures++;
+                }
+
+                const bool soft_poll_failure =
+                    !needs_init &&
+                    sensor.consecutive_poll_failures < kSensorPollFailureReinitThreshold;
+                if (soft_poll_failure) {
+                    sensor.driver_ready = true;
+                    sensor.next_action_time_ms =
+                        now_ms + std::min<std::uint64_t>(
+                                     sensor.record.poll_interval_ms,
+                                     kSoftPollRetryDelayMs);
+                    sensor.runtime.next_retry_ms = sensor.next_action_time_ms;
+                    unlock();
+                    continue;
+                }
+
+                sensor.driver_ready = false;
+                sensor.consecutive_poll_failures = 0U;
+
+                if (sensor.runtime.failures >= kSensorFailureStopThreshold) {
+                    sensor.runtime.state = SensorRuntimeState::kFailed;
+                    sensor.runtime.next_retry_ms = 0U;
+                    sensor.next_init_allowed_ms = 0U;
+                    sensor.next_action_time_ms = std::numeric_limits<std::uint64_t>::max();
+                    ESP_LOGE(
+                        kTag,
+                        "Sensor #%" PRIu32 " (%s) marked failed after %" PRIu32
+                        " consecutive failures; re-enable or reload config to retry",
+                        sensor.runtime.id,
+                        sensor.runtime.type_key.c_str(),
+                        sensor.runtime.failures);
+                    unlock();
+                    continue;
+                }
+
+                const std::uint32_t delay_ms = initBackoffDelayMs(sensor.runtime.failures - 1U);
+                sensor.next_init_allowed_ms = now_ms + delay_ms;
+                sensor.next_action_time_ms = sensor.next_init_allowed_ms;
+                sensor.runtime.next_retry_ms = sensor.next_init_allowed_ms;
+                ESP_LOGW(
+                    kTag,
+                    "Sensor #%" PRIu32 " (%s) init backoff after %" PRIu32
+                    " consecutive failures; retry in %" PRIu32 " ms at uptime %" PRIu64 " ms",
+                    sensor.runtime.id,
+                    sensor.runtime.type_key.c_str(),
+                    sensor.runtime.failures,
+                    delay_ms,
+                    sensor.next_init_allowed_ms);
             }
             unlock();
         }

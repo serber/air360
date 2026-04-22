@@ -67,12 +67,15 @@ Drivers access hardware exclusively through `SensorDriverContext`, which carries
 ### After `init()`
 
 - On success: `driver_ready = true`, state → `kInitialized`, `next_action_time_ms = now` (poll immediately on the next loop iteration)
-- On failure: `driver_ready = false`, state → `kAbsent` or `kError`, `next_action_time_ms = now + min(poll_interval_ms, 5000)`
+- On failure: `driver_ready = false`, state → `kAbsent` or `kError`, `failures++`, and the next init attempt is delayed with exponential backoff: 1 s, 2 s, 4 s, up to a 5 min cap. `next_retry_ms` exposes the scheduled uptime.
 
 ### After `poll()`
 
-- On success: state → `kPolling`, `next_action_time_ms = now + poll_interval_ms`
-- On failure: `driver_ready = false` (forces re-init on next action), state → `kAbsent` or `kError`, `next_action_time_ms = now + min(poll_interval_ms, 5000)`
+- On success: state → `kPolling`, `failures = 0`, `next_retry_ms = 0`, `next_action_time_ms = now + poll_interval_ms`
+- On the first two consecutive poll failures: keep `driver_ready = true` and retry polling after `min(poll_interval_ms, 5000)`. This absorbs short bus glitches without a full driver teardown.
+- On the third consecutive poll failure: set `driver_ready = false`, increment `failures`, and enter the same exponential init backoff used by `init()` failures.
+
+After 16 consecutive init/poll failures, the manager marks the sensor `kFailed`, clears `next_retry_ms`, and stops automatic retry attempts. A config reload or manual re-enable rebuilds the runtime entry and permits a new attempt.
 
 ### What a driver returns
 

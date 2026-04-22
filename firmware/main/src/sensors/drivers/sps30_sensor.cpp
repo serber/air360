@@ -67,6 +67,7 @@ void Sps30Sensor::reset() {
         device_initialized_ = false;
     }
     initialized_ = false;
+    poll_failure_count_ = 0U;
 }
 
 SensorType Sps30Sensor::type() const {
@@ -80,6 +81,7 @@ esp_err_t Sps30Sensor::init(
     record_ = record;
     measurement_.clear();
     last_error_.clear();
+    poll_failure_count_ = 0U;
 
     std::memset(&device_, 0, sizeof(device_));
     esp_err_t err = context.i2c_bus_manager->setupDevice(record, kSps30I2cSpeedHz, device_);
@@ -150,7 +152,9 @@ esp_err_t Sps30Sensor::poll() {
         &typical_particle_size);
     if (result != NO_ERROR) {
         setError(std::string("Failed to read SPS30 measurement: ") + describeResult(result) + ".");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return mapResultToEspErr(result);
     }
 
@@ -166,6 +170,7 @@ esp_err_t Sps30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kNc4_0PerCm3, nc_4p0);
     measurement_.addValue(SensorValueKind::kNc10_0PerCm3, nc_10p0);
     measurement_.addValue(SensorValueKind::kTypicalParticleSizeUm, typical_particle_size);
+    poll_failure_count_ = 0U;
     last_error_.clear();
     return ESP_OK;
 }

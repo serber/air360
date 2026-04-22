@@ -132,6 +132,8 @@ struct SensorCardViewModel {
     std::string transport_summary;
     std::uint32_t poll_interval_ms = 0U;
     std::size_t queued_sample_count = 0U;
+    std::uint32_t failures = 0U;
+    std::uint64_t next_retry_ms = 0U;
     std::string runtime_error;
     std::string latest_reading;
     std::string sensor_type_options_html;
@@ -1084,6 +1086,17 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
         runtime_error_block += htmlEscape(card.runtime_error);
         runtime_error_block += "</code></p>";
     }
+    if (card.failures > 0U) {
+        runtime_error_block += "<p>Runtime failures: <code>";
+        runtime_error_block += std::to_string(card.failures);
+        runtime_error_block += "</code>";
+        if (card.next_retry_ms > 0U) {
+            runtime_error_block += " next retry uptime <code>";
+            runtime_error_block += std::to_string(card.next_retry_ms);
+            runtime_error_block += " ms</code>";
+        }
+        runtime_error_block += "</p>";
+    }
 
     std::string latest_reading_block;
     if (!card.latest_reading.empty()) {
@@ -1315,6 +1328,8 @@ SensorsPageViewModel buildSensorsPageViewModel(
             measurement_store.runtimeInfoForSensor(record.id);
         if (runtime_info != nullptr) {
             card.runtime_error = runtime_info->last_error;
+            card.failures = runtime_info->failures;
+            card.next_retry_ms = runtime_info->next_retry_ms;
         }
         card.queued_sample_count = measurement_runtime.queued_sample_count;
         if (!measurement_runtime.measurement.empty()) {

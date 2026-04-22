@@ -30,8 +30,11 @@ struct Bme280DriverState {
     bme280_handle_t sensor = nullptr;
 };
 
+Bme280Sensor::Bme280Sensor() : state_(std::make_unique<Bme280DriverState>()) {}
+
 Bme280Sensor::~Bme280Sensor() {
     destroyState();
+    state_.reset();
 }
 
 SensorType Bme280Sensor::type() const {
@@ -46,8 +49,6 @@ esp_err_t Bme280Sensor::init(
     initialized_ = false;
 
     destroyState();
-
-    state_ = std::make_unique<Bme280DriverState>();
 
     std::memset(&state_->dev, 0, sizeof(state_->dev));
     esp_err_t err = context.i2c_bus_manager->setupDevice(record, kBme280I2cSpeedHz, state_->dev);
@@ -106,7 +107,9 @@ esp_err_t Bme280Sensor::poll() {
     esp_err_t err = bme280_take_forced_measurement(state_->sensor);
     if (err != ESP_OK) {
         setError("Failed to start BME280 forced measurement.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
@@ -114,7 +117,9 @@ esp_err_t Bme280Sensor::poll() {
     err = bme280_read_temperature(state_->sensor, &temperature);
     if (err != ESP_OK) {
         setError("Failed to read BME280 temperature.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
@@ -122,7 +127,9 @@ esp_err_t Bme280Sensor::poll() {
     err = bme280_read_humidity(state_->sensor, &humidity);
     if (err != ESP_OK) {
         setError("Failed to read BME280 humidity.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
@@ -130,7 +137,9 @@ esp_err_t Bme280Sensor::poll() {
     err = bme280_read_pressure(state_->sensor, &pressure_hpa);
     if (err != ESP_OK) {
         setError("Failed to read BME280 pressure.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
@@ -139,6 +148,7 @@ esp_err_t Bme280Sensor::poll() {
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity);
     measurement_.addValue(SensorValueKind::kPressureHpa, pressure_hpa);
+    poll_failure_count_ = 0U;
     last_error_.clear();
     return ESP_OK;
 }
@@ -175,6 +185,7 @@ void Bme280Sensor::destroyState() {
 
     if (state_->sensor != nullptr) {
         bme280_delete(&state_->sensor);
+        state_->sensor = nullptr;
     }
 
     // i2c_bus_create() borrowed the bus from i2cdev — do not delete the bus itself.
@@ -183,8 +194,11 @@ void Bme280Sensor::destroyState() {
         i2c_dev_delete_mutex(&state_->dev);
     }
 
-    state_.reset();
+    std::memset(&state_->dev, 0, sizeof(state_->dev));
+    state_->dev_initialized = false;
+    state_->bus = nullptr;
     initialized_ = false;
+    poll_failure_count_ = 0U;
 }
 
 void Bme280Sensor::setError(const std::string& message) {

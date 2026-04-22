@@ -33,8 +33,11 @@ constexpr std::uint16_t kHeaterDurationMs = 100U;
 
 }  // namespace
 
+Bme680Sensor::Bme680Sensor() : state_(std::make_unique<Bme680DriverState>()) {}
+
 Bme680Sensor::~Bme680Sensor() {
     reset();
+    state_.reset();
 }
 
 SensorType Bme680Sensor::type() const {
@@ -58,7 +61,6 @@ esp_err_t Bme680Sensor::init(
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    state_ = std::make_unique<Bme680DriverState>();
     std::memset(&state_->device, 0, sizeof(state_->device));
 
     esp_err_t err = bme680_init_desc(
@@ -104,14 +106,18 @@ esp_err_t Bme680Sensor::poll() {
     esp_err_t err = bme680_get_measurement_duration(&state_->device, &measurement_duration_ticks);
     if (err != ESP_OK || measurement_duration_ticks == 0U) {
         setError("Failed to calculate BME680 measurement duration.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err != ESP_OK ? err : ESP_FAIL;
     }
 
     err = bme680_force_measurement(&state_->device);
     if (err != ESP_OK) {
         setError("Failed to start BME680 forced measurement.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
@@ -121,7 +127,9 @@ esp_err_t Bme680Sensor::poll() {
     err = bme680_get_results_float(&state_->device, &data);
     if (err != ESP_OK) {
         setError(std::string("Failed to read BME680 measurement: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return err;
     }
 
@@ -129,7 +137,9 @@ esp_err_t Bme680Sensor::poll() {
         std::isnan(data.humidity) ||
         std::isnan(data.pressure)) {
         setError("BME680 driver returned invalid values.");
-        initialized_ = false;
+        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            initialized_ = false;
+        }
         return ESP_ERR_INVALID_RESPONSE;
     }
 
@@ -143,6 +153,7 @@ esp_err_t Bme680Sensor::poll() {
         measurement_.addValue(SensorValueKind::kGasResistanceOhms, data.gas_resistance);
     }
 
+    poll_failure_count_ = 0U;
     last_error_.clear();
     return ESP_OK;
 }
@@ -205,7 +216,7 @@ void Bme680Sensor::reset() {
         state_->descriptor_initialized = false;
     }
 
-    state_.reset();
+    poll_failure_count_ = 0U;
 }
 
 void Bme680Sensor::setError(const std::string& message) {

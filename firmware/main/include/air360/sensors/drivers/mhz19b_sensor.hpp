@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -30,6 +31,7 @@ class Mhz19bSensor final : public SensorDriver {
     UartPortManager* uart_port_manager_ = nullptr;
     SensorMeasurement measurement_{};
     std::string last_error_;
+    std::uint32_t poll_failure_count_ = 0U;
     bool initialized_ = false;
 };
 

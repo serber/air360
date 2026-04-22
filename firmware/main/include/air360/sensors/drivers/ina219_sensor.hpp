@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -29,6 +30,7 @@ class Ina219Sensor final : public SensorDriver {
     bool descriptor_initialized_ = false;
     SensorMeasurement measurement_{};
     std::string last_error_;
+    std::uint32_t poll_failure_count_ = 0U;
     bool initialized_ = false;
 };
 
