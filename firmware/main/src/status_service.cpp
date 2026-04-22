@@ -1132,6 +1132,12 @@ std::string buildStatusJsonDocument(
         json += std::to_string(backend.last_response_time_ms);
         json += ",\"retry_count\":";
         json += std::to_string(backend.retry_count);
+        json += ",\"best_effort\":";
+        json += boolString(backend.best_effort);
+        json += ",\"missed_sample_count\":";
+        json += std::to_string(backend.missed_sample_count);
+        json += ",\"best_effort_since_uptime_ms\":";
+        json += std::to_string(backend.best_effort_since_uptime_ms);
         json += ",\"next_retry_uptime_ms\":";
         json += std::to_string(backend.next_retry_uptime_ms);
         json += ",\"last_error\":\"";

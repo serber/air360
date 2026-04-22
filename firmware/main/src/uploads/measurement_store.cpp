@@ -10,6 +10,10 @@ MeasurementStore::MeasurementStore() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
 }
 
+PruneDecision MeasurementStore::prune(const PerBackendCursor& cursors) {
+    return computePruneDecision(cursors);
+}
+
 std::size_t MeasurementStore::queuedIndex(std::size_t offset) const {
     return (queued_head_ + offset) % queued_.size();
 }
@@ -188,6 +192,27 @@ std::uint64_t MeasurementStore::latestSampleId() const {
     }
     unlock();
     return sample_id;
+}
+
+std::size_t MeasurementStore::queuedCountAfterUntil(
+    std::uint64_t after_sample_id,
+    std::uint64_t until_sample_id) const {
+    lock();
+
+    std::size_t count = 0U;
+    for (std::size_t offset = 0U; offset < queued_size_; ++offset) {
+        const QueuedMeasurementEntry& entry = queued_[queuedIndex(offset)];
+        if (entry.id <= after_sample_id) {
+            continue;
+        }
+        if (entry.id > until_sample_id) {
+            break;
+        }
+        ++count;
+    }
+
+    unlock();
+    return count;
 }
 
 void MeasurementStore::discardUpTo(std::uint64_t sample_id) {

@@ -61,7 +61,7 @@ firmware/
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom partition table (nvs, otadata, phy_init, factory, storage)
 - `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
-- `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware
+- `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
 
 ---
 
@@ -83,6 +83,9 @@ firmware/
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
 - `main/src/web_server.cpp` — `esp_http_server` setup, URI registration, and page rendering helpers used by web route files
 - `main/src/web/` — decomposed web route/support files: `web_form.cpp` for host-testable URL/form parsing, `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, and `web_server_helpers.cpp` for HTTP request/response helpers
+- `main/src/uploads/upload_prune_policy.cpp` — host-testable upload prune/quorum logic shared by `MeasurementStore` and `UploadManager`
+- `main/src/uploads/upload_manager_config.cpp` — `UploadManager` backend construction, batch assembly, and upload precondition helpers
+- `main/src/uploads/upload_manager_status.cpp` — read-only `UploadManager` snapshot/query methods split away from the upload task loop
 - `main/webui/` — hand-authored frontend assets embedded into the firmware image (`air360.css`, `air360.js`, page body templates)
 
 ### Public headers

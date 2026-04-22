@@ -15,6 +15,7 @@
 #include "air360/uploads/backend_registry.hpp"
 #include "air360/uploads/measurement_batch.hpp"
 #include "air360/uploads/measurement_store.hpp"
+#include "air360/uploads/upload_prune_policy.hpp"
 #include "air360/uploads/upload_transport.hpp"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
@@ -40,6 +41,9 @@ struct BackendStatusSnapshot {
     int last_http_status = 0;
     std::uint32_t last_response_time_ms = 0U;
     std::uint32_t retry_count = 0U;
+    bool best_effort = false;
+    std::uint32_t missed_sample_count = 0U;
+    std::uint64_t best_effort_since_uptime_ms = 0U;
     std::uint64_t next_retry_uptime_ms = 0U;
     std::string last_error;
 };
@@ -90,6 +94,7 @@ class UploadManager {
         std::uint64_t next_action_time_ms = 0U;
         std::uint64_t acknowledged_sample_id = 0U;
         std::uint64_t inflight_last_sample_id = 0U;
+        std::uint64_t first_failure_uptime_ms = 0U;
         std::vector<std::uint64_t> inflight_sample_ids;
         std::vector<MeasurementSample> inflight_samples;
     };
@@ -101,6 +106,7 @@ class UploadManager {
         std::uint64_t now_ms,
         const std::vector<MeasurementSample>& samples) const;
     bool hasNetworkForUpload(std::string& last_error) const;
+    PerBackendCursor pruneCursorsLocked() const;
     esp_err_t startLocked();
     bool stopRequested() const;
     static void taskEntry(void* arg);

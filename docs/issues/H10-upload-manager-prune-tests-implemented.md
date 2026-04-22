@@ -2,8 +2,12 @@
 
 - **Severity:** High
 - **Area:** Upload correctness / testability
+- **Status:** Implemented
 - **Files:**
-  - `firmware/main/src/uploads/upload_manager.cpp` (705 lines)
+  - `firmware/main/src/uploads/upload_manager.cpp`
+  - `firmware/main/src/uploads/upload_manager_config.cpp`
+  - `firmware/main/src/uploads/upload_manager_status.cpp`
+  - `firmware/main/src/uploads/upload_prune_policy.cpp`
   - `firmware/main/src/uploads/measurement_store.cpp`
 
 ## What is wrong

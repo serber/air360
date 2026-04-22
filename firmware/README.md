@@ -226,13 +226,19 @@ Generated artifacts are written under `build/`. For the current project that inc
 
 ### Host tests
 
-Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. The first target covers web form URL decoding and form parsing by compiling the production `main/src/web/web_form.cpp` directly.
+Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. The current targets cover web form parsing, backend URL config helpers, `MeasurementStore` queue behavior, and the upload prune/quorum policy used by `UploadManager`.
 
 ```bash
 cd firmware
 cmake -S test/host -B test/host/build
 cmake --build test/host/build
 ctest --test-dir test/host/build --output-on-failure
+```
+
+From the repository root, the same sequence is wrapped by:
+
+```bash
+python3 scripts/check_firmware_host_tests.py
 ```
 
 ## Release Packaging
@@ -341,7 +347,7 @@ The firmware now has a clear central sensor orchestration model:
 The firmware also has a separate upload pipeline:
 
 - `SensorManager` appends measurement samples into `MeasurementStore`
-- `MeasurementStore` maintains `pending` and `inflight` queues so uploads can be acknowledged or restored
+- `MeasurementStore` maintains the shared pending queue; `UploadManager` owns per-backend retry windows and acknowledgement cursors
 - `UploadManager` only attempts upload when station uplink and valid Unix time are available
 - `UploadManager` drains a bounded measurement window on each cycle rather than sending the whole queue at once
 - when backlog remains after a successful upload, `UploadManager` temporarily shortens the next cycle to drain the queue faster

@@ -8,6 +8,7 @@
 
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/uploads/measurement_batch.hpp"
+#include "air360/uploads/upload_prune_policy.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -46,6 +47,8 @@ class MeasurementStore {
     MeasurementStore(MeasurementStore&&) = delete;
     MeasurementStore& operator=(MeasurementStore&&) = delete;
 
+    static PruneDecision prune(const PerBackendCursor& cursors);
+
     void recordMeasurement(
         std::uint32_t sensor_id,
         SensorType sensor_type,
@@ -61,6 +64,9 @@ class MeasurementStore {
         std::size_t max_samples = SIZE_MAX) const;
     bool hasSamplesAfter(std::uint64_t after_sample_id) const;
     std::uint64_t latestSampleId() const;
+    std::size_t queuedCountAfterUntil(
+        std::uint64_t after_sample_id,
+        std::uint64_t until_sample_id) const;
     void discardUpTo(std::uint64_t sample_id);
 
     MeasurementRuntimeInfo runtimeInfoForSensor(std::uint32_t sensor_id) const;

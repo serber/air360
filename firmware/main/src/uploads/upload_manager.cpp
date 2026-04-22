@@ -22,28 +22,11 @@ constexpr UBaseType_t kUploadTaskPriority = 4U;
 constexpr std::size_t kMaxSamplesPerUploadWindow = 32U;
 constexpr std::uint32_t kStopTimeoutMs = 30000U;
 
-std::string defaultDisplayName(
-    const BackendDescriptor* descriptor,
-    std::uint32_t id) {
-    if (descriptor != nullptr && descriptor->display_name != nullptr) {
-        return std::string(descriptor->display_name);
-    }
-
-    return std::string("Backend #") + std::to_string(id);
-}
-
-BackendRuntimeState classifyInitialState(bool enabled, bool configured) {
-    if (!enabled) {
-        return BackendRuntimeState::kDisabled;
-    }
-    if (!configured) {
-        return BackendRuntimeState::kError;
-    }
-    return BackendRuntimeState::kIdle;
-}
-
-bool isDegraded(const BackendStatusSnapshot& backend) {
-    return backend.enabled && backend.state == BackendRuntimeState::kError;
+bool isBackendFailure(UploadResultClass result) {
+    return result != UploadResultClass::kSuccess &&
+           result != UploadResultClass::kNoData &&
+           result != UploadResultClass::kNoNetwork &&
+           result != UploadResultClass::kUnknown;
 }
 
 }  // namespace
@@ -103,123 +86,6 @@ esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
     return start_err;
 }
 
-std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
-    const BackendConfigList& config) const {
-    BackendRegistry registry;
-    const std::uint64_t now_ms = uptimeMilliseconds();
-    std::vector<ManagedBackend> backends;
-    backends.reserve(config.backend_count);
-
-    for (std::size_t index = 0; index < config.backend_count; ++index) {
-        const BackendRecord& record = config.backends[index];
-        const BackendDescriptor* descriptor = registry.findByType(record.backend_type);
-
-        ManagedBackend managed;
-        managed.record = record;
-        managed.descriptor = descriptor;
-        managed.snapshot.id = record.id;
-        managed.snapshot.enabled = record.enabled != 0U;
-        managed.snapshot.backend_type = record.backend_type;
-        managed.snapshot.backend_key =
-            descriptor != nullptr ? descriptor->backend_key : std::string("unknown");
-        managed.snapshot.display_name =
-            record.display_name[0] != '\0' ? std::string(record.display_name)
-                                           : defaultDisplayName(descriptor, record.id);
-        std::string validation_error;
-        const bool configured =
-            descriptor != nullptr && registry.validateRecord(record, validation_error);
-        managed.snapshot.configured = configured;
-        managed.snapshot.state = classifyInitialState(managed.snapshot.enabled, configured);
-
-        if (!validation_error.empty()) {
-            managed.snapshot.last_result = UploadResultClass::kConfigError;
-            managed.snapshot.last_error = validation_error;
-        }
-
-        if (managed.snapshot.enabled &&
-            configured &&
-            descriptor != nullptr &&
-            descriptor->create_uploader != nullptr) {
-            managed.uploader = descriptor->create_uploader();
-            if (!managed.uploader) {
-                managed.snapshot.state = BackendRuntimeState::kError;
-                managed.snapshot.last_result = UploadResultClass::kConfigError;
-                managed.snapshot.last_error = "Failed to allocate backend uploader.";
-            } else {
-                managed.next_action_time_ms = now_ms;
-            }
-        }
-
-        backends.push_back(std::move(managed));
-    }
-
-    return backends;
-}
-
-MeasurementBatch UploadManager::buildMeasurementBatch(
-    std::uint64_t now_ms,
-    const std::vector<MeasurementSample>& samples) const {
-    MeasurementBatch batch;
-    batch.created_uptime_ms = now_ms;
-    batch.created_unix_ms = currentUnixMilliseconds();
-    batch.batch_id = batch.created_unix_ms > 0 ? static_cast<std::uint64_t>(batch.created_unix_ms)
-                                               : now_ms;
-    batch.device_name = device_config_ != nullptr ? device_config_->device_name : "";
-    batch.board_name = build_info_.board_name;
-    batch.project_version = build_info_.project_version;
-    batch.chip_id = build_info_.chip_id;
-    batch.short_chip_id = build_info_.short_chip_id;
-    batch.esp_mac_id = build_info_.esp_mac_id;
-
-    if (network_manager_ != nullptr) {
-        const NetworkState network = network_manager_->state();
-        batch.network_mode = network.mode;
-        batch.station_connected = network.station_connected;
-    }
-
-    for (const auto& sample : samples) {
-        for (std::size_t index = 0; index < sample.measurement.value_count; ++index) {
-            const SensorValue& value = sample.measurement.values[index];
-            batch.points.push_back(
-                MeasurementPoint{
-                    sample.sensor_id,
-                    sample.sensor_type,
-                    value.kind,
-                    value.value,
-                    sample.sample_time_ms,
-                });
-        }
-    }
-
-    return batch;
-}
-
-bool UploadManager::hasNetworkForUpload(std::string& last_error) const {
-    if (network_manager_ == nullptr) {
-        last_error = "Network manager is not available.";
-        return false;
-    }
-
-    if (network_manager_->uplinkStatus().uplink_ready) {
-        last_error.clear();
-        return true;
-    }
-
-    // Bearer is up but time is not yet valid: provide a specific message.
-    const NetworkState network = network_manager_->state();
-    const bool bearer_up = (network.mode == NetworkMode::kStation && network.station_connected);
-    if (bearer_up) {
-        if (!network.time_sync_error.empty()) {
-            last_error = "Unix time is not valid yet: " + network.time_sync_error;
-        } else {
-            last_error = "Unix time is not valid yet.";
-        }
-    } else {
-        last_error = "Uplink is not ready.";
-    }
-    return false;
-}
-
 esp_err_t UploadManager::stop() {
     lock();
     const TaskHandle_t task = task_;
@@ -249,119 +115,20 @@ esp_err_t UploadManager::stop() {
     return ESP_OK;
 }
 
-std::vector<BackendStatusSnapshot> UploadManager::backends() const {
-    lock();
-    std::vector<BackendStatusSnapshot> snapshot;
-    snapshot.reserve(backends_.size());
+PerBackendCursor UploadManager::pruneCursorsLocked() const {
+    PerBackendCursor cursors;
+    cursors.reserve(backends_.size());
     for (const auto& backend : backends_) {
-        snapshot.push_back(backend.snapshot);
+        cursors.push_back(BackendPruneCursor{
+            backend.snapshot.id,
+            backend.snapshot.enabled,
+            backend.snapshot.configured,
+            backend.uploader != nullptr,
+            backend.snapshot.best_effort,
+            backend.acknowledged_sample_id,
+        });
     }
-    unlock();
-    return snapshot;
-}
-
-UploadManagerRuntimeSnapshot UploadManager::runtimeSnapshot() const {
-    lock();
-
-    UploadManagerRuntimeSnapshot snapshot;
-    snapshot.backends.reserve(backends_.size());
-    snapshot.upload_interval_ms = cycle_interval_ms_;
-    snapshot.last_overall_attempt_uptime_ms = last_overall_attempt_uptime_ms_;
-    snapshot.last_overall_attempt_unix_ms = last_overall_attempt_unix_ms_;
-    for (const auto& backend : backends_) {
-        snapshot.backends.push_back(backend.snapshot);
-        if (backend.snapshot.enabled) {
-            ++snapshot.enabled_count;
-        }
-        if (isDegraded(backend.snapshot)) {
-            ++snapshot.degraded_count;
-        }
-    }
-
-    std::vector<std::uint64_t> unique_inflight_ids;
-    for (const auto& backend : backends_) {
-        for (const auto sample_id : backend.inflight_sample_ids) {
-            if (std::find(unique_inflight_ids.begin(), unique_inflight_ids.end(), sample_id) ==
-                unique_inflight_ids.end()) {
-                unique_inflight_ids.push_back(sample_id);
-            }
-        }
-    }
-    snapshot.inflight_sample_count = unique_inflight_ids.size();
-
-    unlock();
-    return snapshot;
-}
-
-bool UploadManager::backendStatus(BackendType type, BackendStatusSnapshot& out_status) const {
-    lock();
-    for (const auto& backend : backends_) {
-        if (backend.snapshot.backend_type == type) {
-            out_status = backend.snapshot;
-            unlock();
-            return true;
-        }
-    }
-    unlock();
-    out_status = BackendStatusSnapshot{};
-    return false;
-}
-
-std::size_t UploadManager::enabledCount() const {
-    lock();
-    std::size_t count = 0U;
-    for (const auto& backend : backends_) {
-        if (backend.snapshot.enabled) {
-            ++count;
-        }
-    }
-    unlock();
-    return count;
-}
-
-std::size_t UploadManager::degradedCount() const {
-    lock();
-    std::size_t count = 0U;
-    for (const auto& backend : backends_) {
-        if (isDegraded(backend.snapshot)) {
-            ++count;
-        }
-    }
-    unlock();
-    return count;
-}
-
-std::uint32_t UploadManager::uploadIntervalMs() const {
-    lock();
-    const std::uint32_t value = cycle_interval_ms_;
-    unlock();
-    return value;
-}
-
-std::uint64_t UploadManager::lastOverallAttemptUptimeMs() const {
-    lock();
-    const std::uint64_t value = last_overall_attempt_uptime_ms_;
-    unlock();
-    return value;
-}
-
-std::int64_t UploadManager::lastOverallAttemptUnixMs() const {
-    lock();
-    const std::int64_t value = last_overall_attempt_unix_ms_;
-    unlock();
-    return value;
-}
-
-std::size_t UploadManager::taskStackHighWaterMarkBytes() const {
-    lock();
-    const TaskHandle_t task = task_;
-    unlock();
-
-    if (task == nullptr) {
-        return 0U;
-    }
-
-    return static_cast<std::size_t>(uxTaskGetStackHighWaterMark(task)) * sizeof(StackType_t);
+    return cursors;
 }
 
 void UploadManager::lock() const {
@@ -646,6 +413,12 @@ void UploadManager::taskMain() {
                 }
 
                 std::uint64_t prune_up_to = 0U;
+                struct BestEffortMissCandidate {
+                    std::uint32_t backend_id = 0U;
+                    std::uint64_t after_sample_id = 0U;
+                };
+                std::vector<BestEffortMissCandidate> best_effort_miss_candidates;
+                bool count_current_best_effort_window_as_missed = false;
                 lock();
                 if (index >= backends_.size()) {
                     unlock();
@@ -660,6 +433,40 @@ void UploadManager::taskMain() {
 
                 if (acknowledge_window) {
                     backend.acknowledged_sample_id = updated_acknowledged_sample_id;
+                    backend.inflight_last_sample_id = 0U;
+                    backend.inflight_sample_ids.clear();
+                    backend.inflight_samples.clear();
+                }
+
+                const bool backend_failure = isBackendFailure(aggregate_result);
+                if (backend_failure) {
+                    if (backend.first_failure_uptime_ms == 0U) {
+                        backend.first_failure_uptime_ms = attempt_now_ms > 0U ? attempt_now_ms : 1U;
+                    }
+                    if (shouldDemoteBackendToBestEffort(
+                            next_retry_count,
+                            backend.first_failure_uptime_ms,
+                            attempt_now_ms)) {
+                        backend.snapshot.best_effort = true;
+                        if (backend.snapshot.best_effort_since_uptime_ms == 0U) {
+                            backend.snapshot.best_effort_since_uptime_ms = attempt_now_ms;
+                        }
+                    }
+                } else if (
+                    aggregate_result == UploadResultClass::kSuccess ||
+                    aggregate_result == UploadResultClass::kNoData) {
+                    backend.first_failure_uptime_ms = 0U;
+                    backend.snapshot.best_effort = false;
+                    backend.snapshot.best_effort_since_uptime_ms = 0U;
+                }
+
+                if (!acknowledge_window &&
+                    backend.snapshot.best_effort &&
+                    backend_failure &&
+                    !upload_sample_ids.empty()) {
+                    count_current_best_effort_window_as_missed = true;
+                    backend.acknowledged_sample_id =
+                        std::max(backend.acknowledged_sample_id, inflight_last_sample_id);
                     backend.inflight_last_sample_id = 0U;
                     backend.inflight_sample_ids.clear();
                     backend.inflight_samples.clear();
@@ -684,28 +491,78 @@ void UploadManager::taskMain() {
                     backend.snapshot.last_error.clear();
                 }
 
-                if (acknowledge_window) {
-                    bool have_active_cursor = false;
-                    for (const auto& candidate : backends_) {
-                        if (!candidate.snapshot.enabled || candidate.uploader == nullptr) {
-                            continue;
-                        }
+                if (count_current_best_effort_window_as_missed) {
+                    const std::uint32_t missed_count =
+                        upload_sample_ids.size() > UINT32_MAX - backend.snapshot.missed_sample_count
+                            ? UINT32_MAX - backend.snapshot.missed_sample_count
+                            : static_cast<std::uint32_t>(upload_sample_ids.size());
+                    backend.snapshot.missed_sample_count += missed_count;
+                }
 
-                        if (!have_active_cursor ||
-                            candidate.acknowledged_sample_id < prune_up_to) {
-                            prune_up_to = candidate.acknowledged_sample_id;
-                            have_active_cursor = true;
-                        }
-                    }
+                if (acknowledge_window || count_current_best_effort_window_as_missed) {
+                    const PruneDecision decision = MeasurementStore::prune(pruneCursorsLocked());
+                    prune_up_to = decision.prune_up_to;
+                    if (decision.hasQuorum() && prune_up_to > 0U) {
+                        for (const auto& candidate : backends_) {
+                            if (!candidate.snapshot.enabled ||
+                                !candidate.snapshot.configured ||
+                                candidate.uploader == nullptr ||
+                                !candidate.snapshot.best_effort ||
+                                candidate.acknowledged_sample_id >= prune_up_to) {
+                                continue;
+                            }
 
-                    if (!have_active_cursor) {
+                            best_effort_miss_candidates.push_back(BestEffortMissCandidate{
+                                candidate.snapshot.id,
+                                candidate.acknowledged_sample_id,
+                            });
+                        }
+                    } else {
                         prune_up_to = 0U;
                     }
                 }
                 unlock();
 
-                if (acknowledge_window && prune_up_to > 0U) {
+                if (prune_up_to > 0U) {
+                    std::vector<std::pair<std::uint32_t, std::uint32_t>> missed_by_backend;
+                    missed_by_backend.reserve(best_effort_miss_candidates.size());
+                    for (const auto& candidate : best_effort_miss_candidates) {
+                        const std::size_t missed =
+                            measurement_store_->queuedCountAfterUntil(
+                                candidate.after_sample_id,
+                                prune_up_to);
+                        if (missed == 0U) {
+                            continue;
+                        }
+
+                        missed_by_backend.push_back(std::make_pair(
+                            candidate.backend_id,
+                            missed > UINT32_MAX ? UINT32_MAX
+                                                : static_cast<std::uint32_t>(missed)));
+                    }
+
                     measurement_store_->discardUpTo(prune_up_to);
+
+                    if (!missed_by_backend.empty()) {
+                        lock();
+                        for (const auto& missed : missed_by_backend) {
+                            for (auto& candidate : backends_) {
+                                if (candidate.snapshot.id != missed.first) {
+                                    continue;
+                                }
+
+                                candidate.snapshot.missed_sample_count =
+                                    missed.second >
+                                            UINT32_MAX - candidate.snapshot.missed_sample_count
+                                        ? UINT32_MAX
+                                        : candidate.snapshot.missed_sample_count + missed.second;
+                                candidate.acknowledged_sample_id =
+                                    std::max(candidate.acknowledged_sample_id, prune_up_to);
+                                break;
+                            }
+                        }
+                        unlock();
+                    }
                 }
 
                 if (!continue_drain) {

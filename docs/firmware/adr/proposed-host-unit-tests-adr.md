@@ -8,7 +8,7 @@ Partially implemented.
 
 Add a native host-compiled test suite for firmware business logic, covering `MeasurementStore`, the sensor state machine in `SensorManager`, config validation in the repository layer, and web form parsing.
 
-The first Phase 8 slice is implemented under `firmware/test/host/`: a CMake/CTest target compiles production `main/src/web/web_form.cpp` directly and tests URL decoding plus `application/x-www-form-urlencoded` parsing behavior. It intentionally avoids ESP-IDF stubs because this first target is pure C++17 logic.
+The first Phase 8 slice is implemented under `firmware/test/host/`: CMake/CTest targets compile pure production logic directly and test URL/form parsing, backend URL generation, and upload prune/quorum invariants. These targets intentionally avoid ESP-IDF stubs because the covered code is pure C++17 logic.
 
 ## Context
 
@@ -79,15 +79,25 @@ The test `CMakeLists.txt` compiles tested `.cpp` files directly as native host b
 - key-only fields are treated as present with an empty value
 - duplicate keys keep first-match `findFormValue` behavior
 
-**`test_measurement_store.cpp`** — planned
+**`test_backend_config.cpp`** — implemented
+- default HTTP/HTTPS ports are omitted from rendered URLs
+- custom HTTP/HTTPS ports are preserved
+
+**`test_upload_prune_policy.cpp`** — implemented
+- single-backend happy path
+- disabled backend removal from quorum
+- permanently failing backend best-effort demotion
+- runtime backend add/remove behavior
+- queue-full/backlog flush model
+- randomized enqueue/ack/disable/enable/fail sequences asserting the prune invariants after every step
+
+**`test_measurement_store.cpp`** — implemented
 - `recordMeasurement` with unix_ms=0 does not enqueue
-- `recordMeasurement` with valid unix_ms enqueues
 - Queue overflow drops oldest samples, increments dropped count
-- `beginUploadWindow` moves correct slice to inflight
-- `beginUploadWindow` returns same inflight on re-call
-- `acknowledgeInflight` clears inflight
-- `restoreInflight` prepends inflight back to pending
-- `restoreInflight` respects 256-sample cap on restore
+- `uploadWindowAfter` returns the correct retained slice after overflow
+- `queuedCountAfterUntil` counts retained samples over a backend cursor interval
+- `discardUpTo` removes the common acknowledged prefix and updates per-sensor counts
+- `MeasurementStore::prune` delegates to the pure quorum policy
 
 **`test_sensor_state_machine.cpp`**
 - State transitions: Configured → Initialized on init success
@@ -105,9 +115,15 @@ The test `CMakeLists.txt` compiles tested `.cpp` files directly as native host b
 
 - `firmware/main/include/air360/web_form.hpp` — pure form parsing interface
 - `firmware/main/src/web/web_form.cpp` — production URL/form parsing implementation
+- `firmware/main/include/air360/uploads/upload_prune_policy.hpp` — pure upload prune/quorum policy
+- `firmware/main/src/uploads/upload_prune_policy.cpp` — production upload prune/quorum implementation
 - `firmware/main/src/web/web_server_helpers.cpp` — HTTP-only helpers after form parsing moved out
 - `firmware/test/host/` — native CMake/CTest host harness
-- `firmware/test/host/test_web_form.cpp` — first host test target
+- `firmware/test/host/stubs/` — minimal ESP-IDF/FreeRTOS header stubs for host-compiling `MeasurementStore`
+- `firmware/test/host/test_web_form.cpp` — web form host test target
+- `firmware/test/host/test_backend_config.cpp` — backend URL host test target
+- `firmware/test/host/test_upload_prune_policy.cpp` — upload prune/quorum host test target
+- `firmware/test/host/test_measurement_store.cpp` — measurement queue host test target
 
 The test build is fully separate from the ESP-IDF firmware build.
 
@@ -127,7 +143,7 @@ Fast feedback (sub-second), no hardware required, CI-friendly. Covers the highes
 
 ## Practical Conclusion
 
-Create `firmware/test/host/` with a CMake-based host build. The first target covers `web_form.cpp` without ESP-IDF stubs. Future targets should add minimal FreeRTOS/ESP-IDF stubs only when testing `MeasurementStore`, sensor state machine, config validation, or batch assembly requires them.
+Create `firmware/test/host/` with a CMake-based host build. Current targets cover pure C++ production logic directly; `test_measurement_store` additionally uses minimal header stubs for the ESP-IDF and FreeRTOS types that appear in production headers. Future targets should add only the stubs needed by the code under test.
 
 Run with:
 

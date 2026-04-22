@@ -440,7 +440,8 @@ In-memory bounded ring buffer for measurement samples. All access is protected b
 1. `SensorManager` calls `recordMeasurement()` after each successful poll — latest reading per sensor is tracked separately from the queue
 2. `MeasurementStore` appends one shared queued sample record with a monotonic sample ID
 3. `UploadManager` asks for windows after each backend's own acknowledged cursor
-4. Samples remain in the shared queue until every active backend has acknowledged them, then `discardUpTo()` retires the common prefix
+4. `upload_prune_policy` computes the common prefix acknowledged by every quorum backend
+5. Samples remain in the shared queue until every quorum backend has acknowledged them, then `discardUpTo()` retires the common prefix
 
 **`MeasurementBatch` structure (passed to uploaders):**
 
@@ -500,7 +501,7 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 
 ---
 
-### `UploadManager` — `uploads/upload_manager.cpp`
+### `UploadManager` — `uploads/upload_manager.cpp`, `uploads/upload_manager_config.cpp`, `uploads/upload_manager_status.cpp`
 
 Manages the upload cycle and per-backend runtime state.
 
@@ -522,7 +523,9 @@ Manages the upload cycle and per-backend runtime state.
 4. Call the backend adapter
 5. On `kSuccess` or `kNoData`, advance only that backend cursor
 6. On failure, keep only that backend window for retry
-7. Retire shared queue entries once every active backend has acknowledged them
+7. Retire shared queue entries once every quorum backend has acknowledged them
+
+Quorum membership excludes disabled, unconfigured, missing-uploader, and best-effort backends. A backend is demoted to best-effort after 5 consecutive backend-specific failures over at least 10 minutes. Best-effort backends no longer block pruning; their missed windows are counted in `missed_sample_count` and exposed in raw status JSON.
 
 Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If an HTTP request is already in flight, the task finishes that request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
 

@@ -261,13 +261,26 @@ After a backend finishes its request sequence:
 |---------|--------|
 | `kSuccess` | advance only that backend cursor; clear only that backend retry window |
 | `kNoData` | also advance only that backend cursor; used when the adapter has nothing to send for that sample set |
-| failure (`kNoNetwork`, `kTransportError`, `kHttpError`, `kConfigError`) | keep only that backend retry window intact for the next attempt |
+| shared uplink failure (`kNoNetwork`) | keep only that backend retry window; does not count toward best-effort demotion |
+| backend-specific failure (`kTransportError`, `kHttpError`, `kConfigError`, `kUnsupported`) | keep only that backend retry window; counts toward best-effort demotion |
 
 Healthy backends therefore continue consuming newer queue entries even while one backend is degraded.
 
-Queue retirement is driven by the **minimum acknowledged sample ID across all active backends**. Once every active backend has acknowledged sample IDs up to `N`, `MeasurementStore::discardUpTo(N)` removes those entries from the shared queue.
+Queue retirement is driven by the **minimum acknowledged sample ID across all quorum backends**. Once every quorum backend has acknowledged sample IDs up to `N`, `MeasurementStore::discardUpTo(N)` removes those entries from the shared queue.
+
+The prune decision is centralized in `upload_prune_policy` and exposed through `MeasurementStore::prune(const PerBackendCursor&)`. The invariants are:
+
+- a sample is retired only after every quorum backend has acknowledged it
+- disabled, unconfigured, missing-uploader, and best-effort backends are outside the quorum
+- best-effort demotion happens after 5 consecutive backend-specific failures spanning at least 10 minutes
+- best-effort backends keep a `missed_sample_count` for windows they skipped or that were retired while they were outside the quorum
+- backend acknowledgement cursors and the shared prune cursor only move forward
+
+`kNoNetwork` is not counted as a backend-specific failure for best-effort demotion because it reflects the shared uplink state rather than one broken destination.
 
 If a backend fails, the **same samples for that backend** are retried on the next scheduled attempt. This keeps at-least-once delivery semantics per backend, while avoiding the previous global restore that blocked healthy backends behind one degraded destination.
+
+After a backend is demoted to best-effort, it no longer blocks queue retirement. Backend-specific upload failures for a best-effort backend skip that backend's current window, increment `missed_sample_count`, and move its local cursor forward so the next attempt can try newer retained samples. A later `kSuccess` or `kNoData` clears best-effort status and returns the backend to the quorum.
 
 How each backend converts a `MeasurementBatch` into HTTP requests and classifies the response is covered in [upload-adapters.md](upload-adapters.md).
 
@@ -282,7 +295,8 @@ The upload task loop runs every **1 second** (`kUploadLoopDelay`). Each backend 
 | No data after cursor | `upload_interval_ms` (default 145 s) |
 | Upload succeeded, queued samples from cycle start remain | immediate next upload window |
 | Upload succeeded, cycle-start queue drained | `upload_interval_ms` |
-| Upload failed | `upload_interval_ms` |
+| Shared uplink failure (`kNoNetwork`) | `upload_interval_ms`; does not count toward best-effort demotion |
+| Backend-specific failure (`kTransportError`, `kHttpError`, `kConfigError`, `kUnsupported`) | `upload_interval_ms`; counts toward best-effort demotion |
 
 When a backend becomes due, the upload task snapshots the latest queued sample ID as the cycle high-water mark. It then drains windows of up to 32 samples as quickly as each HTTP request sequence completes until that high-water mark is acknowledged. Samples recorded while this drain is running are left for the next scheduled interval, so continuous sensor writes cannot keep the upload task in an infinite drain loop.
 
@@ -338,7 +352,7 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 | Task | Operations |
 |------|------------|
 | `air360_sensor` | `recordMeasurement()` |
-| `air360_upload` | `uploadWindowAfter()`, `discardUpTo()`, `hasSamplesAfter()`, `pendingCount()` |
+| `air360_upload` | `uploadWindowAfter()`, `queuedCountAfterUntil()`, `discardUpTo()`, `hasSamplesAfter()`, `pendingCount()` |
 | Web server task | `runtimeInfoForSensor()`, `queuedSampleCountForSensor()`, `pendingCount()` |
 
 `runtimeInfoForSensor()` and `queuedSampleCountForSensor()` use the `queued_count_by_sensor_` map for O(1) lookup — the mutex is held for a map lookup rather than a full scan of `queued_`.
