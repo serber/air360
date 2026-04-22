@@ -28,7 +28,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [H6 — `SensorManager` retries driver init with no backoff](H6-sensor-init-no-backoff-implemented.md)
 - [H7 — STL containers on hot paths, heap fragmentation risk](H7-stl-hot-paths-implemented.md)
 - [H8 — Cellular 5-attempt PWRKEY cadence is wear-prone](H8-cellular-pwrkey-cadence-implemented.md)
-- [H9 — `using namespace esp_modem;` in a translation unit](H9-using-namespace-esp-modem.md)
+- [H9 — `using namespace esp_modem;` in a translation unit](H9-using-namespace-esp-modem-implemented.md)
 - [H10 — Cross-backend prune cursor lacks property tests](H10-upload-manager-prune-tests.md)
 
 ### Medium

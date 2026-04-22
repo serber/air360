@@ -2,6 +2,7 @@
 
 - **Severity:** High (code hygiene / future ABI risk)
 - **Area:** Code quality / maintainability
+- **Status:** Implemented
 - **Files:**
   - `firmware/main/src/cellular_manager.cpp` (top of file)
 

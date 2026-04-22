@@ -1,0 +1,2 @@
+Checks: '-*,google-build-using-namespace'
+WarningsAsErrors: 'google-build-using-namespace'

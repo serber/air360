@@ -13,7 +13,7 @@
 #include "esp_task_wdt.h"
 // esp_modem_api.h (C API) uses PdpContext from the C++ layer — pull it in first.
 #include "cxx_include/esp_modem_types.hpp"
-using namespace esp_modem;  // NOLINT(google-build-using-namespace)
+using esp_modem::PdpContext;
 #include "esp_modem_api.h"
 #include "esp_netif.h"
 #include "esp_netif_ppp.h"
