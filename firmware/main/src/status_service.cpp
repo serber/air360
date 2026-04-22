@@ -180,7 +180,9 @@ std::string measurementListHtml(const SensorMeasurement& measurement) {
         return "";
     }
 
-    std::string html = "<ul class='list'>";
+    std::string html;
+    html.reserve(64U + static_cast<std::size_t>(measurement.value_count) * 64U);
+    html += "<ul class='list'>";
     for (std::size_t index = 0; index < measurement.value_count; ++index) {
         html += "<li>";
         html += htmlEscape(formatMeasurementValue(measurement.values[index]));
@@ -200,7 +202,9 @@ std::string jsonNumberOrNull(const SensorMeasurement& measurement, SensorValueKi
 }
 
 std::string measurementArrayJson(const SensorMeasurement& measurement) {
-    std::string json = "[";
+    std::string json;
+    json.reserve(64U + static_cast<std::size_t>(measurement.value_count) * 128U);
+    json += "[";
     for (std::size_t index = 0; index < measurement.value_count; ++index) {
         if (index > 0U) {
             json += ",";
@@ -597,9 +601,11 @@ std::string renderBackendOverviewBlock(
         return "<p class='muted'>No backends configured yet.</p>";
     }
 
+    html.reserve(64U + backends.size() * 1024U);
     html += "<div class='list'>";
     for (const auto& backend : backends) {
         std::string details_block;
+        details_block.reserve(512U);
         details_block += "<span class='pill'>interval ";
         details_block += std::to_string(upload_interval_ms);
         details_block += " ms</span>";
@@ -640,6 +646,7 @@ std::string renderSensorOverviewBlock(
         return "<p class='muted'>No sensors configured yet.</p>";
     }
 
+    html.reserve(64U + sensors.size() * 1024U);
     html += "<div class='list'>";
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
     for (const auto& sensor : sensors) {
@@ -653,6 +660,7 @@ std::string renderSensorOverviewBlock(
         const std::string readings_block = measurementListHtml(measurement);
 
         std::string last_error_block;
+        last_error_block.reserve(256U);
         if (!sensor.last_error.empty()) {
             last_error_block += "<p class='muted'>";
             last_error_block += htmlEscape(sensor.last_error);
@@ -689,6 +697,7 @@ std::string renderConnectionBlock(
     const NetworkState& network_state,
     const CellularState& cellular_state) {
     std::string html;
+    html.reserve(1024U);
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
 
     // Current date
@@ -821,6 +830,7 @@ RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
 std::string renderDiagnosticsTaskBlock(const RuntimeDiagnosticsSnapshot& diagnostics) {
     const auto taskCard = [](const char* title, std::size_t free_stack_bytes) {
         std::string html;
+        html.reserve(256U);
         html += "<div class='list-card stack'><h3 class='list-card__title'>";
         html += htmlEscape(title);
         html += "</h3><div class='meta'><span class='pill'>";
@@ -836,6 +846,7 @@ std::string renderDiagnosticsTaskBlock(const RuntimeDiagnosticsSnapshot& diagnos
     };
 
     std::string html;
+    html.reserve(1024U);
     html += "<div class='list'>";
     html += taskCard("Sensor Task", diagnostics.sensor_task_stack_free_bytes);
     html += taskCard("Upload Task", diagnostics.upload_task_stack_free_bytes);
@@ -848,6 +859,7 @@ std::string renderDiagnosticsNetworkBlock(
     const NetworkState& network_state,
     const CellularState& cellular_state) {
     std::string html;
+    html.reserve(1536U);
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
 
     html += "<div class='list'>";
@@ -1293,6 +1305,7 @@ std::string StatusService::renderRootHtml() const {
         render_snapshot.upload);
 
     std::string ble_block_html;
+    ble_block_html.reserve(512U);
     if (render_snapshot.has_ble_state) {
         const BleState& ble_state = render_snapshot.ble_state;
         if (ble_state.enabled) {

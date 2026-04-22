@@ -2,30 +2,68 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <unordered_map>
 #include <utility>
 
 namespace air360 {
 
-namespace {
-
-constexpr std::size_t kMaxQueuedSamples = 256U;
-
-void removeQueuedSampleLocked(
-    const MeasurementSample& sample,
-    std::unordered_map<std::uint32_t, std::uint32_t>& count_map) {
-    auto it = count_map.find(sample.sensor_id);
-    if (it != count_map.end()) {
-        if (--it->second == 0U) {
-            count_map.erase(it);
-        }
-    }
-}
-
-}  // namespace
-
 MeasurementStore::MeasurementStore() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
+std::size_t MeasurementStore::queuedIndex(std::size_t offset) const {
+    return (queued_head_ + offset) % queued_.size();
+}
+
+void MeasurementStore::dropOldestQueuedLocked() {
+    if (queued_size_ == 0U) {
+        return;
+    }
+
+    QueuedMeasurementEntry& oldest = queued_[queued_head_];
+    decrementQueuedCountLocked(oldest.sample.sensor_id);
+    oldest = QueuedMeasurementEntry{};
+    queued_head_ = (queued_head_ + 1U) % queued_.size();
+    --queued_size_;
+}
+
+std::uint32_t MeasurementStore::queuedCountForSensorLocked(
+    std::uint32_t sensor_id) const {
+    for (const auto& entry : queued_count_by_sensor_) {
+        if (entry.count > 0U && entry.sensor_id == sensor_id) {
+            return entry.count;
+        }
+    }
+    return 0U;
+}
+
+void MeasurementStore::incrementQueuedCountLocked(std::uint32_t sensor_id) {
+    for (auto& entry : queued_count_by_sensor_) {
+        if (entry.count > 0U && entry.sensor_id == sensor_id) {
+            ++entry.count;
+            return;
+        }
+    }
+    for (auto& entry : queued_count_by_sensor_) {
+        if (entry.count == 0U) {
+            entry.sensor_id = sensor_id;
+            entry.count = 1U;
+            return;
+        }
+    }
+    // All slots occupied by other sensors — degrade gracefully and skip
+    // tracking this sensor's count. Display will show 0 queued samples
+    // for this sensor until queue drains enough to free a slot.
+}
+
+void MeasurementStore::decrementQueuedCountLocked(std::uint32_t sensor_id) {
+    for (auto& entry : queued_count_by_sensor_) {
+        if (entry.count > 0U && entry.sensor_id == sensor_id) {
+            if (--entry.count == 0U) {
+                entry.sensor_id = 0U;
+            }
+            return;
+        }
+    }
 }
 
 void MeasurementStore::recordMeasurement(
@@ -36,44 +74,41 @@ void MeasurementStore::recordMeasurement(
     lock();
 
     LatestMeasurementEntry* latest_entry = nullptr;
-    for (auto& entry : latest_by_sensor_) {
-        if (entry.sensor_id == sensor_id) {
-            latest_entry = &entry;
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        if (latest_by_sensor_[index].sensor_id == sensor_id) {
+            latest_entry = &latest_by_sensor_[index];
             break;
         }
     }
 
     if (latest_entry == nullptr) {
-        latest_by_sensor_.push_back(
-            LatestMeasurementEntry{sensor_id, measurement, measurement.sample_time_ms});
-    } else {
+        if (latest_count_ < latest_by_sensor_.size()) {
+            latest_entry = &latest_by_sensor_[latest_count_++];
+            latest_entry->sensor_id = sensor_id;
+        }
+    }
+
+    if (latest_entry != nullptr) {
         latest_entry->measurement = measurement;
         latest_entry->last_sample_time_ms = measurement.sample_time_ms;
     }
 
     if (sample_unix_ms > 0 && !measurement.empty()) {
-        const MeasurementSample sample{
+        if (queued_size_ == queued_.size()) {
+            dropOldestQueuedLocked();
+            ++dropped_sample_count_;
+        }
+
+        const std::size_t insert_index = queuedIndex(queued_size_);
+        queued_[insert_index].id = next_sample_id_++;
+        queued_[insert_index].sample = MeasurementSample{
             sensor_id,
             sensor_type,
             static_cast<std::uint64_t>(sample_unix_ms),
             measurement,
         };
-        queued_.push_back(QueuedMeasurementEntry{
-            next_sample_id_++,
-            sample,
-        });
-        ++queued_count_by_sensor_[sample.sensor_id];
-
-        if (queued_.size() > kMaxQueuedSamples) {
-            const std::size_t overflow = queued_.size() - kMaxQueuedSamples;
-            for (std::size_t i = 0U; i < overflow; ++i) {
-                removeQueuedSampleLocked(queued_[i].sample, queued_count_by_sensor_);
-            }
-            queued_.erase(
-                queued_.begin(),
-                queued_.begin() + static_cast<std::ptrdiff_t>(overflow));
-            dropped_sample_count_ += static_cast<std::uint32_t>(overflow);
-        }
+        ++queued_size_;
+        incrementQueuedCountLocked(sensor_id);
     }
 
     unlock();
@@ -82,22 +117,16 @@ void MeasurementStore::recordMeasurement(
 void MeasurementStore::append(const MeasurementSample& sample) {
     lock();
 
-    queued_.push_back(QueuedMeasurementEntry{
-        next_sample_id_++,
-        sample,
-    });
-    ++queued_count_by_sensor_[sample.sensor_id];
-
-    if (queued_.size() > kMaxQueuedSamples) {
-        const std::size_t overflow = queued_.size() - kMaxQueuedSamples;
-        for (std::size_t i = 0U; i < overflow; ++i) {
-            removeQueuedSampleLocked(queued_[i].sample, queued_count_by_sensor_);
-        }
-        queued_.erase(
-            queued_.begin(),
-            queued_.begin() + static_cast<std::ptrdiff_t>(overflow));
-        dropped_sample_count_ += static_cast<std::uint32_t>(overflow);
+    if (queued_size_ == queued_.size()) {
+        dropOldestQueuedLocked();
+        ++dropped_sample_count_;
     }
+
+    const std::size_t insert_index = queuedIndex(queued_size_);
+    queued_[insert_index].id = next_sample_id_++;
+    queued_[insert_index].sample = sample;
+    ++queued_size_;
+    incrementQueuedCountLocked(sample.sensor_id);
 
     unlock();
 }
@@ -115,9 +144,11 @@ MeasurementQueueWindow MeasurementStore::uploadWindowAfterUntil(
     lock();
 
     MeasurementQueueWindow window;
-    window.sample_ids.reserve(std::min(max_samples, queued_.size()));
-    window.samples.reserve(std::min(max_samples, queued_.size()));
-    for (const auto& entry : queued_) {
+    const std::size_t reserve_hint = std::min(max_samples, queued_size_);
+    window.sample_ids.reserve(reserve_hint);
+    window.samples.reserve(reserve_hint);
+    for (std::size_t offset = 0U; offset < queued_size_; ++offset) {
+        const QueuedMeasurementEntry& entry = queued_[queuedIndex(offset)];
         if (entry.id <= after_sample_id) {
             continue;
         }
@@ -139,8 +170,8 @@ MeasurementQueueWindow MeasurementStore::uploadWindowAfterUntil(
 bool MeasurementStore::hasSamplesAfter(std::uint64_t after_sample_id) const {
     lock();
     bool found = false;
-    for (const auto& entry : queued_) {
-        if (entry.id > after_sample_id) {
+    for (std::size_t offset = 0U; offset < queued_size_; ++offset) {
+        if (queued_[queuedIndex(offset)].id > after_sample_id) {
             found = true;
             break;
         }
@@ -151,7 +182,10 @@ bool MeasurementStore::hasSamplesAfter(std::uint64_t after_sample_id) const {
 
 std::uint64_t MeasurementStore::latestSampleId() const {
     lock();
-    const std::uint64_t sample_id = queued_.empty() ? 0U : queued_.back().id;
+    std::uint64_t sample_id = 0U;
+    if (queued_size_ > 0U) {
+        sample_id = queued_[queuedIndex(queued_size_ - 1U)].id;
+    }
     unlock();
     return sample_id;
 }
@@ -159,16 +193,9 @@ std::uint64_t MeasurementStore::latestSampleId() const {
 void MeasurementStore::discardUpTo(std::uint64_t sample_id) {
     lock();
 
-    std::size_t remove_count = 0U;
-    while (remove_count < queued_.size() && queued_[remove_count].id <= sample_id) {
-        removeQueuedSampleLocked(queued_[remove_count].sample, queued_count_by_sensor_);
-        ++remove_count;
-    }
-
-    if (remove_count > 0U) {
-        queued_.erase(
-            queued_.begin(),
-            queued_.begin() + static_cast<std::ptrdiff_t>(remove_count));
+    while (queued_size_ > 0U &&
+           queued_[queued_head_].id <= sample_id) {
+        dropOldestQueuedLocked();
     }
 
     unlock();
@@ -179,59 +206,57 @@ MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sens
 
     MeasurementRuntimeInfo info;
     info.sensor_id = sensor_id;
-    for (const auto& entry : latest_by_sensor_) {
-        if (entry.sensor_id == sensor_id) {
-            info.measurement = entry.measurement;
-            info.last_sample_time_ms = entry.last_sample_time_ms;
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        if (latest_by_sensor_[index].sensor_id == sensor_id) {
+            info.measurement = latest_by_sensor_[index].measurement;
+            info.last_sample_time_ms = latest_by_sensor_[index].last_sample_time_ms;
             break;
         }
     }
 
-    const auto it = queued_count_by_sensor_.find(sensor_id);
-    if (it != queued_count_by_sensor_.end()) {
-        info.queued_sample_count = it->second;
-    }
+    info.queued_sample_count = queuedCountForSensorLocked(sensor_id);
 
     unlock();
     return info;
 }
 
-std::vector<MeasurementRuntimeInfo> MeasurementStore::allLatestMeasurements() const {
+std::size_t MeasurementStore::allLatestMeasurements(
+    MeasurementRuntimeInfo* out,
+    std::size_t out_cap) const {
+    if (out == nullptr || out_cap == 0U) {
+        return 0U;
+    }
+
     lock();
 
-    std::vector<MeasurementRuntimeInfo> result;
-    result.reserve(latest_by_sensor_.size());
-    for (const auto& entry : latest_by_sensor_) {
-        MeasurementRuntimeInfo info;
-        info.sensor_id = entry.sensor_id;
-        info.measurement = entry.measurement;
-        info.last_sample_time_ms = entry.last_sample_time_ms;
-        const auto queued = queued_count_by_sensor_.find(entry.sensor_id);
-        info.queued_sample_count =
-            queued != queued_count_by_sensor_.end() ? queued->second : 0U;
-        result.push_back(info);
+    const std::size_t limit = std::min(latest_count_, out_cap);
+    for (std::size_t index = 0U; index < limit; ++index) {
+        const LatestMeasurementEntry& entry = latest_by_sensor_[index];
+        out[index].sensor_id = entry.sensor_id;
+        out[index].measurement = entry.measurement;
+        out[index].last_sample_time_ms = entry.last_sample_time_ms;
+        out[index].queued_sample_count = queuedCountForSensorLocked(entry.sensor_id);
     }
 
     unlock();
-    return result;
+    return limit;
 }
 
 MeasurementStoreSnapshot MeasurementStore::snapshot() const {
     lock();
 
     MeasurementStoreSnapshot snapshot;
-    snapshot.measurements.reserve(latest_by_sensor_.size());
-    for (const auto& entry : latest_by_sensor_) {
+    snapshot.measurements.reserve(latest_count_);
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        const LatestMeasurementEntry& entry = latest_by_sensor_[index];
         MeasurementRuntimeInfo info;
         info.sensor_id = entry.sensor_id;
         info.measurement = entry.measurement;
         info.last_sample_time_ms = entry.last_sample_time_ms;
-        const auto queued = queued_count_by_sensor_.find(entry.sensor_id);
-        info.queued_sample_count =
-            queued != queued_count_by_sensor_.end() ? queued->second : 0U;
+        info.queued_sample_count = queuedCountForSensorLocked(entry.sensor_id);
         snapshot.measurements.push_back(std::move(info));
     }
-    snapshot.pending_count = queued_.size();
+    snapshot.pending_count = queued_size_;
     snapshot.inflight_count = 0U;
     snapshot.dropped_sample_count = dropped_sample_count_;
 
@@ -241,17 +266,14 @@ MeasurementStoreSnapshot MeasurementStore::snapshot() const {
 
 std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id) const {
     lock();
-
-    const auto it = queued_count_by_sensor_.find(sensor_id);
-    const std::size_t count = (it != queued_count_by_sensor_.end()) ? it->second : 0U;
-
+    const std::size_t count = queuedCountForSensorLocked(sensor_id);
     unlock();
     return count;
 }
 
 std::size_t MeasurementStore::pendingCount() const {
     lock();
-    const std::size_t count = queued_.size();
+    const std::size_t count = queued_size_;
     unlock();
     return count;
 }

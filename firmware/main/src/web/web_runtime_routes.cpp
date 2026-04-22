@@ -137,7 +137,9 @@ esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {
         return httpd_resp_sendstr(request, "{\"success\":true}");
     }
 
-    std::string response = "{\"success\":false,\"error\":\"";
+    std::string response;
+    response.reserve(256U);
+    response += "{\"success\":false,\"error\":\"";
     response += jsonEscape(result.error);
     response += "\"}";
     return httpd_resp_sendstr(request, response.c_str());

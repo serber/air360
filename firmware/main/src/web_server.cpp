@@ -225,6 +225,7 @@ const BackendRecord* findBackendRecordForDescriptor(
 std::string buildBleIntervalOptions(std::uint8_t selected_index) {
     constexpr const char* kLabels[kBleAdvIntervalCount] = {"100 ms", "300 ms", "1 s", "3 s"};
     std::string html;
+    html.reserve(256U);
     for (std::uint8_t i = 0U; i < kBleAdvIntervalCount; ++i) {
         html += "<option value='";
         html += std::to_string(i);
@@ -677,6 +678,7 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
 
 std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool selected) {
     std::string html;
+    html.reserve(512U);
     html += "<option value='";
     html += htmlEscape(descriptor.type_key);
     html += "'";
@@ -831,6 +833,7 @@ ConfigPageViewModel buildConfigPageViewModel(
 
 std::string renderHttpsCheckbox(const BackendCardViewModel& card) {
     std::string html;
+    html.reserve(256U);
     html += "<label class='checkbox'>";
     html += "<input type='checkbox' name='use_https_";
     html += htmlEscape(card.backend_key);
@@ -844,6 +847,7 @@ std::string renderHttpsCheckbox(const BackendCardViewModel& card) {
 
 std::string renderEndpointFields(const BackendCardViewModel& card) {
     std::string html;
+    html.reserve(1024U);
     html += "<div class='field'><label for='host_";
     html += htmlEscape(card.backend_key);
     html += "'>Host</label><input class='input' id='host_";
@@ -882,6 +886,7 @@ std::string renderEndpointFields(const BackendCardViewModel& card) {
 
 std::string renderAuthFields(const BackendCardViewModel& card) {
     std::string html;
+    html.reserve(768U);
     html += "<div class='field'><label for='user_";
     html += htmlEscape(card.backend_key);
     html += "'>User</label><input class='input' id='user_";
@@ -910,8 +915,11 @@ std::string renderAuthFields(const BackendCardViewModel& card) {
 
 std::string renderBackendCard(const BackendCardViewModel& card) {
     std::string https_block;
+    https_block.reserve(256U);
     std::string endpoint_block;
+    endpoint_block.reserve(1024U);
     std::string device_id_override_block;
+    device_id_override_block.reserve(512U);
 
     switch (card.backend_type) {
         case BackendType::kSensorCommunity:
@@ -973,6 +981,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     }
 
     std::string status_block;
+    status_block.reserve(512U);
     if (!card.enabled) {
         status_block.clear();
     } else if (card.has_status) {
@@ -1081,6 +1090,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
 
 std::string renderSensorCard(const SensorCardViewModel& card) {
     std::string runtime_error_block;
+    runtime_error_block.reserve(256U);
     if (!card.runtime_error.empty()) {
         runtime_error_block += "<p>Runtime error: <code>";
         runtime_error_block += htmlEscape(card.runtime_error);
@@ -1099,6 +1109,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
     }
 
     std::string latest_reading_block;
+    latest_reading_block.reserve(256U);
     if (!card.latest_reading.empty()) {
         latest_reading_block += "<p>Latest reading: <code>";
         latest_reading_block += htmlEscape(card.latest_reading);
@@ -1106,6 +1117,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
     }
 
     std::string i2c_field_block;
+    i2c_field_block.reserve(384U);
     if (card.show_i2c_address_input) {
         i2c_field_block += "<div class='field' data-sensor-i2c-field><label for='i2c_address_";
         i2c_field_block += std::to_string(card.id);
@@ -1118,6 +1130,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
     }
 
     std::string gpio_field_block;
+    gpio_field_block.reserve(384U);
     if (card.show_gpio_pin_select) {
         gpio_field_block += "<div class='field' data-sensor-pin-field><label for='analog_gpio_pin_";
         gpio_field_block += std::to_string(card.id);
@@ -1161,8 +1174,10 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
     }
 
     std::string add_form_block;
+    add_form_block.reserve(section.show_add_form ? 4096U : 0U);
     if (section.show_add_form) {
         std::string i2c_field_block;
+        i2c_field_block.reserve(512U);
         i2c_field_block += "<div class='field' data-sensor-i2c-field";
         if (!section.add_show_i2c_address_input) {
             i2c_field_block += " hidden";
@@ -1180,6 +1195,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
         i2c_field_block += "></div>";
 
         std::string gpio_field_block;
+        gpio_field_block.reserve(512U);
         gpio_field_block += "<div class='field' data-sensor-pin-field";
         if (!section.add_show_gpio_pin_select) {
             gpio_field_block += " hidden";
@@ -1227,6 +1243,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
     }
 
     std::string section_html;
+    section_html.reserve(cards_html.size() + add_form_block.size() + 1024U);
     section_html += "<section class='panel stack'><div><h2>";
     section_html += htmlEscape(section.title);
     section_html += "</h2><p class='muted'>";

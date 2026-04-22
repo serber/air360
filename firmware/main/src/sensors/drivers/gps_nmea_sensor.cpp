@@ -2,10 +2,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <new>
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
-#include <TinyGPSPlus.h>
 #include "esp_timer.h"
 
 namespace air360 {
@@ -18,7 +18,7 @@ constexpr std::size_t kGpsMaxBytesPerPoll = 2048U;
 
 }  // namespace
 
-GpsNmeaSensor::GpsNmeaSensor() : parser_(std::make_unique<TinyGPSPlus>()) {}
+GpsNmeaSensor::GpsNmeaSensor() = default;
 
 GpsNmeaSensor::~GpsNmeaSensor() = default;
 
@@ -26,18 +26,24 @@ SensorType GpsNmeaSensor::type() const {
     return SensorType::kGpsNmea;
 }
 
+void GpsNmeaSensor::resetParser() {
+    // Placement-new avoids heap churn on re-init: the parser lives in-place
+    // as a data member, so destroy-then-reconstruct keeps allocations out of
+    // the sensor poll/init hot path.
+    parser_.~TinyGPSPlus();
+    new (&parser_) TinyGPSPlus();
+}
+
 esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     record_ = record;
     uart_port_manager_ = context.uart_port_manager;
-    if (parser_ != nullptr) {
-        *parser_ = TinyGPSPlus();
-    }
+    resetParser();
     measurement_.clear();
     last_error_.clear();
     poll_failure_count_ = 0U;
     initialized_ = false;
 
-    if (uart_port_manager_ == nullptr || parser_ == nullptr) {
+    if (uart_port_manager_ == nullptr) {
         setError("UART port manager is unavailable.");
         return ESP_ERR_INVALID_STATE;
     }
@@ -81,7 +87,7 @@ esp_err_t GpsNmeaSensor::poll() {
     while (bytes_read > 0) {
         total_bytes_read += static_cast<std::size_t>(bytes_read);
         for (int index = 0; index < bytes_read; ++index) {
-            parser_->encode(static_cast<char>(buffer[index]));
+            parser_.encode(static_cast<char>(buffer[index]));
         }
 
         if (total_bytes_read >= kGpsMaxBytesPerPoll) {
@@ -126,13 +132,9 @@ std::string GpsNmeaSensor::lastError() const {
 
 void GpsNmeaSensor::rebuildMeasurement() {
     measurement_.clear();
-    if (parser_ == nullptr) {
-        setError("No GPS fix yet.");
-        return;
-    }
 
     bool has_values = false;
-    const bool location_valid = parser_->location.isValid();
+    const bool location_valid = parser_.location.isValid();
     if (location_valid) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
@@ -140,55 +142,55 @@ void GpsNmeaSensor::rebuildMeasurement() {
         }
         measurement_.addValue(
             SensorValueKind::kLatitudeDeg,
-            static_cast<float>(parser_->location.lat()));
+            static_cast<float>(parser_.location.lat()));
         measurement_.addValue(
             SensorValueKind::kLongitudeDeg,
-            static_cast<float>(parser_->location.lng()));
+            static_cast<float>(parser_.location.lng()));
     }
-    if (parser_->altitude.isValid()) {
+    if (parser_.altitude.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kAltitudeM,
-            static_cast<float>(parser_->altitude.meters()));
+            static_cast<float>(parser_.altitude.meters()));
     }
-    if (parser_->satellites.isValid()) {
+    if (parser_.satellites.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kSatellites,
-            static_cast<float>(parser_->satellites.value()));
+            static_cast<float>(parser_.satellites.value()));
     }
-    if (parser_->speed.isValid()) {
+    if (parser_.speed.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kSpeedKnots,
-            static_cast<float>(parser_->speed.knots()));
+            static_cast<float>(parser_.speed.knots()));
     }
-    if (parser_->course.isValid()) {
+    if (parser_.course.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kCourseDeg,
-            static_cast<float>(parser_->course.deg()));
+            static_cast<float>(parser_.course.deg()));
     }
-    if (parser_->hdop.isValid()) {
+    if (parser_.hdop.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kHdop,
-            static_cast<float>(parser_->hdop.hdop()));
+            static_cast<float>(parser_.hdop.hdop()));
     }
 
     if (location_valid) {

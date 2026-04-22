@@ -5,8 +5,7 @@
 #include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
-
-class TinyGPSPlus;
+#include <TinyGPSPlus.h>
 
 namespace air360 {
 
@@ -26,10 +25,11 @@ class GpsNmeaSensor final : public SensorDriver {
   private:
     void rebuildMeasurement();
     void setError(const std::string& message);
+    void resetParser();
 
     SensorRecord record_{};
     UartPortManager* uart_port_manager_ = nullptr;
-    std::unique_ptr<TinyGPSPlus> parser_;
+    TinyGPSPlus parser_{};
     SensorMeasurement measurement_{};
     std::string last_error_;
     std::uint32_t poll_failure_count_ = 0U;

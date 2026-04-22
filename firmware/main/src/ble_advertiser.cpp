@@ -1,6 +1,7 @@
 #include "air360/ble_advertiser.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 
@@ -327,7 +328,9 @@ std::uint8_t BleAdvertiser::buildPayload(std::uint8_t* buf, std::uint8_t max_len
         return offset;
     }
 
-    const std::vector<MeasurementRuntimeInfo> latest = store_->allLatestMeasurements();
+    std::array<MeasurementRuntimeInfo, kMaxConfiguredSensors> latest{};
+    const std::size_t latest_count =
+        store_->allLatestMeasurements(latest.data(), latest.size());
 
     for (std::size_t map_idx = 0U; map_idx < kBthomeMapSize; ++map_idx) {
         const BthomeEntry& bte = kBthomeMap[map_idx];
@@ -340,7 +343,8 @@ std::uint8_t BleAdvertiser::buildPayload(std::uint8_t* buf, std::uint8_t max_len
         bool found = false;
         float val = 0.0f;
 
-        for (const auto& entry : latest) {
+        for (std::size_t entry_index = 0U; entry_index < latest_count; ++entry_index) {
+            const MeasurementRuntimeInfo& entry = latest[entry_index];
             for (std::uint8_t i = 0U; i < entry.measurement.value_count; ++i) {
                 if (entry.measurement.values[i].kind == bte.kind) {
                     val = entry.measurement.values[i].value;

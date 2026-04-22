@@ -1,16 +1,19 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "air360/sensors/sensor_types.hpp"
 #include "air360/uploads/measurement_batch.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
 namespace air360 {
+
+constexpr std::size_t kMaxQueuedSamples = 256U;
 
 struct MeasurementRuntimeInfo {
     std::uint32_t sensor_id = 0U;
@@ -61,7 +64,9 @@ class MeasurementStore {
     void discardUpTo(std::uint64_t sample_id);
 
     MeasurementRuntimeInfo runtimeInfoForSensor(std::uint32_t sensor_id) const;
-    std::vector<MeasurementRuntimeInfo> allLatestMeasurements() const;
+    std::size_t allLatestMeasurements(
+        MeasurementRuntimeInfo* out,
+        std::size_t out_cap) const;
     MeasurementStoreSnapshot snapshot() const;
     std::size_t queuedSampleCountForSensor(std::uint32_t sensor_id) const;
     std::size_t pendingCount() const;
@@ -77,16 +82,30 @@ class MeasurementStore {
         std::uint64_t last_sample_time_ms = 0U;
     };
 
+    struct PerSensorCount {
+        std::uint32_t sensor_id = 0U;
+        std::uint32_t count = 0U;
+    };
+
     struct QueuedMeasurementEntry {
         std::uint64_t id = 0U;
         MeasurementSample sample{};
     };
 
+    std::size_t queuedIndex(std::size_t offset) const;
+    void dropOldestQueuedLocked();
+    std::uint32_t queuedCountForSensorLocked(std::uint32_t sensor_id) const;
+    void incrementQueuedCountLocked(std::uint32_t sensor_id);
+    void decrementQueuedCountLocked(std::uint32_t sensor_id);
+
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
-    std::vector<LatestMeasurementEntry> latest_by_sensor_;
-    std::vector<QueuedMeasurementEntry> queued_;
-    std::unordered_map<std::uint32_t, std::uint32_t> queued_count_by_sensor_;
+    std::array<LatestMeasurementEntry, kMaxConfiguredSensors> latest_by_sensor_{};
+    std::size_t latest_count_ = 0U;
+    std::array<PerSensorCount, kMaxConfiguredSensors> queued_count_by_sensor_{};
+    std::array<QueuedMeasurementEntry, kMaxQueuedSamples> queued_{};
+    std::size_t queued_head_ = 0U;
+    std::size_t queued_size_ = 0U;
     std::uint64_t next_sample_id_ = 1U;
     std::uint32_t dropped_sample_count_ = 0U;
 };
