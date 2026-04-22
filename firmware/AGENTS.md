@@ -67,6 +67,28 @@ Before closing firmware work, do the smallest applicable set:
 6. If the change introduced a new document or link, confirm the doc checker stays clean.
 7. **Self-review the diff before reporting done.** Read every changed line as a reviewer would. Check for: redundant conditions already implied by surrounding context; skipped plan steps without an `## Outstanding` entry; logic that silently changes behaviour in both directions when the intent was one-directional; inconsistent application of a pattern across similar call sites in the same file.
 
+## Code style
+
+### Log tags
+
+Every translation unit that uses `ESP_LOG*` must define its tag as:
+
+```cpp
+namespace {
+constexpr char kTag[] = "air360.<subsystem>";
+}
+```
+
+Rules:
+- Name must be `kTag` (not `TAG`, `LOG_TAG`, or any other identifier).
+- Declare inside an anonymous `namespace {}` block.
+- Tag value must start with `air360.` followed by a short subsystem identifier (dots allowed for sub-levels, e.g. `air360.cellular.cfg`).
+- Do not use `static const char* TAG` or macro-based tags.
+
+Subsystem identifiers in use: `app`, `backend_cfg`, `ble`, `cellular`, `cellular.cfg`, `config`, `connectivity`, `http`, `modem_gpio`, `net`, `sensor`, `sensor_cfg`, `upload`, `web`.
+
+Run `python3 ../scripts/check_style.py` to verify; this check fails on any deviation.
+
 ## Documentation conventions
 
 - Prefer implementation docs in `../docs/firmware/` over repository-level planning docs.

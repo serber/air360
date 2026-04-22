@@ -44,7 +44,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [M10 — `connect_attempt_task` handle read without synchronization](M10-connect-attempt-task-race.md)
 
 ### Low
-- [L1 — Inconsistent log tag conventions](L1-log-tag-convention.md)
+- [L1 — Inconsistent log tag conventions](L1-log-tag-convention-implemented.md)
 - [L2 — Unreadable byte-packing casts in `ble_advertiser`](L2-ble-byte-packing-casts.md)
 - [L3 — Raw array + `sizeof`/`sizeof[0]` instead of `std::array`](L3-kbthomemap-std-array.md)
 - [L4 — C++ headers inside `extern "C"` blocks](L4-extern-c-headers.md)
