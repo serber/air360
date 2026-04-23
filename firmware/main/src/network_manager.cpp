@@ -265,10 +265,7 @@ esp_err_t NetworkManager::ensureWifiInit() {
     RuntimeContext& context = runtime_;
 
     if (context.station_events == nullptr) {
-        context.station_events = xEventGroupCreate();
-        if (context.station_events == nullptr) {
-            return ESP_ERR_NO_MEM;
-        }
+        context.station_events = xEventGroupCreateStatic(&context.station_events_buf);
     }
 
     if (context.reconnect_timer == nullptr) {

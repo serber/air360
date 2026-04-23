@@ -114,6 +114,7 @@ class CellularManager {
     void* ppp_netif_ = nullptr;        // esp_netif_t*
     void* ip_got_handler_ = nullptr;   // esp_event_handler_instance_t
     void* ip_lost_handler_ = nullptr;  // esp_event_handler_instance_t
+    StaticEventGroup_t ppp_event_group_buf_{};
     EventGroupHandle_t ppp_event_group_ = nullptr;
     char pending_ip_[16]{};            // written by event handler, read by task
     std::uint64_t failure_window_start_ms_ = 0U;

@@ -110,6 +110,7 @@ class NetworkManager {
     };
 
     struct RuntimeContext {
+        StaticEventGroup_t station_events_buf = {};
         EventGroupHandle_t station_events = nullptr;
         esp_netif_t* ap_netif = nullptr;
         esp_netif_t* sta_netif = nullptr;

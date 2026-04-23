@@ -92,6 +92,7 @@ bool registrationStateIsRegistered(int state) {
 
 CellularManager::CellularManager() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+    ppp_event_group_ = xEventGroupCreateStatic(&ppp_event_group_buf_);
 }
 
 void CellularManager::lock() const {
@@ -328,14 +329,7 @@ bool CellularManager::attemptConnect() {
     }
 
     // --- 4. Event group and event handlers ----------------------------------
-    ppp_event_group_ = xEventGroupCreate();
-    if (ppp_event_group_ == nullptr) {
-        lock();
-        state_.last_error = "event group alloc failed";
-        unlock();
-        teardownModem();
-        return false;
-    }
+    xEventGroupClearBits(ppp_event_group_, kGotIpBit | kLostIpBit);
 
     {
         esp_event_handler_instance_t h = nullptr;
@@ -483,10 +477,6 @@ void CellularManager::teardownModem() {
             IP_EVENT, IP_EVENT_PPP_LOST_IP,
             static_cast<esp_event_handler_instance_t>(ip_lost_handler_));
         ip_lost_handler_ = nullptr;
-    }
-    if (ppp_event_group_ != nullptr) {
-        vEventGroupDelete(ppp_event_group_);
-        ppp_event_group_ = nullptr;
     }
     if (dce_ != nullptr) {
         // Best-effort: try to exit data mode before destroying the DTE/DCE.
