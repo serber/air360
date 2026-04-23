@@ -19,6 +19,8 @@ constexpr char kTag[] = "air360.sensor.bme280";
 constexpr bme280_sensor_sampling kOversampling = BME280_SAMPLING_X1;
 constexpr bme280_sensor_filter kFilter = BME280_FILTER_OFF;
 constexpr bme280_standby_duration kStandbyDuration = BME280_STANDBY_MS_0_5;
+// BME280 traffic is tiny, so 100 kHz keeps the shared bus conservative with no
+// practical downside for multi-second environmental polling.
 constexpr std::uint32_t kBme280I2cSpeedHz = 100000U;
 
 }  // namespace

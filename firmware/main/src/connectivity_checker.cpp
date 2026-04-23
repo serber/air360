@@ -15,6 +15,8 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.connectivity";
+// Wait in 1 s slices so callers subscribed to TWDT can remain responsive
+// during multi-packet connectivity checks.
 constexpr std::uint32_t kWaitSliceMs = 1000U;
 
 struct PingCtx {

@@ -53,3 +53,21 @@ Examples:
 ## Related
 
 - H6, H8, M9 — tuning constants for backoff and poll budgets are the first candidates.
+
+## Implemented
+
+- Product-visible runtime tuning constants were promoted to Kconfig:
+  - `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS`
+  - `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS`
+  - `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS`
+  - `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS`
+  - `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS`
+  - `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH`
+  - `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS`
+- Centralized build-time tunables in `firmware/main/include/air360/tuning.hpp`, grouped by subsystem (`network`, `upload`, `ble`) with one-line rationale comments.
+- Updated `network_manager.cpp`, `network_manager.hpp`, `measurement_store.hpp`, `measurement_store.cpp`, and `ble_advertiser.cpp` to consume the shared tuning constants instead of local magic numbers.
+- Added/retained rationale comments for other runtime constants touched by this sweep, including GPS poll-budget math and worker timing constants in `network_manager.cpp`, `upload_manager.cpp`, and `app.cpp`.
+- Documented each promoted Kconfig in `docs/firmware/configuration-reference.md` with default, purpose, and safe range, and synced related behavior docs:
+  - `docs/firmware/network-manager.md`
+  - `docs/firmware/measurement-pipeline.md`
+  - `docs/firmware/ble-advertiser.md`

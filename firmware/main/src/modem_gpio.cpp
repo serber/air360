@@ -11,6 +11,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.modem_gpio";
+// 0xFF is the persisted sentinel for “GPIO not wired” across cellular config.
 constexpr std::uint8_t kNotWired = 0xFFU;
 
 void configureOutputPin(std::uint8_t gpio_u8, const char* label) {

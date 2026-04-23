@@ -10,6 +10,7 @@
 
 #include "air360/string_utils.hpp"
 #include "air360/time_utils.hpp"
+#include "air360/tuning.hpp"
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -32,16 +33,27 @@ constexpr char kTag[] = "air360.net";
 constexpr EventBits_t kStationConnectedBit = BIT0;
 constexpr EventBits_t kStationFailedBit = BIT1;
 constexpr char kDefaultSntpServer[] = "pool.ntp.org";
+// 250 ms keeps connect/SNTP waits responsive without busy-spinning the calling
+// task while still feeding TWDT frequently on long waits.
 constexpr std::uint32_t kSntpPollIntervalMs = 250U;
+// Share the same 250 ms wait slice between event-group polls so timeout
+// accounting and watchdog feeding stay uniform across the station wait path.
 constexpr std::uint32_t kStationWaitSliceMs = 250U;
-constexpr std::uint32_t kReconnectBaseDelayMs = 10000U;
-constexpr std::uint32_t kReconnectMaxDelayMs = 300000U;
-constexpr std::uint32_t kSetupApRetryDelayMs = 180000U;
-constexpr std::uint32_t kDisconnectIgnoreWindowMs = 2000U;
-constexpr std::uint32_t kDefaultConnectTimeoutMs = 15000U;
+constexpr std::uint32_t kReconnectBaseDelayMs = tuning::network::kReconnectBaseDelayMs;
+constexpr std::uint32_t kReconnectMaxDelayMs = tuning::network::kReconnectMaxDelayMs;
+constexpr std::uint32_t kSetupApRetryDelayMs = tuning::network::kSetupApRetryDelayMs;
+constexpr std::uint32_t kDisconnectIgnoreWindowMs = tuning::network::kDisconnectIgnoreWindowMs;
+constexpr std::uint32_t kDefaultConnectTimeoutMs = tuning::network::kConnectTimeoutMs;
+// 6 KB stack covers reconnect, scan, and static-IP setup work in one worker so
+// timers never need to spawn transient tasks on failure storms.
 constexpr std::size_t kNetworkWorkerTaskStackSize = 6144U;
+// Slightly above idle priority so reconnect/scan work runs promptly but never
+// starves the sensor and upload workers.
 constexpr UBaseType_t kNetworkWorkerTaskPriority = tskIDLE_PRIORITY + 2U;
+// 5 s idle wait feeds TWDT regularly even if no reconnect/scan request arrives.
 constexpr TickType_t kNetworkWorkerWait = pdMS_TO_TICKS(5000U);
+// 20 s scan timeout allows active scans to finish on crowded bands without
+// blocking the worker forever if Wi-Fi firmware stops reporting completion.
 constexpr TickType_t kScanRequestTimeout = pdMS_TO_TICKS(20000U);
 constexpr std::uint32_t kWorkerReconnectReq = (1UL << 0);
 constexpr std::uint32_t kWorkerSetupApRetryReq = (1UL << 1);

@@ -24,10 +24,15 @@ struct Bme680DriverState {
 namespace {
 
 constexpr char kTag[] = "air360.sensor.bme680";
+// 100 kHz keeps BME680 aligned with other default environmental sensors on the shared bus.
 constexpr std::uint32_t kBme680I2cSpeedHz = 100000U;
+// The Bosch compensation API expects a nominal ambient estimate; room
+// temperature is the least surprising default before the first real sample.
 constexpr std::int16_t kAmbientTemperatureC = 25;
 constexpr bme680_oversampling_rate_t kOversampling = BME680_OSR_2X;
 constexpr bme680_filter_size_t kFilter = BME680_IIR_SIZE_0;
+// 300 C / 100 ms matches a low-power gas profile that keeps poll latency
+// reasonable for the firmware's multi-second default sensor cadence.
 constexpr std::uint16_t kHeaterTemperatureC = 300U;
 constexpr std::uint16_t kHeaterDurationMs = 100U;
 

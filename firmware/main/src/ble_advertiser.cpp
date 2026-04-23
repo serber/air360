@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/tuning.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_task_wdt.h"
@@ -26,12 +27,19 @@ namespace {
 
 constexpr char kTag[] = "air360.ble";
 constexpr EventBits_t kSyncedBit = (1U << 0);
-constexpr std::uint32_t kUpdateIntervalMs = 5000U;
+constexpr std::uint32_t kUpdateIntervalMs = tuning::ble::kPayloadRefreshIntervalMs;
+// Poll NimBLE host sync once per second so startup stays responsive while the
+// BLE task still feeds TWDT during long controller/host bring-up windows.
 constexpr TickType_t kSyncWaitSlice = pdMS_TO_TICKS(1000U);
+// 2 s stop wait covers the BLE task's notification wake + semaphore ack path
+// without leaving stop() stuck if the task is already unhealthy.
 constexpr TickType_t kStopTimeout = pdMS_TO_TICKS(2000U);
+// BTHome v2 service UUID `0xFCD2`, split into bytes for the NimBLE payload.
 constexpr std::uint8_t kBthomeUuidLo = 0xD2U;
 constexpr std::uint8_t kBthomeUuidHi = 0xFCU;
 constexpr std::uint8_t kBthomeDeviceInfo = 0x40U;  // no encryption, BTHome v2
+// Legacy ADV packets are capped at 31 bytes, so payload packing must budget
+// against this limit even though NimBLE also supports larger extended PDUs.
 constexpr std::uint8_t kLegacyAdvPacketMaxLen = 31U;
 
 static StaticEventGroup_t g_sync_event_buf;

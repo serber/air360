@@ -17,7 +17,10 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor.htu2x";
+// Give HTU2X one second after power-up/reset before the first transaction;
+// earlier reads are unreliable on cold boot.
 constexpr std::uint32_t kHtu2xStartupDelayMs = 1000U;
+// Use a conservative bus speed for compatibility with older HTU21D/Si7021-class parts.
 constexpr std::uint32_t kHtu2xI2cSpeedHz = 100000U;
 
 }  // namespace

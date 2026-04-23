@@ -38,7 +38,7 @@ The firmware uses the ESP-IDF NimBLE stack (advertising-only profile). Two FreeR
 | Task | Owner | Role |
 |------|-------|------|
 | `nimble_host` | NimBLE port | Runs the NimBLE event loop |
-| `air360_ble` | `BleAdvertiser` | Updates advertisement data every 5 seconds |
+| `air360_ble` | `BleAdvertiser` | Rebuilds advertisement payload every 5 seconds by default |
 
 **Log tag:** `air360.ble`
 
@@ -88,6 +88,8 @@ With a 6-character device name ("air360"), the packet budget for measurements is
 ## Data source
 
 `BleAdvertiser` reads from `MeasurementStore::allLatestMeasurements()` on every update cycle. This method returns a snapshot of the most recent reading from each sensor, regardless of SNTP status. The advertisement therefore reflects the last valid sensor reading even when there is no network connection.
+
+Payload rebuild cadence is separate from the on-air advertising interval. `air360_ble` wakes up every `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` (default `5000` ms) to re-scan the latest measurements and repack the BTHome payload. Lower values make BLE telemetry fresher; higher values reduce task wakeups and payload churn.
 
 ---
 

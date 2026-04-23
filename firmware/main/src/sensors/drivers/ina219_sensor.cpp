@@ -15,6 +15,8 @@ namespace {
 
 constexpr char kTag[] = "air360.sensor.ina219";
 constexpr float kShuntResistanceOhm = 0.1F;  // 100 mOhm on standard module
+// INA219 supports fast-mode I2C, but 100 kHz keeps it aligned with the rest of
+// the mixed-sensor bus defaults and is plenty for low-rate power telemetry.
 constexpr std::uint32_t kIna219I2cSpeedHz = 100000U;
 
 }  // namespace

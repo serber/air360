@@ -15,6 +15,7 @@ This is the field-level reference for editable firmware configuration across dev
 - `firmware/main/src/uploads/backend_config_repository.cpp`
 - `firmware/main/src/cellular_config_repository.cpp`
 - `firmware/main/src/web_server.cpp`
+- `firmware/main/include/air360/tuning.hpp`
 
 ## Read next
 
@@ -73,9 +74,30 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | `17` | GPS TX (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_UART_PORT` | `1` | GPS UART port (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | `9600` | GPS baud rate (stored in sensor record) |
+| `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS` | `10000` | First reconnect backoff after an unexpected Wi-Fi station drop |
+| `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS` | `300000` | Upper cap for reconnect backoff while station recovery is active |
+| `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS` | `180000` | Delay between background station retries while setup AP stays active |
+| `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` | `2000` | Ignore window for self-induced disconnect events during Wi-Fi mode changes |
+| `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` | Timeout for synchronous station join and `ensureStationTime()`-driven joins |
+| `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` | Shared queued-sample capacity before oldest uploads are dropped |
+| `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` | Period between BTHome payload rebuilds in `air360_ble` |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0/1/2` | `4` / `5` / `6` | Valid GPIO slots for GPIO/analog sensors |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.
+
+### Runtime tuning Kconfig values
+
+The values below are not persisted in NVS. They are build-time tuning knobs grouped in [`firmware/main/include/air360/tuning.hpp`](../../firmware/main/include/air360/tuning.hpp) and consumed directly by runtime subsystems.
+
+| Kconfig key | Default | Purpose | Safe range / tradeoff |
+|-------------|---------|---------|------------------------|
+| `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS` | `10000` ms | First delay in the capped exponential reconnect backoff after an unexpected station disconnect | `1000`–`600000` ms. Lower values recover faster but can hammer an AP that is still rebooting; higher values make brief outages visible to users longer. |
+| `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS` | `300000` ms | Upper cap for the reconnect backoff sequence | `10000`–`3600000` ms. Keep it above the base delay; higher values reduce retry pressure during long outages but slow recovery once the network returns. |
+| `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS` | `180000` ms | Retry cadence for background station reconnect attempts while setup AP remains available | `10000`–`3600000` ms. Shorter intervals re-test Wi-Fi more aggressively; longer intervals reduce churn but keep the device in AP fallback longer. |
+| `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` | `2000` ms | Window that suppresses reconnect logic after intentional `esp_wifi_stop()` / `esp_wifi_disconnect()` calls | `100`–`60000` ms. Too short can re-arm reconnect on deliberate mode changes; too long can hide a real disconnect right after reconfiguration. |
+| `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` ms | Timeout for blocking station join attempts and follow-up station recovery work | `5000`–`120000` ms. Must cover WPA join plus DHCP on slow APs; very large values delay setup-AP fallback and worker responsiveness. |
+| `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` samples | Shared in-RAM backlog for uploadable measurements | `32`–`2048` samples. Higher values buy more outage tolerance at the cost of more RAM retained in `MeasurementStore`; lower values overflow sooner during WAN loss. |
+| `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` ms | Period between BTHome payload rebuilds in the BLE advertiser task | `1000`–`60000` ms. Lower values show fresher readings over BLE but increase task wakeups and payload churn; higher values reduce activity but make BLE telemetry staler. |
 
 ---
 

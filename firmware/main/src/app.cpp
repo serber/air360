@@ -20,9 +20,13 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.app";
+// The maintenance loop only retries SNTP and housekeeping, so 10 s is frequent
+// enough for recovery while keeping the main task mostly asleep.
 constexpr TickType_t kRuntimeMaintenanceDelay = pdMS_TO_TICKS(10000);
 // GPIO48: built-in WS2812 RGB LED on ESP32-S3-DevKitC-1.
 constexpr int kRgbLedGpio = 48;
+// Keep the status LED intentionally dim so the board remains readable on a
+// desk without pulling unnecessary current from the USB rail.
 constexpr std::uint8_t kLedBrightness = 16U;  // dim — WS2812 full range is 255
 
 led_strip_handle_t g_led_strip = nullptr;

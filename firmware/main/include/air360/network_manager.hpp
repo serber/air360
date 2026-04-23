@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "air360/config_repository.hpp"
+#include "air360/tuning.hpp"
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_event_base.h"
@@ -87,14 +88,14 @@ class NetworkManager {
 
     [[nodiscard]] esp_err_t connectStation(
         const DeviceConfig& config,
-        std::uint32_t timeout_ms = 15000U);
+        std::uint32_t timeout_ms = tuning::network::kConnectTimeoutMs);
     [[nodiscard]] esp_err_t startLabAp(const DeviceConfig& config);
     [[nodiscard]] esp_err_t stopStation();
     // Called by CellularManager when the PPP session comes up or drops.
     // Updates cellular_ip in NetworkState and affects uplinkStatus().
     void setCellularStatus(bool ppp_connected, const char* ip_address);
     [[nodiscard]] esp_err_t scanAvailableNetworks();
-    [[nodiscard]] esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
+    [[nodiscard]] esp_err_t ensureStationTime(std::uint32_t timeout_ms = tuning::network::kConnectTimeoutMs);
     SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
     UplinkStatus uplinkStatus() const;
     NetworkState state() const;
@@ -152,7 +153,7 @@ class NetworkManager {
         std::uint32_t timeout_ms,
         ConnectAttemptKind kind);
     esp_err_t startAsyncScanAndWait();
-    esp_err_t synchronizeTime(std::uint32_t timeout_ms = 15000U);
+    esp_err_t synchronizeTime(std::uint32_t timeout_ms = tuning::network::kConnectTimeoutMs);
     void workerLoop();
     void notifyWorker(std::uint32_t request_bits);
     void startMdns(const std::string& hostname);

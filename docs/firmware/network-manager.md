@@ -13,6 +13,7 @@ This document covers station mode, setup AP fallback, reconnect logic, connectiv
 - `firmware/main/src/network_manager.cpp`
 - `firmware/main/src/connectivity_checker.cpp`
 - `firmware/main/include/air360/network_manager.hpp`
+- `firmware/main/include/air360/tuning.hpp`
 
 ## Read next
 
@@ -139,6 +140,8 @@ The handlers stay active after `connectStation()` returns, which is what enables
 7. sets power save mode: `WIFI_PS_MIN_MODEM` if `config.wifi_power_save_enabled`, otherwise `WIFI_PS_NONE`
 8. waits up to 15 seconds for `kStationConnectedBit` or `kStationFailedBit`
 
+The default timeout comes from `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` via `tuning::network::kConnectTimeoutMs`. Increase it only if field networks routinely need more than one WPA + DHCP round-trip window to become usable.
+
 On success:
 
 - `IP_EVENT_STA_GOT_IP` stores the station IP
@@ -218,6 +221,8 @@ Backoff sequence:
 10 s → 20 s → 40 s → 80 s → 160 s → 300 s (cap)
 ```
 
+The first step and cap are build-time tunables: `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS` and `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS`.
+
 When the timer fires, the callback only notifies the persistent `air360_net` worker. The worker performs the blocking `attemptStationConnect(...)`, so the shared FreeRTOS timer task is not blocked by the 15-second station wait and no per-attempt tasks are spawned.
 
 `IP_EVENT_STA_GOT_IP` resets the reconnect counter to zero and clears the backoff state.
@@ -231,11 +236,13 @@ If setup AP is active and stored station credentials exist, the firmware now kee
 - on success the firmware switches back to `WIFI_MODE_STA`
 - on failure the AP stays up and the retry timer is armed again
 
+The retry cadence is controlled by `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS` (default `180000` ms).
+
 This covers the common “sensor boots faster than the router” case without needing a reboot.
 
 ### Intentional stop guard
 
-`stopStation()` and internal mode reconfiguration operations temporarily suppress disconnect handling for a short window (`ignore_disconnect_until_ms`) so deliberate `esp_wifi_stop()` / `esp_wifi_disconnect()` calls do not accidentally arm reconnect logic.
+`stopStation()` and internal mode reconfiguration operations temporarily suppress disconnect handling for a short window (`ignore_disconnect_until_ms`) so deliberate `esp_wifi_stop()` / `esp_wifi_disconnect()` calls do not accidentally arm reconnect logic. The guard window is controlled by `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` and defaults to `2000` ms.
 
 ---
 

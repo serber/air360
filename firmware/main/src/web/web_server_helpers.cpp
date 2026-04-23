@@ -6,6 +6,8 @@ namespace air360::web {
 
 namespace {
 
+// Cap request bodies at 4 KB because config forms and JSON mutations are
+// small, and larger payloads would just waste scarce HTTP server RAM.
 constexpr std::size_t kHttpMaxRequestBodySize = 4096U;
 
 }  // namespace
@@ -43,6 +45,8 @@ esp_err_t sendRequestBodyTooLarge(httpd_req_t* request) {
 }
 
 esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html) {
+    // Stream HTML in 1 KB chunks so large pages do not require a second copy in
+    // the HTTP server stack or transport buffers.
     constexpr std::size_t kChunkSize = 1024U;
 
     for (std::size_t offset = 0; offset < html.size(); offset += kChunkSize) {

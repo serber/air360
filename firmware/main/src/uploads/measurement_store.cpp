@@ -6,6 +6,13 @@
 
 namespace air360 {
 
+namespace {
+
+// The queue is a fixed-size RAM ring buffer, so overflow must drop oldest
+// samples instead of allocating; kMaxQueuedSamples is chosen in tuning.hpp.
+
+}  // namespace
+
 MeasurementStore::MeasurementStore() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
 }

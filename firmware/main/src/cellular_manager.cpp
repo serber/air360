@@ -28,12 +28,24 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.cellular";
+// Connectivity checks should fail quickly during bring-up; 5 s is long enough
+// for one ICMP round-trip on cellular without stalling PPP state too long.
 constexpr std::uint32_t kCheckTimeoutMs = 5000U;
+// Three ICMP attempts smooth over transient packet loss before declaring a
+// freshly attached cellular uplink unhealthy.
 constexpr std::uint32_t kCheckRetries   = 3U;
+// Take the manager mutex in 1 s slices so blocked callers can keep feeding
+// TWDT while waiting behind PPP or modem operations.
 constexpr std::uint32_t kMutexTakeSliceMs = 1000U;
+// PPP attach can legitimately take tens of seconds after a modem reset; 25 s
+// covers the usual event window without blocking forever on a dead session.
 constexpr std::uint32_t kPppMonitorWaitMs = 25000U;
+// Probe failures should be detected quickly once PPP is nominally up.
 constexpr std::uint32_t kPppProbeTimeoutMs = 1000U;
+// One quick probe per cycle keeps the fallback logic decisive.
 constexpr std::uint32_t kPppProbeRetries = 1U;
+// Require two failed probe cycles before escalating so a single ICMP miss does
+// not trigger unnecessary modem recovery.
 constexpr std::uint8_t kPppProbeFailureThreshold = 2U;
 // Maximum wait/sleep slice between watchdog resets.
 constexpr std::uint32_t kWdtFeedSliceMs = 2000U;

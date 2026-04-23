@@ -402,6 +402,8 @@ const char* healthStatusKey(HealthStatus status) {
 
 
 std::uint64_t sensorFreshnessThresholdMs(std::uint32_t poll_interval_ms) {
+    // Never mark a sensor stale sooner than 15 s; otherwise fast pollers would
+    // flap during short scheduler jitter or transient bus retries.
     constexpr std::uint64_t kMinimumFreshnessThresholdMs = 15000ULL;
     if (poll_interval_ms == 0U) {
         return kMinimumFreshnessThresholdMs;

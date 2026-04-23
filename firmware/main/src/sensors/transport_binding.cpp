@@ -12,6 +12,8 @@ namespace air360 {
 
 namespace {
 
+// Current UART sensors are RX-driven, so reserving no TX ring buffer avoids
+// wasting RAM in the shared ESP-IDF UART driver.
 constexpr int kUartTxBufferSize = 0;
 
 constexpr BusConfig kBuses[] = {

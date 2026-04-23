@@ -31,8 +31,14 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
+// 10 KB stack leaves headroom for std::string-heavy HTML rendering in route
+// handlers without risking overflow in the HTTP server task.
 constexpr std::size_t kHttpServerStackSize = 10240U;
+// Current route set plus captive-portal catchall fits in 15 slots while
+// leaving a little room for future diagnostics endpoints.
 constexpr std::size_t kHttpServerMaxUriHandlers = 15U;
+// Match the save-time validation floor so the web UI cannot submit a poll
+// interval below what SensorManager supports at runtime.
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 
 const char* networkModeLabel(NetworkMode mode) {

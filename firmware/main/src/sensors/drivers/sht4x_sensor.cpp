@@ -15,6 +15,8 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor.sht4x";
+// Standard-mode I2C is sufficient for second-scale environmental polling and
+// avoids making this driver the one that dictates a faster shared bus speed.
 constexpr std::uint32_t kSht4xI2cSpeedHz = 100000U;
 
 }  // namespace

@@ -168,13 +168,15 @@ struct MeasurementSample {
 
 ### Capacity
 
-Maximum size: **256 samples** (`kMaxQueuedSamples`).
+Maximum size: **256 samples by default** (`kMaxQueuedSamples`).
+
+The queue depth is a build-time tuning value: `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` via [`tuning::upload::kMeasurementQueueDepth`](../../firmware/main/include/air360/tuning.hpp). Raising it increases short-outage tolerance but also increases the amount of RAM retained by `MeasurementStore`.
 
 All sensors share a single queue — there is no per-sensor limit.
 
 ### Overflow behavior
 
-When `queued_.size()` exceeds 256 after an append, the **oldest samples are dropped** from the front:
+When `queued_.size()` exceeds the configured queue depth after an append, the **oldest samples are dropped** from the front:
 
 ```cpp
 if (queued_.size() > kMaxQueuedSamples) {
@@ -188,7 +190,7 @@ if (queued_.size() > kMaxQueuedSamples) {
 
 ### When the queue fills up
 
-With 3 sensors each polling every 5 seconds, the queue accumulates ~36 samples/minute. At that rate it takes about **7 minutes** of failed uploads to overflow 256 samples. With more frequent polling or more sensors, overflow can happen sooner.
+With 3 sensors each polling every 5 seconds, the queue accumulates ~36 samples/minute. At the default depth of 256 samples, it takes about **7 minutes** of failed uploads to overflow. With more frequent polling, more sensors, or a lower build-time queue depth, overflow happens sooner.
 
 ---
 

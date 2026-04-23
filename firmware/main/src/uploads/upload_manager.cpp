@@ -16,10 +16,19 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.upload";
+// The upload task wakes every second so per-backend timers react quickly
+// without spending most of the idle period burning CPU.
 constexpr TickType_t kUploadLoopDelay = pdMS_TO_TICKS(1000);
+// 7 KB covers request construction, backend adapter calls, and status
+// bookkeeping in a single task without forcing heap allocations for stack spill.
 constexpr std::uint32_t kUploadTaskStackSize = 7168U;
+// Keep uploads below the sensor task priority while still above passive idle work.
 constexpr UBaseType_t kUploadTaskPriority = 4U;
+// Limit each backend batch to 32 samples to bound HTTP body size and retry
+// memory while still making progress through backlog on slow links.
 constexpr std::size_t kMaxSamplesPerUploadWindow = 32U;
+// 30 s stop timeout matches the TWDT budget and the worst-case in-flight
+// network operation window before config apply gives up.
 constexpr std::uint32_t kStopTimeoutMs = 30000U;
 
 bool isBackendFailure(UploadResultClass result) {

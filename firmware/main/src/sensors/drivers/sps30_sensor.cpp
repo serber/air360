@@ -20,6 +20,8 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor.sps30";
+// SPS30 runs happily on standard-mode I2C; 100 kHz matches the vendor examples
+// and keeps the shared bus conservative for mixed-sensor deployments.
 constexpr std::uint32_t kSps30I2cSpeedHz = 100000U;
 
 esp_err_t mapResultToEspErr(std::int16_t result) {

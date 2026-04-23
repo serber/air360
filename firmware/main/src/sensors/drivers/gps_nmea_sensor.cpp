@@ -16,12 +16,25 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor.gps";
+// UART framing cost for 8N1: 1 start + 8 data + 1 stop bit. This lets the
+// driver derive a byte budget from configured baud and poll cadence.
 constexpr std::uint32_t kGpsSerialBitsPerByte = 10U;
+// 256-byte chunks keep stack usage low while still amortizing UART API calls.
 constexpr std::size_t kGpsReadBufferSize = 256U;
+// Allow the first read to block for 80% of the poll cadence so low-baud GPS
+// modules can accumulate a whole NMEA burst before the drain-to-empty loop.
 constexpr std::uint32_t kGpsReadTimeoutPercent = 80U;
+// Never poll with a sub-50 ms initial timeout; shorter waits were observed to
+// starve slow receivers even when the configured poll interval is small.
 constexpr std::uint32_t kGpsReadTimeoutMinMs = 50U;
+// Keep one extra chunk above the derived baud×interval budget so sentence tails
+// that arrive near the poll boundary still fit in the same cycle.
 constexpr std::size_t kGpsPollBudgetMarginBytes = kGpsReadBufferSize;
+// 4 KB is the floor because it is cheap on ESP32-S3 and large enough to absorb
+// multi-second NMEA bursts at common baud rates between worker polls.
 constexpr std::size_t kGpsMinimumRxBufferSize = 4096U;
+// A short event queue is enough because the driver drains it every poll and
+// only cares about overrun/full events, not every UART edge transition.
 constexpr std::size_t kGpsEventQueueSize = 8U;
 
 }  // namespace

@@ -13,6 +13,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor.veml7700";
+// Lux readings are infrequent and low-bandwidth, so standard-mode I2C is enough.
 constexpr std::uint32_t kVeml7700I2cSpeedHz = 100000U;
 
 }  // namespace

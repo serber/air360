@@ -18,14 +18,27 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.sensor";
+// First re-init retry after 1 s catches transient bus-settle issues quickly.
 constexpr std::uint32_t kInitBackoffBaseMs = 1000U;
+// Stop exponential growth at 5 min so failed sensors do not wake the task too
+// often, but still retry eventually after long outages.
 constexpr std::uint32_t kInitBackoffCapMs = 5U * 60U * 1000U;
+// Eight shifts already exceed the 5 min cap, so further growth is wasted.
 constexpr std::uint32_t kInitBackoffShiftCap = 8U;
+// After 16 consecutive failures the sensor is treated as operator-visiblely
+// broken and automatic retries stop until config is rebuilt.
 constexpr std::uint32_t kSensorFailureStopThreshold = 16U;
+// Soft poll failures retry after at most 5 s to absorb short bus glitches
+// without tearing down a driver that was otherwise healthy.
 constexpr std::uint64_t kSoftPollRetryDelayMs = 5000U;
+// 250 ms loop cadence is fast enough for 1 s retry granularity while keeping
+// the manager mostly idle between scheduled sensor actions.
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
+// 6 KB covers the driver registry walk plus per-sensor error formatting.
 constexpr uint32_t kManagerTaskStackSize = 6144U;
+// Run above idle so scheduled polls are not delayed by background maintenance.
 constexpr UBaseType_t kManagerTaskPriority = 5U;
+// Stop should complete within one short loop iteration plus driver cleanup.
 constexpr std::uint32_t kStopTimeoutMs = 5000U;
 
 std::uint32_t initBackoffDelayMs(std::uint32_t consecutive_failures) {

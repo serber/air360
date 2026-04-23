@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/tuning.hpp"
 #include "air360/uploads/measurement_batch.hpp"
 #include "air360/uploads/upload_prune_policy.hpp"
 #include "freertos/FreeRTOS.h"
@@ -14,7 +15,7 @@
 
 namespace air360 {
 
-constexpr std::size_t kMaxQueuedSamples = 256U;
+constexpr std::size_t kMaxQueuedSamples = tuning::upload::kMeasurementQueueDepth;
 
 struct MeasurementRuntimeInfo {
     std::uint32_t sensor_id = 0U;
