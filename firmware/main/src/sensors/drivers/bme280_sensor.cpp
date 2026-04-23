@@ -5,9 +5,7 @@
 #include <memory>
 #include <string>
 
-extern "C" {
 #include "bme280.h"
-}
 
 #include "air360/sensors/transport_binding.hpp"
 #include "esp_log.h"

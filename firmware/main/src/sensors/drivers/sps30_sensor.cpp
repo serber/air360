@@ -5,12 +5,10 @@
 #include <memory>
 #include <string>
 
-extern "C" {
 #include "sensirion_common.h"
 #include "sensirion_i2c.h"
 #include "sensirion_i2c_hal.h"
 #include "sps30_i2c.h"
-}
 
 #include "air360/sensors/drivers/sps30_i2c_support.hpp"
 #include "air360/sensors/transport_binding.hpp"

@@ -45,3 +45,15 @@ is correct when `bme280.h` is a C header and includes only C declarations. It be
 ## Related
 
 - None.
+
+## Implemented
+
+Implemented.
+
+- Removed redundant outer `extern "C"` include wrappers from:
+  - `firmware/main/src/sensors/drivers/bme280_sensor.cpp`
+  - `firmware/main/src/sensors/drivers/bme680_sensor.cpp`
+  - `firmware/main/src/sensors/drivers/sps30_sensor.cpp`
+- Verified that the included vendor headers self-guard with `#ifdef __cplusplus extern "C"`.
+- Added a project rule to `AGENTS.md`: prefer self-guarded C headers and only introduce wrappers/shims when a header does not guard itself.
+- `rg -n "extern \"C\"" firmware/main/src` now shows only the minimum necessary call sites.

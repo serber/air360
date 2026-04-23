@@ -36,6 +36,12 @@ Do not try `which idf.py`, do not search for it, do not try other paths. Use the
 - Discarding a return value requires either a function with no `[[nodiscard]]` contract, or an explicit one-line comment immediately before `static_cast<void>(...)` explaining why the result is intentionally unused.
 - Return values that affect observability, recovery, persistence, or task lifecycle should be logged, exposed through status, counted, or propagated instead of discarded.
 
+## Firmware C header rules
+
+- Prefer C headers that already self-guard with `#ifdef __cplusplus extern "C" {}`.
+- Do not wrap such headers in an extra `extern "C"` block in C++ translation units.
+- If a required C header is not self-guarded, add a small local wrapper/shim instead of scattering ad hoc `extern "C"` include blocks across drivers.
+
 ## Firmware entry points
 
 Start here depending on the task:

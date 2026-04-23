@@ -12,9 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-extern "C" {
 #include "bme680.h"
-}
 
 namespace air360 {
 
