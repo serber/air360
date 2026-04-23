@@ -67,7 +67,7 @@ Rules:
 | `app_main` | ✓ | After `status_service` update, before `vTaskDelay` | Stays subscribed for lifetime |
 | `air360_sensor` | ✓ | After `ulTaskNotifyTake` | 250 ms loop |
 | `air360_upload` | ✓ | After `ulTaskNotifyTake` (two paths) | 1 s loop |
-| `air360_cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
+| `cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
 | `air360_ble` | ✓ | After sync waits and notification/timeout wakeups | 5 s advertisement refresh loop; cooperative shutdown via task notification |
 | `air360_net` | ✓ | After worker notification waits | Handles reconnect, setup-AP retry, and Wi-Fi scan requests; timer callbacks only notify it |
 | `esp_httpd` | ✗ IDF-managed | — | httpd has its own internal timeout handling |

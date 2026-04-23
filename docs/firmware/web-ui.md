@@ -163,6 +163,13 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 | Connectivity check host | `<input maxlength=63>` | IPv4 address to ping after PPP connects; pre-filled with `8.8.8.8` when empty; leave empty to skip |
 | Wi-Fi debug window | `<input type=number min=0 max=3600>` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 
+**BLE fields** (collapsed unless `Enable BLE advertising` is checked):
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Enable BLE advertising | `<input type=checkbox>` | Stored as `ble_advertise_enabled` in `DeviceConfig`; starts `BleAdvertiser` on boot |
+| Advertising interval | `<select>` | Stored as `ble_adv_interval_index`; options map to `100 ms`, `300 ms`, `1 s`, and `3 s` |
+
 **Submit action:** `POST /config`
 - Validates field lengths, password constraints, and SNTP server characters server-side.
 - Saves `DeviceConfig` via `ConfigRepository::save()` and `CellularConfig` via `CellularConfigRepository::save()`.
@@ -189,7 +196,8 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 | Light | VEML7700 | No |
 | Particulate Matter | SPS30 | No |
 | Location | GPS (NMEA) | No |
-| Gas / CO2 | SCD30, ME3-NO2 | Yes |
+| Gas | SCD30, ME3-NO2, MH-Z19B | Yes |
+| Power | INA219 | No |
 
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 

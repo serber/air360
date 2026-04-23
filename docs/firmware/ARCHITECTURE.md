@@ -27,7 +27,7 @@ This document is the high-level system map for the firmware: component boundarie
 
 Air360 is an air quality monitoring device built on the ESP32-S3. The firmware collects environmental measurements from attached sensors, exposes a local web interface for device configuration and status monitoring, and uploads batched measurement data to one or more remote backends.
 
-The firmware runs continuously as an embedded application under FreeRTOS and ESP-IDF 6.x. It is written in C++17 and targets a 16 MB flash ESP32-S3 module.
+The firmware runs continuously as an embedded application under FreeRTOS and ESP-IDF 6.x. It is written in C++20 and targets a 16 MB flash ESP32-S3 module.
 
 ---
 
@@ -76,11 +76,11 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 | Step | Action | Notes |
 |------|--------|-------|
 | pre | RGB LED init | WS2812 on GPIO48 - blue while booting |
-| 1 | Watchdog arm | 10-second timeout, panic disabled |
+| 1 | Watchdog arm | 30-second timeout, panic enabled |
 | 2 | NVS flash init | Auto-erase on partition mismatch |
 | 3 | Network core init | `esp_netif_init()`, default event loop |
 | 4 | Device config load/create | NVS namespace `air360`, key `device_cfg`; boot counter increment |
-| 4b | Cellular config load/create and manager start | NVS key `cellular_cfg`; may launch `air360_cellular` |
+| 4b | Cellular config load/create and manager start | NVS key `cellular_cfg`; may launch `cellular` |
 | 5 | Sensor config load/create and manager start | NVS key `sensor_cfg`; may launch `air360_sensor`; BLE advertising may start after this |
 | 6 | Backend config load/create | NVS key `backend_cfg` |
 | 7 | Network mode resolution | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
@@ -126,7 +126,7 @@ After startup the firmware runs several concurrent execution contexts:
 | Main app loop | `app_main` task | FreeRTOS task (IDF main) | 8192 B | default |
 | Sensor polling | `air360_sensor` | FreeRTOS task | 6144 B | 5 |
 | Upload scheduling | `air360_upload` | FreeRTOS task | 7168 B | 4 |
-| Cellular modem | `air360_cellular` | FreeRTOS task | 8192 B | 5 |
+| Cellular modem | `cellular` | FreeRTOS task | 8192 B | 5 |
 | Network worker | `air360_net` | FreeRTOS task | 6144 B | 2 |
 | BLE advertising | `air360_ble` | FreeRTOS task | 4096 B | 3 |
 | NimBLE host | `nimble_host` | FreeRTOS task (NimBLE) | — | — |
@@ -253,7 +253,7 @@ Wi-Fi driver handles, ESP-IDF event registrations, reconnect/setup-AP retry time
 
 Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled = 1`.
 
-**`air360_cellular` FreeRTOS task:**
+**`cellular` FreeRTOS task:**
 - Stack: 8192 bytes
 - Priority: 5
 - Runs an indefinite reconnect loop
@@ -337,7 +337,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 
 | Type | Transport | Default Address | Min Poll |
 |------|-----------|----------------|----------|
-| BME280 | I2C | 0x76 | 10 s |
+| BME280 | I2C | 0x76 | 5 s |
 | BME680 | I2C | 0x77 | 5 s |
 | SPS30 | I2C | 0x69 | 5 s |
 | SCD30 | I2C | 0x61 | 5 s |
@@ -346,9 +346,9 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | SHT4X | I2C | 0x44 | 5 s |
 | INA219 | I2C | 0x40 | 5 s |
 | GPS (NMEA) | UART1 | — | 5 s |
-| MH-Z19B | UART2 | — | 5 s |
-| DHT11 | GPIO | — | 2 s |
-| DHT22 | GPIO | — | 2 s |
+| MH-Z19B | UART2 | — | 10 s |
+| DHT11 | GPIO | — | 5 s |
+| DHT22 | GPIO | — | 5 s |
 | DS18B20 | GPIO (1-Wire) | — | 5 s |
 | ME3-NO2 | Analog (ADC) | — | 5 s |
 
@@ -433,7 +433,7 @@ GPS reports: latitude, longitude, altitude, satellites, speed, course, HDOP — 
 In-memory bounded ring buffer for measurement samples. All access is protected by a static mutex.
 
 **Limits:**
-- Max queued samples: 256
+- Max queued samples: `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` (default 256)
 - Oldest sample dropped on overflow (ring buffer semantics)
 
 **Lifecycle:**
@@ -475,7 +475,7 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
-| upload_interval_s | 10–300 seconds (default 145 s) |
+| upload_interval_ms | 10 000–300 000 ms (default 145 000 ms) |
 
 **Log tag:** `air360.backend_cfg`
 
@@ -509,7 +509,7 @@ Manages the upload cycle and per-backend runtime state.
 - Stack: 7168 bytes
 - Priority: 4
 - Normal loop delay: 1000 ms
-- Upload interval: 145 s (global backend config value, 10–300 s)
+- Upload interval: 145 000 ms by default (global backend config value, 10 000–300 000 ms)
 - Due backends drain the cycle-start backlog in bounded windows, then wait for the configured interval.
 
 **Upload preconditions (checked every cycle):**
@@ -839,18 +839,18 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Constant | Value | Location |
 |----------|-------|----------|
 | Max configured sensors | 8 | `sensor_types.hpp` |
-| Max configured backends | 2 | `backend_config.hpp` |
+| Max configured backends | 4 | `backend_config.hpp` |
 | Max measurement values per point | 16 | `sensor_types.hpp` |
-| Max queued samples | 256 | `measurement_store.cpp` |
+| Max queued samples | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` (default 256) | `tuning.hpp` / `measurement_store.cpp` |
 | Max samples per upload window | 32 | `upload_manager.cpp` |
-| Watchdog timeout | 10 s | `app.cpp` |
+| Watchdog timeout | 30 s | `app.cpp` |
 | I2C clock | 100 kHz | `transport_binding.cpp` |
 | I2C transfer timeout | 200 ms | `transport_binding.cpp` |
 | UART RX buffer | 4096 B default; GPS may request more | `transport_binding.cpp` |
 | HTTP request timeout | 15 000 ms | upload adapters |
 | HTTP buffer size | 512 B | `upload_transport.cpp` |
-| Upload interval default | 145 s | `backend_config.hpp` |
-| Upload interval range | 10–300 s | `backend_config_repository.cpp` |
+| Upload interval default | 145 000 ms | `backend_config.hpp` |
+| Upload interval range | 10 000–300 000 ms | `backend_config_repository.cpp` |
 | Sensor poll interval range | 5 000–3 600 000 ms | `sensor_registry.cpp` |
 | Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
 | Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |

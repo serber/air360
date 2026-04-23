@@ -125,13 +125,13 @@ struct CellularConfig {
     uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
     uint8_t  reset_gpio;         // 0xFF = not wired
     uint8_t  reserved0;
-    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; 0 = disabled
+    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; default: 600
     uint16_t reserved1;
     char     apn[64];             // PDP context APN; required when enabled
     char     username[32];        // optional PAP/CHAP username; empty if not required
     char     password[64];        // optional PAP/CHAP password
     char     sim_pin[8];          // optional SIM PIN; empty if SIM has no PIN lock
-    char     connectivity_check_host[64]; // IPv4 address for ICMP check; empty = skip
+    char     connectivity_check_host[64]; // IPv4 address for ICMP check; default: "8.8.8.8"
 };
 ```
 
@@ -145,9 +145,9 @@ struct CellularConfig {
 | `pwrkey_gpio` | `0xFF` | `0xFF` = not wired; used for hardware power-cycle |
 | `sleep_gpio` | `0xFF` | `0xFF` = not wired; asserted during reconnect backoff |
 | `reset_gpio` | `0xFF` | `0xFF` = not wired; reserved, not actively used |
-| `wifi_debug_window_s` | `0` | `0` = Wi-Fi station stops immediately when cellular is active |
+| `wifi_debug_window_s` | `600` | `0` = Wi-Fi station stops immediately when cellular is active |
 | `apn` | `""` | Must be non-empty when `enabled != 0` |
-| `connectivity_check_host` | `""` | Must be an IPv4 address (not a hostname); empty skips the check |
+| `connectivity_check_host` | `"8.8.8.8"` | Must be an IPv4 address (not a hostname); empty skips the check |
 
 ---
 

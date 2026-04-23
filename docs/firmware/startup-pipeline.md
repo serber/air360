@@ -33,7 +33,7 @@ ROM bootloader
        └─ ESP-IDF runtime init
             └─ app_main task (FreeRTOS, stack 8 KB)
                  └─ App::run()  ← 9 sequential boot steps
-                      ├─ step 4b → CellularManager::start() (may spawn air360_cellular task)
+                      ├─ step 4b → CellularManager::start() (may spawn cellular task)
                       ├─ step 5  → spawns air360_sensor task
                       ├─ step 8  → spawns air360_upload task
                       └─ step 9  → starts esp_http_server (its own task)
@@ -104,7 +104,7 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | Red LED on failure |
 | 3/9 | Initialize network core (`netif` + event loop) | **Yes** | Red LED on failure |
 | 4/9 | Load or create `device_cfg` | No | `boot_count` incremented; `StatusService` updated |
-| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | **`air360_cellular` task spawned** if `enabled != 0` |
+| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | **`cellular` task spawned** if `enabled != 0` |
 | 5/9 | Load or create `sensor_cfg`; start sensor task | No | **`air360_sensor` task spawned** |
 | 6/9 | Load or create `backend_cfg` | No | — |
 | 7/9 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `StatusService` updated with network and cellular state |
@@ -135,7 +135,7 @@ The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via th
 - If TWDT was already initialized by ESP-IDF (from `sdkconfig`), the call simply attaches to it
 - If TWDT is not pre-initialized, the firmware initializes it with the parameters above
 
-The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `air360_cellular`, `air360_ble`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
+The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `cellular`, `air360_ble`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
 
 Spawned helper tasks created by `NetworkManager` during Wi-Fi reconnect (issue C6) are **not yet subscribed** — they are short-lived and addressed as part of the C6 refactor.
 
@@ -180,9 +180,9 @@ Config load failure is **non-fatal** — in-memory defaults are used and the boo
 Then:
 
 1. `CellularManager::init(network_manager)` — wires the network manager reference into the cellular manager so it can update uplink state
-2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `air360_cellular` FreeRTOS task** which manages the SIM7600E PPP session, reconnect backoff, and hardware reset cycles
+2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `cellular` FreeRTOS task** which manages the SIM7600E PPP session, reconnect backoff, and hardware reset cycles
 
-> **`air360_cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point.
+> **`cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point.
 
 `StatusService` is updated with the cellular manager reference.
 
@@ -325,7 +325,7 @@ After the boot sequence completes, the following tasks run concurrently:
 | Task | Stack | Priority | Loop period | TWDT | Spawned at |
 |------|-------|----------|-------------|------|------------|
 | `app_main` (main task) | 8 192 B | default | 10 s | ✓ subscribed | ESP-IDF runtime |
-| `air360_cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 4b — `CellularManager::start()` (when enabled) |
+| `cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 4b — `CellularManager::start()` (when enabled) |
 | `air360_net` | 6 144 B | 2 | event-driven | ✓ subscribed | Step 7 — `NetworkManager::ensureWifiInit()` |
 | `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()` |
 | `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 8 — `UploadManager::start()` |

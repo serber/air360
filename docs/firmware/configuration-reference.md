@@ -169,18 +169,18 @@ Schema version: 1.
 | `pwrkey_gpio` | `uint8_t` | `0xFF` | PWRKEY GPIO; `0xFF` = not wired |
 | `sleep_gpio` | `uint8_t` | `0xFF` | DTR/sleep GPIO; `0xFF` = not wired |
 | `reset_gpio` | `uint8_t` | `0xFF` | Hardware reset GPIO; `0xFF` = not wired |
-| `wifi_debug_window_s` | `uint16_t` | `0` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
+| `wifi_debug_window_s` | `uint16_t` | `600` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 | `apn` | `char[64]` | `""` | PDP context APN; required when `enabled = 1` |
 | `username` | `char[32]` | `""` | Optional PAP/CHAP username; empty if not required by carrier |
 | `password` | `char[64]` | `""` | Optional PAP/CHAP password |
 | `sim_pin` | `char[8]` | `""` | Optional SIM PIN; empty if SIM has no PIN lock |
-| `connectivity_check_host` | `char[64]` | `""` | IPv4 address to ICMP-ping after PPP connects; empty = skip check |
+| `connectivity_check_host` | `char[64]` | `"8.8.8.8"` | IPv4 address to ICMP-ping after PPP connects; empty = skip check |
 
 ### Notes
 
 - `CellularConfig` is versioned separately from `DeviceConfig` with its own magic (`0x43454C4C`) and schema version. An integrity failure resets only the cellular config to defaults.
 - When `enabled = 1`, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
-- When `apn` is empty on the config page, the form pre-fills it with `"internet"`. When `connectivity_check_host` is empty, the form pre-fills `"8.8.8.8"`. These are display-time defaults only — neither is written to NVS until the user saves.
+- `connectivity_check_host` defaults to `"8.8.8.8"` in the compiled-in `CellularConfig`. When the field is emptied in the UI, the form still pre-fills `"8.8.8.8"` for convenience before save.
 - `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
 - `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.
 
