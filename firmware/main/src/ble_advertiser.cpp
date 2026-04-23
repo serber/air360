@@ -43,17 +43,20 @@ struct BthomeEntry {
     float factor;
 };
 
+static_assert(sizeof(BthomeEntry) == 8U,
+    "BthomeEntry layout changed — update kBthomeMap[] designated initializers");
+
 // Encoding priority: most important first. Total packet budget = 27 bytes
 // (31 byte limit − flags 3B − name AD ~8B − service data header 4B − device_info 1B = ~15B free).
 // Each entry = 1B ID + value_bytes.
 constexpr BthomeEntry kBthomeMap[] = {
-    {SensorValueKind::kTemperatureC,    0x02U, 2U, true,  100.0f},
-    {SensorValueKind::kHumidityPercent, 0x03U, 2U, false, 100.0f},
-    {SensorValueKind::kCo2Ppm,          0x12U, 2U, false,   1.0f},
-    {SensorValueKind::kPm2_5UgM3,       0x0DU, 2U, false, 100.0f},
-    {SensorValueKind::kPm10_0UgM3,      0x0EU, 2U, false, 100.0f},
-    {SensorValueKind::kPressureHpa,     0x04U, 3U, false, 100.0f},
-    {SensorValueKind::kIlluminanceLux,  0x05U, 3U, false, 100.0f},
+    {.kind = SensorValueKind::kTemperatureC,    .object_id = 0x02U, .value_bytes = 2U, .is_signed = true,  .factor = 100.0f},
+    {.kind = SensorValueKind::kHumidityPercent, .object_id = 0x03U, .value_bytes = 2U, .is_signed = false, .factor = 100.0f},
+    {.kind = SensorValueKind::kCo2Ppm,          .object_id = 0x12U, .value_bytes = 2U, .is_signed = false, .factor =   1.0f},
+    {.kind = SensorValueKind::kPm2_5UgM3,       .object_id = 0x0DU, .value_bytes = 2U, .is_signed = false, .factor = 100.0f},
+    {.kind = SensorValueKind::kPm10_0UgM3,      .object_id = 0x0EU, .value_bytes = 2U, .is_signed = false, .factor = 100.0f},
+    {.kind = SensorValueKind::kPressureHpa,     .object_id = 0x04U, .value_bytes = 3U, .is_signed = false, .factor = 100.0f},
+    {.kind = SensorValueKind::kIlluminanceLux,  .object_id = 0x05U, .value_bytes = 3U, .is_signed = false, .factor = 100.0f},
 };
 constexpr std::size_t kBthomeMapSize = sizeof(kBthomeMap) / sizeof(kBthomeMap[0]);
 

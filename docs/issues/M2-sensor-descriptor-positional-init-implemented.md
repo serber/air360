@@ -62,3 +62,12 @@ Adding or reordering a field silently changes the meaning of every subsequent ar
 ## Related
 
 - C1 — Sensirion HAL refactor may touch descriptor wiring; do M2 first to make the change safe.
+
+## Resolved
+
+- **Date:** 2026-04-22
+- **Files changed:**
+  - `firmware/main/CMakeLists.txt` — upgraded C++ standard to C++20
+  - `firmware/main/src/sensors/sensor_registry.cpp` — all 14 `SensorDescriptor` entries converted to designated initializers; `static_assert(sizeof(SensorDescriptor) == 44U)` added
+  - `firmware/main/src/ble_advertiser.cpp` — `kBthomeMap[]` (7 `BthomeEntry` entries) converted; `static_assert(sizeof(BthomeEntry) == 8U)` added
+  - `firmware/main/src/uploads/backend_registry.cpp` — all 4 `BackendDescriptor` entries (including nested `BackendTypeDefaults`) converted; `static_assert(sizeof(BackendTypeDefaults) == 16U)` and `static_assert(sizeof(BackendDescriptor) == 36U)` added
