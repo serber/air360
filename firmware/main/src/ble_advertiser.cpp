@@ -46,12 +46,12 @@ struct BthomeEntry {
 };
 
 static_assert(sizeof(BthomeEntry) == 8U,
-    "BthomeEntry layout changed — update kBthomeMap[] designated initializers");
+    "BthomeEntry layout changed — update kBthomeMap designated initializers");
 
 // Encoding priority: most important first. Total packet budget = 27 bytes
 // (31 byte limit − flags 3B − name AD ~8B − service data header 4B − device_info 1B = ~15B free).
 // Each entry = 1B ID + value_bytes.
-constexpr BthomeEntry kBthomeMap[] = {
+constexpr std::array<BthomeEntry, 7U> kBthomeMap{{
     {.kind = SensorValueKind::kTemperatureC,    .object_id = 0x02U, .value_bytes = 2U, .is_signed = true,  .factor = 100.0f},
     {.kind = SensorValueKind::kHumidityPercent, .object_id = 0x03U, .value_bytes = 2U, .is_signed = false, .factor = 100.0f},
     {.kind = SensorValueKind::kCo2Ppm,          .object_id = 0x12U, .value_bytes = 2U, .is_signed = false, .factor =   1.0f},
@@ -59,8 +59,7 @@ constexpr BthomeEntry kBthomeMap[] = {
     {.kind = SensorValueKind::kPm10_0UgM3,      .object_id = 0x0EU, .value_bytes = 2U, .is_signed = false, .factor = 100.0f},
     {.kind = SensorValueKind::kPressureHpa,     .object_id = 0x04U, .value_bytes = 3U, .is_signed = false, .factor = 100.0f},
     {.kind = SensorValueKind::kIlluminanceLux,  .object_id = 0x05U, .value_bytes = 3U, .is_signed = false, .factor = 100.0f},
-};
-constexpr std::size_t kBthomeMapSize = sizeof(kBthomeMap) / sizeof(kBthomeMap[0]);
+}};
 
 void onSync() {
     ESP_LOGI(kTag, "NimBLE host synced");
@@ -352,7 +351,7 @@ std::uint8_t BleAdvertiser::buildPayload(std::uint8_t* buf, std::uint8_t max_len
     const std::size_t latest_count =
         store_->allLatestMeasurements(latest.data(), latest.size());
 
-    for (std::size_t map_idx = 0U; map_idx < kBthomeMapSize; ++map_idx) {
+    for (std::size_t map_idx = 0U; map_idx < kBthomeMap.size(); ++map_idx) {
         const BthomeEntry& bte = kBthomeMap[map_idx];
         const std::uint8_t needed = 1U + bte.value_bytes;
 

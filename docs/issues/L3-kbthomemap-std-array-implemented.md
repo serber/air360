@@ -42,3 +42,15 @@ Compile-time arrays are declared as C-style arrays with a manual size constant c
 ## Related
 
 - L2 — part of the same `ble_advertiser` cleanup.
+
+## Implemented
+
+Implemented.
+
+- `kBthomeMap` in `firmware/main/src/ble_advertiser.cpp` now uses `std::array` and `.size()`.
+- The same `sizeof(arr) / sizeof(arr[0])` idiom was removed from the other remaining `firmware/main/` call sites:
+  - `firmware/main/src/web_server.cpp`
+  - `firmware/main/src/cellular_manager.cpp`
+  - `firmware/main/src/uploads/backend_registry.cpp`
+  - `firmware/main/src/sensors/sensor_registry.cpp`
+- `rg -n "sizeof\\s*\\([^\\)]*\\)\\s*/\\s*sizeof\\s*\\([^\\)]*\\[[^\\]]+\\]\\)" firmware/main` returns no matches.

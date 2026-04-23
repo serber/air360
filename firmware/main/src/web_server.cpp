@@ -1,5 +1,6 @@
 #include "air360/web_server.hpp"
 
+#include <array>
 #include <cinttypes>
 #include <cstdint>
 #include <cstddef>
@@ -372,7 +373,7 @@ std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
     return std::max<std::uint32_t>(value, kMinSensorPollIntervalMs);
 }
 
-constexpr SensorType kClimateSensorTypes[] = {
+constexpr std::array<SensorType, 7U> kClimateSensorTypes{{
     SensorType::kBme280,
     SensorType::kBme680,
     SensorType::kDht11,
@@ -380,39 +381,39 @@ constexpr SensorType kClimateSensorTypes[] = {
     SensorType::kDs18b20,
     SensorType::kHtu2x,
     SensorType::kSht4x,
-};
+}};
 
-constexpr SensorType kLightSensorTypes[] = {
+constexpr std::array<SensorType, 1U> kLightSensorTypes{{
     SensorType::kVeml7700,
-};
+}};
 
-constexpr SensorType kParticulateMatterSensorTypes[] = {
+constexpr std::array<SensorType, 1U> kParticulateMatterSensorTypes{{
     SensorType::kSps30,
-};
+}};
 
-constexpr SensorType kLocationSensorTypes[] = {
+constexpr std::array<SensorType, 1U> kLocationSensorTypes{{
     SensorType::kGpsNmea,
-};
+}};
 
-constexpr SensorType kGasSensorTypes[] = {
+constexpr std::array<SensorType, 3U> kGasSensorTypes{{
     SensorType::kScd30,
     SensorType::kMe3No2,
     SensorType::kMhz19b,
-};
+}};
 
-constexpr SensorType kPowerSensorTypes[] = {
+constexpr std::array<SensorType, 1U> kPowerSensorTypes{{
     SensorType::kIna219,
-};
+}};
 
-constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
+constexpr std::array<SensorCategoryDescriptor, 6U> kSensorCategoryDescriptors{{
     {
         SensorCategory::kClimate,
         "climate",
         "Climate",
         "Temperature, humidity, pressure, and related climate measurements over GPIO or I2C.",
         false,
-        kClimateSensorTypes,
-        sizeof(kClimateSensorTypes) / sizeof(kClimateSensorTypes[0]),
+        kClimateSensorTypes.data(),
+        kClimateSensorTypes.size(),
     },
     {
         SensorCategory::kParticulateMatter,
@@ -420,8 +421,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         "Particulate Matter",
         "Fine dust concentration and particle size metrics.",
         false,
-        kParticulateMatterSensorTypes,
-        sizeof(kParticulateMatterSensorTypes) / sizeof(kParticulateMatterSensorTypes[0]),
+        kParticulateMatterSensorTypes.data(),
+        kParticulateMatterSensorTypes.size(),
     },
     {
         SensorCategory::kLight,
@@ -429,8 +430,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         "Light",
         "Ambient light and illuminance sensing.",
         false,
-        kLightSensorTypes,
-        sizeof(kLightSensorTypes) / sizeof(kLightSensorTypes[0]),
+        kLightSensorTypes.data(),
+        kLightSensorTypes.size(),
     },
     {
         SensorCategory::kLocation,
@@ -438,8 +439,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         "Location",
         "GPS coordinates, altitude, movement, and fix state.",
         false,
-        kLocationSensorTypes,
-        sizeof(kLocationSensorTypes) / sizeof(kLocationSensorTypes[0]),
+        kLocationSensorTypes.data(),
+        kLocationSensorTypes.size(),
     },
     {
         SensorCategory::kGas,
@@ -447,8 +448,8 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         "Gas",
         "Gas sensors. Multiple gas sensors are allowed.",
         true,
-        kGasSensorTypes,
-        sizeof(kGasSensorTypes) / sizeof(kGasSensorTypes[0]),
+        kGasSensorTypes.data(),
+        kGasSensorTypes.size(),
     },
     {
         SensorCategory::kPower,
@@ -456,10 +457,10 @@ constexpr SensorCategoryDescriptor kSensorCategoryDescriptors[] = {
         "Power",
         "DC current, voltage, and power monitoring over I2C.",
         false,
-        kPowerSensorTypes,
-        sizeof(kPowerSensorTypes) / sizeof(kPowerSensorTypes[0]),
+        kPowerSensorTypes.data(),
+        kPowerSensorTypes.size(),
     },
-};
+}};
 
 SensorCategory sensorCategoryForType(SensorType type) {
     switch (type) {
@@ -1279,8 +1280,7 @@ SensorsPageViewModel buildSensorsPageViewModel(
     model.runtime_sensor_count = runtime_sensors.size();
     model.free_slots = kMaxConfiguredSensors - sensor_config_list.sensor_count;
     model.notice_html = renderNotice(notice, error_notice);
-    model.sections.reserve(
-        sizeof(kSensorCategoryDescriptors) / sizeof(kSensorCategoryDescriptors[0]));
+    model.sections.reserve(kSensorCategoryDescriptors.size());
 
     for (const auto& category_descriptor : kSensorCategoryDescriptors) {
         SensorCategorySectionViewModel section;

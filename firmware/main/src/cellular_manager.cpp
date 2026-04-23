@@ -1,6 +1,7 @@
 #include "air360/cellular_manager.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <cstdio>
 
@@ -650,7 +651,7 @@ bool CellularManager::doHardwareReset() {
 
 // static
 std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
-    constexpr std::uint32_t kBackoffTableMs[] = {
+    constexpr std::array<std::uint32_t, 7U> kBackoffTableMs{{
         10000U,
         30000U,
         60000U,
@@ -658,14 +659,12 @@ std::uint32_t CellularManager::computeBackoffMs(std::uint32_t attempt) {
         300000U,
         600000U,
         900000U,
-    };
+    }};
     if (attempt == 0U) {
         return kBackoffTableMs[0];
     }
-    constexpr std::size_t kBackoffTableSize =
-        sizeof(kBackoffTableMs) / sizeof(kBackoffTableMs[0]);
     const std::size_t index =
-        std::min<std::size_t>(attempt - 1U, kBackoffTableSize - 1U);
+        std::min<std::size_t>(attempt - 1U, kBackoffTableMs.size() - 1U);
     return kBackoffTableMs[index];
 }
 

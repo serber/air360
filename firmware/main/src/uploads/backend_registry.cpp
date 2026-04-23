@@ -1,5 +1,6 @@
 #include "air360/uploads/backend_registry.hpp"
 
+#include <array>
 #include <cstring>
 #include <string>
 
@@ -110,11 +111,11 @@ bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
 }
 
 static_assert(sizeof(BackendTypeDefaults) == 16U,
-    "BackendTypeDefaults layout changed — update kDescriptors[] designated initializers");
+    "BackendTypeDefaults layout changed — update kDescriptors designated initializers");
 static_assert(sizeof(BackendDescriptor) == 36U,
-    "BackendDescriptor layout changed — update kDescriptors[] designated initializers");
+    "BackendDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr BackendDescriptor kDescriptors[] = {
+constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
     {
         .type           = BackendType::kSensorCommunity,
         .backend_key    = "sensor_community",
@@ -175,16 +176,16 @@ constexpr BackendDescriptor kDescriptors[] = {
         .validate        = &validateInfluxDbRecord,
         .create_uploader = &createInfluxDbUploader,
     },
-};
+}};
 
 }  // namespace
 
 const BackendDescriptor* BackendRegistry::descriptors() const {
-    return kDescriptors;
+    return kDescriptors.data();
 }
 
 std::size_t BackendRegistry::descriptorCount() const {
-    return sizeof(kDescriptors) / sizeof(kDescriptors[0]);
+    return kDescriptors.size();
 }
 
 const BackendDescriptor* BackendRegistry::findByType(BackendType type) const {

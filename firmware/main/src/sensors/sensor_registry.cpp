@@ -1,5 +1,6 @@
 #include "air360/sensors/sensor_registry.hpp"
 
+#include <array>
 #include <string>
 
 #include "air360/sensors/bus_config.hpp"
@@ -342,9 +343,9 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
 // Size computed for ESP32 (32-bit, 4-byte pointers): 17 fields, 44 bytes with padding.
 static_assert(sizeof(SensorDescriptor) == 44U,
-    "SensorDescriptor layout changed — update kDescriptors[] designated initializers");
+    "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr SensorDescriptor kDescriptors[] = {
+constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -611,16 +612,16 @@ constexpr SensorDescriptor kDescriptors[] = {
         .validate                 = &validateMe3No2Record,
         .create_driver            = &createMe3No2Sensor,
     },
-};
+}};
 
 }  // namespace
 
 const SensorDescriptor* SensorRegistry::descriptors() const {
-    return kDescriptors;
+    return kDescriptors.data();
 }
 
 std::size_t SensorRegistry::descriptorCount() const {
-    return sizeof(kDescriptors) / sizeof(kDescriptors[0]);
+    return kDescriptors.size();
 }
 
 const SensorDescriptor* SensorRegistry::findByType(SensorType type) const {
