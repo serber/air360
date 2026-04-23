@@ -51,6 +51,12 @@ The firmware uses the ESP-IDF NimBLE stack (advertising-only profile). Two FreeR
 Service UUID: `0xFCD2`  
 AD type: `0x16` (Service Data — 16-bit UUID)
 
+The fixed advertisement fields are populated through ESP-IDF 6.0's `ble_hs_adv_fields` API:
+
+- Flags: general discoverable + BR/EDR unsupported
+- Complete local name: included only when it fits the legacy 31-byte advertisement budget
+- Service data (`0x16`): BTHome payload, still packed manually because NimBLE does not understand the BTHome object layout itself
+
 Payload layout:
 
 ```

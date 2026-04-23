@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 #include "host/ble_gap.h"
 #include "host/ble_hs.h"
+#include "host/ble_hs_adv.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "sdkconfig.h"
@@ -31,6 +32,7 @@ constexpr TickType_t kStopTimeout = pdMS_TO_TICKS(2000U);
 constexpr std::uint8_t kBthomeUuidLo = 0xD2U;
 constexpr std::uint8_t kBthomeUuidHi = 0xFCU;
 constexpr std::uint8_t kBthomeDeviceInfo = 0x40U;  // no encryption, BTHome v2
+constexpr std::uint8_t kLegacyAdvPacketMaxLen = 31U;
 
 static StaticEventGroup_t g_sync_event_buf;
 static EventGroupHandle_t g_sync_event = nullptr;
@@ -93,6 +95,17 @@ bool deinitNimblePortIfSupported() {
     }
     return true;
 #endif
+}
+
+void writeLe16(std::uint8_t* dst, std::uint16_t value) {
+    dst[0] = static_cast<std::uint8_t>(value & 0xFFU);
+    dst[1] = static_cast<std::uint8_t>(value >> 8U);
+}
+
+void writeLe24(std::uint8_t* dst, std::uint32_t value) {
+    dst[0] = static_cast<std::uint8_t>(value & 0xFFU);
+    dst[1] = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
+    dst[2] = static_cast<std::uint8_t>((value >> 16U) & 0xFFU);
 }
 
 }  // namespace
@@ -269,40 +282,38 @@ void BleAdvertiser::taskMain() {
 }
 
 void BleAdvertiser::updateAdvertisement() {
-    // Build raw advertisement packet manually to avoid ble_hs_adv_fields API differences
-    // across NimBLE versions (flags_is_present was removed in newer ESP-IDF).
-    std::uint8_t adv_buf[31];
+    std::uint8_t adv_buf[kLegacyAdvPacketMaxLen];
     std::uint8_t adv_len = 0U;
-
-    // AD: Flags (3 bytes)
-    adv_buf[adv_len++] = 2U;                                          // length
-    adv_buf[adv_len++] = 0x01U;                                       // type: Flags
-    adv_buf[adv_len++] = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-
-    // AD: Complete Local Name
+    std::array<std::uint8_t, 28U> svc_data{};
+    const std::uint8_t svc_payload_len = buildPayload(svc_data.data(), svc_data.size());
     const std::uint8_t name_len = static_cast<std::uint8_t>(std::strlen(device_name_));
-    if (adv_len + 2U + name_len <= sizeof(adv_buf)) {
-        adv_buf[adv_len++] = static_cast<std::uint8_t>(1U + name_len);  // length
-        adv_buf[adv_len++] = 0x09U;                                      // type: Complete Local Name
-        std::memcpy(&adv_buf[adv_len], device_name_, name_len);
-        adv_len = static_cast<std::uint8_t>(adv_len + name_len);
+
+    struct ble_hs_adv_fields fixed_fields = {};
+    fixed_fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+    if (3U + 2U + name_len <= kLegacyAdvPacketMaxLen) {
+        fixed_fields.name = reinterpret_cast<const std::uint8_t*>(device_name_);
+        fixed_fields.name_len = name_len;
+        fixed_fields.name_is_complete = 1;
+    }
+    const int rc_fields =
+        ble_hs_adv_set_fields(&fixed_fields, adv_buf, &adv_len, sizeof(adv_buf));
+    if (rc_fields != 0) {
+        ESP_LOGW(kTag, "ble_hs_adv_set_fields failed: %d", rc_fields);
+        return;
     }
 
-    // AD: Service Data — 16-bit UUID (BTHome v2)
-    std::uint8_t svc_data[28];
-    const std::uint8_t svc_payload_len = buildPayload(svc_data, sizeof(svc_data));
     if (adv_len + 2U + svc_payload_len <= sizeof(adv_buf)) {
-        adv_buf[adv_len++] = static_cast<std::uint8_t>(1U + svc_payload_len);  // length
-        adv_buf[adv_len++] = 0x16U;                                             // type: Service Data 16-bit
-        std::memcpy(&adv_buf[adv_len], svc_data, svc_payload_len);
+        adv_buf[adv_len++] = static_cast<std::uint8_t>(1U + svc_payload_len);
+        adv_buf[adv_len++] = BLE_HS_ADV_TYPE_SVC_DATA_UUID16;
+        std::memcpy(&adv_buf[adv_len], svc_data.data(), svc_payload_len);
         adv_len = static_cast<std::uint8_t>(adv_len + svc_payload_len);
     }
 
     ble_gap_adv_stop();
 
-    const int rc_fields = ble_gap_adv_set_data(adv_buf, static_cast<int>(adv_len));
-    if (rc_fields != 0) {
-        ESP_LOGW(kTag, "ble_gap_adv_set_data failed: %d", rc_fields);
+    const int rc_set_data = ble_gap_adv_set_data(adv_buf, static_cast<int>(adv_len));
+    if (rc_set_data != 0) {
+        ESP_LOGW(kTag, "ble_gap_adv_set_data failed: %d", rc_set_data);
         return;
     }
 
@@ -379,20 +390,16 @@ std::uint8_t BleAdvertiser::buildPayload(std::uint8_t* buf, std::uint8_t max_len
             if (bte.is_signed) {
                 const float clamped = std::fmaxf(-32768.0f, std::fminf(32767.0f, raw));
                 const auto ival = static_cast<std::int16_t>(clamped);
-                buf[offset]      = static_cast<std::uint8_t>(static_cast<std::uint16_t>(ival) & 0xFFU);
-                buf[offset + 1U] = static_cast<std::uint8_t>(static_cast<std::uint16_t>(ival) >> 8U);
+                writeLe16(&buf[offset], static_cast<std::uint16_t>(ival));
             } else {
                 const float clamped = std::fmaxf(0.0f, std::fminf(65535.0f, raw));
                 const auto uval = static_cast<std::uint16_t>(clamped);
-                buf[offset]      = static_cast<std::uint8_t>(uval & 0xFFU);
-                buf[offset + 1U] = static_cast<std::uint8_t>(uval >> 8U);
+                writeLe16(&buf[offset], uval);
             }
         } else {
             const float clamped = std::fmaxf(0.0f, std::fminf(16777215.0f, raw));
             const auto uval = static_cast<std::uint32_t>(clamped);
-            buf[offset]      = static_cast<std::uint8_t>(uval & 0xFFU);
-            buf[offset + 1U] = static_cast<std::uint8_t>((uval >> 8U) & 0xFFU);
-            buf[offset + 2U] = static_cast<std::uint8_t>((uval >> 16U) & 0xFFU);
+            writeLe24(&buf[offset], uval);
         }
 
         offset += bte.value_bytes;
