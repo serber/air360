@@ -50,3 +50,12 @@ A timer callback and a task-exit can race. Two timers on different cores can bot
 ## Related
 
 - C6 — the proper fix.
+
+## Implemented
+
+Implemented via the C6 refactor already present in `NetworkManager`:
+
+- `connect_attempt_task` no longer exists in `firmware/main/src/network_manager.cpp`.
+- Reconnect and setup-AP retry timers only call `notifyWorker(...)`.
+- A single persistent `air360_net` worker performs blocking reconnect attempts.
+- `rg "connect_attempt_task" firmware/main/src/network_manager.cpp firmware/main/include/air360/network_manager.hpp` returns no matches.
