@@ -40,7 +40,7 @@ bool parseIpv4Octet(std::string_view value, std::uint8_t& out_octet) {
     return true;
 }
 
-esp_err_t saveInternal(nvs_handle_t handle, const DeviceConfig& config) {
+[[nodiscard]] esp_err_t saveInternal(nvs_handle_t handle, const DeviceConfig& config) {
     esp_err_t err = nvs_set_blob(handle, kConfigKey, &config, sizeof(config));
     if (err != ESP_OK) {
         return err;
@@ -66,6 +66,7 @@ bool isValidIpv4Address(std::string_view value) {
             return false;
         }
 
+        // The parsed octet range is the validation signal; the numeric value is not needed here.
         static_cast<void>(octet);
         cursor = end + 1U;
     }

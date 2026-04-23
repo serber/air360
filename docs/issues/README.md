@@ -35,7 +35,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [M1 — `scanAvailableNetworks` uses blocking Wi-Fi scan](M1-wifi-scan-blocking-implemented.md)
 - [M2 — Positional aggregate initialization of `SensorDescriptor`](M2-sensor-descriptor-positional-init-implemented.md)
 - [M3 — Transport binding hardcodes bus 0 and UART 1/2](M3-transport-binding-hardcoded-implemented.md)
-- [M4 — Ignored return values via `static_cast<void>`](M4-void-cast-returns.md)
+- [M4 — Ignored return values via `static_cast<void>`](M4-void-cast-returns-implemented.md)
 - [M5 — DHT/BME280 drivers force full re-init on any error](M5-sensor-reinit-on-error.md)
 - [M6 — `ConnectivityChecker` allocates an event group per call](M6-connectivity-checker-allocations.md)
 - [M7 — `web_server.cpp` stack 10 KB with `std::string` rendering](M7-web-server-stack.md)

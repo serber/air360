@@ -72,6 +72,7 @@ void onReset(int reason) {
 }
 
 void nimbleHostTask(void* param) {
+    // FreeRTOS task entry signature requires the parameter; NimBLE state is global.
     static_cast<void>(param);
     nimble_port_run();
     nimble_port_freertos_deinit();
@@ -181,6 +182,7 @@ void BleAdvertiser::stop() {
     }
 
     enabled_.store(false, std::memory_order_release);
+    // Stopping a non-advertising GAP instance is acceptable during shutdown.
     static_cast<void>(ble_gap_adv_stop());
 
     TaskHandle_t task = task_handle_.load(std::memory_order_acquire);
@@ -230,6 +232,7 @@ void BleAdvertiser::taskMain() {
         const EventBits_t bits =
             xEventGroupWaitBits(g_sync_event, kSyncedBit, pdFALSE, pdTRUE, kSyncWaitSlice);
         if (wdt_subscribed) {
+            // TWDT reset failure is non-actionable inside the subscribed task loop.
             static_cast<void>(esp_task_wdt_reset());
         }
         if ((bits & kSyncedBit) != 0U) {
@@ -242,8 +245,10 @@ void BleAdvertiser::taskMain() {
     }
 
     while (enabled_.load(std::memory_order_acquire)) {
+        // The notification count only wakes the advertiser loop for shutdown/update checks.
         static_cast<void>(ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kUpdateIntervalMs)));
         if (wdt_subscribed) {
+            // TWDT reset failure is non-actionable inside the subscribed task loop.
             static_cast<void>(esp_task_wdt_reset());
         }
         if (!enabled_.load(std::memory_order_acquire)) {
@@ -254,6 +259,7 @@ void BleAdvertiser::taskMain() {
 
     task_handle_.store(nullptr, std::memory_order_release);
     if (wdt_subscribed) {
+        // Task teardown continues even if TWDT already removed this task.
         static_cast<void>(esp_task_wdt_delete(nullptr));
     }
     if (stop_done_ != nullptr) {

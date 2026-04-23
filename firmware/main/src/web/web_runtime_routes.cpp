@@ -89,6 +89,7 @@ esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
     // No cached data yet and no scan running — kick one off asynchronously.
     // The client re-polls GET /wifi-scan using scan_in_progress until results arrive.
     if (scan.last_scan_uptime_ms == 0U && !scan.scan_in_progress) {
+        // Scan errors are reflected in the refreshed WifiScanSnapshot returned below.
         static_cast<void>(server->network_manager_->scanAvailableNetworks());
         scan = server->network_manager_->wifiScanSnapshot();
     }

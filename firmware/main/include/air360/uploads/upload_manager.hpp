@@ -72,8 +72,8 @@ class UploadManager {
         const SensorManager& sensor_manager,
         MeasurementStore& measurement_store,
         const NetworkManager& network_manager);
-    esp_err_t applyConfig(const BackendConfigList& config);
-    esp_err_t stop();
+    [[nodiscard]] esp_err_t applyConfig(const BackendConfigList& config);
+    [[nodiscard]] esp_err_t stop();
 
     std::vector<BackendStatusSnapshot> backends() const;
     UploadManagerRuntimeSnapshot runtimeSnapshot() const;

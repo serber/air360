@@ -51,12 +51,12 @@ bool validateStaticIpv4Config(const DeviceConfig& config, const char*& out_error
 
 class ConfigRepository {
   public:
-    esp_err_t loadOrCreate(
+    [[nodiscard]] esp_err_t loadOrCreate(
         DeviceConfig& out_config,
         bool& loaded_from_storage,
         bool& wrote_defaults);
-    esp_err_t save(const DeviceConfig& config);
-    esp_err_t incrementBootCount(std::uint32_t& out_boot_count);
+    [[nodiscard]] esp_err_t save(const DeviceConfig& config);
+    [[nodiscard]] esp_err_t incrementBootCount(std::uint32_t& out_boot_count);
 
   private:
     bool isValid(const DeviceConfig& config) const;

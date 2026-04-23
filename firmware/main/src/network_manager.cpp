@@ -710,6 +710,7 @@ void NetworkManager::notifyWorker(std::uint32_t request_bits) {
         return;
     }
 
+    // Worker requests are level-triggered by bits; a missed notify is visible on the next retry.
     static_cast<void>(xTaskNotify(worker, request_bits, eSetBits));
 }
 
@@ -725,8 +726,10 @@ void NetworkManager::workerLoop() {
 
     for (;;) {
         std::uint32_t bits = 0U;
+        // A timeout simply lets the worker feed TWDT and check for the next request.
         static_cast<void>(xTaskNotifyWait(0U, kAllWorkerReqBits, &bits, kNetworkWorkerWait));
         if (wdt_subscribed) {
+            // TWDT reset failure is non-actionable inside the subscribed task loop.
             static_cast<void>(esp_task_wdt_reset());
         }
 
@@ -739,17 +742,29 @@ void NetworkManager::workerLoop() {
             unlock();
 
             if (has_config && (bits & kWorkerReconnectReq) != 0U) {
-                static_cast<void>(attemptStationConnect(
+                const esp_err_t reconnect_err = attemptStationConnect(
                     config,
                     kDefaultConnectTimeoutMs,
-                    ConnectAttemptKind::kRuntimeReconnect));
+                    ConnectAttemptKind::kRuntimeReconnect);
+                if (reconnect_err != ESP_OK) {
+                    ESP_LOGW(
+                        kTag,
+                        "Runtime station reconnect failed: %s",
+                        esp_err_to_name(reconnect_err));
+                }
             }
 
             if (has_config && (bits & kWorkerSetupApRetryReq) != 0U) {
-                static_cast<void>(attemptStationConnect(
+                const esp_err_t setup_retry_err = attemptStationConnect(
                     config,
                     kDefaultConnectTimeoutMs,
-                    ConnectAttemptKind::kSetupApRetry));
+                    ConnectAttemptKind::kSetupApRetry);
+                if (setup_retry_err != ESP_OK) {
+                    ESP_LOGW(
+                        kTag,
+                        "Setup AP station retry failed: %s",
+                        esp_err_to_name(setup_retry_err));
+                }
             }
         }
 

@@ -19,6 +19,7 @@ SensorType Ds18b20Sensor::type() const {
 }
 
 esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
+    // DS18B20 uses its own one-wire bus and does not need the shared driver context.
     static_cast<void>(context);
     reset();
     record_ = record;

@@ -27,6 +27,7 @@ SensorType DhtSensor::type() const {
 }
 
 esp_err_t DhtSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
+    // DHT uses its configured GPIO directly and does not need the shared driver context.
     static_cast<void>(context);
     record_ = record;
     measurement_.clear();

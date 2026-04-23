@@ -54,6 +54,8 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 | `SensorConfigList` | `0x41333631` ("A361") | 1 |
 | `BackendConfigList` | `0x41333632` ("A362") | 1 |
 
+Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
+
 ---
 
 ## `device_cfg` — `DeviceConfig`

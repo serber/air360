@@ -514,6 +514,7 @@ void SensorManager::taskMain() {
             unlock();
         }
 
+        // The notification count only wakes the polling loop; no per-notification state is encoded.
         static_cast<void>(ulTaskNotifyTake(pdTRUE, kManagerLoopDelay));
         esp_task_wdt_reset();
     }

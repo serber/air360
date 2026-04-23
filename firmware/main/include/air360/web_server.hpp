@@ -24,7 +24,7 @@ class WebServer {
     WebServer(WebServer&&) = delete;
     WebServer& operator=(WebServer&&) = delete;
 
-    esp_err_t start(
+    [[nodiscard]] esp_err_t start(
         StatusService& status_service,
         NetworkManager& network_manager,
         ConfigRepository& config_repository,

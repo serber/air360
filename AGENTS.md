@@ -31,6 +31,11 @@ Do not try `which idf.py`, do not search for it, do not try other paths. Use the
 
 - Timer callbacks MUST NOT call `xTaskCreate`, allocate memory, or block. They may only set atomic flags, notify existing tasks, or post to queues with non-blocking FreeRTOS primitives.
 
+## Firmware return-value rules
+
+- Discarding a return value requires either a function with no `[[nodiscard]]` contract, or an explicit one-line comment immediately before `static_cast<void>(...)` explaining why the result is intentionally unused.
+- Return values that affect observability, recovery, persistence, or task lifecycle should be logged, exposed through status, counted, or propagated instead of discarded.
+
 ## Firmware entry points
 
 Start here depending on the task:

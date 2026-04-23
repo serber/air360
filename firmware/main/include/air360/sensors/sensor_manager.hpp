@@ -44,8 +44,8 @@ class SensorManager {
     SensorManager& operator=(SensorManager&&) = delete;
 
     void setMeasurementStore(MeasurementStore& measurement_store);
-    esp_err_t applyConfig(const SensorConfigList& config);
-    esp_err_t stop();
+    [[nodiscard]] esp_err_t applyConfig(const SensorConfigList& config);
+    [[nodiscard]] esp_err_t stop();
 
     std::vector<SensorRuntimeInfo> sensors() const;
     std::size_t configuredCount() const;

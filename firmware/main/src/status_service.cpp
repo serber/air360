@@ -22,6 +22,18 @@ const char* boolString(bool value) {
     return value ? "true" : "false";
 }
 
+const char* configLoadSourceKey(ConfigLoadSource source) {
+    switch (source) {
+        case ConfigLoadSource::kNvsPrimary:
+            return "nvs_primary";
+        case ConfigLoadSource::kNvsBackup:
+            return "nvs_backup";
+        case ConfigLoadSource::kDefaults:
+        default:
+            return "defaults";
+    }
+}
+
 const char* networkModeString(NetworkMode mode) {
     switch (mode) {
         case NetworkMode::kSetupAp:
@@ -336,6 +348,10 @@ struct StatusServiceRenderSnapshot {
     bool watchdog_armed = false;
     bool config_loaded_from_storage = false;
     bool wrote_default_config = false;
+    ConfigLoadRuntimeStatus device_config_load{};
+    ConfigLoadRuntimeStatus cellular_config_load{};
+    ConfigLoadRuntimeStatus sensor_config_load{};
+    ConfigLoadRuntimeStatus backend_config_load{};
     bool web_server_started = false;
     esp_reset_reason_t reset_reason = ESP_RST_UNKNOWN;
     std::vector<SensorRuntimeInfo> sensors;
@@ -916,6 +932,26 @@ std::string renderDiagnosticsNetworkBlock(
     return html;
 }
 
+std::string renderConfigLoadStatusJson(const ConfigLoadRuntimeStatus& status) {
+    std::string json;
+    json.reserve(256U);
+    json += "{";
+    json += "\"load_source\":\"";
+    json += configLoadSourceKey(status.load_source);
+    json += "\",\"nvs_primary_load_count\":";
+    json += std::to_string(status.counters.nvs_primary);
+    json += ",\"nvs_backup_load_count\":";
+    json += std::to_string(status.counters.nvs_backup);
+    json += ",\"defaults_load_count\":";
+    json += std::to_string(status.counters.defaults);
+    json += ",\"wrote_defaults\":";
+    json += boolString(status.wrote_defaults);
+    json += ",\"last_error\":\"";
+    json += jsonEscape(esp_err_to_name(status.last_error));
+    json += "\"}";
+    return json;
+}
+
 std::string buildStatusJsonDocument(
     const BuildInfo& build_info,
     const StatusServiceRenderSnapshot& render_snapshot) {
@@ -981,6 +1017,16 @@ std::string buildStatusJsonDocument(
     json += boolString(render_snapshot.config_loaded_from_storage);
     json += ",\"wrote_default_config\":";
     json += boolString(render_snapshot.wrote_default_config);
+    json += ",\"config\":{";
+    json += "\"device\":";
+    json += renderConfigLoadStatusJson(render_snapshot.device_config_load);
+    json += ",\"cellular\":";
+    json += renderConfigLoadStatusJson(render_snapshot.cellular_config_load);
+    json += ",\"sensors\":";
+    json += renderConfigLoadStatusJson(render_snapshot.sensor_config_load);
+    json += ",\"backends\":";
+    json += renderConfigLoadStatusJson(render_snapshot.backend_config_load);
+    json += "}";
     json += ",\"web_server_started\":";
     json += boolString(render_snapshot.web_server_started);
     json += ",\"http_port\":" + std::to_string(render_snapshot.config.http_port) + ",";
@@ -1233,6 +1279,50 @@ void StatusService::setConfig(
     unlock();
 }
 
+void StatusService::recordConfigLoad(
+    ConfigRepositoryKind repository,
+    ConfigLoadSource source,
+    esp_err_t result,
+    bool wrote_defaults) {
+    lock();
+    ConfigLoadRuntimeStatus* status = nullptr;
+    switch (repository) {
+        case ConfigRepositoryKind::kDevice:
+            status = &device_config_load_;
+            break;
+        case ConfigRepositoryKind::kCellular:
+            status = &cellular_config_load_;
+            break;
+        case ConfigRepositoryKind::kSensors:
+            status = &sensor_config_load_;
+            break;
+        case ConfigRepositoryKind::kBackends:
+            status = &backend_config_load_;
+            break;
+        default:
+            break;
+    }
+
+    if (status != nullptr) {
+        status->load_source = source;
+        status->last_error = result;
+        status->wrote_defaults = wrote_defaults;
+        switch (source) {
+            case ConfigLoadSource::kNvsPrimary:
+                ++status->counters.nvs_primary;
+                break;
+            case ConfigLoadSource::kNvsBackup:
+                ++status->counters.nvs_backup;
+                break;
+            case ConfigLoadSource::kDefaults:
+            default:
+                ++status->counters.defaults;
+                break;
+        }
+    }
+    unlock();
+}
+
 void StatusService::setBootCount(std::uint32_t boot_count) {
     lock();
     boot_count_ = boot_count;
@@ -1303,6 +1393,10 @@ std::string StatusService::renderRootHtml() const {
     render_snapshot.watchdog_armed = watchdog_armed_;
     render_snapshot.config_loaded_from_storage = config_loaded_from_storage_;
     render_snapshot.wrote_default_config = wrote_default_config_;
+    render_snapshot.device_config_load = device_config_load_;
+    render_snapshot.cellular_config_load = cellular_config_load_;
+    render_snapshot.sensor_config_load = sensor_config_load_;
+    render_snapshot.backend_config_load = backend_config_load_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
     sensor_manager = sensor_manager_;
@@ -1395,6 +1489,10 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
     render_snapshot.watchdog_armed = watchdog_armed_;
     render_snapshot.config_loaded_from_storage = config_loaded_from_storage_;
     render_snapshot.wrote_default_config = wrote_default_config_;
+    render_snapshot.device_config_load = device_config_load_;
+    render_snapshot.cellular_config_load = cellular_config_load_;
+    render_snapshot.sensor_config_load = sensor_config_load_;
+    render_snapshot.backend_config_load = backend_config_load_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
     cellular_manager = cellular_manager_;
@@ -1472,6 +1570,10 @@ std::string StatusService::renderStatusJson() const {
     render_snapshot.watchdog_armed = watchdog_armed_;
     render_snapshot.config_loaded_from_storage = config_loaded_from_storage_;
     render_snapshot.wrote_default_config = wrote_default_config_;
+    render_snapshot.device_config_load = device_config_load_;
+    render_snapshot.cellular_config_load = cellular_config_load_;
+    render_snapshot.sensor_config_load = sensor_config_load_;
+    render_snapshot.backend_config_load = backend_config_load_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
     cellular_manager = cellular_manager_;

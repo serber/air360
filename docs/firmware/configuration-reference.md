@@ -22,7 +22,7 @@ This is the field-level reference for editable firmware configuration across dev
 - [web-ui.md](web-ui.md)
 - [network-manager.md](network-manager.md)
 
-The firmware stores all user-editable configuration in three NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
+The firmware stores all user-editable configuration in four NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
 
 For storage format details (magic numbers, schema versions, struct layouts) see [nvs.md](nvs.md).
 
@@ -37,7 +37,7 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
-All three are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values.
+All four are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
 
 ---
 

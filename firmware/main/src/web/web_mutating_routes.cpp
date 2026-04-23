@@ -37,6 +37,7 @@ using web::validateConfigForm;
 using web::validateSensorCategorySelection;
 
 void restartCallback(void* arg) {
+    // esp_timer callback signature provides arg; restart timer has no per-call state.
     static_cast<void>(arg);
     esp_restart();
 }

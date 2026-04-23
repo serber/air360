@@ -636,7 +636,11 @@ bool CellularManager::doHardwareReset() {
     wdtFeedingDelay(kModemShutdownWaitMs);
 
     ESP_LOGI(kTag, "HW reset: power-on pulse (%" PRIu32 " ms)", kPwrkeyPowerOnMs);
-    static_cast<void>(pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOnMs));
+    const bool power_on_pulsed = pulseModemPwrkey(config_.pwrkey_gpio, kPwrkeyPowerOnMs);
+    if (!power_on_pulsed) {
+        ESP_LOGW(kTag, "HW reset power-on pulse skipped: PWRKEY GPIO is not wired");
+        return false;
+    }
     resetTaskWatchdog();
     wdtFeedingDelay(kModemBootWaitMs);
 

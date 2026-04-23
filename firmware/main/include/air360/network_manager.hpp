@@ -85,14 +85,16 @@ class NetworkManager {
     NetworkManager(NetworkManager&&) = delete;
     NetworkManager& operator=(NetworkManager&&) = delete;
 
-    esp_err_t connectStation(const DeviceConfig& config, std::uint32_t timeout_ms = 15000U);
-    esp_err_t startLabAp(const DeviceConfig& config);
-    esp_err_t stopStation();
+    [[nodiscard]] esp_err_t connectStation(
+        const DeviceConfig& config,
+        std::uint32_t timeout_ms = 15000U);
+    [[nodiscard]] esp_err_t startLabAp(const DeviceConfig& config);
+    [[nodiscard]] esp_err_t stopStation();
     // Called by CellularManager when the PPP session comes up or drops.
     // Updates cellular_ip in NetworkState and affects uplinkStatus().
     void setCellularStatus(bool ppp_connected, const char* ip_address);
-    esp_err_t scanAvailableNetworks();
-    esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
+    [[nodiscard]] esp_err_t scanAvailableNetworks();
+    [[nodiscard]] esp_err_t ensureStationTime(std::uint32_t timeout_ms = 15000U);
     SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
     UplinkStatus uplinkStatus() const;
     NetworkState state() const;

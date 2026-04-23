@@ -89,6 +89,11 @@ Subsystem identifiers in use: `app`, `backend_cfg`, `ble`, `cellular`, `cellular
 
 Run `python3 ../scripts/check_style.py` to verify; this check fails on any deviation.
 
+### Return values
+
+- Discarding a return value requires either a function with no `[[nodiscard]]` contract, or an explicit one-line comment immediately before `static_cast<void>(...)` explaining why the result is intentionally unused.
+- Return values that affect observability, recovery, persistence, or task lifecycle should be logged, exposed through status, counted, or propagated instead of discarded.
+
 ## Documentation conventions
 
 - Prefer implementation docs in `../docs/firmware/` over repository-level planning docs.

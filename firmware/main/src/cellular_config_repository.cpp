@@ -12,7 +12,7 @@ constexpr char kTag[] = "air360.cellular.cfg";
 constexpr char kNamespace[] = "air360";
 constexpr char kConfigKey[] = "cellular_cfg";
 
-esp_err_t saveInternal(nvs_handle_t handle, const CellularConfig& config) {
+[[nodiscard]] esp_err_t saveInternal(nvs_handle_t handle, const CellularConfig& config) {
     esp_err_t err = nvs_set_blob(handle, kConfigKey, &config, sizeof(config));
     if (err != ESP_OK) {
         return err;

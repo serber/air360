@@ -18,6 +18,7 @@ SensorType Mhz19bSensor::type() const {
 }
 
 esp_err_t Mhz19bSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
+    // MH-Z19B owns its UART setup through the component driver; context is not needed.
     static_cast<void>(context);
     reset();
     measurement_.clear();

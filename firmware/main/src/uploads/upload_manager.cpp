@@ -223,6 +223,7 @@ void UploadManager::taskMain() {
             due_indices.empty() ||
             measurement_store_ == nullptr ||
             network_manager_ == nullptr) {
+            // The notification count only wakes the upload loop; queue state is read explicitly.
             static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
             esp_task_wdt_reset();
             continue;
@@ -573,6 +574,7 @@ void UploadManager::taskMain() {
             }
         }
 
+        // The notification count only wakes the upload loop; queue state is read explicitly.
         static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
         esp_task_wdt_reset();
     }

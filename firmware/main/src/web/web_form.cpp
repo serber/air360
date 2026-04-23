@@ -86,6 +86,7 @@ std::string findFormValue(const FormFields& fields, const char* key) {
 bool formHasKey(const FormFields& fields, const char* key) {
     for (const auto& [name, value] : fields) {
         if (name == key) {
+            // Only key presence matters for checkbox-style form fields.
             static_cast<void>(value);
             return true;
         }

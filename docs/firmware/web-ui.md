@@ -115,7 +115,7 @@ The page currently shows:
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error, cellular reconnect counters, consecutive cellular failures, and PWRKEY cycle count
 - **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
-- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, and diagnostics fields. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, and `next_retry_ms`.
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, and `next_retry_ms`.
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.

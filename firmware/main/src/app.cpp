@@ -64,6 +64,22 @@ bool hasStationConfig(const DeviceConfig& config) {
     return config.wifi_sta_ssid[0] != '\0';
 }
 
+ConfigLoadSource resolveConfigLoadSource(bool loaded_from_storage) {
+    return loaded_from_storage ? ConfigLoadSource::kNvsPrimary : ConfigLoadSource::kDefaults;
+}
+
+const char* configLoadSourceLabel(ConfigLoadSource source) {
+    switch (source) {
+        case ConfigLoadSource::kNvsPrimary:
+            return "NVS primary";
+        case ConfigLoadSource::kNvsBackup:
+            return "NVS backup";
+        case ConfigLoadSource::kDefaults:
+        default:
+            return "defaults";
+    }
+}
+
 void debugWindowCallback(void* arg) {
     auto* nm = static_cast<NetworkManager*>(arg);
     ESP_LOGI(kTag, "Wi-Fi debug window expired, stopping station");
@@ -181,6 +197,12 @@ void App::run() {
             esp_err_to_name(config_err));
         config_ = makeDefaultDeviceConfig();
     }
+    const ConfigLoadSource device_config_source = resolveConfigLoadSource(loaded_from_storage);
+    ESP_LOGI(
+        kTag,
+        "Device config source: %s; wrote defaults: %s",
+        configLoadSourceLabel(device_config_source),
+        wrote_defaults ? "yes" : "no");
 
     std::uint32_t boot_count = 0;
     const esp_err_t boot_count_err = config_repository_.incrementBootCount(boot_count);
@@ -194,6 +216,11 @@ void App::run() {
     status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
     status_service_.markNvsReady(true);
     status_service_.setConfig(config_, loaded_from_storage, wrote_defaults);
+    status_service_.recordConfigLoad(
+        ConfigRepositoryKind::kDevice,
+        device_config_source,
+        config_err,
+        wrote_defaults);
     status_service_.setBootCount(boot_count);
 
     cellular_config_ = makeDefaultCellularConfig();
@@ -212,8 +239,18 @@ void App::run() {
             esp_err_to_name(cellular_config_err));
         cellular_config_ = makeDefaultCellularConfig();
     }
-    static_cast<void>(cellular_config_loaded);
-    static_cast<void>(cellular_defaults_written);
+    const ConfigLoadSource cellular_config_source =
+        resolveConfigLoadSource(cellular_config_loaded);
+    status_service_.recordConfigLoad(
+        ConfigRepositoryKind::kCellular,
+        cellular_config_source,
+        cellular_config_err,
+        cellular_defaults_written);
+    ESP_LOGI(
+        kTag,
+        "Cellular config source: %s; wrote defaults: %s",
+        configLoadSourceLabel(cellular_config_source),
+        cellular_defaults_written ? "yes" : "no");
     ESP_LOGI(
         kTag,
         "Cellular uplink: %s",
@@ -239,8 +276,17 @@ void App::run() {
             esp_err_to_name(sensor_config_err));
         sensor_config_list_ = makeDefaultSensorConfigList();
     }
-    static_cast<void>(sensor_config_loaded);
-    static_cast<void>(sensor_defaults_written);
+    const ConfigLoadSource sensor_config_source = resolveConfigLoadSource(sensor_config_loaded);
+    status_service_.recordConfigLoad(
+        ConfigRepositoryKind::kSensors,
+        sensor_config_source,
+        sensor_config_err,
+        sensor_defaults_written);
+    ESP_LOGI(
+        kTag,
+        "Sensor config source: %s; wrote defaults: %s",
+        configLoadSourceLabel(sensor_config_source),
+        sensor_defaults_written ? "yes" : "no");
 
     sensor_manager_.setMeasurementStore(measurement_store_);
     const esp_err_t sensor_apply_err = sensor_manager_.applyConfig(sensor_config_list_);
@@ -272,8 +318,17 @@ void App::run() {
             esp_err_to_name(backend_config_err));
         backend_config_list_ = makeDefaultBackendConfigList();
     }
-    static_cast<void>(backend_config_loaded);
-    static_cast<void>(backend_defaults_written);
+    const ConfigLoadSource backend_config_source = resolveConfigLoadSource(backend_config_loaded);
+    status_service_.recordConfigLoad(
+        ConfigRepositoryKind::kBackends,
+        backend_config_source,
+        backend_config_err,
+        backend_defaults_written);
+    ESP_LOGI(
+        kTag,
+        "Backend config source: %s; wrote defaults: %s",
+        configLoadSourceLabel(backend_config_source),
+        backend_defaults_written ? "yes" : "no");
 
     ESP_LOGI(kTag, "Boot step 7/9: resolve network mode");
     if (cellular_config_.enabled != 0U) {
