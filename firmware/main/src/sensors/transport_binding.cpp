@@ -11,18 +11,24 @@ namespace air360 {
 
 namespace {
 
-constexpr gpio_num_t kBus0Sda = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO);
-constexpr gpio_num_t kBus0Scl = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO);
-constexpr std::uint32_t kDefaultI2cClockHz = 100000U;
-
 constexpr int kUartRxBufferSize = 4096;
 constexpr int kUartTxBufferSize = 0;
+
+constexpr BusConfig kBuses[] = {
+    {
+        .id       = 0U,
+        .sda      = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SDA_GPIO),
+        .scl      = static_cast<gpio_num_t>(CONFIG_AIR360_I2C0_SCL_GPIO),
+        .clock_hz = 100000U,
+    },
+};
 
 }  // namespace
 
 // ── I2cBusManager ────────────────────────────────────────────────────────────
 
 esp_err_t I2cBusManager::init() {
+    buses_ = kBuses;
     return i2cdev_init();
 }
 
@@ -31,11 +37,13 @@ bool I2cBusManager::resolvePins(
     i2c_port_t& out_port,
     gpio_num_t& out_sda,
     gpio_num_t& out_scl) const {
-    if (bus_id == 0U) {
-        out_port = I2C_NUM_0;
-        out_sda = kBus0Sda;
-        out_scl = kBus0Scl;
-        return true;
+    for (const BusConfig& bus : buses_) {
+        if (bus.id == bus_id) {
+            out_port = static_cast<i2c_port_t>(bus_id);
+            out_sda = bus.sda;
+            out_scl = bus.scl;
+            return true;
+        }
     }
     return false;
 }
@@ -75,13 +83,21 @@ esp_err_t I2cBusManager::getComponentBus(
 
     // i2cdev already owns this bus. i2c_bus_create() detects the existing
     // handle via i2c_master_get_bus_handle() and borrows it.
+    const BusConfig* bus_cfg = nullptr;
+    for (const BusConfig& bus : buses_) {
+        if (bus.id == bus_id) {
+            bus_cfg = &bus;
+            break;
+        }
+    }
+
     i2c_config_t config{};
     config.mode = I2C_MODE_MASTER;
     config.sda_io_num = sda;
     config.sda_pullup_en = GPIO_PULLUP_ENABLE;
     config.scl_io_num = scl;
     config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    config.master.clk_speed = kDefaultI2cClockHz;
+    config.master.clk_speed = (bus_cfg != nullptr) ? bus_cfg->clock_hz : 100000U;
 
     out_handle = i2c_bus_create(port, &config);
     return out_handle != nullptr ? ESP_OK : ESP_FAIL;
@@ -93,30 +109,17 @@ UartPortManager::~UartPortManager() {
     shutdown();
 }
 
-bool UartPortManager::resolvePort(std::uint8_t port_id, int& out_port_number) {
-    switch (port_id) {
-        case 1U:
-            out_port_number = UART_NUM_1;
-            return true;
-        case 2U:
-            out_port_number = UART_NUM_2;
-            return true;
-        default:
-            return false;
-    }
-}
-
 esp_err_t UartPortManager::ensurePort(
     std::uint8_t port_id,
     std::int16_t rx_pin,
     std::int16_t tx_pin,
     std::uint32_t baud_rate,
     PortState*& out_state) {
-    if (port_id == 0U || port_id > ports_.size()) {
+    if (port_id == 0U || static_cast<int>(port_id) >= UART_NUM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    out_state = &ports_[port_id - 1U];
+    out_state = &ports_[port_id];
     if (out_state->initialized) {
         if (out_state->rx_pin == rx_pin &&
             out_state->tx_pin == tx_pin &&
@@ -126,11 +129,7 @@ esp_err_t UartPortManager::ensurePort(
         return ESP_ERR_INVALID_STATE;
     }
 
-    int port_number = 0;
-    if (!resolvePort(port_id, port_number)) {
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-    const uart_port_t port = static_cast<uart_port_t>(port_number);
+    const uart_port_t port = static_cast<uart_port_t>(port_id);
 
     uart_config_t config{};
     config.baud_rate = static_cast<int>(baud_rate);
@@ -159,7 +158,7 @@ esp_err_t UartPortManager::ensurePort(
     }
 
     out_state->initialized = true;
-    out_state->port_number = port_number;
+    out_state->port_number = static_cast<int>(port_id);
     out_state->rx_pin = rx_pin;
     out_state->tx_pin = tx_pin;
     out_state->baud_rate = baud_rate;
@@ -184,11 +183,12 @@ int UartPortManager::read(
     std::uint8_t* buffer,
     std::size_t buffer_size,
     TickType_t timeout_ticks) {
-    if (buffer == nullptr || buffer_size == 0U || port_id == 0U || port_id > ports_.size()) {
+    if (buffer == nullptr || buffer_size == 0U ||
+        port_id == 0U || static_cast<int>(port_id) >= UART_NUM_MAX) {
         return -1;
     }
 
-    PortState& port = ports_[port_id - 1U];
+    PortState& port = ports_[port_id];
     if (!port.initialized) {
         return -1;
     }
@@ -204,11 +204,12 @@ int UartPortManager::write(
     std::uint8_t port_id,
     const std::uint8_t* data,
     std::size_t size) {
-    if (data == nullptr || size == 0U || port_id == 0U || port_id > ports_.size()) {
+    if (data == nullptr || size == 0U ||
+        port_id == 0U || static_cast<int>(port_id) >= UART_NUM_MAX) {
         return -1;
     }
 
-    PortState& port = ports_[port_id - 1U];
+    PortState& port = ports_[port_id];
     if (!port.initialized) {
         return -1;
     }
@@ -220,11 +221,11 @@ int UartPortManager::write(
 }
 
 esp_err_t UartPortManager::flush(std::uint8_t port_id) {
-    if (port_id == 0U || port_id > ports_.size()) {
+    if (port_id == 0U || static_cast<int>(port_id) >= UART_NUM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    PortState& port = ports_[port_id - 1U];
+    PortState& port = ports_[port_id];
     if (!port.initialized) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -233,7 +234,8 @@ esp_err_t UartPortManager::flush(std::uint8_t port_id) {
 }
 
 void UartPortManager::shutdown() {
-    for (auto& port : ports_) {
+    for (std::uint8_t port_id = 1U; static_cast<int>(port_id) < UART_NUM_MAX; ++port_id) {
+        PortState& port = ports_[port_id];
         if (!port.initialized) {
             continue;
         }

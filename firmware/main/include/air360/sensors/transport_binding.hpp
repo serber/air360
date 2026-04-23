@@ -3,15 +3,18 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "driver/uart.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "i2c_bus.h"
 #include "i2cdev.h"
 
+#include "air360/sensors/bus_config.hpp"
 #include "air360/sensors/sensor_config.hpp"
 
 namespace air360 {
@@ -32,7 +35,7 @@ class I2cBusManager {
     esp_err_t init();
 
     // Fill out_port / out_sda / out_scl for the given logical bus id.
-    // Returns false if the bus id is not known.
+    // Returns false if the bus id is not in the configured bus list.
     bool resolvePins(
         std::uint8_t bus_id,
         i2c_port_t& out_port,
@@ -51,6 +54,9 @@ class I2cBusManager {
     esp_err_t getComponentBus(
         std::uint8_t bus_id,
         i2c_bus_handle_t& out_handle) const;
+
+  private:
+    std::span<const BusConfig> buses_{};
 };
 
 class UartPortManager {
@@ -62,6 +68,8 @@ class UartPortManager {
     UartPortManager(UartPortManager&&) = delete;
     UartPortManager& operator=(UartPortManager&&) = delete;
 
+    // Open (or verify) a UART port. port_id must be in [1, UART_NUM_MAX).
+    // Port 0 is rejected — it is reserved for the console.
     esp_err_t open(
         std::uint8_t port_id,
         std::int16_t rx_pin,
@@ -94,9 +102,9 @@ class UartPortManager {
         std::int16_t tx_pin,
         std::uint32_t baud_rate,
         PortState*& out_state);
-    static bool resolvePort(std::uint8_t port_id, int& out_port_number);
 
-    std::array<PortState, 2> ports_{};
+    // Indexed directly by port_id; slot 0 is always unused (console reserved).
+    std::array<PortState, UART_NUM_MAX> ports_{};
 };
 
 }  // namespace air360

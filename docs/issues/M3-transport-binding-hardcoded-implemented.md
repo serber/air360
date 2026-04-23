@@ -40,3 +40,18 @@
 ## Related
 
 - M2 — designated initializers make it easier to add `bus_id` changes safely.
+
+## Resolved
+
+- **Date:** 2026-04-23
+- **Files changed:**
+  - `firmware/main/include/air360/sensors/bus_config.hpp` (new) — `BusConfig` struct
+  - `firmware/main/include/air360/boards/air360_v1.hpp` (new) — single-bus board profile
+  - `firmware/main/include/air360/boards/air360_v2.hpp` (new) — dual-bus board profile
+  - `firmware/main/include/air360/boards/board_profile.hpp` (new) — Kconfig-based profile selector
+  - `firmware/main/include/air360/sensors/transport_binding.hpp` — `I2cBusManager::init()` now takes `std::span<const BusConfig>`; `buses_` member added; `UartPortManager::ports_` changed from `array<PortState,2>` to `array<PortState,UART_NUM_MAX>`; `resolvePort()` removed
+  - `firmware/main/src/sensors/transport_binding.cpp` — data-driven `resolvePins()` iterates stored span; UART bounds changed from hard cap at 2 to `[1, UART_NUM_MAX)`; all `ports_[port_id - 1]` → `ports_[port_id]`
+  - `firmware/main/src/sensors/sensor_manager.cpp` — `init()` call passes `board::kI2cBuses`
+  - `firmware/main/src/sensors/sensor_registry.cpp` — `validateI2cBusId()` helper replaces all 8 hardcoded `bus_id != 0` checks; error message now says "bus id N is not configured on this build"; all `default_i2c_bus_id = 0U` → `board::kPrimaryBus`; GPS validator message updated
+  - `firmware/main/Kconfig.projbuild` — `AIR360_BOARD_PROFILE` choice (`V1`/`V2`); `I2C1_SDA/SCL_GPIO` options under `depends on BOARD_V2`; GPS and MH-Z19B UART port range widened to `1 9`
+  - `docs/firmware/transport-binding.md` — fully rewritten to document board profiles, `BusConfig`, data-driven init, and uncapped UART ports
