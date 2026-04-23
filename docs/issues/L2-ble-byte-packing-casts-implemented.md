@@ -63,3 +63,16 @@ Repeated for 16-bit signed, 16-bit unsigned, and 24-bit unsigned. Hard to read, 
 ## Related
 
 - M8 — natural companion refactor.
+
+## Implemented
+
+- Little-endian byte writers were extracted into `firmware/main/include/air360/ble_encoding.hpp`:
+  - `air360::ble::writeLe16(...)`
+  - `air360::ble::writeLe24(...)`
+- `BleAdvertiser::buildPayload()` now uses those helpers directly instead of repeating dense cast-and-shift expressions inline.
+- Value clamping in `buildPayload()` was simplified to `std::clamp(...)`, which keeps the packing path shorter and easier to audit for signed 16-bit, unsigned 16-bit, and unsigned 24-bit BTHome values.
+- Added host unit tests in `firmware/test/host/test_ble_encoding.cpp` covering:
+  - little-endian 16-bit packing
+  - signed two's-complement preservation through `writeLe16`
+  - little-endian 24-bit packing
+- Added `firmware/test/host/stubs/sdkconfig.h` so host tests continue to build after the earlier `tuning.hpp` introduction.

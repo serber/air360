@@ -10,6 +10,7 @@ add_executable(test_web_form
 )
 
 target_include_directories(test_web_form PRIVATE
+    stubs
     ../../main/include
 )
 
@@ -22,6 +23,7 @@ add_executable(test_backend_config
 )
 
 target_include_directories(test_backend_config PRIVATE
+    stubs
     ../../main/include
 )
 
@@ -35,6 +37,7 @@ add_executable(test_upload_prune_policy
 )
 
 target_include_directories(test_upload_prune_policy PRIVATE
+    stubs
     ../../main/include
 )
 
@@ -56,3 +59,16 @@ target_include_directories(test_measurement_store PRIVATE
 target_compile_features(test_measurement_store PRIVATE cxx_std_17)
 
 add_test(NAME measurement_store COMMAND test_measurement_store)
+
+add_executable(test_ble_encoding
+    test_ble_encoding.cpp
+)
+
+target_include_directories(test_ble_encoding PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_ble_encoding PRIVATE cxx_std_17)
+
+add_test(NAME ble_encoding COMMAND test_ble_encoding)

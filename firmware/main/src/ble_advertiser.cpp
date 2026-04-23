@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "air360/ble_encoding.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/tuning.hpp"
 #include "esp_err.h"
@@ -102,17 +103,6 @@ bool deinitNimblePortIfSupported() {
     }
     return true;
 #endif
-}
-
-void writeLe16(std::uint8_t* dst, std::uint16_t value) {
-    dst[0] = static_cast<std::uint8_t>(value & 0xFFU);
-    dst[1] = static_cast<std::uint8_t>(value >> 8U);
-}
-
-void writeLe24(std::uint8_t* dst, std::uint32_t value) {
-    dst[0] = static_cast<std::uint8_t>(value & 0xFFU);
-    dst[1] = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
-    dst[2] = static_cast<std::uint8_t>((value >> 16U) & 0xFFU);
 }
 
 }  // namespace
@@ -395,18 +385,18 @@ std::uint8_t BleAdvertiser::buildPayload(std::uint8_t* buf, std::uint8_t max_len
 
         if (bte.value_bytes == 2U) {
             if (bte.is_signed) {
-                const float clamped = std::fmaxf(-32768.0f, std::fminf(32767.0f, raw));
-                const auto ival = static_cast<std::int16_t>(clamped);
-                writeLe16(&buf[offset], static_cast<std::uint16_t>(ival));
+                const auto ival = static_cast<std::int16_t>(
+                    std::clamp(raw, -32768.0f, 32767.0f));
+                ble::writeLe16(&buf[offset], static_cast<std::uint16_t>(ival));
             } else {
-                const float clamped = std::fmaxf(0.0f, std::fminf(65535.0f, raw));
-                const auto uval = static_cast<std::uint16_t>(clamped);
-                writeLe16(&buf[offset], uval);
+                const auto uval = static_cast<std::uint16_t>(
+                    std::clamp(raw, 0.0f, 65535.0f));
+                ble::writeLe16(&buf[offset], uval);
             }
         } else {
-            const float clamped = std::fmaxf(0.0f, std::fminf(16777215.0f, raw));
-            const auto uval = static_cast<std::uint32_t>(clamped);
-            writeLe24(&buf[offset], uval);
+            const auto uval = static_cast<std::uint32_t>(
+                std::clamp(raw, 0.0f, 16777215.0f));
+            ble::writeLe24(&buf[offset], uval);
         }
 
         offset += bte.value_bytes;
