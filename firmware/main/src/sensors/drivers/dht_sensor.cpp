@@ -6,11 +6,14 @@
 #include <string>
 
 #include "esp_err.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
+
+constexpr char kTag[] = "air360.sensor.dht";
 
 dht_sensor_type_t toComponentType(DhtModel model) {
     return model == DhtModel::kDht11 ? DHT_TYPE_DHT11 : DHT_TYPE_AM2301;
@@ -32,7 +35,7 @@ esp_err_t DhtSensor::init(const SensorRecord& record, const SensorDriverContext&
     record_ = record;
     measurement_.clear();
     last_error_.clear();
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
     initialized_ = false;
 
     if (record_.analog_gpio_pin < 0) {
@@ -59,16 +62,22 @@ esp_err_t DhtSensor::poll() {
         &temperature_c);
     if (err != ESP_OK) {
         setError(std::string("Failed to read DHT sample: ") + esp_err_to_name(err) + ".");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return err;
     }
 
     if (std::isnan(temperature_c) || std::isnan(humidity_percent)) {
         setError("DHT component returned invalid values.");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return ESP_ERR_INVALID_RESPONSE;
     }
@@ -77,7 +86,7 @@ esp_err_t DhtSensor::poll() {
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }

@@ -451,6 +451,7 @@ void SensorManager::taskMain() {
                 if (!needs_init) {
                     sensor.runtime.failures = 0U;
                 }
+                sensor.runtime.soft_fails = driver->softFailCount();
                 sensor.runtime.next_retry_ms = 0U;
                 sensor.runtime.last_error = driver_status;
                 sensor.next_action_time_ms =
@@ -474,9 +475,11 @@ void SensorManager::taskMain() {
                                      sensor.record.poll_interval_ms,
                                      kSoftPollRetryDelayMs);
                     sensor.runtime.next_retry_ms = sensor.next_action_time_ms;
+                    sensor.runtime.soft_fails = driver->softFailCount();
                     unlock();
                     continue;
                 }
+                sensor.runtime.soft_fails = driver->softFailCount();
 
                 sensor.driver_ready = false;
                 sensor.consecutive_poll_failures = 0U;

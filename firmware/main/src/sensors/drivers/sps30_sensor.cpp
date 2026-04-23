@@ -14,12 +14,14 @@ extern "C" {
 
 #include "air360/sensors/drivers/sps30_i2c_support.hpp"
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.sps30";
 constexpr std::uint32_t kSps30I2cSpeedHz = 100000U;
 
 esp_err_t mapResultToEspErr(std::int16_t result) {
@@ -67,7 +69,7 @@ void Sps30Sensor::reset() {
         device_initialized_ = false;
     }
     initialized_ = false;
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
 }
 
 SensorType Sps30Sensor::type() const {
@@ -81,7 +83,6 @@ esp_err_t Sps30Sensor::init(
     record_ = record;
     measurement_.clear();
     last_error_.clear();
-    poll_failure_count_ = 0U;
 
     std::memset(&device_, 0, sizeof(device_));
     esp_err_t err = context.i2c_bus_manager->setupDevice(record, kSps30I2cSpeedHz, device_);
@@ -152,8 +153,11 @@ esp_err_t Sps30Sensor::poll() {
         &typical_particle_size);
     if (result != NO_ERROR) {
         setError(std::string("Failed to read SPS30 measurement: ") + describeResult(result) + ".");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return mapResultToEspErr(result);
     }
@@ -170,7 +174,7 @@ esp_err_t Sps30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kNc4_0PerCm3, nc_4p0);
     measurement_.addValue(SensorValueKind::kNc10_0PerCm3, nc_10p0);
     measurement_.addValue(SensorValueKind::kTypicalParticleSizeUm, typical_particle_size);
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }

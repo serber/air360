@@ -6,12 +6,14 @@
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.gps";
 constexpr TickType_t kGpsReadTimeoutTicks = pdMS_TO_TICKS(100U);
 constexpr std::size_t kGpsReadBufferSize = 256U;
 constexpr std::size_t kGpsMaxBytesPerPoll = 2048U;
@@ -40,7 +42,7 @@ esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverCont
     resetParser();
     measurement_.clear();
     last_error_.clear();
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
     initialized_ = false;
 
     if (uart_port_manager_ == nullptr) {
@@ -78,8 +80,11 @@ esp_err_t GpsNmeaSensor::poll() {
         kGpsReadTimeoutTicks);
     if (bytes_read < 0) {
         setError("Failed to read GPS UART data.");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return ESP_FAIL;
     }
@@ -104,21 +109,24 @@ esp_err_t GpsNmeaSensor::poll() {
             0);
         if (bytes_read < 0) {
             setError("Failed to read GPS UART data.");
-            if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+            if (soft_fail_policy_.onPollErr()) {
+                ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
                 initialized_ = false;
+            } else if (soft_fail_policy_.soft_fails == 1U) {
+                ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             }
             return ESP_FAIL;
         }
     }
 
     if (total_bytes_read == 0U) {
-        poll_failure_count_ = 0U;
+        soft_fail_policy_.onPollOk();
         setError("No GPS UART data received.");
         return ESP_OK;
     }
 
     rebuildMeasurement();
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
     return ESP_OK;
 }
 

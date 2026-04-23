@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 
+#include "air360/sensors/sensor_driver.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/web_ui.hpp"
@@ -685,6 +686,12 @@ std::string renderSensorOverviewBlock(
         if (sensor.failures > 0U) {
             last_error_block += "<p class='muted'>Failures: ";
             last_error_block += std::to_string(sensor.failures);
+            if (sensor.soft_fails > 0U) {
+                last_error_block += "; soft fails: ";
+                last_error_block += std::to_string(sensor.soft_fails);
+                last_error_block += "/";
+                last_error_block += std::to_string(kSensorPollFailureReinitThreshold);
+            }
             if (sensor.next_retry_ms > 0U) {
                 last_error_block += "; retry in ";
                 last_error_block += htmlEscape(formatDelayFromNow(sensor.next_retry_ms, now_uptime_ms));
@@ -1214,6 +1221,7 @@ std::string buildStatusJsonDocument(
         json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
         json += "\"failures\":" + std::to_string(sensor.failures) + ",";
+        json += "\"soft_fails\":" + std::to_string(sensor.soft_fails) + ",";
         json += "\"next_retry_ms\":" + std::to_string(sensor.next_retry_ms) + ",";
         json += "\"last_sample_time_ms\":" + std::to_string(runtime.last_sample_time_ms) + ",";
         json += "\"queued_sample_count\":" + std::to_string(runtime.queued_sample_count) + ",";

@@ -12,6 +12,18 @@ namespace air360 {
 
 constexpr std::uint32_t kSensorPollFailureReinitThreshold = 3U;
 
+// Tracks consecutive soft-poll failures per driver instance.
+// A soft fail retains initialized_ = true; a hard fail (threshold reached)
+// signals the caller to set initialized_ = false and trigger re-init.
+struct SoftFailPolicy {
+    std::uint32_t soft_fails = 0U;
+
+    void onPollOk() { soft_fails = 0U; }
+
+    // Returns true when soft_fails reaches kSensorPollFailureReinitThreshold.
+    bool onPollErr() { return ++soft_fails >= kSensorPollFailureReinitThreshold; }
+};
+
 class I2cBusManager;
 class UartPortManager;
 
@@ -70,6 +82,11 @@ class SensorDriver {
     virtual esp_err_t poll() = 0;
     virtual SensorMeasurement latestMeasurement() const = 0;
     virtual std::string lastError() const = 0;
+
+    std::uint32_t softFailCount() const { return soft_fail_policy_.soft_fails; }
+
+  protected:
+    SoftFailPolicy soft_fail_policy_{};
 };
 
 }  // namespace air360

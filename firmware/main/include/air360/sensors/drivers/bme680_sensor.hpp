@@ -31,7 +31,6 @@ class Bme680Sensor final : public SensorDriver {
     SensorMeasurement measurement_{};
     std::string last_error_;
     std::unique_ptr<Bme680DriverState> state_;
-    std::uint32_t poll_failure_count_ = 0U;
     bool initialized_ = false;
 };
 

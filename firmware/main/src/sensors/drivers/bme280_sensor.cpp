@@ -10,12 +10,14 @@ extern "C" {
 }
 
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.bme280";
 constexpr bme280_sensor_sampling kOversampling = BME280_SAMPLING_X1;
 constexpr bme280_sensor_filter kFilter = BME280_FILTER_OFF;
 constexpr bme280_standby_duration kStandbyDuration = BME280_STANDBY_MS_0_5;
@@ -47,6 +49,7 @@ esp_err_t Bme280Sensor::init(
     measurement_.clear();
     last_error_.clear();
     initialized_ = false;
+    soft_fail_policy_.onPollOk();
 
     destroyState();
 
@@ -107,8 +110,11 @@ esp_err_t Bme280Sensor::poll() {
     esp_err_t err = bme280_take_forced_measurement(state_->sensor);
     if (err != ESP_OK) {
         setError("Failed to start BME280 forced measurement.");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return err;
     }
@@ -117,8 +123,11 @@ esp_err_t Bme280Sensor::poll() {
     err = bme280_read_temperature(state_->sensor, &temperature);
     if (err != ESP_OK) {
         setError("Failed to read BME280 temperature.");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return err;
     }
@@ -127,8 +136,11 @@ esp_err_t Bme280Sensor::poll() {
     err = bme280_read_humidity(state_->sensor, &humidity);
     if (err != ESP_OK) {
         setError("Failed to read BME280 humidity.");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return err;
     }
@@ -137,8 +149,11 @@ esp_err_t Bme280Sensor::poll() {
     err = bme280_read_pressure(state_->sensor, &pressure_hpa);
     if (err != ESP_OK) {
         setError("Failed to read BME280 pressure.");
-        if (++poll_failure_count_ >= kSensorPollFailureReinitThreshold) {
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
             initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
         }
         return err;
     }
@@ -148,7 +163,7 @@ esp_err_t Bme280Sensor::poll() {
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity);
     measurement_.addValue(SensorValueKind::kPressureHpa, pressure_hpa);
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }
@@ -198,7 +213,7 @@ void Bme280Sensor::destroyState() {
     state_->dev_initialized = false;
     state_->bus = nullptr;
     initialized_ = false;
-    poll_failure_count_ = 0U;
+    soft_fail_policy_.onPollOk();
 }
 
 void Bme280Sensor::setError(const std::string& message) {

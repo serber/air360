@@ -35,7 +35,6 @@ class Ds18b20Sensor final : public SensorDriver {
     onewire_device_address_t address_ = 0U;
     SensorMeasurement measurement_{};
     std::string last_error_;
-    std::uint32_t poll_failure_count_ = 0U;
     bool initialized_ = false;
 };
 
