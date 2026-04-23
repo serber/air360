@@ -10,6 +10,7 @@
 #include "driver/uart.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "i2c_bus.h"
 #include "i2cdev.h"
@@ -61,6 +62,12 @@ class I2cBusManager {
 
 class UartPortManager {
   public:
+    struct EventSummary {
+        std::uint32_t overrun_count = 0U;
+    };
+
+    static constexpr std::size_t kDefaultRxBufferSize = 4096U;
+
     UartPortManager() = default;
     ~UartPortManager();
     UartPortManager(const UartPortManager&) = delete;
@@ -74,7 +81,9 @@ class UartPortManager {
         std::uint8_t port_id,
         std::int16_t rx_pin,
         std::int16_t tx_pin,
-        std::uint32_t baud_rate);
+        std::uint32_t baud_rate,
+        std::size_t rx_buffer_size = kDefaultRxBufferSize,
+        std::size_t event_queue_size = 0U);
     int read(
         std::uint8_t port_id,
         std::uint8_t* buffer,
@@ -84,6 +93,12 @@ class UartPortManager {
         std::uint8_t port_id,
         const std::uint8_t* data,
         std::size_t size);
+    esp_err_t bufferedDataLength(
+        std::uint8_t port_id,
+        std::size_t& out_length) const;
+    esp_err_t drainEvents(
+        std::uint8_t port_id,
+        EventSummary& out_summary);
     esp_err_t flush(std::uint8_t port_id);
     void shutdown();
 
@@ -94,6 +109,8 @@ class UartPortManager {
         std::int16_t rx_pin = -1;
         std::int16_t tx_pin = -1;
         std::uint32_t baud_rate = 0U;
+        std::size_t rx_buffer_size = 0U;
+        QueueHandle_t event_queue = nullptr;
     };
 
     esp_err_t ensurePort(
@@ -101,6 +118,8 @@ class UartPortManager {
         std::int16_t rx_pin,
         std::int16_t tx_pin,
         std::uint32_t baud_rate,
+        std::size_t rx_buffer_size,
+        std::size_t event_queue_size,
         PortState*& out_state);
 
     // Indexed directly by port_id; slot 0 is always unused (console reserved).

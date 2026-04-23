@@ -367,7 +367,7 @@ Manages shared hardware bus resources.
 
 **`UartPortManager`:**
 - UART_NUM_1 and UART_NUM_2 only (UART_NUM_0 = console)
-- RX buffer: 4096 bytes, TX buffer: 0
+- RX buffer: default 4096 bytes, overridable per port; TX buffer: 0
 - Baud range: 1200–115200
 - Detects and warns on console-pin overlap
 
@@ -753,7 +753,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | Port | Default assignment | Baud | RX buffer |
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
-| UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
+| UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | GPS: `max(4096 B, derived poll budget + 256 B)`; modem DTE has its own buffers |
 | UART2 | Currently unused by built-in sensors | — | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
@@ -846,7 +846,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Watchdog timeout | 10 s | `app.cpp` |
 | I2C clock | 100 kHz | `transport_binding.cpp` |
 | I2C transfer timeout | 200 ms | `transport_binding.cpp` |
-| UART RX buffer | 4096 B | `transport_binding.cpp` |
+| UART RX buffer | 4096 B default; GPS may request more | `transport_binding.cpp` |
 | HTTP request timeout | 15 000 ms | upload adapters |
 | HTTP buffer size | 512 B | `upload_transport.cpp` |
 | Upload interval default | 145 s | `backend_config.hpp` |

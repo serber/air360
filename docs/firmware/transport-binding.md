@@ -120,11 +120,11 @@ Fixed for all UART sensors:
 | Parity | None |
 | Stop bits | 1 |
 | Flow control | None |
-| RX buffer size | 4 096 bytes |
+| RX buffer size | Default `4 096` bytes; callers may request a larger ring buffer per port |
 | TX buffer size | 0 (blocking TX) |
 | Clock source | `UART_SCLK_DEFAULT` |
 
-Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_baud_rate`, `uart_rx_gpio_pin`, `uart_tx_gpio_pin`).
+Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_baud_rate`, `uart_rx_gpio_pin`, `uart_tx_gpio_pin`). Drivers that expect bursty UART traffic may also request an event queue and a larger RX ring buffer when opening the port. The GPS driver does both: it enables an event queue and sizes RX to at least `max(4096, max_bytes_per_poll + 256)`.
 
 ### Lazy initialisation
 
@@ -134,8 +134,10 @@ Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_bau
 
 | Method | Description |
 |--------|-------------|
-| `open(port_id, rx_pin, tx_pin, baud_rate)` | Installs the UART driver and sets pins. Idempotent if called again with identical parameters. |
+| `open(port_id, rx_pin, tx_pin, baud_rate, rx_buffer_size, event_queue_size)` | Installs the UART driver and sets pins. Idempotent if called again with identical parameters. Callers may request a larger RX ring buffer and a UART event queue. |
 | `read(port_id, buffer, size, timeout_ticks)` | Reads up to `size` bytes from the RX ring buffer. Blocks up to `timeout_ticks`. Returns byte count or `-1` on error. |
+| `bufferedDataLength(port_id, out_length)` | Wraps `uart_get_buffered_data_len()` so a driver can keep draining RX until the UART ring buffer is empty. |
+| `drainEvents(port_id, out_summary)` | Drains the port's UART event queue without blocking. Counts `UART_FIFO_OVF` and `UART_BUFFER_FULL` as overruns and flushes RX so the next poll restarts from a clean buffer. |
 | `flush(port_id)` | Clears the RX ring buffer (`uart_flush_input`). Called by the GPS driver before starting a new parse cycle. |
 | `shutdown()` | Deletes all UART drivers and resets all port states. Called from the destructor. |
 
@@ -156,6 +158,6 @@ For the list of all sensor drivers that use these managers, see [sensors/README.
 | `kPrimaryI2cBus` | `0U` | All I2C sensor descriptors |
 | I2C default clock | 100 000 Hz | All I2C sensors |
 | I2C pull-ups | enabled | All configured buses |
-| UART RX buffer | 4 096 bytes | All UART ports |
+| UART RX buffer | Default `4 096` bytes; GPS requests more when its derived per-poll budget exceeds that floor | All UART ports |
 | UART TX buffer | 0 (blocking) | All UART ports |
 | Log tag | `air360.transport` | Both managers |

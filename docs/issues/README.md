@@ -40,7 +40,7 @@ Snapshot of a senior-level firmware review conducted on 2026-04-20 against the `
 - [M6 — `ConnectivityChecker` allocates an event group per call](M6-connectivity-checker-allocations.md)
 - [M7 — `web_server.cpp` stack 10 KB with `std::string` rendering](M7-web-server-stack.md)
 - [M8 — Manual BLE advertisement build to dodge NimBLE API churn](M8-ble-manual-adv-build-implemented.md)
-- [M9 — GPS poll budget/timeout combination can starve](M9-gps-poll-budget.md)
+- [M9 — GPS poll budget/timeout combination can starve](M9-gps-poll-budget-implemented.md)
 - [M10 — `connect_attempt_task` handle read without synchronization](M10-connect-attempt-task-race.md)
 
 ### Low
