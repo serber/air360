@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 
+#include "air360/uploads/upload_log_endpoint.hpp"
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
@@ -41,11 +42,12 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
     config.addr_type = HTTP_ADDR_TYPE_INET;
     config.crt_bundle_attach = esp_crt_bundle_attach;
 
+    const std::string endpoint = formatUploadEndpointForLog(request.url);
     ESP_LOGI(
         kTag,
-        "HTTP request: method=%s url=%s body_len=%u",
+        "HTTP request: method=%s endpoint=%s body_len=%u",
         request.method == UploadMethod::kPut ? "PUT" : "POST",
-        request.url.c_str(),
+        endpoint.c_str(),
         static_cast<unsigned>(request.body.size()));
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -92,7 +94,7 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
             }
         }
     } else if (response.transport_err == ESP_ERR_HTTP_FETCH_HEADER) {
-        ESP_LOGE(kTag, "HTTP header parse failed (buffer too small?): %s", request.url.c_str());
+        ESP_LOGE(kTag, "HTTP header parse failed (buffer too small?): %s", endpoint.c_str());
     }
 
     const std::int64_t finished_us = esp_timer_get_time();

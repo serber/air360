@@ -20,6 +20,7 @@ idf_component_register(
         "src/uploads/adapters/influxdb_uploader.cpp"
         "src/uploads/adapters/sensor_community_uploader.cpp"
         "src/uploads/measurement_store.cpp"
+        "src/uploads/upload_log_endpoint.cpp"
         "src/uploads/upload_prune_policy.cpp"
         "src/uploads/upload_manager.cpp"
         "src/uploads/upload_manager_config.cpp"

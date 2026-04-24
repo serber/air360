@@ -31,6 +31,20 @@ target_compile_features(test_backend_config PRIVATE cxx_std_17)
 
 add_test(NAME backend_config COMMAND test_backend_config)
 
+add_executable(test_upload_log_endpoint
+    ../../main/src/uploads/upload_log_endpoint.cpp
+    test_upload_log_endpoint.cpp
+)
+
+target_include_directories(test_upload_log_endpoint PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_upload_log_endpoint PRIVATE cxx_std_17)
+
+add_test(NAME upload_log_endpoint COMMAND test_upload_log_endpoint)
+
 add_executable(test_upload_prune_policy
     ../../main/src/uploads/upload_prune_policy.cpp
     test_upload_prune_policy.cpp

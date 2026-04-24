@@ -107,13 +107,15 @@ When a request fails and `retry_after_seconds > 0`, `UploadManager` overrides th
 Every request is logged at `INFO` level before execution:
 
 ```
-air360.http: HTTP request: method=POST url=https://api.sensor.community/... body_len=142
+air360.http: HTTP request: method=POST endpoint=https://api.sensor.community body_len=142
 ```
 
-If `esp_http_client_perform` returns `ESP_ERR_HTTP_FETCH_HEADER`, the transport logs an explicit `ERROR`-level message including the URL, distinguishing this failure mode from generic transport errors:
+The logged endpoint is limited to protocol, host, and non-default port. Path, query string, fragment, and URL userinfo are never logged. Explicit default ports are omitted (`http:80`, `https:443`); non-default ports remain visible.
+
+If `esp_http_client_perform` returns `ESP_ERR_HTTP_FETCH_HEADER`, the transport logs an explicit `ERROR`-level message including the same sanitized endpoint, distinguishing this failure mode from generic transport errors:
 
 ```
-air360.http: HTTP header parse failed (buffer too small?): https://...
+air360.http: HTTP header parse failed (buffer too small?): https://api.example.test:8443
 ```
 
 Log tag: `air360.http`.
