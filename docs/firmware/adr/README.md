@@ -12,3 +12,5 @@ New capabilities not present in the current firmware.
 
 - [`proposed-ota-firmware-update-adr.md`](proposed-ota-firmware-update-adr.md)
   OTA firmware update via the web UI using ESP-IDF native OTA API.
+- [`proposed-station-web-authentication-adr.md`](proposed-station-web-authentication-adr.md)
+  Optional station-mode web UI authorization using HTTP Basic authentication.
