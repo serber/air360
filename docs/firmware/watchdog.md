@@ -117,6 +117,3 @@ To confirm the TWDT actually fires on a real hang:
 
 - [`startup-pipeline.md`](startup-pipeline.md) — full boot sequence and task spawn order
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — runtime task map
-- [`docs/issues/C4-watchdog-audit-gap-implemented.md`](../../docs/issues/C4-watchdog-audit-gap-implemented.md) — original issue and resolved status
-- [`docs/issues/C5-ble-vtaskdelete-foreign-implemented.md`](../../docs/issues/C5-ble-vtaskdelete-foreign-implemented.md) — BLE task cooperative shutdown and TWDT coverage
-- [`docs/issues/C6-timer-spawns-tasks-implemented.md`](../../docs/issues/C6-timer-spawns-tasks-implemented.md) — NetworkManager worker task refactor
