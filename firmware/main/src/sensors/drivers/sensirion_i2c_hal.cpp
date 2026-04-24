@@ -5,6 +5,7 @@
 #include "air360/sensors/drivers/sps30_i2c_support.hpp"
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "i2cdev.h"
 #include "sensirion_common.h"
@@ -14,16 +15,29 @@ namespace {
 
 i2c_dev_t* g_device = nullptr;
 
+SemaphoreHandle_t contextMutex() {
+    static StaticSemaphore_t mutex_buffer = {};
+    static SemaphoreHandle_t mutex = xSemaphoreCreateMutexStatic(&mutex_buffer);
+    return mutex;
+}
+
 }  // namespace
 
 namespace air360 {
 
-void sps30HalSetContext(i2c_dev_t* device) {
-    g_device = device;
+SensirionI2cContextGuard::SensirionI2cContextGuard(i2c_dev_t* device) {
+    SemaphoreHandle_t mutex = contextMutex();
+    if (mutex != nullptr && xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        locked_ = true;
+        g_device = device;
+    }
 }
 
-void sps30HalClearContext() {
-    g_device = nullptr;
+SensirionI2cContextGuard::~SensirionI2cContextGuard() {
+    if (locked_) {
+        g_device = nullptr;
+        xSemaphoreGive(contextMutex());
+    }
 }
 
 }  // namespace air360

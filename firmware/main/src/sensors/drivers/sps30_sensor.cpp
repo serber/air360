@@ -63,7 +63,6 @@ Sps30Sensor::~Sps30Sensor() {
 }
 
 void Sps30Sensor::reset() {
-    sps30HalClearContext();
     if (device_initialized_) {
         i2c_dev_delete_mutex(&device_);
         device_initialized_ = false;
@@ -98,14 +97,18 @@ esp_err_t Sps30Sensor::init(
         return ESP_ERR_NOT_FOUND;
     }
 
-    sps30HalSetContext(&device_);
-    sensirion_i2c_hal_init();
-    sps30_init(record.i2c_address);
+    {
+        SensirionI2cContextGuard hal_guard(&device_);
+        sensirion_i2c_hal_init();
+        sps30_init(record.i2c_address);
+    }
 
     esp_err_t start_err = startMeasurement();
     if (start_err != ESP_OK) {
-        sps30HalSetContext(&device_);
-        const std::int16_t wake_err = sps30_wake_up_sequence();
+        const std::int16_t wake_err = [&]() {
+            SensirionI2cContextGuard hal_guard(&device_);
+            return sps30_wake_up_sequence();
+        }();
         if (wake_err != NO_ERROR) {
             setError(std::string("Failed to wake SPS30: ") + describeResult(wake_err) + ".");
             return mapResultToEspErr(wake_err);
@@ -127,8 +130,6 @@ esp_err_t Sps30Sensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    sps30HalSetContext(&device_);
-
     float mc_1p0 = 0.0F;
     float mc_2p5 = 0.0F;
     float mc_4p0 = 0.0F;
@@ -140,17 +141,20 @@ esp_err_t Sps30Sensor::poll() {
     float nc_10p0 = 0.0F;
     float typical_particle_size = 0.0F;
 
-    const std::int16_t result = sps30_read_measurement_values_float(
-        &mc_1p0,
-        &mc_2p5,
-        &mc_4p0,
-        &mc_10p0,
-        &nc_0p5,
-        &nc_1p0,
-        &nc_2p5,
-        &nc_4p0,
-        &nc_10p0,
-        &typical_particle_size);
+    const std::int16_t result = [&]() {
+        SensirionI2cContextGuard hal_guard(&device_);
+        return sps30_read_measurement_values_float(
+            &mc_1p0,
+            &mc_2p5,
+            &mc_4p0,
+            &mc_10p0,
+            &nc_0p5,
+            &nc_1p0,
+            &nc_2p5,
+            &nc_4p0,
+            &nc_10p0,
+            &typical_particle_size);
+    }();
     if (result != NO_ERROR) {
         setError(std::string("Failed to read SPS30 measurement: ") + describeResult(result) + ".");
         if (soft_fail_policy_.onPollErr()) {
@@ -192,9 +196,10 @@ void Sps30Sensor::setError(const std::string& message) {
 }
 
 esp_err_t Sps30Sensor::startMeasurement() {
-    sps30HalSetContext(&device_);
-    const std::int16_t result =
-        sps30_start_measurement(SPS30_OUTPUT_FORMAT_OUTPUT_FORMAT_FLOAT);
+    const std::int16_t result = [&]() {
+        SensirionI2cContextGuard hal_guard(&device_);
+        return sps30_start_measurement(SPS30_OUTPUT_FORMAT_OUTPUT_FORMAT_FLOAT);
+    }();
     if (result != NO_ERROR) {
         setError(std::string("Failed to start SPS30 measurement: ") + describeResult(result) + ".");
         return mapResultToEspErr(result);

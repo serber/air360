@@ -2,7 +2,7 @@
 
 ## Status
 
-Confirmed audit finding. Not implemented.
+Implemented.
 
 ## Scope
 
@@ -21,26 +21,26 @@ Task file for replacing or guarding global mutable I2C context in the SPS30 Sens
 
 **Priority:** Medium
 **Category:** Architecture / C++ / Reliability
-**Files / symbols:** `sensirion_i2c_hal.cpp`, `Sps30Sensor`, `sps30HalSetContext`, `sps30HalClearContext`
+**Files / symbols:** `sensirion_i2c_hal.cpp`, `Sps30Sensor`, `SensirionI2cContextGuard`
 
 ## Problem
 
-The Sensirion SPS30 C HAL shim stores the active `i2c_dev_t*` in a namespace-global pointer. The vendor HAL read/write functions use that pointer without synchronization.
+Resolved. The Sensirion SPS30 C HAL shim still has to keep the active `i2c_dev_t*` for the vendor C callbacks, but access is now serialized through `SensirionI2cContextGuard`.
 
 ## Why it matters
 
-The current firmware has one SPS30 driver path, so this is not an immediate two-driver collision. It is still a fragile hardware abstraction: adding another Sensirion C-driver sensor or future concurrent diagnostics would make the active I2C device implicit global state. That can cause reads or writes to hit the wrong device.
+The guard prevents future Sensirion C-driver users or diagnostics from clobbering the active HAL device while another vendor call is in progress. Reads and writes now happen only while the guard owns the static FreeRTOS mutex.
 
 ## Evidence
 
-- `firmware/main/src/sensors/drivers/sensirion_i2c_hal.cpp:15` defines `i2c_dev_t* g_device = nullptr`.
-- `firmware/main/src/sensors/drivers/sensirion_i2c_hal.cpp:21` and `25` set and clear that global pointer.
-- `firmware/main/src/sensors/drivers/sensirion_i2c_hal.cpp:50` and `60` call `i2c_dev_read(g_device, ...)` and `i2c_dev_write(g_device, ...)`.
-- `firmware/main/src/sensors/drivers/sps30_sensor.cpp` calls `sps30HalSetContext(&device_)` before SPS30 operations.
+- `firmware/main/src/sensors/drivers/sensirion_i2c_hal.cpp` implements `SensirionI2cContextGuard`.
+- The guard lazily creates a static FreeRTOS mutex, takes it before setting `g_device`, clears `g_device` in the destructor, and releases the mutex.
+- `sensirion_i2c_hal_read()` and `sensirion_i2c_hal_write()` still reject calls when no guarded context is active.
+- `firmware/main/src/sensors/drivers/sps30_sensor.cpp` wraps SPS30 setup, wake, start, and poll vendor calls in `SensirionI2cContextGuard`.
 
 ## Recommended Fix
 
-Make the HAL context explicit or task-local. If the vendor C API cannot accept context parameters, wrap context setting in a RAII scope and guard it with a mutex so no other Sensirion driver can clobber it.
+Keep every Sensirion vendor-library call that can perform I2C wrapped in `SensirionI2cContextGuard`. The vendor C API cannot accept per-call context parameters, so the guarded global context is the supported concurrency model.
 
 ## Where To Change
 
@@ -53,11 +53,10 @@ Make the HAL context explicit or task-local. If the vendor C API cannot accept c
 
 ## How To Change
 
-1. Add a small `SensirionI2cContextGuard` that sets context in the constructor and clears it in the destructor.
-2. Protect the global context with a static mutex if it remains global.
-3. Use the guard around every vendor SPS30 call that may perform I2C.
-4. Prefer `thread_local` or per-task storage if ESP-IDF/toolchain support is acceptable and tested.
-5. Add comments stating the supported concurrency model.
+1. `SensirionI2cContextGuard` sets context in the constructor and clears it in the destructor.
+2. The remaining global context is protected with a static FreeRTOS mutex.
+3. SPS30 wraps every vendor call that may perform I2C.
+4. Docs state the supported concurrency model.
 
 ## Example Fix
 
@@ -66,10 +65,10 @@ class SensirionI2cContextGuard {
   public:
     explicit SensirionI2cContextGuard(i2c_dev_t* dev) {
         lockSensirionHal();
-        sps30HalSetContext(dev);
+        g_device = dev;
     }
     ~SensirionI2cContextGuard() {
-        sps30HalClearContext();
+        g_device = nullptr;
         unlockSensirionHal();
     }
 };
