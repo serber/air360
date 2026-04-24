@@ -611,7 +611,7 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 | `GET /diagnostics` | Diagnostics page (HTML with raw status JSON dump) |
 | `GET /logs/data` | Plain-text in-memory log buffer for the diagnostics page |
 | `GET /config` | Device config page (HTML) |
-| `POST /config` | Save device config |
+| `POST /config` | Save device and cellular config |
 | `GET /sensors` | Sensor management page (HTML) |
 | `POST /sensors` | Stage or apply sensor config |
 | `GET /backends` | Backend management page (HTML) |

@@ -11,6 +11,7 @@ This is the field-level reference for editable firmware configuration across dev
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/config_transaction.cpp`
 - `firmware/main/src/sensors/sensor_config_repository.cpp`
 - `firmware/main/src/uploads/backend_config_repository.cpp`
 - `firmware/main/src/cellular_config_repository.cpp`
@@ -44,15 +45,15 @@ All four are loaded at boot step 4–6, validated, and replaced with compiled-in
 
 ## How to change configuration
 
-Configuration is changed through the embedded web UI served on port 80, or via the HTTP API used by the web UI (see [web-ui.md](web-ui.md)). The three pages map directly to the three domains:
+Configuration is changed through the embedded web UI served on port 80, or via the HTTP API used by the web UI (see [web-ui.md](web-ui.md)). The three pages map to persisted domains as follows:
 
 | Web UI page | Domain |
 |-------------|--------|
-| Device | `device_cfg` |
+| Device | `device_cfg` and `cellular_cfg` |
 | Sensors | `sensor_cfg` |
 | Backends | `backend_cfg` |
 
-Changes are written to NVS immediately on save. The device must be rebooted for most changes to take effect (network credentials, sensor list). Backend and upload interval changes are applied by the upload manager without a reboot.
+Changes are written to NVS immediately on save. The Device page stages `device_cfg` and `cellular_cfg` together and commits both with one NVS commit, so runtime copies are updated only after both records persist successfully. The device must be rebooted for most changes to take effect (network credentials, sensor list). Backend and upload interval changes are applied by the upload manager without a reboot.
 
 ---
 
@@ -154,7 +155,7 @@ Struct: `DeviceConfig`
 ## Cellular configuration (`cellular_cfg`)
 
 Struct: `CellularConfig`  
-NVS key: `cellular_cfg` (namespace `air360`) — stored independently of `device_cfg`.  
+NVS key: `cellular_cfg` (namespace `air360`) — loaded independently of `device_cfg`; saved together with `device_cfg` by the Device Configuration page.  
 Schema version: 1.
 
 ### Fields

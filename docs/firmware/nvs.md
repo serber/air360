@@ -11,6 +11,7 @@ This document explains the persistent storage schema used by the firmware, inclu
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/config_transaction.cpp`
 - `firmware/main/src/sensors/sensor_config_repository.cpp`
 - `firmware/main/src/uploads/backend_config_repository.cpp`
 - `firmware/main/src/cellular_config_repository.cpp`
@@ -27,8 +28,8 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 | Key | NVS type | Stored structure | Written by |
 |-----|----------|-----------------|------------|
-| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository` |
-| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository` |
+| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository`; `/config` combined save |
+| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository`; `/config` combined save |
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
 | `boot_count` | u32 | `uint32_t` | `ConfigRepository` |
@@ -37,7 +38,7 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 ## Blob guard fields
 
-All three blob structs share the same integrity guard pattern at the start of the struct:
+All blob structs share the same integrity guard pattern at the start of the struct:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -55,6 +56,8 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 | `BackendConfigList` | `0x41333632` ("A362") | 1 |
 
 Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
+
+`device_cfg` and `cellular_cfg` are loaded independently at boot, but the Device Configuration page saves them together. `saveDeviceAndCellularConfig()` validates both records, stages both blobs with one NVS handle, and performs a single `nvs_commit()` after both `nvs_set_blob()` calls succeed. This prevents the web UI from committing only the device part of the form when the cellular write fails. The firmware does not yet keep dual slots or a pending transaction marker for power-loss rollback during commit.
 
 ---
 

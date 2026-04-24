@@ -8,6 +8,7 @@ idf_component_register(
         "src/cellular_manager.cpp"
         "src/modem_gpio.cpp"
         "src/config_repository.cpp"
+        "src/config_transaction.cpp"
         "src/connectivity_checker.cpp"
         "src/network_manager.cpp"
         "src/web_assets.cpp"

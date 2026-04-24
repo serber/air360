@@ -57,9 +57,7 @@ class ConfigRepository {
         bool& wrote_defaults);
     [[nodiscard]] esp_err_t save(const DeviceConfig& config);
     [[nodiscard]] esp_err_t incrementBootCount(std::uint32_t& out_boot_count);
-
-  private:
-    bool isValid(const DeviceConfig& config) const;
+    [[nodiscard]] bool isValid(const DeviceConfig& config) const;
 };
 
 }  // namespace air360

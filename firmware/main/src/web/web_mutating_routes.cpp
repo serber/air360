@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 
+#include "air360/config_transaction.hpp"
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/uploads/backend_registry.hpp"
@@ -708,18 +709,6 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     copyString(updated.sta_gateway, sizeof(updated.sta_gateway), sta_gateway);
     copyString(updated.sta_dns, sizeof(updated.sta_dns), sta_dns);
 
-    const esp_err_t save_err = server->config_repository_->save(updated);
-    if (save_err != ESP_OK) {
-        const std::string html = renderConfigPage(
-            updated,
-            *server->cellular_config_,
-            server->status_service_->networkState(),
-            *server->network_manager_,
-            std::string("Failed to save device configuration: ") + esp_err_to_name(save_err),
-            true);
-        return sendHtmlResponse(request, html);
-    }
-
     CellularConfig updated_cellular = *server->cellular_config_;
     updated_cellular.magic = kCellularConfigMagic;
     updated_cellular.schema_version = kCellularConfigSchemaVersion;
@@ -735,16 +724,19 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     updated_cellular.wifi_debug_window_s =
         static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
 
-    const esp_err_t cellular_save_err =
-        server->cellular_config_repository_->save(updated_cellular);
-    if (cellular_save_err != ESP_OK) {
+    const esp_err_t save_err = saveDeviceAndCellularConfig(
+        *server->config_repository_,
+        *server->cellular_config_repository_,
+        updated,
+        updated_cellular);
+    if (save_err != ESP_OK) {
         const std::string html = renderConfigPage(
             updated,
             updated_cellular,
             server->status_service_->networkState(),
             *server->network_manager_,
-            std::string("Failed to save cellular configuration: ") +
-                esp_err_to_name(cellular_save_err),
+            std::string("Failed to save configuration; no runtime changes were applied: ") +
+                esp_err_to_name(save_err),
             true);
         return sendHtmlResponse(request, html);
     }

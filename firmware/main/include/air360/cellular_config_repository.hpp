@@ -48,9 +48,7 @@ class CellularConfigRepository {
         bool& loaded_from_storage,
         bool& wrote_defaults);
     [[nodiscard]] esp_err_t save(const CellularConfig& config);
-
-  private:
-    bool isValid(const CellularConfig& config) const;
+    [[nodiscard]] bool isValid(const CellularConfig& config) const;
 };
 
 }  // namespace air360
