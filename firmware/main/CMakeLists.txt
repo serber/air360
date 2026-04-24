@@ -12,6 +12,7 @@ idf_component_register(
         "src/network_manager.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
+        "src/web/web_request_body.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
         "src/uploads/adapters/air360_json_payload.cpp"

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 
+#include "air360/web_request_body.hpp"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -11,35 +12,20 @@ namespace air360::web {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-// Cap request bodies at 4 KB because config forms and JSON mutations are
-// small, and larger payloads would just waste scarce HTTP server RAM.
-constexpr std::size_t kHttpMaxRequestBodySize = 4096U;
+
+int receiveRequestBodyChunk(void* context, char* buffer, std::size_t buffer_size) {
+    return httpd_req_recv(static_cast<httpd_req_t*>(context), buffer, buffer_size);
+}
 
 }  // namespace
 
 esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body) {
-    out_body.clear();
-    if (request->content_len <= 0) {
-        return ESP_OK;
-    }
-    if (request->content_len > static_cast<int>(kHttpMaxRequestBodySize)) {
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    out_body.resize(static_cast<std::size_t>(request->content_len));
-    int received_total = 0;
-    while (received_total < request->content_len) {
-        const int received = httpd_req_recv(
-            request,
-            out_body.data() + received_total,
-            request->content_len - received_total);
-        if (received <= 0) {
-            return ESP_FAIL;
-        }
-        received_total += received;
-    }
-
-    return ESP_OK;
+    return readRequestBodyWithRetries(
+        request->content_len,
+        request,
+        receiveRequestBodyChunk,
+        HTTPD_SOCK_ERR_TIMEOUT,
+        out_body);
 }
 
 esp_err_t sendRequestBodyTooLarge(httpd_req_t* request) {

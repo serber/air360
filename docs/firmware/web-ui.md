@@ -39,6 +39,8 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | Worker model | Single httpd task; all concurrent connections share the one stack |
 | URI handlers | up to 15 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
+| Request body limit | 4 096 bytes; oversized POST bodies return `413 Payload Too Large` |
+| Request body receive timeouts | `httpd_req_recv()` timeout results are retried up to 5 consecutive times before the request fails with a timeout |
 | Response caching | `Cache-Control: no-store` on all pages |
 | Log tag | `air360.web` |
 | mDNS name | `{device_name}.local` (station mode only) |
@@ -318,6 +320,7 @@ A scan started by `startLabAp()` at boot (when the device enters setup AP mode) 
 |---------------|---------|
 | `invalid_input` | Server string is empty, too long, or contains invalid characters |
 | `not_connected` | Device is not connected to station Wi-Fi |
+| `request_timeout` | The device timed out while receiving the form body |
 | `sync_failed` | SNTP init failed or server did not respond within the timeout |
 
 The check deinitialises the existing SNTP session (if any) and initialises a new one with the test server. If the check succeeds, SNTP stays running with the test server until the next reboot. If it fails, SNTP is deinitialised and the maintenance loop will retry with the configured server.

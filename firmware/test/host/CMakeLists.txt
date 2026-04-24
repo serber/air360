@@ -18,6 +18,20 @@ target_compile_features(test_web_form PRIVATE cxx_std_17)
 
 add_test(NAME web_form COMMAND test_web_form)
 
+add_executable(test_web_request_body
+    ../../main/src/web/web_request_body.cpp
+    test_web_request_body.cpp
+)
+
+target_include_directories(test_web_request_body PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_web_request_body PRIVATE cxx_std_17)
+
+add_test(NAME web_request_body COMMAND test_web_request_body)
+
 add_executable(test_backend_config
     test_backend_config.cpp
 )

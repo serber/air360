@@ -37,6 +37,12 @@ using web::sendRequestBodyTooLarge;
 using web::validateConfigForm;
 using web::validateSensorCategorySelection;
 
+const char* requestBodyReadErrorMessage(esp_err_t err) {
+    return err == ESP_ERR_TIMEOUT
+        ? "Timed out while reading form body. Check the connection and retry."
+        : "Failed to read form body.";
+}
+
 void restartCallback(void* arg) {
     // esp_timer callback signature provides arg; restart timer has no per-call state.
     static_cast<void>(arg);
@@ -114,7 +120,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             *server->sensor_manager_,
             *server->measurement_store_,
             server->has_pending_sensor_changes_,
-            "Failed to read form body.",
+            requestBodyReadErrorMessage(body_err),
             true);
         return sendHtmlResponse(request, html);
     }
@@ -422,7 +428,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
-            "Failed to read form body.",
+            requestBodyReadErrorMessage(body_err),
             true);
         return sendHtmlResponse(request, html);
     }
@@ -592,7 +598,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             *server->cellular_config_,
             server->status_service_->networkState(),
             *server->network_manager_,
-            "Failed to read form body.",
+            requestBodyReadErrorMessage(body_err),
             true);
         return sendHtmlResponse(request, html);
     }

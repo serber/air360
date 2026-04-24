@@ -220,6 +220,8 @@ document.addEventListener("DOMContentLoaded", () => {
           statusNode.textContent = "Invalid server address.";
         } else if (error === "not_connected") {
           statusNode.textContent = "Not connected to Wi-Fi. Cannot check SNTP server.";
+        } else if (error === "request_timeout") {
+          statusNode.textContent = "Request timed out while sending data. Check the connection and retry.";
         } else {
           statusNode.textContent = "SNTP sync failed. Server may be unreachable or invalid.";
         }

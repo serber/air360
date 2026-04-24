@@ -172,7 +172,13 @@ esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {
         return web::sendRequestBodyTooLarge(request);
     }
     if (body_err != ESP_OK) {
-        return httpd_resp_sendstr(request, "{\"success\":false,\"error\":\"sync_failed\"}");
+        const char* error = body_err == ESP_ERR_TIMEOUT ? "request_timeout" : "sync_failed";
+        std::string response;
+        response.reserve(64U);
+        response += "{\"success\":false,\"error\":\"";
+        response += error;
+        response += "\"}";
+        return httpd_resp_sendstr(request, response.c_str());
     }
 
     const web::FormFields fields = web::parseFormBody(body);
