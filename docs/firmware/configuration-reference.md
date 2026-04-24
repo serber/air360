@@ -11,10 +11,12 @@ This is the field-level reference for editable firmware configuration across dev
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/config_transaction.cpp`
 - `firmware/main/src/sensors/sensor_config_repository.cpp`
 - `firmware/main/src/uploads/backend_config_repository.cpp`
 - `firmware/main/src/cellular_config_repository.cpp`
 - `firmware/main/src/web_server.cpp`
+- `firmware/main/include/air360/tuning.hpp`
 
 ## Read next
 
@@ -22,7 +24,7 @@ This is the field-level reference for editable firmware configuration across dev
 - [web-ui.md](web-ui.md)
 - [network-manager.md](network-manager.md)
 
-The firmware stores all user-editable configuration in three NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
+The firmware stores all user-editable configuration in four NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
 
 For storage format details (magic numbers, schema versions, struct layouts) see [nvs.md](nvs.md).
 
@@ -37,21 +39,21 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
-All three are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values.
+All four are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
 
 ---
 
 ## How to change configuration
 
-Configuration is changed through the embedded web UI served on port 80, or via the HTTP API used by the web UI (see [web-ui.md](web-ui.md)). The three pages map directly to the three domains:
+Configuration is changed through the embedded web UI served on port 80, or via the HTTP API used by the web UI (see [web-ui.md](web-ui.md)). The three pages map to persisted domains as follows:
 
 | Web UI page | Domain |
 |-------------|--------|
-| Device | `device_cfg` |
+| Device | `device_cfg` and `cellular_cfg` |
 | Sensors | `sensor_cfg` |
 | Backends | `backend_cfg` |
 
-Changes are written to NVS immediately on save. The device must be rebooted for most changes to take effect (network credentials, sensor list). Backend and upload interval changes are applied by the upload manager without a reboot.
+Changes are written to NVS immediately on save. The Device page stages `device_cfg` and `cellular_cfg` together and commits both with one NVS commit, so runtime copies are updated only after both records persist successfully. The device must be rebooted for most changes to take effect (network credentials, sensor list). Backend and upload interval changes are applied by the upload manager without a reboot.
 
 ---
 
@@ -73,9 +75,30 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | `17` | GPS TX (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_UART_PORT` | `1` | GPS UART port (stored in sensor record) |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | `9600` | GPS baud rate (stored in sensor record) |
+| `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS` | `10000` | First reconnect backoff after an unexpected Wi-Fi station drop |
+| `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS` | `300000` | Upper cap for reconnect backoff while station recovery is active |
+| `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS` | `180000` | Delay between background station retries while setup AP stays active |
+| `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` | `2000` | Ignore window for self-induced disconnect events during Wi-Fi mode changes |
+| `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` | Timeout for synchronous station join and `ensureStationTime()`-driven joins |
+| `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` | Shared queued-sample capacity before oldest uploads are dropped |
+| `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` | Period between BTHome payload rebuilds in `air360_ble` |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0/1/2` | `4` / `5` / `6` | Valid GPIO slots for GPIO/analog sensors |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.
+
+### Runtime tuning Kconfig values
+
+The values below are not persisted in NVS. They are build-time tuning knobs grouped in [`firmware/main/include/air360/tuning.hpp`](../../firmware/main/include/air360/tuning.hpp) and consumed directly by runtime subsystems.
+
+| Kconfig key | Default | Purpose | Safe range / tradeoff |
+|-------------|---------|---------|------------------------|
+| `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS` | `10000` ms | First delay in the capped exponential reconnect backoff after an unexpected station disconnect | `1000`–`600000` ms. Lower values recover faster but can hammer an AP that is still rebooting; higher values make brief outages visible to users longer. |
+| `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS` | `300000` ms | Upper cap for the reconnect backoff sequence | `10000`–`3600000` ms. Keep it above the base delay; higher values reduce retry pressure during long outages but slow recovery once the network returns. |
+| `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS` | `180000` ms | Retry cadence for background station reconnect attempts while setup AP remains available | `10000`–`3600000` ms. Shorter intervals re-test Wi-Fi more aggressively; longer intervals reduce churn but keep the device in AP fallback longer. |
+| `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` | `2000` ms | Window that suppresses reconnect logic after intentional `esp_wifi_stop()` / `esp_wifi_disconnect()` calls | `100`–`60000` ms. Too short can re-arm reconnect on deliberate mode changes; too long can hide a real disconnect right after reconfiguration. |
+| `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` ms | Timeout for blocking station join attempts and follow-up station recovery work | `5000`–`120000` ms. Must cover WPA join plus DHCP on slow APs; very large values delay setup-AP fallback and worker responsiveness. |
+| `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` samples | Shared in-RAM backlog for uploadable measurements | `32`–`2048` samples. Higher values buy more outage tolerance at the cost of more RAM retained in `MeasurementStore`; lower values overflow sooner during WAN loss. |
+| `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` ms | Period between BTHome payload rebuilds in the BLE advertiser task | `1000`–`60000` ms. Lower values show fresher readings over BLE but increase task wakeups and payload churn; higher values reduce activity but make BLE telemetry staler. |
 
 ---
 
@@ -132,7 +155,7 @@ Struct: `DeviceConfig`
 ## Cellular configuration (`cellular_cfg`)
 
 Struct: `CellularConfig`  
-NVS key: `cellular_cfg` (namespace `air360`) — stored independently of `device_cfg`.  
+NVS key: `cellular_cfg` (namespace `air360`) — loaded independently of `device_cfg`; saved together with `device_cfg` by the Device Configuration page.  
 Schema version: 1.
 
 ### Fields
@@ -147,18 +170,18 @@ Schema version: 1.
 | `pwrkey_gpio` | `uint8_t` | `0xFF` | PWRKEY GPIO; `0xFF` = not wired |
 | `sleep_gpio` | `uint8_t` | `0xFF` | DTR/sleep GPIO; `0xFF` = not wired |
 | `reset_gpio` | `uint8_t` | `0xFF` | Hardware reset GPIO; `0xFF` = not wired |
-| `wifi_debug_window_s` | `uint16_t` | `0` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
+| `wifi_debug_window_s` | `uint16_t` | `600` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 | `apn` | `char[64]` | `""` | PDP context APN; required when `enabled = 1` |
 | `username` | `char[32]` | `""` | Optional PAP/CHAP username; empty if not required by carrier |
 | `password` | `char[64]` | `""` | Optional PAP/CHAP password |
 | `sim_pin` | `char[8]` | `""` | Optional SIM PIN; empty if SIM has no PIN lock |
-| `connectivity_check_host` | `char[64]` | `""` | IPv4 address to ICMP-ping after PPP connects; empty = skip check |
+| `connectivity_check_host` | `char[64]` | `"8.8.8.8"` | IPv4 address to ICMP-ping after PPP connects; empty = skip check |
 
 ### Notes
 
 - `CellularConfig` is versioned separately from `DeviceConfig` with its own magic (`0x43454C4C`) and schema version. An integrity failure resets only the cellular config to defaults.
 - When `enabled = 1`, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
-- When `apn` is empty on the config page, the form pre-fills it with `"internet"`. When `connectivity_check_host` is empty, the form pre-fills `"8.8.8.8"`. These are display-time defaults only — neither is written to NVS until the user saves.
+- `connectivity_check_host` defaults to `"8.8.8.8"` in the compiled-in `CellularConfig`. When the field is emptied in the UI, the form still pre-fills `"8.8.8.8"` for convenience before save.
 - `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
 - `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.
 
@@ -249,7 +272,6 @@ Four backends are pre-configured by default — all **disabled**:
 | `backend_type` | `BackendType` (uint8_t) | — | Must be a recognised type |
 | `display_name` | `char[32]` | type name | 1–31 chars, non-empty |
 | `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short chip ID |
-| `endpoint_url` | `char[160]` | `""` | Custom Upload only; full `http://` or `https://` URL |
 | `host` | `char[96]` | backend default | HTTP backends; host name without protocol |
 | `path` | `char[96]` | backend default | HTTP backends; must start with `/` when set |
 | `username` | `char[48]` | `""` | Optional Basic Auth username |
@@ -267,7 +289,7 @@ Four backends are pre-configured by default — all **disabled**:
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` |
 
-Built-in HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` stores the exact `http://` or `https://` URL entered in the text field. `InfluxDB` uses the same common HTTP fields plus `measurement_name`.
+HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` and `InfluxDB` use the same common HTTP fields; `InfluxDB` also stores `measurement_name`. On save, an omitted port becomes the selected protocol default (`443` for HTTPS, `80` for HTTP). Generated request URLs omit the port when it is the selected protocol default.
 
 ### Validation rules
 
@@ -284,8 +306,10 @@ Built-in HTTP backends store host, path, port, and `use_https` separately in NVS
 - If `enabled == 1`: `host`, `path`, and `port` must be valid.
 
 **Custom Upload:**
-- `endpoint_url` must be null-terminated.
-- If `enabled == 1`: `endpoint_url` must not be empty.
+- `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
+- If `enabled == 1`: host, path, and port must be present and valid.
+- The path must start with `/`.
+- The port must be in range 1–65535.
 
 **InfluxDB:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
@@ -299,4 +323,4 @@ Built-in HTTP backends store host, path, port, and `use_https` separately in NVS
 
 ### `upload_interval_ms` behaviour
 
-The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. When the upload queue has a backlog (pending samples after a successful upload), the next cycle fires after `min(upload_interval_ms, 5000 ms)` to drain the queue faster. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.
+The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. When a backend becomes due, it drains the samples that were already queued at the start of that cycle in bounded upload windows, then schedules the next cycle after the configured interval. Failed attempts retry after the configured interval. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.

@@ -11,6 +11,7 @@ This document explains the persistent storage schema used by the firmware, inclu
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/config_transaction.cpp`
 - `firmware/main/src/sensors/sensor_config_repository.cpp`
 - `firmware/main/src/uploads/backend_config_repository.cpp`
 - `firmware/main/src/cellular_config_repository.cpp`
@@ -27,8 +28,8 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 | Key | NVS type | Stored structure | Written by |
 |-----|----------|-----------------|------------|
-| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository` |
-| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository` |
+| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository`; `/config` combined save |
+| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository`; `/config` combined save |
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
 | `boot_count` | u32 | `uint32_t` | `ConfigRepository` |
@@ -37,7 +38,7 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 ## Blob guard fields
 
-All three blob structs share the same integrity guard pattern at the start of the struct:
+All blob structs share the same integrity guard pattern at the start of the struct:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -53,6 +54,10 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 | `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
 | `SensorConfigList` | `0x41333631` ("A361") | 1 |
 | `BackendConfigList` | `0x41333632` ("A362") | 1 |
+
+Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
+
+`device_cfg` and `cellular_cfg` are loaded independently at boot, but the Device Configuration page saves them together. `saveDeviceAndCellularConfig()` validates both records, stages both blobs with one NVS handle, and performs a single `nvs_commit()` after both `nvs_set_blob()` calls succeed. This prevents the web UI from committing only the device part of the form when the cellular write fails. The firmware does not yet keep dual slots or a pending transaction marker for power-loss rollback during commit.
 
 ---
 
@@ -123,13 +128,13 @@ struct CellularConfig {
     uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
     uint8_t  reset_gpio;         // 0xFF = not wired
     uint8_t  reserved0;
-    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; 0 = disabled
+    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; default: 600
     uint16_t reserved1;
     char     apn[64];             // PDP context APN; required when enabled
     char     username[32];        // optional PAP/CHAP username; empty if not required
     char     password[64];        // optional PAP/CHAP password
     char     sim_pin[8];          // optional SIM PIN; empty if SIM has no PIN lock
-    char     connectivity_check_host[64]; // IPv4 address for ICMP check; empty = skip
+    char     connectivity_check_host[64]; // IPv4 address for ICMP check; default: "8.8.8.8"
 };
 ```
 
@@ -143,9 +148,9 @@ struct CellularConfig {
 | `pwrkey_gpio` | `0xFF` | `0xFF` = not wired; used for hardware power-cycle |
 | `sleep_gpio` | `0xFF` | `0xFF` = not wired; asserted during reconnect backoff |
 | `reset_gpio` | `0xFF` | `0xFF` = not wired; reserved, not actively used |
-| `wifi_debug_window_s` | `0` | `0` = Wi-Fi station stops immediately when cellular is active |
+| `wifi_debug_window_s` | `600` | `0` = Wi-Fi station stops immediately when cellular is active |
 | `apn` | `""` | Must be non-empty when `enabled != 0` |
-| `connectivity_check_host` | `""` | Must be an IPv4 address (not a hostname); empty skips the check |
+| `connectivity_check_host` | `"8.8.8.8"` | Must be an IPv4 address (not a hostname); empty skips the check |
 
 ---
 
@@ -241,16 +246,15 @@ struct BackendRecord {
     BackendType backend_type;     // uint8_t enum
     uint16_t    reserved0;
     char        display_name[32];
-    char        device_id_override[32]; // Sensor.Community: overrides Short ID
-    char        endpoint_url[160];      // Custom Upload: full URL
     char        host[96];               // backend host without protocol
     char        path[96];
-    char        username[48];
-    char        password[64];
-    char        measurement_name[32];   // InfluxDB only
     uint16_t    port;
-    uint8_t     use_https;
-    uint8_t     reserved1[5];
+    BackendProtocol protocol;           // uint8_t enum
+    uint8_t     reserved1;
+    BackendAuthConfig auth;             // auth type + Basic Auth credentials
+    char        device_id_override[32]; // Sensor.Community: overrides Short ID
+    char        measurement_name[32];   // InfluxDB only
+    uint8_t     reserved2[8];
 };
 ```
 
@@ -273,7 +277,7 @@ struct BackendRecord {
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 
-Built-in HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` stores the exact full URL entered in the `Endpoint URL` field. `InfluxDB` uses the same common HTTP fields plus `measurement_name`.
+HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` uses the same common HTTP fields as the built-in backends. `InfluxDB` also stores `measurement_name`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
 
 ---
 

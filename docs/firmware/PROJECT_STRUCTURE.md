@@ -14,6 +14,7 @@ This document explains how the firmware project is laid out on disk and which di
 - `firmware/main/CMakeLists.txt`
 - `firmware/main/include/air360/`
 - `firmware/main/src/`
+- `firmware/test/host/`
 
 ## Read next
 
@@ -42,6 +43,8 @@ firmware/
 │   ├── webui/
 │   └── third_party/
 ├── managed_components/
+├── test/
+│   └── host/
 ├── partitions.csv
 ├── sdkconfig
 ├── sdkconfig.defaults
@@ -58,6 +61,7 @@ firmware/
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom partition table (nvs, otadata, phy_init, factory, storage)
 - `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
+- `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
 
 ---
 
@@ -77,7 +81,11 @@ firmware/
 - `main/src/status_service.cpp` — HTML rendering for `/` and `/diagnostics`, plus raw status JSON generation for the diagnostics page
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
-- `main/src/web_server.cpp` — `esp_http_server` routes: `/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/check-sntp`, `/assets/*`
+- `main/src/web_server.cpp` — `esp_http_server` setup, URI registration, and page rendering helpers used by web route files
+- `main/src/web/` — decomposed web route/support files: `web_form.cpp` for host-testable URL/form parsing, `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, and `web_server_helpers.cpp` for HTTP request/response helpers
+- `main/src/uploads/upload_prune_policy.cpp` — host-testable upload prune/quorum logic shared by `MeasurementStore` and `UploadManager`
+- `main/src/uploads/upload_manager_config.cpp` — `UploadManager` backend construction, batch assembly, and upload precondition helpers
+- `main/src/uploads/upload_manager_status.cpp` — read-only `UploadManager` snapshot/query methods split away from the upload task loop
 - `main/webui/` — hand-authored frontend assets embedded into the firmware image (`air360.css`, `air360.js`, page body templates)
 
 ### Public headers
@@ -86,7 +94,7 @@ Headers under `main/include/air360/` define the public C++ interfaces used insid
 
 - `app.hpp`, `build_info.hpp`, `config_repository.hpp`, `network_manager.hpp`
 - `cellular_config_repository.hpp`, `cellular_manager.hpp`, `connectivity_checker.hpp`, `modem_gpio.hpp`
-- `status_service.hpp`, `time_utils.hpp`, `web_server.hpp`, `web_assets.hpp`, `web_ui.hpp`
+- `status_service.hpp`, `time_utils.hpp`, `web_form.hpp`, `web_server.hpp`, `web_server_internal.hpp`, `web_assets.hpp`, `web_ui.hpp`
 - `sensors/` — sensor types, registry, transport, config, driver interface
 - `uploads/` — backend config, measurement store, upload transport, uploader interfaces
 
@@ -129,15 +137,14 @@ Adding a new sensor means one new driver file plus one registry entry — no cha
 Headers: `main/include/air360/uploads/`  
 Sources: `main/src/uploads/`
 
-- `measurement_store.cpp` — in-memory ring buffer (max 256 samples) with pending/inflight upload semantics
+- `measurement_store.cpp` — in-memory ring buffer (max `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH`, default 256 samples) with pending/inflight upload semantics
 - `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 4 backends)
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
-- `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle, backlog drain
+- `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle and per-backend cursors
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
-- `backend_http_config.cpp` — parse, validate, and serialize shared backend HTTP endpoint fields
 - `adapters/air360_json_payload.cpp` — shared Air360 JSON body builder used by multiple backend uploaders
 - `adapters/air360_api_uploader.cpp` — PUT Air360 JSON to the configured Air360 backend host/path
-- `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied full HTTP(S) URL
+- `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied protocol/host/path/port endpoint
 - `adapters/influxdb_uploader.cpp` — POST Influx line protocol to a user-supplied host/path/port with optional Basic Auth
 - `adapters/sensor_community_uploader.cpp` — POST to the configured Sensor.Community host/path
 
@@ -160,6 +167,7 @@ Sources: `main/src/uploads/`
 | `GET /backends` | Backend config form |
 | `POST /backends` | Save backend config |
 | `GET /wifi-scan` | JSON: cached SSID scan list (AP mode only) |
+| `POST /wifi-scan` | Trigger an async Wi-Fi scan refresh |
 | `POST /check-sntp` | Test SNTP server reachability before saving |
 | `GET /assets/*` | Embedded CSS and JS (`air360.css`, `air360.js`) |
 
@@ -182,7 +190,7 @@ VS Code: open `firmware/` directly or `firmware/firmware.code-workspace` with th
 ## How to navigate as a contributor
 
 - **Boot order** → `main/src/app.cpp`
-- **Web routes and UI** → `main/src/web_server.cpp`, `status_service.cpp`, `web_ui.cpp`
+- **Web routes and UI** → `main/src/web_server.cpp`, `main/src/web/`, `status_service.cpp`, `web_ui.cpp`
 - **Device persistence** → `main/src/config_repository.cpp`
 - **Cellular modem** → `main/src/cellular_manager.cpp` (lifecycle), `cellular_config_repository.cpp` (persistence)
 - **Sensor catalog** → `main/src/sensors/sensor_registry.cpp` (read before any driver)

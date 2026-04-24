@@ -64,6 +64,20 @@ struct BackendConfigList {
 
 BackendConfigList makeDefaultBackendConfigList();
 
+inline constexpr std::uint16_t defaultBackendPort(BackendProtocol protocol) {
+    switch (protocol) {
+        case BackendProtocol::kHttp:  return 80U;
+        case BackendProtocol::kHttps: return 443U;
+        default:                      return 0U;
+    }
+}
+
+inline constexpr bool isDefaultBackendPort(
+    BackendProtocol protocol,
+    std::uint16_t port) {
+    return port != 0U && port == defaultBackendPort(protocol);
+}
+
 inline BackendRecord* findBackendRecordByType(BackendConfigList& config, BackendType type) {
     for (std::size_t i = 0; i < config.backend_count; ++i) {
         if (config.backends[i].backend_type == type) {
@@ -86,8 +100,10 @@ inline const BackendRecord* findBackendRecordByType(
 inline std::string buildBackendUrl(const BackendRecord& record) {
     std::string url = backendProtocolScheme(record.protocol);
     url += boundedCString(record.host, kBackendHostCapacity);
-    url += ':';
-    url += std::to_string(record.port);
+    if (record.port != 0U && !isDefaultBackendPort(record.protocol, record.port)) {
+        url += ':';
+        url += std::to_string(record.port);
+    }
     url += boundedCString(record.path, kBackendPathCapacity);
     return url;
 }
@@ -97,11 +113,8 @@ inline std::string formatBackendDisplayEndpoint(const BackendRecord& record) {
     if (host.empty()) {
         return "";
     }
-    const bool is_default_port =
-        (record.protocol == BackendProtocol::kHttps && record.port == 443U) ||
-        (record.protocol == BackendProtocol::kHttp  && record.port == 80U);
     std::string ep = host;
-    if (!is_default_port && record.port != 0U) {
+    if (!isDefaultBackendPort(record.protocol, record.port) && record.port != 0U) {
         ep += ':';
         ep += std::to_string(record.port);
     }

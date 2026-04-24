@@ -122,7 +122,7 @@ Key rules:
 - **UART via UartPortManager**: call `context.uart_port_manager->open()` in `init()` and `close()` in `reset()`.
 - **Warmup / not-ready states**: return `ESP_OK` with `last_error_` set to a short message — do not return an error code. Do not store a measurement during warmup.
 - **Sentinel values**: if the device returns a known out-of-range sentinel on failure (e.g. MH-Z19B returns `5000` when not ready), detect and discard it — set `last_error_` and return `ESP_OK` without updating `measurement_`.
-- **On read error**: set `initialized_ = false` so the next poll cycle re-initialises the device.
+- **On read error**: keep short glitches local to the driver. Increment a per-driver poll failure counter and set `initialized_ = false` only after `kSensorPollFailureReinitThreshold` consecutive poll failures so the manager can re-initialise with exponential backoff.
 - **Type safety**: check the library header for exact parameter types (`int16_t` vs `uint16_t`, etc.) before writing casts.
 
 ---

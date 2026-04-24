@@ -27,6 +27,21 @@ Do not try `which idf.py`, do not search for it, do not try other paths. Use the
 - Avoid documenting generated files in `firmware/build/` except when narrow factual hints are needed.
 - Preserve project-specific terminology and avoid generic boilerplate.
 
+## Firmware concurrency rules
+
+- Timer callbacks MUST NOT call `xTaskCreate`, allocate memory, or block. They may only set atomic flags, notify existing tasks, or post to queues with non-blocking FreeRTOS primitives.
+
+## Firmware return-value rules
+
+- Discarding a return value requires either a function with no `[[nodiscard]]` contract, or an explicit one-line comment immediately before `static_cast<void>(...)` explaining why the result is intentionally unused.
+- Return values that affect observability, recovery, persistence, or task lifecycle should be logged, exposed through status, counted, or propagated instead of discarded.
+
+## Firmware C header rules
+
+- Prefer C headers that already self-guard with `#ifdef __cplusplus extern "C" {}`.
+- Do not wrap such headers in an extra `extern "C"` block in C++ translation units.
+- If a required C header is not self-guarded, add a small local wrapper/shim instead of scattering ad hoc `extern "C"` include blocks across drivers.
+
 ## Firmware entry points
 
 Start here depending on the task:
@@ -70,6 +85,14 @@ When code changes, update the matching docs in the same change:
 - New sensor driver or binding behavior: update `docs/firmware/sensors/README.md`, `docs/firmware/sensors/supported-sensors.md`, `docs/firmware/sensors/adding-new-sensor.md`, and the per-driver page.
 - Upload semantics or backend config changes: update `docs/firmware/measurement-pipeline.md`, `docs/firmware/upload-adapters.md`, and `docs/firmware/configuration-reference.md`.
 - Structural refactors: update `docs/firmware/PROJECT_STRUCTURE.md` and, if responsibilities move, `docs/firmware/ARCHITECTURE.md`.
+
+## Universal completion rule
+
+Before reporting any task as done — regardless of type (code, docs, refactor, rename, issue fix):
+
+1. **Re-read the original request or plan step by step.** Tick every item. If something is skipped, say so explicitly (e.g. `## Outstanding` in an issue file, or a note in the response).
+2. **Self-review the diff.** Read every changed line as a reviewer would. Check for: redundant conditions already implied by context; inconsistent application of a pattern across similar call sites; logic that silently changes behaviour in both directions when the intent was one-directional.
+3. **Check for inbound references** to any renamed or moved file (`grep -r "<old-name>" docs/ firmware/ --include="*.md"`), update them, and run `python3 scripts/check_firmware_docs.py`.
 
 ## Agent-oriented files
 

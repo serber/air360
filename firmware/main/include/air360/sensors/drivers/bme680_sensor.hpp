@@ -12,6 +12,7 @@ struct Bme680DriverState;
 
 class Bme680Sensor final : public SensorDriver {
   public:
+    Bme680Sensor();
     ~Bme680Sensor() override;
     SensorType type() const override;
     esp_err_t init(
@@ -29,7 +30,7 @@ class Bme680Sensor final : public SensorDriver {
     SensorRecord record_{};
     SensorMeasurement measurement_{};
     std::string last_error_;
-    Bme680DriverState* state_ = nullptr;
+    std::unique_ptr<Bme680DriverState> state_;
     bool initialized_ = false;
 };
 

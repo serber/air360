@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include "esp_err.h"
 
@@ -38,18 +39,25 @@ struct DeviceConfig {
 };
 
 DeviceConfig makeDefaultDeviceConfig();
+bool isValidIpv4Address(std::string_view value);
+bool validateStaticIpv4Config(
+    bool sta_use_static_ip,
+    std::string_view sta_ip,
+    std::string_view sta_netmask,
+    std::string_view sta_gateway,
+    std::string_view sta_dns,
+    const char*& out_error);
+bool validateStaticIpv4Config(const DeviceConfig& config, const char*& out_error);
 
 class ConfigRepository {
   public:
-    esp_err_t loadOrCreate(
+    [[nodiscard]] esp_err_t loadOrCreate(
         DeviceConfig& out_config,
         bool& loaded_from_storage,
         bool& wrote_defaults);
-    esp_err_t save(const DeviceConfig& config);
-    esp_err_t incrementBootCount(std::uint32_t& out_boot_count);
-
-  private:
-    bool isValid(const DeviceConfig& config) const;
+    [[nodiscard]] esp_err_t save(const DeviceConfig& config);
+    [[nodiscard]] esp_err_t incrementBootCount(std::uint32_t& out_boot_count);
+    [[nodiscard]] bool isValid(const DeviceConfig& config) const;
 };
 
 }  // namespace air360

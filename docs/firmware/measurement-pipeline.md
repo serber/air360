@@ -37,16 +37,16 @@ air360_sensor task (250 ms loop)
        │
        ├─ latest_by_sensor_   ← always updated (for web UI / diagnostics raw dump)
        │
-       └─ pending_            ← appended only when unix_ms > 0
+       └─ queued_             ← appended only when unix_ms > 0, one shared copy per sample
             │
-            └─ air360_upload task (1 s loop, fires every upload_interval_ms)
+            └─ air360_upload task (1 s loop)
                  │
-                 ├─ beginUploadWindow(32)  → moves up to 32 samples to inflight_
+                 ├─ per backend: select window after acknowledged_sample_id
                  ├─ buildMeasurementBatch()
                  ├─ uploader->buildRequests() + transport_.execute()
                  │
-                 ├─ success → acknowledgeInflight()  → inflight_ cleared
-                 └─ failure → restoreInflight()       → inflight_ prepended back to pending_
+                 ├─ success/no_data → advance only that backend cursor
+                 └─ failure         → keep only that backend window for retry
 ```
 
 ---
@@ -67,12 +67,15 @@ Drivers access hardware exclusively through `SensorDriverContext`, which carries
 ### After `init()`
 
 - On success: `driver_ready = true`, state → `kInitialized`, `next_action_time_ms = now` (poll immediately on the next loop iteration)
-- On failure: `driver_ready = false`, state → `kAbsent` or `kError`, `next_action_time_ms = now + min(poll_interval_ms, 5000)`
+- On failure: `driver_ready = false`, state → `kAbsent` or `kError`, `failures++`, and the next init attempt is delayed with exponential backoff: 1 s, 2 s, 4 s, up to a 5 min cap. `next_retry_ms` exposes the scheduled uptime.
 
 ### After `poll()`
 
-- On success: state → `kPolling`, `next_action_time_ms = now + poll_interval_ms`
-- On failure: `driver_ready = false` (forces re-init on next action), state → `kAbsent` or `kError`, `next_action_time_ms = now + min(poll_interval_ms, 5000)`
+- On success: state → `kPolling`, `failures = 0`, `next_retry_ms = 0`, `next_action_time_ms = now + poll_interval_ms`
+- On the first two consecutive poll failures: keep `driver_ready = true` and retry polling after `min(poll_interval_ms, 5000)`. This absorbs short bus glitches without a full driver teardown.
+- On the third consecutive poll failure: set `driver_ready = false`, increment `failures`, and enter the same exponential init backoff used by `init()` failures.
+
+After 16 consecutive init/poll failures, the manager marks the sensor `kFailed`, clears `next_retry_ms`, and stops automatic retry attempts. A config reload or manual re-enable rebuilds the runtime entry and permits a new attempt.
 
 ### What a driver returns
 
@@ -124,14 +127,16 @@ struct LatestMeasurementEntry {
 
 This data is **never queued for upload** — it is a display-only snapshot.
 
-### 2b — Append to `pending_`
+### 2b — Append to `queued_`
 
 A sample is appended to the upload queue **only if `sample_unix_ms > 0`**, i.e., only when SNTP has provided valid UTC time:
 
 ```cpp
 if (sample_unix_ms > 0 && !measurement.empty()) {
-    pending_.push_back(MeasurementSample{ sensor_id, sensor_type,
-                                          sample_unix_ms, measurement });
+    queued_.push_back(QueuedMeasurementEntry{
+        next_sample_id_++,
+        MeasurementSample{ sensor_id, sensor_type, sample_unix_ms, measurement },
+    });
 }
 ```
 
@@ -139,9 +144,12 @@ If time is not synchronized, readings still update `latest_by_sensor_` (visible 
 
 ### 2c — Update `queued_count_by_sensor_`
 
-When a sample is appended to `pending_`, its `sensor_id` counter is incremented in `queued_count_by_sensor_` — an `unordered_map<sensor_id, count>` that tracks the total number of queued samples (pending + inflight) per sensor.
+When a sample is appended to `queued_`, its `sensor_id` counter is incremented in `queued_count_by_sensor_` — an `unordered_map<sensor_id, count>` that tracks the number of retained queued samples per sensor.
 
-The map is decremented in `acknowledgeInflight()` and when overflow drops samples from the front of `pending_`. It is never modified by `beginUploadWindow()` or `restoreInflight()` — moving samples between `pending_` and `inflight_` does not change the total count per sensor.
+The map is decremented only when a sample actually leaves the shared queue:
+
+- normal retirement after every active backend has acknowledged it
+- overflow dropping from the front of `queued_`
 
 This map is the backing store for `runtimeInfoForSensor()` and `queuedSampleCountForSensor()`, giving both O(1) lookup instead of a full scan of the queues.
 
@@ -156,22 +164,24 @@ struct MeasurementSample {
 
 ---
 
-## Stage 3 — `pending_` queue
+## Stage 3 — Shared queue (`queued_`)
 
 ### Capacity
 
-Maximum size: **256 samples** (`kMaxQueuedSamples`).
+Maximum size: **256 samples by default** (`kMaxQueuedSamples`).
+
+The queue depth is a build-time tuning value: `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` via [`tuning::upload::kMeasurementQueueDepth`](../../firmware/main/include/air360/tuning.hpp). Raising it increases short-outage tolerance but also increases the amount of RAM retained by `MeasurementStore`.
 
 All sensors share a single queue — there is no per-sensor limit.
 
 ### Overflow behavior
 
-When `pending_.size()` exceeds 256 after an append, the **oldest samples are dropped** from the front:
+When `queued_.size()` exceeds the configured queue depth after an append, the **oldest samples are dropped** from the front:
 
 ```cpp
-if (pending_.size() > kMaxQueuedSamples) {
-    const size_t overflow = pending_.size() - kMaxQueuedSamples;
-    pending_.erase(pending_.begin(), pending_.begin() + overflow);
+if (queued_.size() > kMaxQueuedSamples) {
+    const size_t overflow = queued_.size() - kMaxQueuedSamples;
+    queued_.erase(queued_.begin(), queued_.begin() + overflow);
     dropped_sample_count_ += overflow;
 }
 ```
@@ -180,26 +190,31 @@ if (pending_.size() > kMaxQueuedSamples) {
 
 ### When the queue fills up
 
-With 3 sensors each polling every 5 seconds, the queue accumulates ~36 samples/minute. At that rate it takes about **7 minutes** of failed uploads to overflow 256 samples. With more frequent polling or more sensors, overflow can happen sooner.
+With 3 sensors each polling every 5 seconds, the queue accumulates ~36 samples/minute. At the default depth of 256 samples, it takes about **7 minutes** of failed uploads to overflow. With more frequent polling, more sensors, or a lower build-time queue depth, overflow happens sooner.
 
 ---
 
-## Stage 4 — Upload window (`beginUploadWindow`)
+## Stage 4 — Per-backend upload windows
 
-The upload task calls `beginUploadWindow(32)` at the start of each upload cycle:
+`MeasurementStore` no longer owns one global `inflight_` batch. Instead, `UploadManager` tracks progress separately for each backend:
+
+- `acknowledged_sample_id` — highest sample ID that backend has fully accepted
+- `inflight_sample_ids` / `inflight_samples` — retry window currently reserved for that backend
+- `next_action_time_ms` — real next attempt time for that backend
+
+For a backend without an existing retry window, `UploadManager` asks the store for:
 
 ```cpp
-vector<MeasurementSample> beginUploadWindow(size_t max_samples);
+MeasurementQueueWindow uploadWindowAfter(uint64_t after_sample_id, size_t max_samples);
 ```
 
 Behavior:
 
-1. If `inflight_` is **not empty** (previous window was not acknowledged): returns the existing `inflight_` snapshot — the same samples are retried
-2. If `inflight_` is empty and `pending_` is not empty: moves up to `max_samples` samples from the front of `pending_` into `inflight_` and returns them
+1. scan the shared queue in ID order
+2. collect up to `max_samples` entries with `sample_id > acknowledged_sample_id`
+3. keep those samples only in the backend's runtime state, not in `MeasurementStore`
 
-The window size is **32 samples** (`kMaxSamplesPerUploadWindow`). This limits the payload size per upload request.
-
-`pending_` and `inflight_` are **mutually exclusive**: a sample is either pending, in-flight, or acknowledged (gone).
+The window size is still **32 samples** (`kMaxSamplesPerUploadWindow`). This limits the payload size per backend request sequence.
 
 ---
 
@@ -240,18 +255,34 @@ A single sample from a BME280 (3 values) becomes 3 `MeasurementPoint` entries in
 
 ---
 
-## Stage 6 — Upload and queue acknowledgement
+## Stage 6 — Backend-aware acknowledgement
 
-After uploading to all enabled backends:
+After a backend finishes its request sequence:
 
 | Outcome | Action |
 |---------|--------|
-| **All backends succeeded** | `acknowledgeInflight()` — `inflight_` is cleared |
-| **Any backend failed** | `restoreInflight()` — `inflight_` is prepended back to the front of `pending_` |
+| `kSuccess` | advance only that backend cursor; clear only that backend retry window |
+| `kNoData` | also advance only that backend cursor; used when the adapter has nothing to send for that sample set |
+| shared uplink failure (`kNoNetwork`) | keep only that backend retry window; does not count toward best-effort demotion |
+| backend-specific failure (`kTransportError`, `kHttpError`, `kConfigError`, `kUnsupported`) | keep only that backend retry window; counts toward best-effort demotion |
 
-`restoreInflight()` also applies the 256-sample cap, dropping oldest samples if the re-prepended inflight data pushes the queue over the limit.
+Healthy backends therefore continue consuming newer queue entries even while one backend is degraded.
 
-If a backend fails, the **same 32 samples** will be retried on the next upload cycle. This guarantees at-least-once delivery per sample, at the cost of potential duplicates if a backend accepted the data but the response was lost.
+Queue retirement is driven by the **minimum acknowledged sample ID across all quorum backends**. Once every quorum backend has acknowledged sample IDs up to `N`, `MeasurementStore::discardUpTo(N)` removes those entries from the shared queue.
+
+The prune decision is centralized in `upload_prune_policy` and exposed through `MeasurementStore::prune(const PerBackendCursor&)`. The invariants are:
+
+- a sample is retired only after every quorum backend has acknowledged it
+- disabled, unconfigured, missing-uploader, and best-effort backends are outside the quorum
+- best-effort demotion happens after 5 consecutive backend-specific failures spanning at least 10 minutes
+- best-effort backends keep a `missed_sample_count` for windows they skipped or that were retired while they were outside the quorum
+- backend acknowledgement cursors and the shared prune cursor only move forward
+
+`kNoNetwork` is not counted as a backend-specific failure for best-effort demotion because it reflects the shared uplink state rather than one broken destination.
+
+If a backend fails, the **same samples for that backend** are retried on the next scheduled attempt. This keeps at-least-once delivery semantics per backend, while avoiding the previous global restore that blocked healthy backends behind one degraded destination.
+
+After a backend is demoted to best-effort, it no longer blocks queue retirement. Backend-specific upload failures for a best-effort backend skip that backend's current window, increment `missed_sample_count`, and move its local cursor forward so the next attempt can try newer retained samples. A later `kSuccess` or `kNoData` clears best-effort status and returns the backend to the quorum.
 
 How each backend converts a `MeasurementBatch` into HTTP requests and classifies the response is covered in [upload-adapters.md](upload-adapters.md).
 
@@ -259,17 +290,39 @@ How each backend converts a `MeasurementBatch` into HTTP requests and classifies
 
 ## Upload cycle timing
 
-The upload task loop runs every **1 second** (`kUploadLoopDelay`). The actual upload fires when `uptime >= next_cycle_time_ms`.
+The upload task loop runs every **1 second** (`kUploadLoopDelay`). Each backend has its own `next_action_time_ms`, so due backends are processed independently.
 
-| Condition | Next cycle delay |
-|-----------|-----------------|
-| No data | `upload_interval_ms` (default 145 s) |
-| Upload succeeded, no backlog | `upload_interval_ms` |
-| Upload succeeded, backlog > 0 | `min(upload_interval_ms, 5000 ms)` |
-| Upload failed | `upload_interval_ms` |
-| No network / no time | 1 s (re-check next iteration) |
+| Per-backend condition | Next attempt delay |
+|-----------------------|--------------------|
+| No data after cursor | `upload_interval_ms` (default 145 s) |
+| Upload succeeded, queued samples from cycle start remain | immediate next upload window |
+| Upload succeeded, cycle-start queue drained | `upload_interval_ms` |
+| Shared uplink failure (`kNoNetwork`) | `upload_interval_ms`; does not count toward best-effort demotion |
+| Backend-specific failure (`kTransportError`, `kHttpError`, `kConfigError`, `kUnsupported`) | `upload_interval_ms`; counts toward best-effort demotion |
 
-The **backlog drain** shortens the next cycle to 5 seconds when there are still pending samples after a successful upload. This drains the queue faster without changing the configured interval under normal conditions.
+When a backend becomes due, the upload task snapshots the latest queued sample ID as the cycle high-water mark. It then drains windows of up to 32 samples as quickly as each HTTP request sequence completes until that high-water mark is acknowledged. Samples recorded while this drain is running are left for the next scheduled interval, so continuous sensor writes cannot keep the upload task in an infinite drain loop.
+
+---
+
+## Runtime reconfiguration and shutdown
+
+Sensor and backend configuration can be applied at runtime from the web UI. Both managers use explicit task synchronization instead of polling a task handle in a loop:
+
+| Manager | Stop signal | Stop acknowledgement | Stop timeout |
+|---------|-------------|----------------------|--------------|
+| `SensorManager` | `stop_requested_ = true` plus task notification | `lifecycle_events_` bit from `air360_sensor` exit path | 5 000 ms |
+| `UploadManager` | `stop_requested_ = true` plus task notification | `lifecycle_events_` bit from `air360_upload` exit path | 30 000 ms |
+
+`applyConfig()` first asks the existing task to stop and waits for the acknowledgement bit. If the task does not stop before the timeout, reconfiguration is aborted and the existing runtime objects are left untouched. This prevents replacing `sensors_`, backend uploaders, UART handles, or inflight upload windows while the old task may still be executing against them.
+
+The stop request wakes idle task waits immediately. It does not forcibly kill a task that is currently inside a driver call or HTTP request:
+
+- sensor shutdown is bounded by the current driver's `init()` / `poll()` behavior; normal bus transfers use the transport timeouts documented in [transport-binding.md](transport-binding.md)
+- upload shutdown is bounded by the current `UploadTransport::execute()` call; the HTTP client timeout is 15 000 ms per request, and stop handling prevents starting another request after a stop request is observed
+
+`air360_upload` feeds the task watchdog before and after each blocking HTTP request and between drained upload windows. Multi-request batches therefore keep the TWDT fed between requests, but one in-flight request still runs synchronously until `esp_http_client_perform()` returns or the request timeout expires.
+
+If runtime apply fails after the config has been saved, the web UI reports that the saved config will apply on reboot.
 
 ---
 
@@ -286,11 +339,11 @@ For how SNTP synchronisation works and how time validity is determined, see [tim
 
 ## Conditions that block uploading
 
-The upload task skips the upload cycle (delays 1 s and retries) if:
+The upload task does not upload for a backend if:
 
-- Network mode is not `kStation`
-- Station is not connected
-- `hasValidTime()` returns false — unix time not yet valid
+- no samples exist after that backend's current cursor
+- network uplink is not ready
+- unix time is not yet valid
 
 ---
 
@@ -303,10 +356,10 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 | Task | Operations |
 |------|------------|
 | `air360_sensor` | `recordMeasurement()` |
-| `air360_upload` | `beginUploadWindow()`, `acknowledgeInflight()`, `restoreInflight()`, `pendingCount()` |
-| Web server task | `runtimeInfoForSensor()`, `queuedSampleCountForSensor()`, `pendingCount()`, `inflightCount()` |
+| `air360_upload` | `uploadWindowAfter()`, `queuedCountAfterUntil()`, `discardUpTo()`, `hasSamplesAfter()`, `pendingCount()` |
+| Web server task | `runtimeInfoForSensor()`, `queuedSampleCountForSensor()`, `pendingCount()` |
 
-`runtimeInfoForSensor()` and `queuedSampleCountForSensor()` use the `queued_count_by_sensor_` map for O(1) lookup — the mutex is held for a map lookup rather than a full scan of `pending_` and `inflight_`.
+`runtimeInfoForSensor()` and `queuedSampleCountForSensor()` use the `queued_count_by_sensor_` map for O(1) lookup — the mutex is held for a map lookup rather than a full scan of `queued_`.
 
 ---
 
@@ -316,9 +369,10 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 |----------|-------|----------|
 | Sensor task loop period | 250 ms | `sensor_manager.cpp` |
 | Upload task loop period | 1 000 ms | `upload_manager.cpp` |
+| Sensor reconfigure stop timeout | 5 000 ms | `sensor_manager.cpp` |
+| Upload reconfigure stop timeout | 30 000 ms | `upload_manager.cpp` |
 | Max queue size | 256 samples | `measurement_store.cpp` |
 | Upload window size | 32 samples | `upload_manager.cpp` |
 | Max values per measurement | 16 | `sensor_types.hpp` |
-| Backlog drain interval | 5 000 ms | `upload_manager.cpp` |
 | Default upload interval | 145 000 ms | `backend_config.hpp` |
 | Sensor retry delay on error | 5 000 ms | `sensor_manager.cpp` |

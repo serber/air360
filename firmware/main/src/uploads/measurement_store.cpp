@@ -2,42 +2,79 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <unordered_map>
 #include <utility>
 
 namespace air360 {
 
 namespace {
 
-constexpr std::size_t kMaxQueuedSamples = 256U;
-
-void appendPendingLocked(
-    std::vector<MeasurementSample>& pending,
-    const MeasurementSample& sample,
-    std::uint32_t& dropped_sample_count,
-    std::unordered_map<std::uint32_t, std::uint32_t>& count_map) {
-    pending.push_back(sample);
-    ++count_map[sample.sensor_id];
-
-    if (pending.size() > kMaxQueuedSamples) {
-        const std::size_t overflow = pending.size() - kMaxQueuedSamples;
-        for (std::size_t i = 0U; i < overflow; ++i) {
-            auto it = count_map.find(pending[i].sensor_id);
-            if (it != count_map.end()) {
-                if (--it->second == 0U) {
-                    count_map.erase(it);
-                }
-            }
-        }
-        pending.erase(pending.begin(), pending.begin() + static_cast<std::ptrdiff_t>(overflow));
-        dropped_sample_count += static_cast<std::uint32_t>(overflow);
-    }
-}
+// The queue is a fixed-size RAM ring buffer, so overflow must drop oldest
+// samples instead of allocating; kMaxQueuedSamples is chosen in tuning.hpp.
 
 }  // namespace
 
 MeasurementStore::MeasurementStore() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+}
+
+PruneDecision MeasurementStore::prune(const PerBackendCursor& cursors) {
+    return computePruneDecision(cursors);
+}
+
+std::size_t MeasurementStore::queuedIndex(std::size_t offset) const {
+    return (queued_head_ + offset) % queued_.size();
+}
+
+void MeasurementStore::dropOldestQueuedLocked() {
+    if (queued_size_ == 0U) {
+        return;
+    }
+
+    QueuedMeasurementEntry& oldest = queued_[queued_head_];
+    decrementQueuedCountLocked(oldest.sample.sensor_id);
+    oldest = QueuedMeasurementEntry{};
+    queued_head_ = (queued_head_ + 1U) % queued_.size();
+    --queued_size_;
+}
+
+std::uint32_t MeasurementStore::queuedCountForSensorLocked(
+    std::uint32_t sensor_id) const {
+    for (const auto& entry : queued_count_by_sensor_) {
+        if (entry.count > 0U && entry.sensor_id == sensor_id) {
+            return entry.count;
+        }
+    }
+    return 0U;
+}
+
+void MeasurementStore::incrementQueuedCountLocked(std::uint32_t sensor_id) {
+    for (auto& entry : queued_count_by_sensor_) {
+        if (entry.count > 0U && entry.sensor_id == sensor_id) {
+            ++entry.count;
+            return;
+        }
+    }
+    for (auto& entry : queued_count_by_sensor_) {
+        if (entry.count == 0U) {
+            entry.sensor_id = sensor_id;
+            entry.count = 1U;
+            return;
+        }
+    }
+    // All slots occupied by other sensors — degrade gracefully and skip
+    // tracking this sensor's count. Display will show 0 queued samples
+    // for this sensor until queue drains enough to free a slot.
+}
+
+void MeasurementStore::decrementQueuedCountLocked(std::uint32_t sensor_id) {
+    for (auto& entry : queued_count_by_sensor_) {
+        if (entry.count > 0U && entry.sensor_id == sensor_id) {
+            if (--entry.count == 0U) {
+                entry.sensor_id = 0U;
+            }
+            return;
+        }
+    }
 }
 
 void MeasurementStore::recordMeasurement(
@@ -48,31 +85,41 @@ void MeasurementStore::recordMeasurement(
     lock();
 
     LatestMeasurementEntry* latest_entry = nullptr;
-    for (auto& entry : latest_by_sensor_) {
-        if (entry.sensor_id == sensor_id) {
-            latest_entry = &entry;
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        if (latest_by_sensor_[index].sensor_id == sensor_id) {
+            latest_entry = &latest_by_sensor_[index];
             break;
         }
     }
 
     if (latest_entry == nullptr) {
-        latest_by_sensor_.push_back(LatestMeasurementEntry{sensor_id, measurement, measurement.sample_time_ms});
-    } else {
+        if (latest_count_ < latest_by_sensor_.size()) {
+            latest_entry = &latest_by_sensor_[latest_count_++];
+            latest_entry->sensor_id = sensor_id;
+        }
+    }
+
+    if (latest_entry != nullptr) {
         latest_entry->measurement = measurement;
         latest_entry->last_sample_time_ms = measurement.sample_time_ms;
     }
 
     if (sample_unix_ms > 0 && !measurement.empty()) {
-        appendPendingLocked(
-            pending_,
-            MeasurementSample{
-                sensor_id,
-                sensor_type,
-                static_cast<std::uint64_t>(sample_unix_ms),
-                measurement,
-            },
-            dropped_sample_count_,
-            queued_count_by_sensor_);
+        if (queued_size_ == queued_.size()) {
+            dropOldestQueuedLocked();
+            ++dropped_sample_count_;
+        }
+
+        const std::size_t insert_index = queuedIndex(queued_size_);
+        queued_[insert_index].id = next_sample_id_++;
+        queued_[insert_index].sample = MeasurementSample{
+            sensor_id,
+            sensor_type,
+            static_cast<std::uint64_t>(sample_unix_ms),
+            measurement,
+        };
+        ++queued_size_;
+        incrementQueuedCountLocked(sensor_id);
     }
 
     unlock();
@@ -81,64 +128,108 @@ void MeasurementStore::recordMeasurement(
 void MeasurementStore::append(const MeasurementSample& sample) {
     lock();
 
-    appendPendingLocked(pending_, sample, dropped_sample_count_, queued_count_by_sensor_);
+    if (queued_size_ == queued_.size()) {
+        dropOldestQueuedLocked();
+        ++dropped_sample_count_;
+    }
+
+    const std::size_t insert_index = queuedIndex(queued_size_);
+    queued_[insert_index].id = next_sample_id_++;
+    queued_[insert_index].sample = sample;
+    ++queued_size_;
+    incrementQueuedCountLocked(sample.sensor_id);
 
     unlock();
 }
 
-std::vector<MeasurementSample> MeasurementStore::beginUploadWindow(std::size_t max_samples) {
-    lock();
-
-    if (!inflight_.empty()) {
-        const auto snapshot = inflight_;
-        unlock();
-        return snapshot;
-    }
-
-    if (!pending_.empty()) {
-        const std::size_t batch_size = std::min(max_samples, pending_.size());
-        inflight_.assign(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(batch_size));
-        pending_.erase(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(batch_size));
-    }
-
-    const auto snapshot = inflight_;
-    unlock();
-    return snapshot;
+MeasurementQueueWindow MeasurementStore::uploadWindowAfter(
+    std::uint64_t after_sample_id,
+    std::size_t max_samples) const {
+    return uploadWindowAfterUntil(after_sample_id, UINT64_MAX, max_samples);
 }
 
-void MeasurementStore::acknowledgeInflight() {
+MeasurementQueueWindow MeasurementStore::uploadWindowAfterUntil(
+    std::uint64_t after_sample_id,
+    std::uint64_t until_sample_id,
+    std::size_t max_samples) const {
     lock();
-    for (const auto& sample : inflight_) {
-        auto it = queued_count_by_sensor_.find(sample.sensor_id);
-        if (it != queued_count_by_sensor_.end()) {
-            if (--it->second == 0U) {
-                queued_count_by_sensor_.erase(it);
-            }
+
+    MeasurementQueueWindow window;
+    const std::size_t reserve_hint = std::min(max_samples, queued_size_);
+    window.sample_ids.reserve(reserve_hint);
+    window.samples.reserve(reserve_hint);
+    for (std::size_t offset = 0U; offset < queued_size_; ++offset) {
+        const QueuedMeasurementEntry& entry = queued_[queuedIndex(offset)];
+        if (entry.id <= after_sample_id) {
+            continue;
+        }
+        if (entry.id > until_sample_id) {
+            break;
+        }
+
+        window.sample_ids.push_back(entry.id);
+        window.samples.push_back(entry.sample);
+        if (window.samples.size() >= max_samples) {
+            break;
         }
     }
-    inflight_.clear();
+
     unlock();
+    return window;
 }
 
-void MeasurementStore::restoreInflight() {
+bool MeasurementStore::hasSamplesAfter(std::uint64_t after_sample_id) const {
     lock();
-    if (!inflight_.empty()) {
-        pending_.insert(pending_.begin(), inflight_.begin(), inflight_.end());
-        inflight_.clear();
-        if (pending_.size() > kMaxQueuedSamples) {
-            const std::size_t overflow = pending_.size() - kMaxQueuedSamples;
-            for (std::size_t i = 0U; i < overflow; ++i) {
-                auto it = queued_count_by_sensor_.find(pending_[i].sensor_id);
-                if (it != queued_count_by_sensor_.end()) {
-                    if (--it->second == 0U) {
-                        queued_count_by_sensor_.erase(it);
-                    }
-                }
-            }
-            pending_.erase(pending_.begin(), pending_.begin() + static_cast<std::ptrdiff_t>(overflow));
-            dropped_sample_count_ += static_cast<std::uint32_t>(overflow);
+    bool found = false;
+    for (std::size_t offset = 0U; offset < queued_size_; ++offset) {
+        if (queued_[queuedIndex(offset)].id > after_sample_id) {
+            found = true;
+            break;
         }
     }
+    unlock();
+    return found;
+}
+
+std::uint64_t MeasurementStore::latestSampleId() const {
+    lock();
+    std::uint64_t sample_id = 0U;
+    if (queued_size_ > 0U) {
+        sample_id = queued_[queuedIndex(queued_size_ - 1U)].id;
+    }
+    unlock();
+    return sample_id;
+}
+
+std::size_t MeasurementStore::queuedCountAfterUntil(
+    std::uint64_t after_sample_id,
+    std::uint64_t until_sample_id) const {
+    lock();
+
+    std::size_t count = 0U;
+    for (std::size_t offset = 0U; offset < queued_size_; ++offset) {
+        const QueuedMeasurementEntry& entry = queued_[queuedIndex(offset)];
+        if (entry.id <= after_sample_id) {
+            continue;
+        }
+        if (entry.id > until_sample_id) {
+            break;
+        }
+        ++count;
+    }
+
+    unlock();
+    return count;
+}
+
+void MeasurementStore::discardUpTo(std::uint64_t sample_id) {
+    lock();
+
+    while (queued_size_ > 0U &&
+           queued_[queued_head_].id <= sample_id) {
+        dropOldestQueuedLocked();
+    }
+
     unlock();
 }
 
@@ -147,59 +238,74 @@ MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sens
 
     MeasurementRuntimeInfo info;
     info.sensor_id = sensor_id;
-    for (const auto& entry : latest_by_sensor_) {
-        if (entry.sensor_id == sensor_id) {
-            info.measurement = entry.measurement;
-            info.last_sample_time_ms = entry.last_sample_time_ms;
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        if (latest_by_sensor_[index].sensor_id == sensor_id) {
+            info.measurement = latest_by_sensor_[index].measurement;
+            info.last_sample_time_ms = latest_by_sensor_[index].last_sample_time_ms;
             break;
         }
     }
 
-    const auto it = queued_count_by_sensor_.find(sensor_id);
-    if (it != queued_count_by_sensor_.end()) {
-        info.queued_sample_count = it->second;
-    }
+    info.queued_sample_count = queuedCountForSensorLocked(sensor_id);
 
     unlock();
     return info;
 }
 
-std::vector<MeasurementRuntimeInfo> MeasurementStore::allLatestMeasurements() const {
+std::size_t MeasurementStore::allLatestMeasurements(
+    MeasurementRuntimeInfo* out,
+    std::size_t out_cap) const {
+    if (out == nullptr || out_cap == 0U) {
+        return 0U;
+    }
+
     lock();
-    std::vector<MeasurementRuntimeInfo> result;
-    result.reserve(latest_by_sensor_.size());
-    for (const auto& entry : latest_by_sensor_) {
+
+    const std::size_t limit = std::min(latest_count_, out_cap);
+    for (std::size_t index = 0U; index < limit; ++index) {
+        const LatestMeasurementEntry& entry = latest_by_sensor_[index];
+        out[index].sensor_id = entry.sensor_id;
+        out[index].measurement = entry.measurement;
+        out[index].last_sample_time_ms = entry.last_sample_time_ms;
+        out[index].queued_sample_count = queuedCountForSensorLocked(entry.sensor_id);
+    }
+
+    unlock();
+    return limit;
+}
+
+MeasurementStoreSnapshot MeasurementStore::snapshot() const {
+    lock();
+
+    MeasurementStoreSnapshot snapshot;
+    snapshot.measurements.reserve(latest_count_);
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        const LatestMeasurementEntry& entry = latest_by_sensor_[index];
         MeasurementRuntimeInfo info;
         info.sensor_id = entry.sensor_id;
         info.measurement = entry.measurement;
         info.last_sample_time_ms = entry.last_sample_time_ms;
-        info.queued_sample_count = 0U;
-        result.push_back(info);
+        info.queued_sample_count = queuedCountForSensorLocked(entry.sensor_id);
+        snapshot.measurements.push_back(std::move(info));
     }
+    snapshot.pending_count = queued_size_;
+    snapshot.inflight_count = 0U;
+    snapshot.dropped_sample_count = dropped_sample_count_;
+
     unlock();
-    return result;
+    return snapshot;
 }
 
 std::size_t MeasurementStore::queuedSampleCountForSensor(std::uint32_t sensor_id) const {
     lock();
-
-    const auto it = queued_count_by_sensor_.find(sensor_id);
-    const std::size_t count = (it != queued_count_by_sensor_.end()) ? it->second : 0U;
-
+    const std::size_t count = queuedCountForSensorLocked(sensor_id);
     unlock();
     return count;
 }
 
 std::size_t MeasurementStore::pendingCount() const {
     lock();
-    const std::size_t count = pending_.size();
-    unlock();
-    return count;
-}
-
-std::size_t MeasurementStore::inflightCount() const {
-    lock();
-    const std::size_t count = inflight_.size();
+    const std::size_t count = queued_size_;
     unlock();
     return count;
 }

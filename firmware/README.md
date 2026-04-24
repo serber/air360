@@ -4,7 +4,7 @@ This directory contains the ESP-IDF firmware project for Air360.
 
 For AI-agent task routing and co-change expectations inside this directory, start with [AGENTS.md](AGENTS.md).
 
-The current implementation is a Phase 3.2 runtime for `esp32s3` on ESP-IDF 6.x. It boots a C++17 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device, sensor, and backend configuration, resolves whether the device should run in station mode or setup AP mode, synchronizes UTC time through SNTP when station uplink is available, exposes local HTTP endpoints at `/`, `/status`, `/config`, `/sensors`, and `/backends`, runs a background sensor manager for supported sensor drivers, and runs a background upload manager for supported remote backends.
+The current implementation targets `esp32s3` on ESP-IDF 6.x. It boots a C++20 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device, cellular, sensor, and backend configuration, resolves whether the device should run in station mode or setup AP mode, synchronizes UTC time through SNTP when station uplink is available, exposes local HTTP endpoints at `/`, `/diagnostics`, `/config`, `/sensors`, and `/backends`, runs background sensor, upload, Wi-Fi worker, cellular, and BLE tasks as needed, and serves embedded UI assets from `/assets/*`.
 
 Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/).
 
@@ -56,7 +56,7 @@ Public component headers for the current runtime:
 - `network_manager.hpp`
   Declares the station join flow, setup AP fallback, and reported network state.
 - `status_service.hpp`
-  Declares the service that renders the root HTML page and `/status` JSON.
+  Declares the service that renders the root overview page, diagnostics page, and the raw status JSON embedded into diagnostics.
 - `web_assets.hpp`
   Declares embedded frontend asset lookup and stable asset href helpers for the firmware UI.
 - `web_ui.hpp`
@@ -89,7 +89,7 @@ Current implementation files:
 - `web_ui.cpp`
   Provides shared page-shell rendering, embedded HTML template expansion, navigation, notices, and HTML escaping for firmware pages.
 - `web_server.cpp`
-  Starts `esp_http_server`, registers `/`, `/status`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them live, and persists backend selection changes immediately.
+  Starts `esp_http_server`, registers `/`, `/diagnostics`, `/logs/data`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/check-sntp`, and `/assets/*` handlers, stages sensor edits in memory until the user explicitly applies them live, and persists backend selection changes immediately.
 - `webui/`
   Contains the embedded frontend files used by firmware, including shared CSS, progressive-enhancement JavaScript, and page body templates.
 - `sensors/`
@@ -224,6 +224,23 @@ Generated artifacts are written under `build/`. For the current project that inc
 - `build/air360_firmware.map`
 - `build/compile_commands.json`
 
+### Host tests
+
+Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. The current targets cover web form parsing, backend URL config helpers, `MeasurementStore` queue behavior, and the upload prune/quorum policy used by `UploadManager`.
+
+```bash
+cd firmware
+cmake -S test/host -B test/host/build
+cmake --build test/host/build
+ctest --test-dir test/host/build --output-on-failure
+```
+
+From the repository root, the same sequence is wrapped by:
+
+```bash
+python3 scripts/check_firmware_host_tests.py
+```
+
 ## Release Packaging
 
 To package the current build for a GitHub beta or stable release, use the repo-local release skill script:
@@ -290,7 +307,7 @@ After boot, the runtime exposes one of two local access paths:
   - `http://192.168.4.1/config`
   - the UI intentionally redirects `/`, `/sensors`, and `/backends` to `/config`
   - `/wifi-scan` returns the scanned station SSID list used by the setup form
-  - `/status` still exists as a JSON endpoint, but it is not linked from the AP-mode navigation
+  - `/diagnostics` exposes runtime diagnostics, including live logs and the raw status JSON dump
 - in station mode:
   - the same routes are served on the DHCP address obtained by the device on the configured Wi-Fi network
 
@@ -324,13 +341,13 @@ The firmware now has a clear central sensor orchestration model:
 
 - one `SensorManager`
 - one background polling task
-- one runtime snapshot consumed by `/` and `/status`
+- one request-local runtime snapshot consumed by `/` and `/diagnostics`
 - one generic measurement model used by all drivers through typed value channels rather than sensor-specific top-level structs
 
 The firmware also has a separate upload pipeline:
 
 - `SensorManager` appends measurement samples into `MeasurementStore`
-- `MeasurementStore` maintains `pending` and `inflight` queues so uploads can be acknowledged or restored
+- `MeasurementStore` maintains the shared pending queue; `UploadManager` owns per-backend retry windows and acknowledgement cursors
 - `UploadManager` only attempts upload when station uplink and valid Unix time are available
 - `UploadManager` drains a bounded measurement window on each cycle rather than sending the whole queue at once
 - when backlog remains after a successful upload, `UploadManager` temporarily shortens the next cycle to drain the queue faster
@@ -340,11 +357,15 @@ The firmware also has a separate upload pipeline:
 Currently implemented backends are:
 
 - `Sensor.Community`
-  Fixed endpoint `http://api.sensor.community/v1/push-sensor-data/`
+  Fixed default endpoint `https://api.sensor.community/v1/push-sensor-data/`
 - `Air360 API`
-  Fixed base endpoint `http://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
+  Fixed default base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
+- `Custom Upload`
+  User-supplied protocol, host, path, and port
+- `InfluxDB`
+  User-supplied protocol, host, path, port, credentials, and measurement name
 
-Backend selection and upload interval are configured through `/backends`. Endpoint URLs are static in firmware and are not edited through the UI.
+Backend selection and upload interval are configured through `/backends`. The built-in backends keep fixed host/path defaults; `Custom Upload` and `InfluxDB` are edited through the UI.
 
 For `Sensor.Community`, the `/backends` form also exposes a device id field prefilled from the runtime `Short ID`. You can change it for debugging; the saved value is then used for `X-Sensor` and related legacy id fields.
 
@@ -376,8 +397,8 @@ Current UI/runtime notes confirmed by the implementation:
 - the `Sensors` page and `Overview` show queued sample counts per sensor based on `MeasurementStore`
 - `Overview -> Sensors` shows the configured per-sensor poll interval
 - `Overview -> Backends` shows the configured global upload interval for all backends
-- `/status` includes both numeric `reset_reason` and string `reset_reason_label`
-- `/status` also includes `health_status`, `health_summary`, and `health_checks`
+- the diagnostics raw JSON includes both numeric `reset_reason` and string `reset_reason_label`
+- the diagnostics raw JSON also includes `health_status`, `health_summary`, and `health_checks`
 - `DHT11`, `DHT22`, `ME3-NO2`
   Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
 
@@ -389,7 +410,7 @@ Current default I2C addresses from the registry are:
 - `VEML7700`: `0x10`
 - `SPS30`: `0x69`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Light`, `Particulate Matter`, `Location`, `Gas / CO2`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas / CO2` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Light`, `Particulate Matter`, `Location`, `Gas`, `Power`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 

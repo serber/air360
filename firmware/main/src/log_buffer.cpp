@@ -12,6 +12,8 @@ namespace air360 {
 
 namespace {
 
+// Keep enough recent logs in RAM for diagnostics without reserving a noticeable
+// chunk of memory on an ESP32-S3 system task budget.
 constexpr std::size_t kCapacity = 8192;
 
 portMUX_TYPE g_spinlock = portMUX_INITIALIZER_UNLOCKED;

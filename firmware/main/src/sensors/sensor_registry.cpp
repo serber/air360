@@ -1,7 +1,9 @@
 #include "air360/sensors/sensor_registry.hpp"
 
+#include <array>
 #include <string>
 
+#include "air360/sensors/bus_config.hpp"
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
@@ -20,6 +22,16 @@
 namespace air360 {
 
 namespace {
+
+bool validateI2cBusId(const SensorRecord& record, std::string& error) {
+    if (record.i2c_bus_id != kPrimaryI2cBus) {
+        error = "I2C bus id ";
+        error += std::to_string(record.i2c_bus_id);
+        error += " is not configured on this build.";
+        return false;
+    }
+    return true;
+}
 
 bool validateCommonRecord(const SensorRecord& record, std::string& error) {
     if (record.id == 0U) {
@@ -45,8 +57,7 @@ bool validateBme280Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -68,8 +79,7 @@ bool validateBme680Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -91,8 +101,7 @@ bool validateSps30Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -114,8 +123,7 @@ bool validateScd30Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -137,8 +145,7 @@ bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -160,8 +167,7 @@ bool validateHtu2xRecord(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -183,8 +189,7 @@ bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -209,7 +214,7 @@ bool validateGpsNmeaRecord(const SensorRecord& record, std::string& error) {
     if (record.uart_port_id != CONFIG_AIR360_GPS_DEFAULT_UART_PORT ||
         record.uart_rx_gpio_pin != CONFIG_AIR360_GPS_DEFAULT_RX_GPIO ||
         record.uart_tx_gpio_pin != CONFIG_AIR360_GPS_DEFAULT_TX_GPIO) {
-        error = "GPS UART binding must match the fixed board wiring.";
+        error = "GPS UART port, RX, and TX pins must match the build-time board configuration.";
         return false;
     }
 
@@ -284,8 +289,7 @@ bool validateIna219Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.i2c_bus_id != 0U) {
-        error = "I2C bus id must be 0 for the current board wiring.";
+    if (!validateI2cBusId(record, error)) {
         return false;
     }
 
@@ -336,283 +340,288 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
-constexpr SensorDescriptor kDescriptors[] = {
+// Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
+// Size computed for ESP32 (32-bit, 4-byte pointers): 17 fields, 44 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 44U,
+    "SensorDescriptor layout changed — update kDescriptors designated initializers");
+
+constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
     {
-        SensorType::kBme280,
-        "bme280",
-        "BME280",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x76U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateBme280Record,
-        &createBme280Sensor,
+        .type                     = SensorType::kBme280,
+        .type_key                 = "bme280",
+        .display_name             = "BME280",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x76U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateBme280Record,
+        .create_driver            = &createBme280Sensor,
     },
     {
-        SensorType::kBme680,
-        "bme680",
-        "BME680",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x77U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateBme680Record,
-        &createBme680Sensor,
+        .type                     = SensorType::kBme680,
+        .type_key                 = "bme680",
+        .display_name             = "BME680",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x77U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateBme680Record,
+        .create_driver            = &createBme680Sensor,
     },
     {
-        SensorType::kSps30,
-        "sps30",
-        "SPS30",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x69U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateSps30Record,
-        &createSps30Sensor,
+        .type                     = SensorType::kSps30,
+        .type_key                 = "sps30",
+        .display_name             = "SPS30",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x69U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateSps30Record,
+        .create_driver            = &createSps30Sensor,
     },
     {
-        SensorType::kScd30,
-        "scd30",
-        "SCD30",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x61U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateScd30Record,
-        &createScd30Sensor,
+        .type                     = SensorType::kScd30,
+        .type_key                 = "scd30",
+        .display_name             = "SCD30",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x61U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateScd30Record,
+        .create_driver            = &createScd30Sensor,
     },
     {
-        SensorType::kVeml7700,
-        "veml7700",
-        "VEML7700",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x10U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateVeml7700Record,
-        &createVeml7700Sensor,
+        .type                     = SensorType::kVeml7700,
+        .type_key                 = "veml7700",
+        .display_name             = "VEML7700",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x10U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateVeml7700Record,
+        .create_driver            = &createVeml7700Sensor,
     },
     {
-        SensorType::kGpsNmea,
-        "gps_nmea",
-        "GPS (NMEA)",
-        false,
-        false,
-        true,
-        false,
-        true,
-        5000U,
-        0U,
-        0x00U,
-        CONFIG_AIR360_GPS_DEFAULT_UART_PORT,
-        CONFIG_AIR360_GPS_DEFAULT_RX_GPIO,
-        CONFIG_AIR360_GPS_DEFAULT_TX_GPIO,
-        CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE,
-        &validateGpsNmeaRecord,
-        &createGpsNmeaSensor,
+        .type                     = SensorType::kGpsNmea,
+        .type_key                 = "gps_nmea",
+        .display_name             = "GPS (NMEA)",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = true,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .default_uart_port_id     = CONFIG_AIR360_GPS_DEFAULT_UART_PORT,
+        .default_uart_rx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_RX_GPIO,
+        .default_uart_tx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_TX_GPIO,
+        .default_uart_baud_rate   = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE,
+        .validate                 = &validateGpsNmeaRecord,
+        .create_driver            = &createGpsNmeaSensor,
     },
     {
-        SensorType::kDht11,
-        "dht11",
-        "DHT11",
-        false,
-        false,
-        false,
-        true,
-        true,
-        5000U,
-        0U,
-        0x00U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateDht11Record,
-        &createDht11Sensor,
+        .type                     = SensorType::kDht11,
+        .type_key                 = "dht11",
+        .display_name             = "DHT11",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = true,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateDht11Record,
+        .create_driver            = &createDht11Sensor,
     },
     {
-        SensorType::kDht22,
-        "dht22",
-        "DHT22",
-        false,
-        false,
-        false,
-        true,
-        true,
-        5000U,
-        0U,
-        0x00U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateDht22Record,
-        &createDht22Sensor,
+        .type                     = SensorType::kDht22,
+        .type_key                 = "dht22",
+        .display_name             = "DHT22",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = true,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateDht22Record,
+        .create_driver            = &createDht22Sensor,
     },
     {
-        SensorType::kDs18b20,
-        "ds18b20",
-        "DS18B20",
-        false,
-        false,
-        false,
-        true,
-        true,
-        5000U,
-        0U,
-        0x00U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateDs18b20Record,
-        &createDs18b20Sensor,
+        .type                     = SensorType::kDs18b20,
+        .type_key                 = "ds18b20",
+        .display_name             = "DS18B20",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = true,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateDs18b20Record,
+        .create_driver            = &createDs18b20Sensor,
     },
     {
-        SensorType::kHtu2x,
-        "htu2x",
-        "HTU2X",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x40U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateHtu2xRecord,
-        &createHtu2xSensor,
+        .type                     = SensorType::kHtu2x,
+        .type_key                 = "htu2x",
+        .display_name             = "HTU2X",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x40U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateHtu2xRecord,
+        .create_driver            = &createHtu2xSensor,
     },
     {
-        SensorType::kSht4x,
-        "sht4x",
-        "SHT4X",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x44U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateSht4xRecord,
-        &createSht4xSensor,
+        .type                     = SensorType::kSht4x,
+        .type_key                 = "sht4x",
+        .display_name             = "SHT4X",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x44U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateSht4xRecord,
+        .create_driver            = &createSht4xSensor,
     },
     {
-        SensorType::kIna219,
-        "ina219",
-        "INA219",
-        true,
-        false,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x40U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateIna219Record,
-        &createIna219Sensor,
+        .type                     = SensorType::kIna219,
+        .type_key                 = "ina219",
+        .display_name             = "INA219",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x40U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateIna219Record,
+        .create_driver            = &createIna219Sensor,
     },
     {
-        SensorType::kMhz19b,
-        "mhz19b",
-        "MH-Z19B",
-        false,
-        false,
-        true,
-        false,
-        true,
-        10000U,
-        0U,
-        0x00U,
-        CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT,
-        CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO,
-        CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO,
-        9600U,
-        &validateMhz19bRecord,
-        &createMhz19bSensor,
+        .type                     = SensorType::kMhz19b,
+        .type_key                 = "mhz19b",
+        .display_name             = "MH-Z19B",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = true,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 10000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .default_uart_port_id     = CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT,
+        .default_uart_rx_gpio_pin = CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO,
+        .default_uart_tx_gpio_pin = CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO,
+        .default_uart_baud_rate   = 9600U,
+        .validate                 = &validateMhz19bRecord,
+        .create_driver            = &createMhz19bSensor,
     },
     {
-        SensorType::kMe3No2,
-        "me3_no2",
-        "ME3-NO2",
-        false,
-        true,
-        false,
-        false,
-        true,
-        5000U,
-        0U,
-        0x00U,
-        0U,
-        -1,
-        -1,
-        0U,
-        &validateMe3No2Record,
-        &createMe3No2Sensor,
+        .type                     = SensorType::kMe3No2,
+        .type_key                 = "me3_no2",
+        .display_name             = "ME3-NO2",
+        .supports_i2c             = false,
+        .supports_analog          = true,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 5000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .default_uart_port_id     = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .validate                 = &validateMe3No2Record,
+        .create_driver            = &createMe3No2Sensor,
     },
-};
+}};
 
 }  // namespace
 
 const SensorDescriptor* SensorRegistry::descriptors() const {
-    return kDescriptors;
+    return kDescriptors.data();
 }
 
 std::size_t SensorRegistry::descriptorCount() const {
-    return sizeof(kDescriptors) / sizeof(kDescriptors[0]);
+    return kDescriptors.size();
 }
 
 const SensorDescriptor* SensorRegistry::findByType(SensorType type) const {

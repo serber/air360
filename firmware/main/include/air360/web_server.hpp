@@ -18,7 +18,13 @@ namespace air360 {
 
 class WebServer {
   public:
-    esp_err_t start(
+    WebServer() = default;
+    WebServer(const WebServer&) = delete;
+    WebServer& operator=(const WebServer&) = delete;
+    WebServer(WebServer&&) = delete;
+    WebServer& operator=(WebServer&&) = delete;
+
+    [[nodiscard]] esp_err_t start(
         StatusService& status_service,
         NetworkManager& network_manager,
         ConfigRepository& config_repository,
@@ -41,6 +47,7 @@ class WebServer {
     static esp_err_t handleDiagnostics(httpd_req_t* request);
     static esp_err_t handleLogsData(httpd_req_t* request);
     static esp_err_t handleWifiScan(httpd_req_t* request);
+    static esp_err_t handleWifiScanRefresh(httpd_req_t* request);
     static esp_err_t handleConfig(httpd_req_t* request);
     static esp_err_t handleCheckSntp(httpd_req_t* request);
     static esp_err_t handleSensors(httpd_req_t* request);

@@ -5,6 +5,7 @@
 #include "air360/sensors/drivers/sps30_i2c_support.hpp"
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "i2cdev.h"
 #include "sensirion_common.h"
@@ -14,16 +15,29 @@ namespace {
 
 i2c_dev_t* g_device = nullptr;
 
+SemaphoreHandle_t contextMutex() {
+    static StaticSemaphore_t mutex_buffer = {};
+    static SemaphoreHandle_t mutex = xSemaphoreCreateMutexStatic(&mutex_buffer);
+    return mutex;
+}
+
 }  // namespace
 
 namespace air360 {
 
-void sps30HalSetContext(i2c_dev_t* device) {
-    g_device = device;
+SensirionI2cContextGuard::SensirionI2cContextGuard(i2c_dev_t* device) {
+    SemaphoreHandle_t mutex = contextMutex();
+    if (mutex != nullptr && xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        locked_ = true;
+        g_device = device;
+    }
 }
 
-void sps30HalClearContext() {
-    g_device = nullptr;
+SensirionI2cContextGuard::~SensirionI2cContextGuard() {
+    if (locked_) {
+        g_device = nullptr;
+        xSemaphoreGive(contextMutex());
+    }
 }
 
 }  // namespace air360
@@ -31,6 +45,7 @@ void sps30HalClearContext() {
 extern "C" {
 
 int16_t sensirion_i2c_hal_select_bus(uint8_t bus_idx) {
+    // Air360 binds the SPS30 HAL to a single active i2c_dev_t context.
     static_cast<void>(bus_idx);
     return NO_ERROR;
 }
@@ -40,6 +55,7 @@ void sensirion_i2c_hal_init(void) {}
 void sensirion_i2c_hal_free(void) {}
 
 int8_t sensirion_i2c_hal_read(uint8_t address, uint8_t* data, uint8_t count) {
+    // The active i2c_dev_t already contains the device address.
     static_cast<void>(address);
     if (g_device == nullptr || data == nullptr || count == 0U) {
         return I2C_BUS_ERROR;
@@ -49,6 +65,7 @@ int8_t sensirion_i2c_hal_read(uint8_t address, uint8_t* data, uint8_t count) {
 }
 
 int8_t sensirion_i2c_hal_write(uint8_t address, const uint8_t* data, uint8_t count) {
+    // The active i2c_dev_t already contains the device address.
     static_cast<void>(address);
     if (g_device == nullptr || data == nullptr || count == 0U) {
         return I2C_BUS_ERROR;

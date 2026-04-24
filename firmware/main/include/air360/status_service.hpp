@@ -6,12 +6,14 @@
 
 #include "air360/build_info.hpp"
 #include "air360/cellular_manager.hpp"
+#include "air360/config_load_status.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "esp_system.h"
+#include "freertos/semphr.h"
 
 #include "air360/ble_advertiser.hpp"
 
@@ -20,12 +22,21 @@ namespace air360 {
 class StatusService {
   public:
     explicit StatusService(BuildInfo build_info);
+    StatusService(const StatusService&) = delete;
+    StatusService& operator=(const StatusService&) = delete;
+    StatusService(StatusService&&) = delete;
+    StatusService& operator=(StatusService&&) = delete;
 
     void markNvsReady(bool ready);
     void markWatchdogArmed(bool armed);
     void setConfig(
         const DeviceConfig& config,
         bool loaded_from_storage,
+        bool wrote_defaults);
+    void recordConfigLoad(
+        ConfigRepositoryKind repository,
+        ConfigLoadSource source,
+        esp_err_t result,
         bool wrote_defaults);
     void setBootCount(std::uint32_t boot_count);
     void setNetworkState(const NetworkState& state);
@@ -40,10 +51,13 @@ class StatusService {
     std::string renderRootHtml() const;
     std::string renderDiagnosticsHtml(std::string_view log_contents) const;
     std::string renderStatusJson() const;
-    const NetworkState& networkState() const;
+    NetworkState networkState() const;
     const BuildInfo& buildInfo() const;
 
   private:
+    void lock() const;
+    void unlock() const;
+
     BuildInfo build_info_;
     DeviceConfig config_{};
     NetworkState network_state_{};
@@ -58,8 +72,14 @@ class StatusService {
     bool watchdog_armed_ = false;
     bool config_loaded_from_storage_ = false;
     bool wrote_default_config_ = false;
+    ConfigLoadRuntimeStatus device_config_load_{};
+    ConfigLoadRuntimeStatus cellular_config_load_{};
+    ConfigLoadRuntimeStatus sensor_config_load_{};
+    ConfigLoadRuntimeStatus backend_config_load_{};
     bool web_server_started_ = false;
     esp_reset_reason_t reset_reason_ = esp_reset_reason();
+    mutable StaticSemaphore_t mutex_buffer_{};
+    mutable SemaphoreHandle_t mutex_ = nullptr;
 };
 
 }  // namespace air360

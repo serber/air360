@@ -4,11 +4,16 @@
 #include <string>
 
 #include "ds18b20.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "onewire_bus.h"
 #include "onewire_device.h"
 
 namespace air360 {
+
+namespace {
+constexpr char kTag[] = "air360.sensor.ds18b20";
+}  // namespace
 
 Ds18b20Sensor::~Ds18b20Sensor() {
     reset();
@@ -19,6 +24,7 @@ SensorType Ds18b20Sensor::type() const {
 }
 
 esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
+    // DS18B20 uses its own one-wire bus and does not need the shared driver context.
     static_cast<void>(context);
     reset();
     record_ = record;
@@ -115,7 +121,12 @@ esp_err_t Ds18b20Sensor::poll() {
     esp_err_t err = ds18b20_trigger_temperature_conversion(device_);
     if (err != ESP_OK) {
         setError("Failed to trigger DS18B20 temperature conversion.");
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
@@ -123,13 +134,19 @@ esp_err_t Ds18b20Sensor::poll() {
     err = ds18b20_get_temperature(device_, &temperature_c);
     if (err != ESP_OK) {
         setError("Failed to read DS18B20 temperature.");
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }
@@ -144,6 +161,7 @@ std::string Ds18b20Sensor::lastError() const {
 
 void Ds18b20Sensor::reset() {
     initialized_ = false;
+    soft_fail_policy_.onPollOk();
     if (device_ != nullptr) {
         ds18b20_del_device(device_);
         device_ = nullptr;

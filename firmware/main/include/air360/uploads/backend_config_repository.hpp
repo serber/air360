@@ -7,11 +7,11 @@ namespace air360 {
 
 class BackendConfigRepository {
   public:
-    esp_err_t loadOrCreate(
+    [[nodiscard]] esp_err_t loadOrCreate(
         BackendConfigList& out_config,
         bool& loaded_from_storage,
         bool& wrote_defaults);
-    esp_err_t save(const BackendConfigList& config);
+    [[nodiscard]] esp_err_t save(const BackendConfigList& config);
 
   private:
     bool isValid(const BackendConfigList& config) const;

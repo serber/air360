@@ -5,6 +5,7 @@
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "ina219.h"
 
@@ -12,7 +13,10 @@ namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.ina219";
 constexpr float kShuntResistanceOhm = 0.1F;  // 100 mOhm on standard module
+// INA219 supports fast-mode I2C, but 100 kHz keeps it aligned with the rest of
+// the mixed-sensor bus defaults and is plenty for low-rate power telemetry.
 constexpr std::uint32_t kIna219I2cSpeedHz = 100000U;
 
 }  // namespace
@@ -90,7 +94,12 @@ esp_err_t Ina219Sensor::poll() {
     esp_err_t err = ina219_get_bus_voltage(&device_, &bus_voltage_v);
     if (err != ESP_OK) {
         setError(std::string("Failed to read INA219 bus voltage: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
@@ -98,7 +107,12 @@ esp_err_t Ina219Sensor::poll() {
     err = ina219_get_current(&device_, &current_a);
     if (err != ESP_OK) {
         setError(std::string("Failed to read INA219 current: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
@@ -106,7 +120,12 @@ esp_err_t Ina219Sensor::poll() {
     err = ina219_get_power(&device_, &power_w);
     if (err != ESP_OK) {
         setError(std::string("Failed to read INA219 power: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
@@ -115,6 +134,7 @@ esp_err_t Ina219Sensor::poll() {
     measurement_.addValue(SensorValueKind::kVoltageMv, bus_voltage_v * 1000.0F);
     measurement_.addValue(SensorValueKind::kCurrentMa, current_a * 1000.0F);
     measurement_.addValue(SensorValueKind::kPowerMw, power_w * 1000.0F);
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }
@@ -129,6 +149,7 @@ std::string Ina219Sensor::lastError() const {
 
 void Ina219Sensor::reset() {
     initialized_ = false;
+    soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
         ina219_free_desc(&device_);
         std::memset(&device_, 0, sizeof(device_));

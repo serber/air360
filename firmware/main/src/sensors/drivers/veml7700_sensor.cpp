@@ -5,12 +5,15 @@
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.veml7700";
+// Lux readings are infrequent and low-bandwidth, so standard-mode I2C is enough.
 constexpr std::uint32_t kVeml7700I2cSpeedHz = 100000U;
 
 }  // namespace
@@ -91,13 +94,19 @@ esp_err_t Veml7700Sensor::poll() {
     const esp_err_t err = veml7700_get_ambient_light(&device_, &config_, &illuminance_lux);
     if (err != ESP_OK) {
         setError(std::string("Failed to read VEML7700 ambient light: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kIlluminanceLux, static_cast<float>(illuminance_lux));
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }
@@ -112,6 +121,7 @@ std::string Veml7700Sensor::lastError() const {
 
 void Veml7700Sensor::reset() {
     initialized_ = false;
+    soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
         veml7700_free_desc(&device_);
         std::memset(&device_, 0, sizeof(device_));

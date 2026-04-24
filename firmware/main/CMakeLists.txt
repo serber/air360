@@ -8,10 +8,12 @@ idf_component_register(
         "src/cellular_manager.cpp"
         "src/modem_gpio.cpp"
         "src/config_repository.cpp"
+        "src/config_transaction.cpp"
         "src/connectivity_checker.cpp"
         "src/network_manager.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
+        "src/web/web_request_body.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
         "src/uploads/adapters/air360_json_payload.cpp"
@@ -20,7 +22,11 @@ idf_component_register(
         "src/uploads/adapters/influxdb_uploader.cpp"
         "src/uploads/adapters/sensor_community_uploader.cpp"
         "src/uploads/measurement_store.cpp"
+        "src/uploads/upload_log_endpoint.cpp"
+        "src/uploads/upload_prune_policy.cpp"
         "src/uploads/upload_manager.cpp"
+        "src/uploads/upload_manager_config.cpp"
+        "src/uploads/upload_manager_status.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
@@ -46,6 +52,10 @@ idf_component_register(
         "src/status_service.cpp"
         "src/log_buffer.cpp"
         "src/web_server.cpp"
+        "src/web/web_form.cpp"
+        "src/web/web_runtime_routes.cpp"
+        "src/web/web_mutating_routes.cpp"
+        "src/web/web_server_helpers.cpp"
     INCLUDE_DIRS
         "include"
         "third_party/sps30"
@@ -102,4 +112,5 @@ idf_component_register(
         "webui/item_overview_sensor.html"
 )
 
-target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_17)
+target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wunused-result)

@@ -1,5 +1,6 @@
 #include "air360/uploads/backend_registry.hpp"
 
+#include <array>
 #include <cstring>
 #include <string>
 
@@ -109,53 +110,82 @@ bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
     return true;
 }
 
-constexpr BackendDescriptor kDescriptors[] = {
-    {
-        BackendType::kSensorCommunity,
-        "sensor_community",
-        "Sensor.Community",
-        {"api.sensor.community", "/v1/push-sensor-data/", 443U, BackendProtocol::kHttps, true, true},
+static_assert(sizeof(BackendTypeDefaults) == 16U,
+    "BackendTypeDefaults layout changed — update kDescriptors designated initializers");
+static_assert(sizeof(BackendDescriptor) == 36U,
+    "BackendDescriptor layout changed — update kDescriptors designated initializers");
 
-        &validateSensorCommunityRecord,
-        &createSensorCommunityUploader,
+constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
+    {
+        .type           = BackendType::kSensorCommunity,
+        .backend_key    = "sensor_community",
+        .display_name   = "Sensor.Community",
+        .defaults       = {
+            .host          = "api.sensor.community",
+            .path          = "/v1/push-sensor-data/",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = true,
+            .path_is_fixed = true,
+        },
+        .validate        = &validateSensorCommunityRecord,
+        .create_uploader = &createSensorCommunityUploader,
     },
     {
-        BackendType::kAir360Api,
-        "air360_api",
-        "Air360 API",
-        {"api.air360.ru", "/v1/devices/{chip_id}/batches/{batch_id}", 443U, BackendProtocol::kHttps, true, true},
-
-        &validateHttpBackendRecord,
-        &createAir360ApiUploader,
+        .type           = BackendType::kAir360Api,
+        .backend_key    = "air360_api",
+        .display_name   = "Air360 API",
+        .defaults       = {
+            .host          = "api.air360.ru",
+            .path          = "/v1/devices/{chip_id}/batches/{batch_id}",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = true,
+            .path_is_fixed = true,
+        },
+        .validate        = &validateHttpBackendRecord,
+        .create_uploader = &createAir360ApiUploader,
     },
     {
-        BackendType::kCustomUpload,
-        "custom_upload",
-        "Custom Upload",
-        {"", "", 443U, BackendProtocol::kHttps, false, false},
-
-        &validateCustomUploadRecord,
-        &createCustomUploadUploader,
+        .type           = BackendType::kCustomUpload,
+        .backend_key    = "custom_upload",
+        .display_name   = "Custom Upload",
+        .defaults       = {
+            .host          = "",
+            .path          = "",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = false,
+            .path_is_fixed = false,
+        },
+        .validate        = &validateCustomUploadRecord,
+        .create_uploader = &createCustomUploadUploader,
     },
     {
-        BackendType::kInfluxDb,
-        "influxdb",
-        "InfluxDB",
-        {"", "", 443U, BackendProtocol::kHttps, false, false},
-
-        &validateInfluxDbRecord,
-        &createInfluxDbUploader,
+        .type           = BackendType::kInfluxDb,
+        .backend_key    = "influxdb",
+        .display_name   = "InfluxDB",
+        .defaults       = {
+            .host          = "",
+            .path          = "",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = false,
+            .path_is_fixed = false,
+        },
+        .validate        = &validateInfluxDbRecord,
+        .create_uploader = &createInfluxDbUploader,
     },
-};
+}};
 
 }  // namespace
 
 const BackendDescriptor* BackendRegistry::descriptors() const {
-    return kDescriptors;
+    return kDescriptors.data();
 }
 
 std::size_t BackendRegistry::descriptorCount() const {
-    return sizeof(kDescriptors) / sizeof(kDescriptors[0]);
+    return kDescriptors.size();
 }
 
 const BackendDescriptor* BackendRegistry::findByType(BackendType type) const {

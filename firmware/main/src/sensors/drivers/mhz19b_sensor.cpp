@@ -4,10 +4,15 @@
 #include <memory>
 #include <string>
 
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "mhz19b.h"
 
 namespace air360 {
+
+namespace {
+constexpr char kTag[] = "air360.sensor.mhz19b";
+}  // namespace
 
 Mhz19bSensor::~Mhz19bSensor() {
     reset();
@@ -18,6 +23,7 @@ SensorType Mhz19bSensor::type() const {
 }
 
 esp_err_t Mhz19bSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
+    // MH-Z19B owns its UART setup through the component driver; context is not needed.
     static_cast<void>(context);
     reset();
     measurement_.clear();
@@ -47,11 +53,13 @@ esp_err_t Mhz19bSensor::poll() {
     }
 
     if (mhz19b_is_warming_up(&device_, false)) {
+        soft_fail_policy_.onPollOk();
         setError("Warming up (3 min).");
         return ESP_OK;
     }
 
     if (!mhz19b_is_ready(&device_)) {
+        soft_fail_policy_.onPollOk();
         return ESP_OK;
     }
 
@@ -59,11 +67,17 @@ esp_err_t Mhz19bSensor::poll() {
     const esp_err_t err = mhz19b_read_co2(&device_, &co2);
     if (err != ESP_OK) {
         setError(std::string("Failed to read MH-Z19B CO2: ") + esp_err_to_name(err));
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
     if (co2 <= 0 || co2 >= 5000) {
+        soft_fail_policy_.onPollOk();
         setError("Warming up.");
         return ESP_OK;
     }
@@ -71,6 +85,7 @@ esp_err_t Mhz19bSensor::poll() {
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kCo2Ppm, static_cast<float>(co2));
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }
@@ -88,6 +103,7 @@ void Mhz19bSensor::reset() {
         mhz19b_free(&device_);
     }
     initialized_ = false;
+    soft_fail_policy_.onPollOk();
     std::memset(&device_, 0, sizeof(device_));
 }
 

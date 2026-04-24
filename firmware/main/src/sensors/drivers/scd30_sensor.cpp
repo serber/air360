@@ -6,12 +6,15 @@
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "scd30.h"
 
 namespace air360 {
 
 namespace {
+
+constexpr char kTag[] = "air360.sensor.scd30";
 
 std::uint16_t measurementIntervalSeconds(std::uint32_t poll_interval_ms) {
     const std::uint32_t rounded_up = (poll_interval_ms + 999U) / 1000U;
@@ -94,12 +97,18 @@ esp_err_t Scd30Sensor::poll() {
     esp_err_t err = scd30_get_data_ready_status(&device_, &data_ready);
     if (err != ESP_OK) {
         setError("Failed to query SCD30 data-ready status.");
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
     if (!data_ready) {
         measurement_.clear();
+        soft_fail_policy_.onPollOk();
         last_error_ = "Waiting for new SCD30 sample.";
         return ESP_OK;
     }
@@ -110,13 +119,23 @@ esp_err_t Scd30Sensor::poll() {
     err = scd30_read_measurement(&device_, &co2_ppm, &temperature_c, &humidity_percent);
     if (err != ESP_OK) {
         setError("Failed to read SCD30 measurement.");
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return err;
     }
 
     if (std::isnan(co2_ppm) || std::isnan(temperature_c) || std::isnan(humidity_percent)) {
         setError("SCD30 driver returned invalid values.");
-        initialized_ = false;
+        if (soft_fail_policy_.onPollErr()) {
+            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+            initialized_ = false;
+        } else if (soft_fail_policy_.soft_fails == 1U) {
+            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
+        }
         return ESP_ERR_INVALID_RESPONSE;
     }
 
@@ -125,6 +144,7 @@ esp_err_t Scd30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kCo2Ppm, co2_ppm);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
+    soft_fail_policy_.onPollOk();
     last_error_.clear();
     return ESP_OK;
 }
@@ -139,6 +159,7 @@ std::string Scd30Sensor::lastError() const {
 
 void Scd30Sensor::reset() {
     initialized_ = false;
+    soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
         if (measurement_running_) {
             scd30_stop_continuous_measurement(&device_);

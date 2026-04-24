@@ -13,6 +13,7 @@ This document is the high-level system map for the firmware: component boundarie
 - `firmware/main/src/app.cpp`
 - `firmware/main/src/network_manager.cpp`
 - `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web/`
 - `firmware/main/src/sensors/sensor_manager.cpp`
 - `firmware/main/src/uploads/upload_manager.cpp`
 
@@ -26,7 +27,7 @@ This document is the high-level system map for the firmware: component boundarie
 
 Air360 is an air quality monitoring device built on the ESP32-S3. The firmware collects environmental measurements from attached sensors, exposes a local web interface for device configuration and status monitoring, and uploads batched measurement data to one or more remote backends.
 
-The firmware runs continuously as an embedded application under FreeRTOS and ESP-IDF 6.x. It is written in C++17 and targets a 16 MB flash ESP32-S3 module.
+The firmware runs continuously as an embedded application under FreeRTOS and ESP-IDF 6.x. It is written in C++20 and targets a 16 MB flash ESP32-S3 module.
 
 ---
 
@@ -68,23 +69,25 @@ firmware/
 
 ## Startup sequence
 
-Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs a static `air360::App` instance and calls `App::run()`.
+Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one static `air360::App` instance and calls `App::run()`.
 
 `App::run()` performs a 9-step initialization sequence:
 
 | Step | Action | Notes |
 |------|--------|-------|
-| 1 | RGB LED init | WS2812 on GPIO48 — blue while booting |
-| 2 | Watchdog arm | 10-second timeout, panic disabled |
-| 3 | NVS flash init | Auto-erase on partition mismatch |
-| 4 | Network core init | `esp_netif_init()`, default event loop |
-| 5 | Device config load/create | NVS namespace `air360`, key `device_cfg` |
-| 6 | Boot counter increment | NVS key `boot_count` (u32) |
-| 7 | Sensor config load/create | NVS key `sensor_cfg` |
-| 8 | Sensor manager start | Builds managed sensors, launches `air360_sensor` task |
-| 9 | Network mode resolution | Station join → SNTP → fallback to Lab AP |
+| pre | RGB LED init | WS2812 on GPIO48 - blue while booting |
+| 1 | Watchdog arm | 30-second timeout, panic enabled |
+| 2 | NVS flash init | Auto-erase on partition mismatch |
+| 3 | Network core init | `esp_netif_init()`, default event loop |
+| 4 | Device config load/create | NVS namespace `air360`, key `device_cfg`; boot counter increment |
+| 4b | Cellular config load/create and manager start | NVS key `cellular_cfg`; may launch `cellular` |
+| 5 | Sensor config load/create and manager start | NVS key `sensor_cfg`; may launch `air360_sensor`; BLE advertising may start after this |
+| 6 | Backend config load/create | NVS key `backend_cfg` |
+| 7 | Network mode resolution | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
+| 8 | Upload manager start | Launches `air360_upload` when enabled backends exist |
+| 9 | Web server start | Starts `esp_http_server`; main task enters maintenance loop |
 
-After the startup sequence, `App::run()` starts `UploadManager` and `WebServer`, then enters a 10-second maintenance loop that retries SNTP synchronization when station uplink is available.
+After the startup sequence, `App::run()` enters a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots.
 
 Full startup order with dependencies:
 
@@ -107,6 +110,8 @@ NetworkManager                (station join or Lab AP)
 CellularManager               (PPP modem; spawned only when enabled)
  └─ ConnectivityChecker       (ICMP ping after PPP up)
 WebServer                     (esp_http_server on port 80)
+ └─ src/web runtime routes    (assets, status pages, logs, Wi-Fi scan, SNTP check)
+ └─ src/web mutating routes   (config, sensors, backends)
 StatusService                 (HTML/JSON rendering for web routes)
 ```
 
@@ -114,20 +119,22 @@ StatusService                 (HTML/JSON rendering for web routes)
 
 ## Runtime model
 
-After startup the firmware runs four concurrent execution contexts:
+After startup the firmware runs several concurrent execution contexts:
 
 | Context | Name | Type | Stack | Priority |
 |---------|------|------|-------|----------|
 | Main app loop | `app_main` task | FreeRTOS task (IDF main) | 8192 B | default |
 | Sensor polling | `air360_sensor` | FreeRTOS task | 6144 B | 5 |
 | Upload scheduling | `air360_upload` | FreeRTOS task | 7168 B | 4 |
-| Cellular modem | `air360_cellular` | FreeRTOS task | 8192 B | 5 |
+| Cellular modem | `cellular` | FreeRTOS task | 8192 B | 5 |
+| Network worker | `air360_net` | FreeRTOS task | 6144 B | 2 |
 | BLE advertising | `air360_ble` | FreeRTOS task | 4096 B | 3 |
 | NimBLE host | `nimble_host` | FreeRTOS task (NimBLE) | — | — |
+| HTTP server | `httpd` | FreeRTOS task (ESP-IDF httpd) | 10 240 B | 5 |
 
-The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
+The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. The httpd task is the sole HTTP request handler — all concurrent connections are multiplexed on this single task (no thread pool). `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y` enables a per-task stack canary; `vApplicationStackOverflowHook` in `app_main.cpp` logs the overflowing task name and reboots.
 
-Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. The only FreeRTOS synchronization primitive used above the driver level is an event group inside `NetworkManager` for station connect/fail signalling.
+Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. `NetworkManager` also owns instance-scoped Wi-Fi runtime handles: a station event group, reconnect/setup-AP retry timers, the persistent `air360_net` worker task, and ESP-IDF event handler registrations.
 
 ---
 
@@ -135,7 +142,9 @@ Modules are not event-driven at the application layer. Inter-module communicatio
 
 ### `App` — `app.cpp` / `app_main.cpp`
 
-Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, and the 10-second maintenance loop. Constructs all other modules as static locals. No persistent state of its own.
+Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, the 10-second maintenance loop, and the long-lived runtime graph as explicit fields. The single `App` instance is static in `app_main()`, keeping managers out of the 8 KB main task stack without hiding ownership in function-local statics.
+
+`App` is non-copyable/non-movable. Manager classes that own RTOS handles, callbacks, mutexes, or shared runtime state are also non-copyable/non-movable.
 
 **Log tag:** `air360.app`
 
@@ -203,7 +212,7 @@ Manages the `CellularConfig` NVS blob (schema version 1). Independent of `Device
 
 ### `NetworkManager` — `network_manager.cpp`
 
-Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
+Manages Wi-Fi station join, Lab AP fallback, reconnect timers, mDNS, and SNTP synchronization.
 
 **Network modes:**
 
@@ -231,7 +240,11 @@ Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
 - Optionally scans for available station networks
 - Stores scan results for the `/wifi-scan` endpoint
 
-**Synchronization:** Static FreeRTOS event group `station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
+`NetworkManager` keeps its visible runtime state and scan cache behind a mutex. Callers consume copies through `state()` and `wifiScanSnapshot()` rather than reading live shared members.
+
+Wi-Fi driver handles, ESP-IDF event registrations, reconnect/setup-AP retry timers, station event bits, the `air360_net` worker task, and mDNS/SNTP initialization flags live in the instance-owned `RuntimeContext`. ESP-IDF and FreeRTOS callbacks are static trampolines, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
+
+**Synchronization:** Instance-owned FreeRTOS event group `runtime_.station_events` with bits `kStationConnectedBit` (0) and `kStationFailedBit` (1).
 
 **Log tag:** `air360.net`
 
@@ -241,7 +254,7 @@ Manages Wi-Fi station join, Lab AP fallback, and SNTP synchronization.
 
 Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled = 1`.
 
-**`air360_cellular` FreeRTOS task:**
+**`cellular` FreeRTOS task:**
 - Stack: 8192 bytes
 - Priority: 5
 - Runs an indefinite reconnect loop
@@ -252,15 +265,15 @@ Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled 
 3. Create SIM7600E DCE
 4. Set APN (PDP context)
 5. Unlock SIM PIN if configured
-6. Poll signal quality until registered (up to 60 s, 2 s intervals)
+6. Poll modem registration state and signal quality every 2 s; state `searching` keeps polling without failure escalation
 7. Set PPP PAP auth if username/password configured
 8. Enter PPP data mode
 9. Wait for IP event; run connectivity check if host configured
 10. Block until PPP session drops, then tear down
 
-**Reconnect backoff:** exponential from 10 s, capped at 5 min. After 5 consecutive failures, performs PWRKEY hardware reset before next attempt.
+**Reconnect backoff:** table backoff of 10 s, 30 s, 1 min, 2 min, 5 min, 10 min, then 15 min. Escalation is time-based: hard retry tier after 2 minutes of continuous failure, PWRKEY only after 10 minutes and no more than once per hour, then system reboot if the same failure window would need more than two PWRKEY cycles.
 
-**Wi-Fi debug window:** after PPP is up, the task schedules a call to `NetworkManager` to stop the Wi-Fi station after `wifi_debug_window_s` seconds.
+**Wi-Fi debug window:** when cellular is the primary uplink, boot can start Wi-Fi station temporarily for diagnostics. After `wifi_debug_window_s` seconds, an ESP timer callback only notifies `NetworkManager`; the existing `air360_net` worker performs the station stop in task context.
 
 **Runtime state (`CellularState`):**
 
@@ -275,6 +288,10 @@ Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled 
 | `rssi_dbm` | Signal strength in dBm (from AT+CSQ) |
 | `connectivity_ok` | Last ICMP ping result |
 | `connectivity_check_skipped` | True when check host is empty |
+| `reconnect_attempts` | Current setup failure counter in the active failure window |
+| `consecutive_failures` | Continuous setup failure count |
+| `pwrkey_cycles_total` | Successful PWRKEY cycles since boot |
+| `last_pwrkey_uptime_ms` | Uptime timestamp of the last successful PWRKEY cycle |
 | `last_error` | Last failure reason string |
 
 **Log tag:** `air360.cellular`
@@ -321,7 +338,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 
 | Type | Transport | Default Address | Min Poll |
 |------|-----------|----------------|----------|
-| BME280 | I2C | 0x76 | 10 s |
+| BME280 | I2C | 0x76 | 5 s |
 | BME680 | I2C | 0x77 | 5 s |
 | SPS30 | I2C | 0x69 | 5 s |
 | SCD30 | I2C | 0x61 | 5 s |
@@ -330,9 +347,9 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | SHT4X | I2C | 0x44 | 5 s |
 | INA219 | I2C | 0x40 | 5 s |
 | GPS (NMEA) | UART1 | — | 5 s |
-| MH-Z19B | UART2 | — | 5 s |
-| DHT11 | GPIO | — | 2 s |
-| DHT22 | GPIO | — | 2 s |
+| MH-Z19B | UART2 | — | 10 s |
+| DHT11 | GPIO | — | 5 s |
+| DHT22 | GPIO | — | 5 s |
 | DS18B20 | GPIO (1-Wire) | — | 5 s |
 | ME3-NO2 | Analog (ADC) | — | 5 s |
 
@@ -351,7 +368,7 @@ Manages shared hardware bus resources.
 
 **`UartPortManager`:**
 - UART_NUM_1 and UART_NUM_2 only (UART_NUM_0 = console)
-- RX buffer: 4096 bytes, TX buffer: 0
+- RX buffer: default 4096 bytes, overridable per port; TX buffer: 0
 - Baud range: 1200–115200
 - Detects and warns on console-pin overlap
 
@@ -370,7 +387,7 @@ Owns the sensor runtime lifecycle.
 - Thread-safe sensors collection protected by static mutex
 
 **Lifecycle methods:**
-- `applyConfig(SensorConfigList)` — validates config, stops old task, instantiates drivers, starts task
+- `applyConfig(SensorConfigList)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
 - `buildManagedSensors()` — validates transport bindings, calls `SensorRegistry::createDriver()` for each enabled sensor
 - `taskMain()` — polls each sensor at its configured interval, updates measurements, handles errors
 
@@ -384,13 +401,14 @@ Owns the sensor runtime lifecycle.
 | `kPolling` | Actively polling |
 | `kAbsent` | Poll timed out (device not found) |
 | `kUnsupported` | No driver available |
-| `kError` | Init or poll failed, 5-second retry backoff |
+| `kError` | Init or poll failed; retry is governed by per-sensor backoff |
+| `kFailed` | 16 consecutive failures reached; automatic retries stop until config reload or manual re-enable |
 
 ---
 
 ### Sensor drivers — `sensors/drivers/`
 
-Each driver wraps an ESP-IDF managed component or vendored library and implements a common `ISensorDriver` interface. Drivers are stateless between `init()` / `read()` calls and are owned exclusively by `SensorManager`.
+Each driver wraps an ESP-IDF managed component or vendored library and implements a common `ISensorDriver` interface. Drivers are owned exclusively by `SensorManager`; they retain their component handles between successful polls and only force re-init after 3 consecutive poll failures.
 
 | Driver file | Sensor | Managed component |
 |-------------|--------|-------------------|
@@ -416,14 +434,15 @@ GPS reports: latitude, longitude, altitude, satellites, speed, course, HDOP — 
 In-memory bounded ring buffer for measurement samples. All access is protected by a static mutex.
 
 **Limits:**
-- Max queued samples: 256
+- Max queued samples: `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` (default 256)
 - Oldest sample dropped on overflow (ring buffer semantics)
 
 **Lifecycle:**
 1. `SensorManager` calls `recordMeasurement()` after each successful poll — latest reading per sensor is tracked separately from the queue
-2. `UploadManager` calls `beginUploadWindow(N)` to atomically move up to N pending samples to `inflight`
-3. On upload success: `acknowledgeInflight()` clears the inflight set
-4. On upload failure: `restoreInflight()` moves inflight samples back to pending
+2. `MeasurementStore` appends one shared queued sample record with a monotonic sample ID
+3. `UploadManager` asks for windows after each backend's own acknowledged cursor
+4. `upload_prune_policy` computes the common prefix acknowledged by every quorum backend
+5. Samples remain in the shared queue until every quorum backend has acknowledged them, then `discardUpTo()` retires the common prefix
 
 **`MeasurementBatch` structure (passed to uploaders):**
 
@@ -453,12 +472,11 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | type | `BackendType` enum |
 | enabled | Active flag |
 | display_name | `char[32]` |
-| endpoint_url | `char[160]` (Custom Upload full URL) |
 | device_id_override | `char[32]` (Sensor.Community only) |
-| host / path / port / use_https | shared HTTP endpoint fields for built-in backends |
+| host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
-| upload_interval_s | 10–300 seconds (default 145 s) |
+| upload_interval_ms | 10 000–300 000 ms (default 145 000 ms) |
 
 **Log tag:** `air360.backend_cfg`
 
@@ -469,7 +487,7 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 Static catalog of supported backend types. Each entry (`BackendDescriptor`) holds:
 - type enum value
 - display name
-- default endpoint URL
+- default endpoint fields
 - `validateRecord()` validator
 - `createUploader()` factory function
 
@@ -479,12 +497,12 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 |------|-----------------|
 | Sensor.Community | `api.sensor.community` + `/v1/push-sensor-data/` |
 | Air360 API | `api.air360.ru` + `/v1/devices/{chip_id}/batches/{batch_id}` |
-| Custom Upload | user-supplied full `http://` or `https://` URL |
-| InfluxDB | user-supplied `http(s)://host:port/path` plus measurement name |
+| Custom Upload | user-supplied protocol, host, path, and port |
+| InfluxDB | user-supplied protocol, host, path, and port plus measurement name |
 
 ---
 
-### `UploadManager` — `uploads/upload_manager.cpp`
+### `UploadManager` — `uploads/upload_manager.cpp`, `uploads/upload_manager_config.cpp`, `uploads/upload_manager_status.cpp`
 
 Manages the upload cycle and per-backend runtime state.
 
@@ -492,20 +510,25 @@ Manages the upload cycle and per-backend runtime state.
 - Stack: 7168 bytes
 - Priority: 4
 - Normal loop delay: 1000 ms
-- Upload interval: 145 s (configurable per backend, 10–300 s)
-- Backlog drain interval: 5 s (applied when upload succeeded and pending > 0)
+- Upload interval: 145 000 ms by default (global backend config value, 10 000–300 000 ms)
+- Due backends drain the cycle-start backlog in bounded windows, then wait for the configured interval.
 
 **Upload preconditions (checked every cycle):**
 - Network uplink active (Wi-Fi station connected **or** cellular PPP connected)
 - Valid SNTP unix time (`unix_ms > 0`)
 
 **Upload cycle:**
-1. Check preconditions
-2. Call `MeasurementStore::beginUploadWindow(32)` — up to 32 samples per batch
+1. For each backend whose `next_action_time_ms` is due, check preconditions
+2. Reuse that backend's retry window or call `MeasurementStore::uploadWindowAfter(acknowledged_sample_id, 32)`
 3. Assemble `MeasurementBatch`
-4. Call each enabled backend adapter
-5. `acknowledgeInflight()` on success, `restoreInflight()` on failure
-6. Update per-backend runtime state
+4. Call the backend adapter
+5. On `kSuccess` or `kNoData`, advance only that backend cursor
+6. On failure, keep only that backend window for retry
+7. Retire shared queue entries once every quorum backend has acknowledged them
+
+Quorum membership excludes disabled, unconfigured, missing-uploader, and best-effort backends. A backend is demoted to best-effort after 5 consecutive backend-specific failures over at least 10 minutes. Best-effort backends no longer block pruning; their missed windows are counted in `missed_sample_count` and exposed in raw status JSON.
+
+Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If an HTTP request is already in flight, the task finishes that request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
 
 **Backend runtime states:**
 
@@ -570,13 +593,15 @@ Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
 
 ---
 
-### `WebServer` — `web_server.cpp`
+### `WebServer` — `web_server.cpp`, `src/web/`
 
 HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 
 **esp_http_server configuration:**
 - Stack size: 10 KB
-- Max URI handlers: 12
+- Max URI handlers: 14
+
+`web_server.cpp` owns `esp_http_server` startup, URI registration, and page rendering helpers. `main/src/web/web_runtime_routes.cpp` owns read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, `/check-sntp`). `main/src/web/web_mutating_routes.cpp` owns config, sensor, and backend persistence/runtime-apply handlers. `main/src/web/web_server_helpers.cpp` contains shared form decoding, request-body limit handling, and chunked HTML response helpers.
 
 **Registered routes:**
 
@@ -584,13 +609,15 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 |-------|-------------|
 | `GET /` | Overview page (HTML) |
 | `GET /diagnostics` | Diagnostics page (HTML with raw status JSON dump) |
+| `GET /logs/data` | Plain-text in-memory log buffer for the diagnostics page |
 | `GET /config` | Device config page (HTML) |
-| `POST /config` | Save device config |
+| `POST /config` | Save device and cellular config |
 | `GET /sensors` | Sensor management page (HTML) |
 | `POST /sensors` | Stage or apply sensor config |
 | `GET /backends` | Backend management page (HTML) |
 | `POST /backends` | Save backend config |
 | `GET /wifi-scan` | JSON list of scanned SSIDs |
+| `POST /check-sntp` | JSON reachability check for the configured SNTP server |
 | `GET /assets/*` | Embedded CSS/JS assets |
 
 In **setup AP mode**: `/`, `/sensors`, and `/backends` redirect to `/config`. Navigation is restricted to the device section.
@@ -607,9 +634,11 @@ Produces HTML and JSON payloads for web routes. Aggregates runtime state from al
 - Build info and device identity
 - Network mode, IP address, SNTP state
 - Sensor list with states, last measurements, and queued sample counts
-- `MeasurementStore` pending/inflight counts
+- `MeasurementStore` pending count plus per-backend inflight count from `UploadManager`
 - Backend statuses with last result, duration, retry count
 - Health checks (time sync, sensor freshness, uplink, backend health)
+
+For each request, `StatusService` now captures snapshot copies of the stored config/network/cellular state and then pulls snapshot data from `SensorManager`, `MeasurementStore`, `UploadManager`, `CellularManager`, and `BleAdvertiser`. The Overview page, Diagnostics page, and raw status JSON are rendered from that single request-local snapshot so the UI does not race on mutable shared state while rendering.
 
 The raw status JSON rendered inside the Diagnostics page includes `health_status`, `health_summary`, and `health_checks`.
 
@@ -725,7 +754,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | Port | Default assignment | Baud | RX buffer |
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
-| UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | 4096 B |
+| UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | GPS: `max(4096 B, derived poll budget + 256 B)`; modem DTE has its own buffers |
 | UART2 | Currently unused by built-in sensors | — | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
@@ -811,20 +840,21 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Constant | Value | Location |
 |----------|-------|----------|
 | Max configured sensors | 8 | `sensor_types.hpp` |
-| Max configured backends | 2 | `backend_config.hpp` |
+| Max configured backends | 4 | `backend_config.hpp` |
 | Max measurement values per point | 16 | `sensor_types.hpp` |
-| Max queued samples | 256 | `measurement_store.cpp` |
+| Max queued samples | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` (default 256) | `tuning.hpp` / `measurement_store.cpp` |
 | Max samples per upload window | 32 | `upload_manager.cpp` |
-| Watchdog timeout | 10 s | `app.cpp` |
+| Watchdog timeout | 30 s | `app.cpp` |
 | I2C clock | 100 kHz | `transport_binding.cpp` |
 | I2C transfer timeout | 200 ms | `transport_binding.cpp` |
-| UART RX buffer | 4096 B | `transport_binding.cpp` |
+| UART RX buffer | 4096 B default; GPS may request more | `transport_binding.cpp` |
 | HTTP request timeout | 15 000 ms | upload adapters |
 | HTTP buffer size | 512 B | `upload_transport.cpp` |
-| Upload interval default | 145 s | `backend_config.hpp` |
-| Upload interval range | 10–300 s | `backend_config_repository.cpp` |
+| Upload interval default | 145 000 ms | `backend_config.hpp` |
+| Upload interval range | 10 000–300 000 ms | `backend_config_repository.cpp` |
 | Sensor poll interval range | 5 000–3 600 000 ms | `sensor_registry.cpp` |
-| Upload backlog drain interval | 5 s | `upload_manager.cpp` |
+| Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
+| Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |
 | SNTP poll period | 250 ms | `network_manager.cpp` |
 | Maintenance loop period | 10 s | `app.cpp` |
 | Sensor task loop period | 250 ms | `sensor_manager.cpp` |
@@ -836,12 +866,12 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Module | Primitive | Protected resource |
 |--------|-----------|-------------------|
 | `SensorManager` | Static mutex | `sensors_`, task handle |
-| `MeasurementStore` | Static mutex | `pending_`, `inflight_`, `latest_by_sensor_` |
+| `MeasurementStore` | Static mutex | `queued_`, `latest_by_sensor_`, queued counters |
 | `UploadManager` | Static mutex | `backends_`, runtime state |
 | `I2cBusManager` | Static mutex | bus handles, device list |
-| `NetworkManager` | Static event group | station connected / failed bits |
+| `NetworkManager` | Instance mutex + event group + timers | state snapshot, Wi-Fi scan cache, station connected / failed bits, reconnect scheduling |
 
-No application-level queues. `MeasurementStore` uses vector swap under mutex for atomic pending→inflight transition.
+No application-level RTOS queues. Upload delivery progress is tracked via per-backend cursors and retry windows in `UploadManager`, while `MeasurementStore` owns the shared retained sample queue.
 
 ---
 
@@ -854,7 +884,7 @@ No application-level queues. `MeasurementStore` uses vector swap under mutex for
 - FreeRTOS sensor polling task with per-sensor scheduling
 - 12 sensor driver types across I2C, UART, GPIO, and ADC transports
 - In-memory measurement queue with pending/inflight upload semantics
-- FreeRTOS upload task with backlog drain
+- FreeRTOS upload task with per-backend cursors
 - Air360 API and Sensor.Community adapters
 - Server-rendered web UI with 5 HTML pages and embedded CSS/JS
 - Lab AP mode at `192.168.4.1` with `/wifi-scan` endpoint

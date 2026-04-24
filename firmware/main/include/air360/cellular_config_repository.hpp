@@ -43,14 +43,12 @@ CellularConfig makeDefaultCellularConfig();
 
 class CellularConfigRepository {
   public:
-    esp_err_t loadOrCreate(
+    [[nodiscard]] esp_err_t loadOrCreate(
         CellularConfig& out_config,
         bool& loaded_from_storage,
         bool& wrote_defaults);
-    esp_err_t save(const CellularConfig& config);
-
-  private:
-    bool isValid(const CellularConfig& config) const;
+    [[nodiscard]] esp_err_t save(const CellularConfig& config);
+    [[nodiscard]] bool isValid(const CellularConfig& config) const;
 };
 
 }  // namespace air360

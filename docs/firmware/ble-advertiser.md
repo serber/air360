@@ -38,9 +38,11 @@ The firmware uses the ESP-IDF NimBLE stack (advertising-only profile). Two FreeR
 | Task | Owner | Role |
 |------|-------|------|
 | `nimble_host` | NimBLE port | Runs the NimBLE event loop |
-| `air360_ble` | `BleAdvertiser` | Updates advertisement data every 5 seconds |
+| `air360_ble` | `BleAdvertiser` | Rebuilds advertisement payload every 5 seconds by default |
 
 **Log tag:** `air360.ble`
+
+`air360_ble` is subscribed to the Task Watchdog Timer. It feeds TWDT while waiting for NimBLE host sync and after each advertisement update wakeup. Shutdown is cooperative: `BleAdvertiser::stop()` clears the atomic enable flag, wakes the task with a notification, waits on a stop-acknowledge semaphore, and only then stops the NimBLE host. When the configured NimBLE role set links ESP-IDF's full port deinit path, `stop()` also deinitializes the port; the current broadcaster-only role keeps the initialized port reusable after host stop because ESP-IDF 6.0 does not link the security-manager deinit symbol for that role set. The BLE task always exits through `vTaskDelete(nullptr)`.
 
 ---
 
@@ -48,6 +50,12 @@ The firmware uses the ESP-IDF NimBLE stack (advertising-only profile). Two FreeR
 
 Service UUID: `0xFCD2`  
 AD type: `0x16` (Service Data — 16-bit UUID)
+
+The fixed advertisement fields are populated through ESP-IDF 6.0's `ble_hs_adv_fields` API:
+
+- Flags: general discoverable + BR/EDR unsupported
+- Complete local name: included only when it fits the legacy 31-byte advertisement budget
+- Service data (`0x16`): BTHome payload, still packed manually because NimBLE does not understand the BTHome object layout itself
 
 Payload layout:
 
@@ -80,6 +88,8 @@ With a 6-character device name ("air360"), the packet budget for measurements is
 ## Data source
 
 `BleAdvertiser` reads from `MeasurementStore::allLatestMeasurements()` on every update cycle. This method returns a snapshot of the most recent reading from each sensor, regardless of SNTP status. The advertisement therefore reflects the last valid sensor reading even when there is no network connection.
+
+Payload rebuild cadence is separate from the on-air advertising interval. `air360_ble` wakes up every `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` (default `5000` ms) to re-scan the latest measurements and repack the BTHome payload. Lower values make BLE telemetry fresher; higher values reduce task wakeups and payload churn.
 
 ---
 
