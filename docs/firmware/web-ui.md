@@ -181,7 +181,7 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 **Submit action:** `POST /config`
 - Validates field lengths, password constraints, and SNTP server characters server-side.
 - Saves `DeviceConfig` via `ConfigRepository::save()` and `CellularConfig` via `CellularConfigRepository::save()`.
-- Responds with "Configuration saved. Device is rebooting now." and calls `esp_restart()`.
+- Responds with "Configuration saved. Device is rebooting now." and schedules a short one-shot reboot task after the response has been sent; `esp_restart()` is not called from an ESP timer callback.
 - On validation failure, re-renders the form with the submitted values preserved and an error notice.
 
 ---

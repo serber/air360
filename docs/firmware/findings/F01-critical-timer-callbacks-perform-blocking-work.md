@@ -2,7 +2,7 @@
 
 ## Status
 
-Confirmed audit finding. Not implemented.
+Implemented.
 
 ## Scope
 
@@ -22,14 +22,14 @@ Task file for fixing timer-callback misuse in firmware runtime control paths.
 
 **Priority:** Critical
 **Category:** FreeRTOS / ESP-IDF / Reliability
-**Files / symbols:** `firmware/main/src/app.cpp` (`debugWindowCallback`), `firmware/main/src/web/web_mutating_routes.cpp` (`restartCallback`, `scheduleRestart`), `NetworkManager::stopStation`
+**Files / symbols:** `firmware/main/src/app.cpp` (`debugWindowCallback`), `firmware/main/src/web/web_mutating_routes.cpp` (`scheduleRestart`, `restartTask`), `NetworkManager::requestStopStation`, `NetworkManager::stopStation`
 
 ## Problem
 
-The firmware uses ESP timer callbacks for operations that are not timer-safe:
+The firmware used ESP timer callbacks for operations that are not timer-safe:
 
-- `debugWindowCallback()` calls `NetworkManager::stopStation()`.
-- `restartCallback()` calls `esp_restart()` directly.
+- `debugWindowCallback()` called `NetworkManager::stopStation()`.
+- `restartCallback()` called `esp_restart()` directly.
 
 `NetworkManager::stopStation()` stops FreeRTOS timers, calls Wi-Fi APIs, and takes the network mutex. The project rule says timer callbacks may only set flags, notify existing tasks, or post non-blocking queue events.
 
@@ -39,25 +39,28 @@ ESP timer callbacks run in the timer service context. Blocking, taking applicati
 
 ## Evidence
 
-- `firmware/main/src/app.cpp:87`:
-  - `debugWindowCallback(void* arg)` casts `arg` to `NetworkManager*` and calls `nm->stopStation()`.
-- `firmware/main/src/app.cpp:354`:
-  - `timer_args.callback = debugWindowCallback`.
-- `firmware/main/src/network_manager.cpp:1469`:
-  - `NetworkManager::stopStation()` calls `stopTimerIfRunning()`, `esp_wifi_disconnect()`, `esp_wifi_stop()`, and updates shared state under a mutex.
-- `firmware/main/src/web/web_mutating_routes.cpp:40`:
-  - `restartCallback()` calls `esp_restart()`.
-- `firmware/main/src/web/web_mutating_routes.cpp:50`:
-  - `scheduleRestart()` installs `restartCallback` as an ESP timer callback.
+Original behavior:
 
-## Recommended Fix
+- `debugWindowCallback(void* arg)` cast `arg` to `NetworkManager*` and called `nm->stopStation()`.
+- `NetworkManager::stopStation()` stops FreeRTOS timers, calls Wi-Fi APIs, and updates shared state under a mutex.
+- `restartCallback()` called `esp_restart()` directly from an ESP timer callback.
 
-Move both operations out of ESP timer callbacks:
+Current behavior:
 
-- For Wi-Fi debug-window expiry, notify the existing `air360_net` worker task with a new request bit such as `kWorkerStopStationReq`.
-- For reboot, notify the main app task or a small existing control task to perform `esp_restart()` after the HTTP response has drained.
+- `debugWindowCallback()` calls only `NetworkManager::requestStopStation()`.
+- `requestStopStation()` notifies the existing `air360_net` worker with `kWorkerStopStationReq`.
+- `air360_net` handles `kWorkerStopStationReq` by calling `NetworkManager::stopStation()` in task context.
+- Config-save reboot is scheduled by creating a short one-shot `air360_reboot` task from the HTTP handler after the response has been sent. That task delays briefly, then calls `esp_restart()`.
 
-## Where To Change
+## Implemented Fix
+
+Both operations were moved out of ESP timer callbacks:
+
+- Wi-Fi debug-window expiry now posts a worker request bit and returns immediately.
+- Blocking Wi-Fi shutdown runs on the existing TWDT-subscribed `air360_net` worker.
+- Config-save reboot no longer uses an ESP timer; it runs from a short one-shot reboot task created by the HTTP handler.
+
+## Where Changed
 
 - `firmware/main/include/air360/network_manager.hpp`
 - `firmware/main/src/network_manager.cpp`
@@ -66,24 +69,26 @@ Move both operations out of ESP timer callbacks:
 - `docs/firmware/startup-pipeline.md`
 - `docs/firmware/network-manager.md`
 - `docs/firmware/web-ui.md`
-- `docs/firmware/watchdog.md` if a new long-lived task is introduced
+- `docs/firmware/watchdog.md`
+- `docs/firmware/ARCHITECTURE.md`
 
-## How To Change
+## Implementation Notes
 
-1. Add a non-blocking `NetworkManager::requestStopStation()` method that only notifies `air360_net`.
-2. Add `kWorkerStopStationReq` and handle it inside `NetworkManager::workerLoop()`.
-3. Change `debugWindowCallback()` so it only calls `requestStopStation()`.
-4. Replace the reboot timer callback with a notification to a task context, or use `httpd_queue_work()` if the work only needs to be serialized after response send and is safe from that context.
-5. Keep the actual `esp_restart()` outside the timer callback.
+Code changes:
 
-## Example Fix
+- `firmware/main/include/air360/network_manager.hpp`
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/app.cpp`
+- `firmware/main/src/web/web_mutating_routes.cpp`
+
+The reboot task is intentionally short-lived and is not subscribed to TWDT because it sleeps for 400 ms and then calls `esp_restart()`.
 
 ```cpp
 // app.cpp timer callback
 void debugWindowCallback(void* arg) {
     auto* nm = static_cast<NetworkManager*>(arg);
     if (nm != nullptr) {
-        nm->requestStopStationFromTimer();
+        nm->requestStopStation();
     }
 }
 

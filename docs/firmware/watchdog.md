@@ -69,7 +69,7 @@ Rules:
 | `air360_upload` | ✓ | After `ulTaskNotifyTake`, between drained backend windows, and before/after each blocking HTTP upload request | 1 s loop; individual HTTP requests may block up to 15 s |
 | `cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
 | `air360_ble` | ✓ | After sync waits and notification/timeout wakeups | 5 s advertisement refresh loop; cooperative shutdown via task notification |
-| `air360_net` | ✓ | After worker notification waits | Handles reconnect, setup-AP retry, and Wi-Fi scan requests; timer callbacks only notify it |
+| `air360_net` | ✓ | After worker notification waits | Handles reconnect, setup-AP retry, debug-window station stop, and Wi-Fi scan requests; timer callbacks only notify it |
 | `esp_httpd` | ✗ IDF-managed | — | httpd has its own internal timeout handling |
 
 ## Long-blocking tasks: `wdtFeedingDelay`

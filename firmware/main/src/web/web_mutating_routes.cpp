@@ -10,13 +10,16 @@
 #include "air360/web_server_internal.hpp"
 #include "esp_log.h"
 #include "esp_system.h"
-#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 namespace air360 {
 
 namespace {
 
 constexpr char kTag[] = "air360.web";
+constexpr std::uint32_t kRestartDelayMs = 400U;
+constexpr std::uint32_t kRestartTaskStackSize = 2048U;
 
 using web::FormFields;
 using web::defaultBoardGpioPin;
@@ -43,27 +46,24 @@ const char* requestBodyReadErrorMessage(esp_err_t err) {
         : "Failed to read form body.";
 }
 
-void restartCallback(void* arg) {
-    // esp_timer callback signature provides arg; restart timer has no per-call state.
+void restartTask(void* arg) {
     static_cast<void>(arg);
+    vTaskDelay(pdMS_TO_TICKS(kRestartDelayMs));
     esp_restart();
 }
 
 void scheduleRestart() {
-    static esp_timer_handle_t restart_timer = nullptr;
-    if (restart_timer == nullptr) {
-        esp_timer_create_args_t args{};
-        args.callback = &restartCallback;
-        args.name = "air360_reboot";
-        ESP_ERROR_CHECK(esp_timer_create(&args, &restart_timer));
+    const BaseType_t created = xTaskCreate(
+        restartTask,
+        "air360_reboot",
+        kRestartTaskStackSize,
+        nullptr,
+        tskIDLE_PRIORITY + 1U,
+        nullptr);
+    if (created != pdPASS) {
+        ESP_LOGE(kTag, "Failed to schedule reboot task; restarting immediately");
+        esp_restart();
     }
-
-    const esp_err_t stop_err = esp_timer_stop(restart_timer);
-    if (stop_err != ESP_OK && stop_err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(kTag, "Failed to stop restart timer: %s", esp_err_to_name(stop_err));
-    }
-
-    ESP_ERROR_CHECK(esp_timer_start_once(restart_timer, 400000));
 }
 
 bool parseBackendPortValue(

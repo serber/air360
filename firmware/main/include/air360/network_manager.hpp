@@ -91,6 +91,7 @@ class NetworkManager {
         std::uint32_t timeout_ms = tuning::network::kConnectTimeoutMs);
     [[nodiscard]] esp_err_t startLabAp(const DeviceConfig& config);
     [[nodiscard]] esp_err_t stopStation();
+    void requestStopStation();
     // Called by CellularManager when the PPP session comes up or drops.
     // Updates cellular_ip in NetworkState and affects uplinkStatus().
     void setCellularStatus(bool ppp_connected, const char* ip_address);

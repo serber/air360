@@ -222,7 +222,7 @@ cellular_config.enabled != 0?
   ├─ YES (cellular is primary uplink)
   │    ├─ wifi_sta_ssid non-empty?
   │    │    ├─ YES → NetworkManager::connectStation()  (debug window only)
-  │    │    │          └─ wifi_debug_window_s > 0 → arm esp_timer to stop station after N seconds
+  │    │    │          └─ wifi_debug_window_s > 0 → arm esp_timer that notifies air360_net after N seconds
   │    │    └─ NO  → skip Wi-Fi entirely
   │    └─ No AP fallback — CellularManager drives reconnect from this point
   └─ NO (Wi-Fi / setup-AP flow)
@@ -248,7 +248,8 @@ cellular_config.enabled != 0?
 - If station credentials exist, arms a background station retry loop while setup AP stays available
 
 **Wi-Fi debug window (cellular mode only):**
-- If `cellular_config.wifi_debug_window_s > 0`, an `esp_timer` fires after that many seconds and calls `NetworkManager::stopStation()`
+- If `cellular_config.wifi_debug_window_s > 0`, an `esp_timer` fires after that many seconds and calls only `NetworkManager::requestStopStation()`
+- `requestStopStation()` notifies the existing `air360_net` worker; the worker task calls `NetworkManager::stopStation()` outside the ESP timer callback
 - This gives an operator a short Wi-Fi access window at boot for diagnostics while cellular is the permanent uplink
 
 Network failures at this step are **non-fatal** — the device continues booting without a network connection.

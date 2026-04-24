@@ -84,6 +84,8 @@ cellular_config.enabled != 0?
 
 Boot-time station failure is non-fatal. In Wi-Fi-primary mode the device falls back to setup AP and continues booting. In cellular-primary mode the cellular manager owns the permanent uplink; Wi-Fi station is only an optional temporary diagnostics window.
 
+If `wifi_debug_window_s > 0` in cellular-primary mode, `App` arms a one-shot ESP timer after the boot-time station join. The timer callback only notifies the existing `air360_net` worker through `NetworkManager::requestStopStation()`. The worker then performs the blocking station shutdown (`stopStation()`) in task context.
+
 ---
 
 ## Runtime context
@@ -114,7 +116,7 @@ struct RuntimeContext {
 
 The context is a private field of `NetworkManager`, so RTOS handles and callback state belong to the same object as the public network state. ESP-IDF event callbacks and FreeRTOS timer callbacks remain static functions, but their callback argument or timer ID points back to the owning `NetworkManager` instance.
 
-`worker_task` is the single long-lived `air360_net` FreeRTOS task for blocking Wi-Fi recovery and scan work. Timer callbacks never allocate, create tasks, or block; they only notify this worker with request bits. The worker is subscribed to TWDT and feeds it after each notification wait.
+`worker_task` is the single long-lived `air360_net` FreeRTOS task for blocking Wi-Fi recovery, station-stop, and scan work. Timer callbacks never allocate, create tasks, take application mutexes, call Wi-Fi APIs, or block; they only notify this worker with request bits. The worker is subscribed to TWDT and feeds it after each notification wait.
 
 `ensureWifiInit()` does four things once for the lifetime of the manager:
 
@@ -242,7 +244,7 @@ This covers the common “sensor boots faster than the router” case without ne
 
 ### Intentional stop guard
 
-`stopStation()` and internal mode reconfiguration operations temporarily suppress disconnect handling for a short window (`ignore_disconnect_until_ms`) so deliberate `esp_wifi_stop()` / `esp_wifi_disconnect()` calls do not accidentally arm reconnect logic. The guard window is controlled by `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` and defaults to `2000` ms.
+`stopStation()` and internal mode reconfiguration operations temporarily suppress disconnect handling for a short window (`ignore_disconnect_until_ms`) so deliberate `esp_wifi_stop()` / `esp_wifi_disconnect()` calls do not accidentally arm reconnect logic. The debug-window expiry path calls `requestStopStation()`, which posts a worker request bit and lets `air360_net` call `stopStation()` in task context. The guard window is controlled by `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` and defaults to `2000` ms.
 
 ---
 

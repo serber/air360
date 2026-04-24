@@ -86,10 +86,8 @@ const char* configLoadSourceLabel(ConfigLoadSource source) {
 
 void debugWindowCallback(void* arg) {
     auto* nm = static_cast<NetworkManager*>(arg);
-    ESP_LOGI(kTag, "Wi-Fi debug window expired, stopping station");
-    const esp_err_t err = nm->stopStation();
-    if (err != ESP_OK) {
-        ESP_LOGW(kTag, "Station stop after debug window failed: %s", esp_err_to_name(err));
+    if (nm != nullptr) {
+        nm->requestStopStation();
     }
 }
 

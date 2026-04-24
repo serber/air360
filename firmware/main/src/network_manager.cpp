@@ -58,6 +58,7 @@ constexpr TickType_t kScanRequestTimeout = pdMS_TO_TICKS(20000U);
 constexpr std::uint32_t kWorkerReconnectReq = (1UL << 0);
 constexpr std::uint32_t kWorkerSetupApRetryReq = (1UL << 1);
 constexpr std::uint32_t kWorkerScanReq = (1UL << 2);
+constexpr std::uint32_t kWorkerStopStationReq = (1UL << 3);
 constexpr std::uint32_t kAllWorkerReqBits = std::numeric_limits<std::uint32_t>::max();
 
 TickType_t ticksFromMs(std::uint32_t value_ms) {
@@ -723,6 +724,10 @@ void NetworkManager::notifyWorker(std::uint32_t request_bits) {
     static_cast<void>(xTaskNotify(worker, request_bits, eSetBits));
 }
 
+void NetworkManager::requestStopStation() {
+    notifyWorker(kWorkerStopStationReq);
+}
+
 void NetworkManager::workerLoop() {
     bool wdt_subscribed = false;
     const esp_err_t wdt_err = esp_task_wdt_add(nullptr);
@@ -742,7 +747,16 @@ void NetworkManager::workerLoop() {
             static_cast<void>(esp_task_wdt_reset());
         }
 
-        if ((bits & (kWorkerReconnectReq | kWorkerSetupApRetryReq)) != 0U) {
+        if ((bits & kWorkerStopStationReq) != 0U) {
+            const esp_err_t stop_err = stopStation();
+            if (stop_err != ESP_OK) {
+                ESP_LOGW(kTag, "Worker station stop failed: %s", esp_err_to_name(stop_err));
+            }
+        }
+
+        const bool station_stop_requested = (bits & kWorkerStopStationReq) != 0U;
+        if (!station_stop_requested &&
+            (bits & (kWorkerReconnectReq | kWorkerSetupApRetryReq)) != 0U) {
             DeviceConfig config = makeDefaultDeviceConfig();
             bool has_config = false;
             lock();

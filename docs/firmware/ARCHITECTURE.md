@@ -273,7 +273,7 @@ Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled 
 
 **Reconnect backoff:** table backoff of 10 s, 30 s, 1 min, 2 min, 5 min, 10 min, then 15 min. Escalation is time-based: hard retry tier after 2 minutes of continuous failure, PWRKEY only after 10 minutes and no more than once per hour, then system reboot if the same failure window would need more than two PWRKEY cycles.
 
-**Wi-Fi debug window:** after PPP is up, the task schedules a call to `NetworkManager` to stop the Wi-Fi station after `wifi_debug_window_s` seconds.
+**Wi-Fi debug window:** when cellular is the primary uplink, boot can start Wi-Fi station temporarily for diagnostics. After `wifi_debug_window_s` seconds, an ESP timer callback only notifies `NetworkManager`; the existing `air360_net` worker performs the station stop in task context.
 
 **Runtime state (`CellularState`):**
 
