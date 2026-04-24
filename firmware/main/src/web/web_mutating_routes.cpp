@@ -27,6 +27,7 @@ using web::parseFormBody;
 using web::parseI2cAddress;
 using web::parseSignedLong;
 using web::parseUnsignedLong;
+using web::logHttpHandlerWatermark;
 using web::readRequestBody;
 using web::renderBackendsPage;
 using web::renderConfigPage;
@@ -89,6 +90,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
 
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    logHttpHandlerWatermark();
 
     if (request->method == HTTP_GET) {
         const std::string html = renderSensorsPage(
@@ -98,7 +100,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             server->has_pending_sensor_changes_,
             "",
             false);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     std::string body;
@@ -114,7 +116,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             server->has_pending_sensor_changes_,
             "Failed to read form body.",
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     const FormFields fields = parseFormBody(body);
@@ -132,7 +134,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
 
         *server->sensor_config_list_ = server->staged_sensor_config_;
@@ -148,7 +150,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 std::string("Sensor configuration saved, but runtime apply failed: ") +
                     esp_err_to_name(apply_err) + ". Reboot to apply it.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
         const std::string html = renderSensorsPage(
             server->staged_sensor_config_,
@@ -157,7 +159,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             server->has_pending_sensor_changes_,
             "Sensor configuration saved and applied.",
             false);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     } else if (action == "discard") {
         server->staged_sensor_config_ = *server->sensor_config_list_;
         server->has_pending_sensor_changes_ = false;
@@ -168,7 +170,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             server->has_pending_sensor_changes_,
             "Pending sensor changes discarded.",
             false);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     } else if (action == "delete") {
         unsigned long sensor_id = 0UL;
         if (!parseUnsignedLong(findFormValue(fields, "sensor_id"), sensor_id) ||
@@ -180,7 +182,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 "Failed to delete sensor: invalid sensor id.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
     } else if (action == "add" || action == "update") {
         const std::string sensor_type_value = findFormValue(fields, "sensor_type");
@@ -193,7 +195,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 "Unsupported sensor type.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
 
         unsigned long poll_interval_ms = 0UL;
@@ -205,7 +207,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 "Invalid numeric sensor fields.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
         if (poll_interval_ms < web::kMinSensorPollIntervalMs) {
             const std::string html = renderSensorsPage(
@@ -215,7 +217,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 "Poll interval must be at least 5000 ms.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
 
         const std::string analog_gpio_pin_value = findFormValue(fields, "analog_gpio_pin");
@@ -230,7 +232,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 "Sensor pin must be a valid integer.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
         analog_pin = static_cast<std::int16_t>(parsed_signed);
 
@@ -245,7 +247,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 "I2C address must be a valid value like 0x76.",
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
 
         SensorRecord record{};
@@ -260,7 +262,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                     server->has_pending_sensor_changes_,
                     "Invalid sensor id.",
                     true);
-                return httpd_resp_send(request, html.c_str(), html.size());
+                return sendHtmlResponse(request, html);
             }
 
             existing = findSensorRecordById(updated, static_cast<std::uint32_t>(sensor_id));
@@ -272,7 +274,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                     server->has_pending_sensor_changes_,
                     "Sensor not found.",
                     true);
-                return httpd_resp_send(request, html.c_str(), html.size());
+                return sendHtmlResponse(request, html);
             }
 
             record = *existing;
@@ -335,7 +337,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                     server->has_pending_sensor_changes_,
                     "Sensor list is full.",
                     true);
-                return httpd_resp_send(request, html.c_str(), html.size());
+                return sendHtmlResponse(request, html);
             }
             record.id = updated.next_sensor_id++;
             updated.sensors[updated.sensor_count++] = record;
@@ -352,7 +354,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 validation_error,
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
 
         if (!validateSensorCategorySelection(updated, record, validation_error)) {
@@ -363,7 +365,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 server->has_pending_sensor_changes_,
                 validation_error,
                 true);
-            return httpd_resp_send(request, html.c_str(), html.size());
+            return sendHtmlResponse(request, html);
         }
     } else {
         const std::string html = renderSensorsPage(
@@ -373,7 +375,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             server->has_pending_sensor_changes_,
             "Unsupported sensor action.",
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     server->staged_sensor_config_ = updated;
@@ -385,7 +387,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         server->has_pending_sensor_changes_,
         action == "delete" ? "Sensor deletion staged." : "Sensor changes staged in memory.",
         false);
-    return httpd_resp_send(request, html.c_str(), html.size());
+    return sendHtmlResponse(request, html);
 }
 
 esp_err_t WebServer::handleBackends(httpd_req_t* request) {
@@ -398,6 +400,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
 
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    logHttpHandlerWatermark();
 
     if (request->method == HTTP_GET) {
         const std::string html = renderBackendsPage(
@@ -565,6 +568,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    logHttpHandlerWatermark();
 
     if (request->method == HTTP_GET) {
         const std::string html = renderConfigPage(
@@ -574,7 +578,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             *server->network_manager_,
             "",
             false);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     std::string body;
@@ -590,7 +594,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             *server->network_manager_,
             "Failed to read form body.",
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     const FormFields fields = parseFormBody(body);
@@ -678,7 +682,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             *server->network_manager_,
             validation_error,
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     DeviceConfig updated = *server->config_;
@@ -707,7 +711,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             *server->network_manager_,
             std::string("Failed to save device configuration: ") + esp_err_to_name(save_err),
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     CellularConfig updated_cellular = *server->cellular_config_;
@@ -736,7 +740,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             std::string("Failed to save cellular configuration: ") +
                 esp_err_to_name(cellular_save_err),
             true);
-        return httpd_resp_send(request, html.c_str(), html.size());
+        return sendHtmlResponse(request, html);
     }
 
     *server->config_ = updated;
@@ -749,7 +753,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         *server->network_manager_,
         "Configuration saved. Device is rebooting now.",
         false);
-    esp_err_t response_err = httpd_resp_send(request, html.c_str(), html.size());
+    esp_err_t response_err = sendHtmlResponse(request, html);
     if (response_err == ESP_OK) {
         scheduleRestart();
     }

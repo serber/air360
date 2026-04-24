@@ -31,9 +31,6 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-// 10 KB stack leaves headroom for std::string-heavy HTML rendering in route
-// handlers without risking overflow in the HTTP server task.
-constexpr std::size_t kHttpServerStackSize = 10240U;
 // Current route set plus captive-portal catchall fits in 15 slots while
 // leaving a little room for future diagnostics endpoints.
 constexpr std::size_t kHttpServerMaxUriHandlers = 15U;
@@ -1754,7 +1751,9 @@ esp_err_t WebServer::start(
 
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();
     config_httpd.server_port = port;
-    config_httpd.stack_size = kHttpServerStackSize;
+    // Single httpd task; all concurrent connections share this one stack.
+    // logHttpHandlerWatermark() logs if usage crosses 50/70/90 %.
+    config_httpd.stack_size = web::kHttpdStackBytes;
     config_httpd.max_uri_handlers = kHttpServerMaxUriHandlers;
     config_httpd.uri_match_fn = httpd_uri_match_wildcard;
 

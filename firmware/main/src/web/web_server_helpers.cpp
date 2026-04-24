@@ -2,10 +2,15 @@
 
 #include <cstddef>
 
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 namespace air360::web {
 
 namespace {
 
+constexpr char kTag[] = "air360.web";
 // Cap request bodies at 4 KB because config forms and JSON mutations are
 // small, and larger payloads would just waste scarce HTTP server RAM.
 constexpr std::size_t kHttpMaxRequestBodySize = 4096U;
@@ -60,6 +65,25 @@ esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html) {
     }
 
     return httpd_resp_send_chunk(request, nullptr, 0);
+}
+
+void logHttpHandlerWatermark() {
+    const UBaseType_t hwm_words = uxTaskGetStackHighWaterMark(nullptr);
+    const std::size_t hwm_bytes =
+        static_cast<std::size_t>(hwm_words) * sizeof(StackType_t);
+    if (hwm_bytes < kHttpdStackBytes / 10U) {
+        ESP_LOGW(kTag, "httpd stack critical: %u bytes free of %u (>90%% used)",
+                 static_cast<unsigned>(hwm_bytes),
+                 static_cast<unsigned>(kHttpdStackBytes));
+    } else if (hwm_bytes < (kHttpdStackBytes * 3U) / 10U) {
+        ESP_LOGW(kTag, "httpd stack high: %u bytes free of %u (>70%% used)",
+                 static_cast<unsigned>(hwm_bytes),
+                 static_cast<unsigned>(kHttpdStackBytes));
+    } else if (hwm_bytes < kHttpdStackBytes / 2U) {
+        ESP_LOGI(kTag, "httpd stack moderate: %u bytes free of %u (>50%% used)",
+                 static_cast<unsigned>(hwm_bytes),
+                 static_cast<unsigned>(kHttpdStackBytes));
+    }
 }
 
 }  // namespace air360::web

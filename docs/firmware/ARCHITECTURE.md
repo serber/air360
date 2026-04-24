@@ -130,8 +130,9 @@ After startup the firmware runs several concurrent execution contexts:
 | Network worker | `air360_net` | FreeRTOS task | 6144 B | 2 |
 | BLE advertising | `air360_ble` | FreeRTOS task | 4096 B | 3 |
 | NimBLE host | `nimble_host` | FreeRTOS task (NimBLE) | — | — |
+| HTTP server | `httpd` | FreeRTOS task (ESP-IDF httpd) | 10 240 B | 5 |
 
-The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. HTTP request handling runs on the internal `esp_http_server` thread pool.
+The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. The httpd task is the sole HTTP request handler — all concurrent connections are multiplexed on this single task (no thread pool). `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y` enables a per-task stack canary; `vApplicationStackOverflowHook` in `app_main.cpp` logs the overflowing task name and reboots.
 
 Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. `NetworkManager` also owns instance-scoped Wi-Fi runtime handles: a station event group, reconnect/setup-AP retry timers, the persistent `air360_net` worker task, and ESP-IDF event handler registrations.
 

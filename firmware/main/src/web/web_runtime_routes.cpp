@@ -60,18 +60,20 @@ esp_err_t WebServer::handleRoot(httpd_req_t* request) {
         return httpd_resp_send(request, nullptr, 0);
     }
 
-    const std::string html = server->status_service_->renderRootHtml();
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, html.c_str(), html.size());
+    web::logHttpHandlerWatermark();
+    const std::string html = server->status_service_->renderRootHtml();
+    return web::sendHtmlResponse(request, html);
 }
 
 esp_err_t WebServer::handleDiagnostics(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
-    const std::string html = server->status_service_->renderDiagnosticsHtml(logBufferGetContents());
     httpd_resp_set_type(request, "text/html; charset=utf-8");
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-    return httpd_resp_send(request, html.c_str(), html.size());
+    web::logHttpHandlerWatermark();
+    const std::string html = server->status_service_->renderDiagnosticsHtml(logBufferGetContents());
+    return web::sendHtmlResponse(request, html);
 }
 
 esp_err_t WebServer::handleLogsData(httpd_req_t* request) {

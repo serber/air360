@@ -20,10 +20,17 @@
 namespace air360::web {
 
 inline constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
+// Shared with web_server.cpp so that logHttpHandlerWatermark() can compare
+// the FreeRTOS high-water mark against the configured httpd task stack.
+inline constexpr std::size_t kHttpdStackBytes = 10240U;
 
 esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body);
 esp_err_t sendRequestBodyTooLarge(httpd_req_t* request);
 esp_err_t sendHtmlResponse(httpd_req_t* request, const std::string& html);
+// Logs the FreeRTOS httpd task stack high-water mark at WARNING when usage
+// exceeds 50 %, 70 %, or 90 % of kHttpdStackBytes. Call once per handler
+// entry to catch accumulated worst-case usage across prior requests.
+void logHttpHandlerWatermark();
 
 bool parseUnsignedLong(const std::string& input, unsigned long& value, int base = 10);
 bool parseSignedLong(const std::string& input, long& value);
