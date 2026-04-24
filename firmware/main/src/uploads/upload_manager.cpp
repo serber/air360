@@ -38,6 +38,17 @@ bool isBackendFailure(UploadResultClass result) {
            result != UploadResultClass::kUnknown;
 }
 
+void resetUploadTaskWatchdog(const char* checkpoint) {
+    const esp_err_t err = esp_task_wdt_reset();
+    if (err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Upload task TWDT reset failed at %s: %s",
+            checkpoint,
+            esp_err_to_name(err));
+    }
+}
+
 }  // namespace
 
 UploadManager::UploadManager() {
@@ -234,7 +245,7 @@ void UploadManager::taskMain() {
             network_manager_ == nullptr) {
             // The notification count only wakes the upload loop; queue state is read explicitly.
             static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
-            esp_task_wdt_reset();
+            resetUploadTaskWatchdog("idle wait");
             continue;
         }
 
@@ -368,7 +379,9 @@ void UploadManager::taskMain() {
                                         break;
                                     }
 
+                                    resetUploadTaskWatchdog("before upload request");
                                     const UploadTransportResponse response = transport_.execute(request);
+                                    resetUploadTaskWatchdog("after upload request");
                                     const UploadResultClass request_result =
                                         uploader->classifyResponse(response);
                                     last_http_status = response.http_status;
@@ -579,13 +592,13 @@ void UploadManager::taskMain() {
                     break;
                 }
 
-                esp_task_wdt_reset();
+                resetUploadTaskWatchdog("backend drain");
             }
         }
 
         // The notification count only wakes the upload loop; queue state is read explicitly.
         static_cast<void>(ulTaskNotifyTake(pdTRUE, kUploadLoopDelay));
-        esp_task_wdt_reset();
+        resetUploadTaskWatchdog("loop wait");
     }
 
     lock();

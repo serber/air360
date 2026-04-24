@@ -320,6 +320,8 @@ The stop request wakes idle task waits immediately. It does not forcibly kill a 
 - sensor shutdown is bounded by the current driver's `init()` / `poll()` behavior; normal bus transfers use the transport timeouts documented in [transport-binding.md](transport-binding.md)
 - upload shutdown is bounded by the current `UploadTransport::execute()` call; the HTTP client timeout is 15 000 ms per request, and stop handling prevents starting another request after a stop request is observed
 
+`air360_upload` feeds the task watchdog before and after each blocking HTTP request and between drained upload windows. Multi-request batches therefore keep the TWDT fed between requests, but one in-flight request still runs synchronously until `esp_http_client_perform()` returns or the request timeout expires.
+
 If runtime apply fails after the config has been saved, the web UI reports that the saved config will apply on reboot.
 
 ---

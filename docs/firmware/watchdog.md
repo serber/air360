@@ -66,7 +66,7 @@ Rules:
 |------|-----------|------------|-------|
 | `app_main` | ✓ | After `status_service` update, before `vTaskDelay` | Stays subscribed for lifetime |
 | `air360_sensor` | ✓ | After `ulTaskNotifyTake` | 250 ms loop |
-| `air360_upload` | ✓ | After `ulTaskNotifyTake` (two paths) | 1 s loop |
+| `air360_upload` | ✓ | After `ulTaskNotifyTake`, between drained backend windows, and before/after each blocking HTTP upload request | 1 s loop; individual HTTP requests may block up to 15 s |
 | `cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
 | `air360_ble` | ✓ | After sync waits and notification/timeout wakeups | 5 s advertisement refresh loop; cooperative shutdown via task notification |
 | `air360_net` | ✓ | After worker notification waits | Handles reconnect, setup-AP retry, and Wi-Fi scan requests; timer callbacks only notify it |
@@ -91,6 +91,8 @@ void wdtFeedingDelay(std::uint32_t total_ms) {
 `waitEventBitsWithWatchdog()` uses the same bounded-slice pattern for PPP IP assignment and PPP lost-IP monitoring. `ConnectivityChecker` also waits for ping completion in 1 s slices and feeds TWDT for the cellular caller.
 
 Use these helpers (or a similar pattern) whenever a task must sleep or wait longer than `timeout / 2`. Do **not** raise the TWDT timeout to accommodate long waits — that defeats the purpose.
+
+The upload task cannot chunk `esp_http_client_perform()` internally because `UploadTransport::execute()` is synchronous. Instead, `UploadManager` feeds the TWDT immediately before and after each request. This keeps multi-request backend batches from starving the TWDT while preserving the existing per-request timeout and retry semantics.
 
 ## Adding a new task
 

@@ -37,6 +37,8 @@ This document covers the low-level HTTP transport used by the firmware upload ad
 
 The client handle is created and destroyed within a single `execute()` call — there is no connection reuse.
 
+`execute()` does not feed the task watchdog itself. The upload task feeds the TWDT immediately before and after each call so multi-request batches do not starve the watchdog between blocking HTTP operations.
+
 ---
 
 ## Client configuration
