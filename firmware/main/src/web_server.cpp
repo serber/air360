@@ -144,6 +144,7 @@ struct SensorCardViewModel {
     std::string defaults_hint;
     bool show_i2c_address_input = false;
     std::string i2c_address_value;
+    std::string i2c_address_options_html;
     bool show_gpio_pin_select = false;
     std::string gpio_options_html;
     bool enabled = false;
@@ -182,6 +183,7 @@ struct SensorCategorySectionViewModel {
     std::string add_defaults_hint;
     bool add_show_i2c_address_input = false;
     std::string add_i2c_address_value;
+    std::string add_i2c_address_options_html;
     std::string add_gpio_options_html;
     std::uint32_t add_poll_interval_ms = 10000U;
     bool add_show_gpio_pin_select = false;
@@ -370,6 +372,46 @@ std::string formatI2cAddress(std::uint8_t address) {
     char buffer[8];
     std::snprintf(buffer, sizeof(buffer), "0x%02X", static_cast<unsigned>(address));
     return buffer;
+}
+
+std::string allowedI2cAddressesValue(const SensorDescriptor& descriptor) {
+    std::string value;
+    for (std::size_t index = 0; index < descriptor.allowed_i2c_address_count; ++index) {
+        if (index > 0U) {
+            value += ",";
+        }
+        value += formatI2cAddress(descriptor.allowed_i2c_addresses[index]);
+    }
+    return value;
+}
+
+std::string formatAllowedI2cAddresses(const SensorDescriptor& descriptor) {
+    std::string formatted;
+    for (std::size_t index = 0; index < descriptor.allowed_i2c_address_count; ++index) {
+        if (index > 0U) {
+            formatted += index + 1U == descriptor.allowed_i2c_address_count ? " or " : ", ";
+        }
+        formatted += formatI2cAddress(descriptor.allowed_i2c_addresses[index]);
+    }
+    return formatted;
+}
+
+void appendI2cAddressOptions(
+    std::string& html,
+    const SensorDescriptor& descriptor,
+    std::uint8_t selected_address) {
+    for (std::size_t index = 0; index < descriptor.allowed_i2c_address_count; ++index) {
+        const std::uint8_t address = descriptor.allowed_i2c_addresses[index];
+        html += "<option value='";
+        html += formatI2cAddress(address);
+        html += "'";
+        if (address == selected_address) {
+            html += " selected";
+        }
+        html += ">";
+        html += formatI2cAddress(address);
+        html += "</option>";
+    }
 }
 
 std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
@@ -630,17 +672,21 @@ std::int16_t defaultBoardGpioPin() {
 }
 
 std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
+    if (descriptor.supports_i2c) {
+        std::string hint = "Defaults: I2C bus ";
+        hint += std::to_string(descriptor.default_i2c_bus_id);
+        hint += " at address ";
+        hint += formatI2cAddress(descriptor.default_i2c_address);
+        if (descriptor.allowed_i2c_address_count > 1U) {
+            hint += " (allowed: ";
+            hint += formatAllowedI2cAddresses(descriptor);
+            hint += ")";
+        }
+        hint += ".";
+        return hint;
+    }
+
     switch (descriptor.type) {
-        case SensorType::kBme280:
-            return "Defaults: I2C bus 0 at address 0x76.";
-        case SensorType::kBme680:
-            return "Defaults: I2C bus 0 at address 0x77.";
-        case SensorType::kSps30:
-            return "Defaults: I2C bus 0 at address 0x69.";
-        case SensorType::kScd30:
-            return "Defaults: I2C bus 0 at address 0x61.";
-        case SensorType::kVeml7700:
-            return "Defaults: I2C bus 0 at address 0x10.";
         case SensorType::kGpsNmea: {
             std::string hint = "Defaults: fixed UART ";
             hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
@@ -658,10 +704,6 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
         case SensorType::kDs18b20:
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
-        case SensorType::kHtu2x:
-            return "Defaults: I2C bus 0 at address 0x40.";
-        case SensorType::kSht4x:
-            return "Defaults: I2C bus 0 at address 0x44.";
         case SensorType::kMe3No2:
             return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6).";
         case SensorType::kMhz19b: {
@@ -698,6 +740,8 @@ std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool select
     html += "' data-default-i2c-address='";
     html += descriptor.supports_i2c ? htmlEscape(formatI2cAddress(descriptor.default_i2c_address))
                                     : "";
+    html += "' data-allowed-i2c-addresses='";
+    html += descriptor.supports_i2c ? htmlEscape(allowedI2cAddressesValue(descriptor)) : "";
     html += "'>";
     html += htmlEscape(descriptor.display_name);
     html += "</option>";
@@ -1126,11 +1170,11 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
         i2c_field_block += "<div class='field' data-sensor-i2c-field><label for='i2c_address_";
         i2c_field_block += std::to_string(card.id);
         i2c_field_block += "'>I2C address</label>";
-        i2c_field_block += "<input class='input' id='i2c_address_";
+        i2c_field_block += "<select class='select' id='i2c_address_";
         i2c_field_block += std::to_string(card.id);
-        i2c_field_block += "' name='i2c_address' value='";
-        i2c_field_block += htmlEscape(card.i2c_address_value);
-        i2c_field_block += "' placeholder='0x76' spellcheck='false' autocapitalize='off'></div>";
+        i2c_field_block += "' name='i2c_address'>";
+        i2c_field_block += card.i2c_address_options_html;
+        i2c_field_block += "</select></div>";
     }
 
     std::string gpio_field_block;
@@ -1188,15 +1232,15 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
         }
         i2c_field_block += "><label for='i2c_address_add_";
         i2c_field_block += htmlEscape(section.key);
-        i2c_field_block += "'>I2C address</label><input class='input' id='i2c_address_add_";
+        i2c_field_block += "'>I2C address</label><select class='select' id='i2c_address_add_";
         i2c_field_block += htmlEscape(section.key);
-        i2c_field_block += "' name='i2c_address' value='";
-        i2c_field_block += htmlEscape(section.add_i2c_address_value);
-        i2c_field_block += "' placeholder='0x76' spellcheck='false' autocapitalize='off'";
+        i2c_field_block += "' name='i2c_address'";
         if (!section.add_show_i2c_address_input) {
             i2c_field_block += " disabled";
         }
-        i2c_field_block += "></div>";
+        i2c_field_block += ">";
+        i2c_field_block += section.add_i2c_address_options_html;
+        i2c_field_block += "</select></div>";
 
         std::string gpio_field_block;
         gpio_field_block.reserve(512U);
@@ -1317,6 +1361,10 @@ SensorsPageViewModel buildSensorsPageViewModel(
                 normalizeSensorPollInterval(descriptor->default_poll_interval_ms);
             section.add_show_i2c_address_input = descriptor->supports_i2c;
             section.add_i2c_address_value = formatI2cAddress(descriptor->default_i2c_address);
+            appendI2cAddressOptions(
+                section.add_i2c_address_options_html,
+                *descriptor,
+                descriptor->default_i2c_address);
             section.add_show_gpio_pin_select =
                 descriptor->supports_gpio || descriptor->supports_analog;
         }
@@ -1380,6 +1428,12 @@ SensorsPageViewModel buildSensorsPageViewModel(
         }
         if (card.show_i2c_address_input) {
             card.i2c_address_value = formatI2cAddress(record.i2c_address);
+            if (descriptor != nullptr) {
+                appendI2cAddressOptions(
+                    card.i2c_address_options_html,
+                    *descriptor,
+                    record.i2c_address);
+            }
         }
         card.show_gpio_pin_select =
             record.transport_kind == TransportKind::kGpio ||

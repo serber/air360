@@ -1,6 +1,7 @@
 #include "air360/sensors/sensor_registry.hpp"
 
 #include <array>
+#include <cstdio>
 #include <string>
 
 #include "air360/sensors/bus_config.hpp"
@@ -33,6 +34,57 @@ bool validateI2cBusId(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+std::string formatI2cAddress(std::uint8_t address) {
+    char buffer[5];
+    std::snprintf(buffer, sizeof(buffer), "0x%02X", static_cast<unsigned>(address));
+    return buffer;
+}
+
+std::string formatAllowedI2cAddresses(const SensorDescriptor& descriptor) {
+    std::string formatted;
+
+    for (std::size_t index = 0; index < descriptor.allowed_i2c_address_count; ++index) {
+        if (index > 0U) {
+            if (descriptor.allowed_i2c_address_count == 2U) {
+                formatted += " or ";
+            } else if (index + 1U == descriptor.allowed_i2c_address_count) {
+                formatted += ", or ";
+            } else {
+                formatted += ", ";
+            }
+        }
+        formatted += formatI2cAddress(descriptor.allowed_i2c_addresses[index]);
+    }
+
+    return formatted;
+}
+
+bool validateI2cAddress(
+    const SensorDescriptor& descriptor,
+    const SensorRecord& record,
+    std::string& error) {
+    if (!validateI2cBusId(record, error)) {
+        return false;
+    }
+
+    if (descriptor.allowed_i2c_address_count == 0U ||
+        descriptor.allowed_i2c_address_count > kMaxI2cAddressesPerSensor) {
+        error = std::string(descriptor.display_name) +
+                " I2C address descriptor is not configured.";
+        return false;
+    }
+
+    for (std::size_t index = 0; index < descriptor.allowed_i2c_address_count; ++index) {
+        if (record.i2c_address == descriptor.allowed_i2c_addresses[index]) {
+            return true;
+        }
+    }
+
+    error = std::string(descriptor.display_name) + " I2C address must be " +
+            formatAllowedI2cAddresses(descriptor) + ".";
+    return false;
+}
+
 bool validateCommonRecord(const SensorRecord& record, std::string& error) {
     if (record.id == 0U) {
         error = "Sensor id must not be zero.";
@@ -57,15 +109,6 @@ bool validateBme280Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x76U && record.i2c_address != 0x77U) {
-        error = "BME280 I2C address must be 0x76 or 0x77.";
-        return false;
-    }
-
     return true;
 }
 
@@ -76,15 +119,6 @@ bool validateBme680Record(const SensorRecord& record, std::string& error) {
 
     if (record.transport_kind != TransportKind::kI2c) {
         error = "BME680 currently supports only I2C.";
-        return false;
-    }
-
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x76U && record.i2c_address != 0x77U) {
-        error = "BME680 I2C address must be 0x76 or 0x77.";
         return false;
     }
 
@@ -101,15 +135,6 @@ bool validateSps30Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x69U) {
-        error = "SPS30 I2C address must be 0x69.";
-        return false;
-    }
-
     return true;
 }
 
@@ -120,15 +145,6 @@ bool validateScd30Record(const SensorRecord& record, std::string& error) {
 
     if (record.transport_kind != TransportKind::kI2c) {
         error = "SCD30 currently supports only I2C.";
-        return false;
-    }
-
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x61U) {
-        error = "SCD30 I2C address must be 0x61.";
         return false;
     }
 
@@ -145,15 +161,6 @@ bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x10U) {
-        error = "VEML7700 I2C address must be 0x10.";
-        return false;
-    }
-
     return true;
 }
 
@@ -167,15 +174,6 @@ bool validateHtu2xRecord(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x40U) {
-        error = "HTU2X I2C address must be 0x40.";
-        return false;
-    }
-
     return true;
 }
 
@@ -186,15 +184,6 @@ bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
 
     if (record.transport_kind != TransportKind::kI2c) {
         error = "SHT4X currently supports only I2C.";
-        return false;
-    }
-
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x44U) {
-        error = "SHT4X I2C address must be 0x44.";
         return false;
     }
 
@@ -289,16 +278,6 @@ bool validateIna219Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (!validateI2cBusId(record, error)) {
-        return false;
-    }
-
-    if (record.i2c_address != 0x40U && record.i2c_address != 0x41U &&
-        record.i2c_address != 0x44U && record.i2c_address != 0x45U) {
-        error = "INA219 I2C address must be 0x40, 0x41, 0x44, or 0x45.";
-        return false;
-    }
-
     return true;
 }
 
@@ -341,8 +320,8 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
 }
 
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
-// Size computed for ESP32 (32-bit, 4-byte pointers): 17 fields, 44 bytes with padding.
-static_assert(sizeof(SensorDescriptor) == 44U,
+// Size computed for ESP32 (32-bit, 4-byte pointers): 19 fields, 48 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 48U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
 constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
@@ -358,6 +337,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x76U,
+        .allowed_i2c_addresses    = {0x76U, 0x77U},
+        .allowed_i2c_address_count = 2U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -377,6 +358,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x77U,
+        .allowed_i2c_addresses    = {0x76U, 0x77U},
+        .allowed_i2c_address_count = 2U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -396,6 +379,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x69U,
+        .allowed_i2c_addresses    = {0x69U},
+        .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -415,6 +400,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x61U,
+        .allowed_i2c_addresses    = {0x61U},
+        .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -434,6 +421,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x10U,
+        .allowed_i2c_addresses    = {0x10U},
+        .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -453,6 +442,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = CONFIG_AIR360_GPS_DEFAULT_UART_PORT,
         .default_uart_rx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_RX_GPIO,
         .default_uart_tx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_TX_GPIO,
@@ -472,6 +463,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -491,6 +484,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -510,6 +505,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -529,6 +526,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x40U,
+        .allowed_i2c_addresses    = {0x40U},
+        .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -548,6 +547,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x44U,
+        .allowed_i2c_addresses    = {0x44U},
+        .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -567,6 +568,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x40U,
+        .allowed_i2c_addresses    = {0x40U, 0x41U, 0x44U, 0x45U},
+        .allowed_i2c_address_count = 4U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -586,6 +589,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 10000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT,
         .default_uart_rx_gpio_pin = CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO,
         .default_uart_tx_gpio_pin = CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO,
@@ -605,6 +610,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_poll_interval_ms = 5000U,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
@@ -674,12 +681,16 @@ bool SensorRegistry::validateRecord(const SensorRecord& record, std::string& err
         return false;
     }
 
-    if (descriptor->validate == nullptr) {
-        error.clear();
-        return true;
+    if (descriptor->validate != nullptr && !descriptor->validate(record, error)) {
+        return false;
     }
 
-    return descriptor->validate(record, error);
+    if (record.transport_kind == TransportKind::kI2c) {
+        return validateI2cAddress(*descriptor, record, error);
+    }
+
+    error.clear();
+    return true;
 }
 
 }  // namespace air360

@@ -329,6 +329,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 - display name
 - default transport
 - default I2C address (for I2C sensors)
+- allowed I2C addresses (for I2C validation)
 - default UART/GPIO values (for board-pin sensors)
 - minimum poll interval
 - `validateRecord()` polymorphic validator
@@ -336,22 +337,22 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 
 **Registered sensor types:**
 
-| Type | Transport | Default Address | Min Poll |
-|------|-----------|----------------|----------|
-| BME280 | I2C | 0x76 | 5 s |
-| BME680 | I2C | 0x77 | 5 s |
-| SPS30 | I2C | 0x69 | 5 s |
-| SCD30 | I2C | 0x61 | 5 s |
-| VEML7700 | I2C | 0x10 | 5 s |
-| HTU2X | I2C | 0x40 | 5 s |
-| SHT4X | I2C | 0x44 | 5 s |
-| INA219 | I2C | 0x40 | 5 s |
-| GPS (NMEA) | UART1 | — | 5 s |
-| MH-Z19B | UART2 | — | 10 s |
-| DHT11 | GPIO | — | 5 s |
-| DHT22 | GPIO | — | 5 s |
-| DS18B20 | GPIO (1-Wire) | — | 5 s |
-| ME3-NO2 | Analog (ADC) | — | 5 s |
+| Type | Transport | Default Address | Allowed I2C Addresses | Min Poll |
+|------|-----------|-----------------|-----------------------|----------|
+| BME280 | I2C | 0x76 | 0x76, 0x77 | 5 s |
+| BME680 | I2C | 0x77 | 0x76, 0x77 | 5 s |
+| SPS30 | I2C | 0x69 | 0x69 | 5 s |
+| SCD30 | I2C | 0x61 | 0x61 | 5 s |
+| VEML7700 | I2C | 0x10 | 0x10 | 5 s |
+| HTU2X | I2C | 0x40 | 0x40 | 5 s |
+| SHT4X | I2C | 0x44 | 0x44 | 5 s |
+| INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 5 s |
+| GPS (NMEA) | UART1 | — | — | 5 s |
+| MH-Z19B | UART2 | — | — | 10 s |
+| DHT11 | GPIO | — | — | 5 s |
+| DHT22 | GPIO | — | — | 5 s |
+| DS18B20 | GPIO (1-Wire) | — | — | 5 s |
+| ME3-NO2 | Analog (ADC) | — | — | 5 s |
 
 ---
 

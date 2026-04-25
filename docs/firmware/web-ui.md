@@ -215,10 +215,10 @@ For single-sensor categories, the "Add sensor" form is hidden if the category al
 - Poll interval and queued sample count
 - Consecutive failure count and next retry uptime when a sensor is backing off
 - Latest reading values
-- Edit form (model selector, poll interval, I2C address or GPIO pin, enabled checkbox)
+- Edit form (model selector, poll interval, I2C address selector or GPIO pin selector, enabled checkbox)
 - "Stage sensor deletion" button
 
-**Model selector behaviour** — when the sensor type is changed within a form, JavaScript updates the visible I2C address field or GPIO pin selector to match the new sensor's transport type and injects the default I2C address.
+**Model selector behaviour** — when the sensor type is changed within a form, JavaScript updates the visible I2C address selector or GPIO pin selector to match the new sensor's transport type. I2C address options come from the selected sensor descriptor's allowed address list; the current address is preserved when it is still valid, otherwise the descriptor default is selected.
 
 **POST `/sensors` actions:**
 
@@ -342,7 +342,7 @@ CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.
 | Feature | Mechanism |
 |---------|-----------|
 | **Dirty tracking** | Forms with `data-dirty-track` mark their parent panel with `panel--dirty` when any field changes. A `beforeunload` guard warns if unsaved changes exist when leaving the page. |
-| **Sensor form sync** | When the sensor type `<select>` changes, the I2C address field or GPIO pin selector is shown/hidden and the default I2C address is injected. |
+| **Sensor form sync** | When the sensor type `<select>` changes, the I2C address selector or GPIO pin selector is shown/hidden. I2C options come from the descriptor's allowed address list. |
 | **Config form sync** | When the Wi-Fi SSID field is cleared, the password field is disabled and the hint text updates. |
 | **Wi-Fi network selector** | On the config page in setup AP mode, `loadWifiNetworks()` calls `GET /wifi-scan` and populates the SSID dropdown. If `scan_in_progress` is true, it polls until the scan completes. Selecting an option fills the SSID text input. A "Refresh" action fires `POST /wifi-scan` and then polls `GET /wifi-scan` until `scan_in_progress` is false. |
 | **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status paragraph. |

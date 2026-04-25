@@ -210,7 +210,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `transport_kind` | `TransportKind` (uint8_t) | — | Must match the sensor's supported transport |
 | `poll_interval_ms` | `uint32_t` | `10000` | 5 000–3 600 000 ms |
 | `i2c_bus_id` | `uint8_t` | `0` | Must be `0` (only one I2C bus) |
-| `i2c_address` | `uint8_t` | `0x77` | Sensor-specific; see table below |
+| `i2c_address` | `uint8_t` | Sensor descriptor default | Must be one of the descriptor's allowed I2C addresses; see table below |
 | `uart_port_id` | `uint8_t` | `1` | UART sensors only: must match the fixed board binding for the selected sensor |
 | `uart_rx_gpio_pin` | `int16_t` | `-1` | UART sensors only; `-1` = unused |
 | `uart_tx_gpio_pin` | `int16_t` | `-1` | UART sensors only; `-1` = unused |
@@ -219,24 +219,24 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 
 ### Per-sensor constraints
 
-| Sensor | Transport | Address / Pin | Min poll interval | Notes |
-|--------|-----------|---------------|------------------|-------|
-| BME280 | I2C | `0x76` or `0x77` | 5 000 ms | — |
-| BME680 | I2C | `0x76` or `0x77` | 5 000 ms | — |
-| SPS30 | I2C | `0x69` (fixed) | 5 000 ms | — |
-| SCD30 | I2C | `0x61` (fixed) | 5 000 ms | — |
-| VEML7700 | I2C | `0x10` (fixed) | 5 000 ms | — |
-| HTU2X | I2C | `0x40` (fixed) | 5 000 ms | — |
-| SHT4X | I2C | `0x44` (fixed) | 5 000 ms | — |
-| GPS (NMEA) | UART1 | RX=GPIO18, TX=GPIO17 | 5 000 ms | Port, RX, TX must match Kconfig constants |
-| DHT11 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
-| DHT22 | GPIO | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
-| DS18B20 | GPIO (1-Wire) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
-| ME3-NO2 | Analog | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
-| INA219 | I2C | `0x40`, `0x41`, `0x44`, or `0x45` | 5 000 ms | — |
-| MH-Z19B | UART2 | RX=GPIO16, TX=GPIO15 | 10 000 ms | Baud rate must be 9600 |
+| Sensor | Transport | Default binding | Allowed addresses / pins | Min poll interval | Notes |
+|--------|-----------|-----------------|--------------------------|------------------|-------|
+| BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 5 000 ms | — |
+| BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 5 000 ms | — |
+| SPS30 | I2C | Bus 0, `0x69` | `0x69` | 5 000 ms | — |
+| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 5 000 ms | — |
+| VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 5 000 ms | — |
+| HTU2X | I2C | Bus 0, `0x40` | `0x40` | 5 000 ms | — |
+| SHT4X | I2C | Bus 0, `0x44` | `0x44` | 5 000 ms | — |
+| GPS (NMEA) | UART1 | RX=GPIO18, TX=GPIO17 | Fixed Kconfig UART binding | 5 000 ms | Port, RX, TX must match Kconfig constants |
+| DHT11 | GPIO | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
+| DHT22 | GPIO | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
+| DS18B20 | GPIO (1-Wire) | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
+| ME3-NO2 | Analog | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
+| INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 5 000 ms | — |
+| MH-Z19B | UART2 | RX=GPIO16, TX=GPIO15 | Fixed Kconfig UART binding | 10 000 ms | Baud rate must be 9600 |
 
-The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C address `0` is not valid for any sensor — it is a zero-init placeholder.
+The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
 
 UART bindings (port ID, RX pin, TX pin) are validated against Kconfig constants at save time. Changing pins requires a firmware rebuild, not a configuration edit.
 

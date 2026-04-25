@@ -136,31 +136,35 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
 #include "air360/sensors/drivers/mynewsensor_sensor.hpp"
 ```
 
-**b) Add a validate function** before `kDescriptors[]`. Follow the pattern of the nearest transport type. Validate transport kind, I2C address range, UART baud rate, or GPIO pin as appropriate.
+**b) Add a validate function** before `kDescriptors[]`. Follow the pattern of the nearest transport type. Validate transport kind, UART baud rate, or GPIO pin as appropriate. I2C bus and address validation is shared by `SensorRegistry::validateRecord()` and uses the descriptor fields below.
 
 **c) Add a descriptor entry** to `kDescriptors[]`:
 
 ```cpp
 {
-    SensorType::kMyNewSensor,
-    "my_new_sensor",          // type_key — must match backend and uploader
-    "My New Sensor",          // display_name shown in UI
-    false,                    // supports_i2c
-    false,                    // supports_analog
-    true,                     // supports_uart
-    false,                    // supports_gpio
-    true,                     // driver_implemented
-    10000U,                   // default_poll_interval_ms
-    0U,                       // default_i2c_bus_id
-    0x00U,                    // default_i2c_address
-    CONFIG_AIR360_MYNEWSENSOR_DEFAULT_UART_PORT,
-    CONFIG_AIR360_MYNEWSENSOR_DEFAULT_RX_GPIO,
-    CONFIG_AIR360_MYNEWSENSOR_DEFAULT_TX_GPIO,
-    9600U,                    // default_uart_baud_rate
-    &validateMyNewSensorRecord,
-    &createMyNewSensor,
+    .type                      = SensorType::kMyNewSensor,
+    .type_key                  = "my_new_sensor",
+    .display_name              = "My New Sensor",
+    .supports_i2c              = false,
+    .supports_analog           = false,
+    .supports_uart             = true,
+    .supports_gpio             = false,
+    .driver_implemented        = true,
+    .default_poll_interval_ms  = 10000U,
+    .default_i2c_bus_id        = 0U,
+    .default_i2c_address       = 0x00U,
+    .allowed_i2c_addresses     = {},
+    .allowed_i2c_address_count = 0U,
+    .default_uart_port_id      = CONFIG_AIR360_MYNEWSENSOR_DEFAULT_UART_PORT,
+    .default_uart_rx_gpio_pin  = CONFIG_AIR360_MYNEWSENSOR_DEFAULT_RX_GPIO,
+    .default_uart_tx_gpio_pin  = CONFIG_AIR360_MYNEWSENSOR_DEFAULT_TX_GPIO,
+    .default_uart_baud_rate    = 9600U,
+    .validate                  = &validateMyNewSensorRecord,
+    .create_driver             = &createMyNewSensor,
 },
 ```
+
+For an I2C sensor, set `.default_i2c_address` to the address used when a new record is created and list every accepted address in `.allowed_i2c_addresses`, for example `{0x76U, 0x77U}` with `.allowed_i2c_address_count = 2U`.
 
 ---
 

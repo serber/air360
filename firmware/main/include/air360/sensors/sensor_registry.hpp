@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -13,6 +14,8 @@ namespace air360 {
 using SensorValidationFn = bool (*)(const SensorRecord& record, std::string& error);
 using SensorDriverFactory = std::unique_ptr<SensorDriver> (*)();
 
+constexpr std::size_t kMaxI2cAddressesPerSensor = 4U;
+
 struct SensorDescriptor {
     SensorType type;
     const char* type_key;
@@ -25,6 +28,8 @@ struct SensorDescriptor {
     std::uint32_t default_poll_interval_ms;
     std::uint8_t default_i2c_bus_id;
     std::uint8_t default_i2c_address;
+    std::array<std::uint8_t, kMaxI2cAddressesPerSensor> allowed_i2c_addresses;
+    std::uint8_t allowed_i2c_address_count;
     std::uint8_t default_uart_port_id;
     std::int16_t default_uart_rx_gpio_pin;
     std::int16_t default_uart_tx_gpio_pin;

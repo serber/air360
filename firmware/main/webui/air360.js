@@ -30,6 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const requiresI2c = selectedOption?.dataset.requiresI2c === "true";
     const defaultsHint = selectedOption?.dataset.defaultsHint ?? "";
     const defaultI2cAddress = selectedOption?.dataset.defaultI2cAddress ?? "";
+    const allowedI2cAddresses = (selectedOption?.dataset.allowedI2cAddresses ?? "")
+      .split(",")
+      .map((address) => address.trim())
+      .filter((address) => address.length > 0);
 
     const i2cField = form.querySelector("[data-sensor-i2c-field]");
     if (i2cField instanceof HTMLElement) {
@@ -43,11 +47,22 @@ document.addEventListener("DOMContentLoaded", () => {
           control.disabled = !requiresI2c;
           if (
             requiresI2c &&
-            control instanceof HTMLInputElement &&
+            control instanceof HTMLSelectElement &&
             control.name === "i2c_address" &&
-            defaultI2cAddress.length > 0
+            allowedI2cAddresses.length > 0
           ) {
-            control.value = defaultI2cAddress;
+            const currentValue = control.value;
+            const selectedValue = allowedI2cAddresses.includes(currentValue)
+              ? currentValue
+              : defaultI2cAddress;
+            control.innerHTML = "";
+            for (const address of allowedI2cAddresses) {
+              const option = document.createElement("option");
+              option.value = address;
+              option.textContent = address;
+              option.selected = address === selectedValue;
+              control.appendChild(option);
+            }
           }
         }
       }
