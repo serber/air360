@@ -330,6 +330,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 - default transport
 - default I2C address (for I2C sensors)
 - allowed I2C addresses (for I2C validation)
+- default UART port and allowed UART ports (for UART sensors)
 - default UART/GPIO values (for board-pin sensors)
 - minimum poll interval
 - `validateRecord()` polymorphic validator
@@ -337,8 +338,8 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 
 **Registered sensor types:**
 
-| Type | Transport | Default Address | Allowed I2C Addresses | Min Poll |
-|------|-----------|-----------------|-----------------------|----------|
+| Type | Transport | Default Binding | Allowed Binding Values | Min Poll |
+|------|-----------|-----------------|------------------------|----------|
 | BME280 | I2C | 0x76 | 0x76, 0x77 | 5 s |
 | BME680 | I2C | 0x77 | 0x76, 0x77 | 5 s |
 | SPS30 | I2C | 0x69 | 0x69 | 5 s |
@@ -347,12 +348,12 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | HTU2X | I2C | 0x40 | 0x40 | 5 s |
 | SHT4X | I2C | 0x44 | 0x44 | 5 s |
 | INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 5 s |
-| GPS (NMEA) | UART1 | — | — | 5 s |
-| MH-Z19B | UART2 | — | — | 10 s |
-| DHT11 | GPIO | — | — | 5 s |
-| DHT22 | GPIO | — | — | 5 s |
-| DS18B20 | GPIO (1-Wire) | — | — | 5 s |
-| ME3-NO2 | Analog (ADC) | — | — | 5 s |
+| GPS (NMEA) | UART | UART1 | UART1, UART2 | 5 s |
+| MH-Z19B | UART | UART2 | UART1, UART2 | 10 s |
+| DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 5 s |
+| DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 5 s |
+| DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 5 s |
+| ME3-NO2 | Analog (ADC) | — | GPIO4, GPIO5, GPIO6 | 5 s |
 
 ---
 
@@ -672,9 +673,6 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 | `CONFIG_AIR360_HTTP_PORT` | 80 | Web server port |
 | `CONFIG_AIR360_I2C0_SDA_GPIO` | 8 | I2C bus 0 SDA |
 | `CONFIG_AIR360_I2C0_SCL_GPIO` | 9 | I2C bus 0 SCL |
-| `CONFIG_AIR360_GPS_DEFAULT_UART_PORT` | UART1 | GPS UART port |
-| `CONFIG_AIR360_GPS_DEFAULT_RX_GPIO` | 18 | GPS RX pin |
-| `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO` | 17 | GPS TX pin |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | 9600 | GPS baud |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_0` | GPIO4 | Slot 0 pin |
 | `CONFIG_AIR360_GPIO_SENSOR_PIN_1` | GPIO5 | Slot 1 pin |
@@ -738,10 +736,10 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | 9 | I2C bus 0 SCL | Kconfig |
 | 48 | RGB status LED (WS2812, built-in) | No |
 | 12 | Modem PWRKEY (default) | Kconfig / CellularConfig |
-| 17 | GPS TX / Modem TX (shared default) | Kconfig |
-| 18 | GPS RX / Modem RX (shared default) | Kconfig |
+| 17 | UART1 TX / Modem TX (shared default) | Sensor UART map / Kconfig |
+| 18 | UART1 RX / Modem RX (shared default) | Sensor UART map / Kconfig |
 | 21 | Modem SLEEP/DTR (default) | Kconfig / CellularConfig |
-> **GPIO17/18 conflict:** GPS (NMEA) and the SIM7600E modem share the same default UART1 pins. They cannot be used simultaneously. If both are needed, reconfigure one via Kconfig before building.
+> **GPIO17/18 conflict:** GPS (NMEA) defaults to UART1 and the SIM7600E modem also defaults to UART1. They cannot be used simultaneously on GPIO17/18. Move the GPS sensor to UART2 in the Sensor Configuration page, or reconfigure the modem UART before enabling both.
 
 ### I2C
 
@@ -755,8 +753,8 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 | Port | Default assignment | Baud | RX buffer |
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
-| UART1 | GPS (RX=GPIO18, TX=GPIO17) **or** SIM7600E modem | 9600 / 115200 | GPS: `max(4096 B, derived poll budget + 256 B)`; modem DTE has its own buffers |
-| UART2 | Currently unused by built-in sensors | — | 4096 B |
+| UART1 | Sensor UART map RX=GPIO18, TX=GPIO17; also SIM7600E modem default | Sensor dependent / 115200 for modem | GPS: `max(4096 B, derived poll budget + 256 B)`; modem DTE has its own buffers |
+| UART2 | Sensor UART map RX=GPIO16, TX=GPIO15 | Sensor dependent | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 

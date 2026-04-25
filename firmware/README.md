@@ -127,12 +127,6 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
   Board-level I2C bus 0 SDA pin.
 - `CONFIG_AIR360_I2C0_SCL_GPIO`
   Board-level I2C bus 0 SCL pin.
-- `CONFIG_AIR360_GPS_DEFAULT_UART_PORT`
-  Fixed UART port used by the GPS path.
-- `CONFIG_AIR360_GPS_DEFAULT_RX_GPIO`
-  Board-level GPS RX pin.
-- `CONFIG_AIR360_GPS_DEFAULT_TX_GPIO`
-  Board-level GPS TX pin.
 - `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE`
   Default GPS baud rate.
 - `CONFIG_AIR360_GPIO_SENSOR_PIN_0`

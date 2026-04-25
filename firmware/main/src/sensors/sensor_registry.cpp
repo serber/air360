@@ -85,6 +85,45 @@ bool validateI2cAddress(
     return false;
 }
 
+bool validateUartPort(
+    const SensorDescriptor& descriptor,
+    const SensorRecord& record,
+    std::string& error) {
+    if (descriptor.allowed_uart_port_count == 0U ||
+        descriptor.allowed_uart_port_count > kMaxUartPortsPerSensor) {
+        error = std::string(descriptor.display_name) +
+                " UART port descriptor is not configured.";
+        return false;
+    }
+
+    const SensorUartPortBinding* binding = findSensorUartPortBinding(record.uart_port_id);
+    if (binding == nullptr) {
+        error = "UART port must be UART1 or UART2; UART0 is reserved for the console.";
+        return false;
+    }
+
+    bool port_allowed = false;
+    for (std::size_t index = 0; index < descriptor.allowed_uart_port_count; ++index) {
+        if (record.uart_port_id == descriptor.allowed_uart_ports[index]) {
+            port_allowed = true;
+            break;
+        }
+    }
+    if (!port_allowed) {
+        error = std::string(descriptor.display_name) +
+                " does not support the selected UART port.";
+        return false;
+    }
+
+    if (record.uart_rx_gpio_pin != binding->rx_gpio_pin ||
+        record.uart_tx_gpio_pin != binding->tx_gpio_pin) {
+        error = "UART RX and TX pins must match the selected UART port binding.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateCommonRecord(const SensorRecord& record, std::string& error) {
     if (record.id == 0U) {
         error = "Sensor id must not be zero.";
@@ -197,13 +236,6 @@ bool validateGpsNmeaRecord(const SensorRecord& record, std::string& error) {
 
     if (record.transport_kind != TransportKind::kUart) {
         error = "GPS currently supports only UART.";
-        return false;
-    }
-
-    if (record.uart_port_id != CONFIG_AIR360_GPS_DEFAULT_UART_PORT ||
-        record.uart_rx_gpio_pin != CONFIG_AIR360_GPS_DEFAULT_RX_GPIO ||
-        record.uart_tx_gpio_pin != CONFIG_AIR360_GPS_DEFAULT_TX_GPIO) {
-        error = "GPS UART port, RX, and TX pins must match the build-time board configuration.";
         return false;
     }
 
@@ -320,8 +352,8 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
 }
 
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
-// Size computed for ESP32 (32-bit, 4-byte pointers): 19 fields, 48 bytes with padding.
-static_assert(sizeof(SensorDescriptor) == 48U,
+// Size computed for ESP32 (32-bit, 4-byte pointers): 21 fields, 52 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 52U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
 constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
@@ -340,6 +372,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x76U, 0x77U},
         .allowed_i2c_address_count = 2U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -361,6 +395,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x76U, 0x77U},
         .allowed_i2c_address_count = 2U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -382,6 +418,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x69U},
         .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -403,6 +441,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x61U},
         .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -424,6 +464,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x10U},
         .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -444,9 +486,11 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
         .allowed_i2c_address_count = 0U,
-        .default_uart_port_id     = CONFIG_AIR360_GPS_DEFAULT_UART_PORT,
-        .default_uart_rx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_RX_GPIO,
-        .default_uart_tx_gpio_pin = CONFIG_AIR360_GPS_DEFAULT_TX_GPIO,
+        .default_uart_port_id     = 1U,
+        .allowed_uart_ports       = {1U, 2U},
+        .allowed_uart_port_count  = 2U,
+        .default_uart_rx_gpio_pin = 18,
+        .default_uart_tx_gpio_pin = 17,
         .default_uart_baud_rate   = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE,
         .validate                 = &validateGpsNmeaRecord,
         .create_driver            = &createGpsNmeaSensor,
@@ -466,6 +510,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {},
         .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -487,6 +533,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {},
         .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -508,6 +556,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {},
         .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -529,6 +579,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x40U},
         .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -550,6 +602,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x44U},
         .allowed_i2c_address_count = 1U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -571,6 +625,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {0x40U, 0x41U, 0x44U, 0x45U},
         .allowed_i2c_address_count = 4U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -591,9 +647,11 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
         .allowed_i2c_address_count = 0U,
-        .default_uart_port_id     = CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT,
-        .default_uart_rx_gpio_pin = CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO,
-        .default_uart_tx_gpio_pin = CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO,
+        .default_uart_port_id     = 2U,
+        .allowed_uart_ports       = {1U, 2U},
+        .allowed_uart_port_count  = 2U,
+        .default_uart_rx_gpio_pin = 16,
+        .default_uart_tx_gpio_pin = 15,
         .default_uart_baud_rate   = 9600U,
         .validate                 = &validateMhz19bRecord,
         .create_driver            = &createMhz19bSensor,
@@ -613,6 +671,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_i2c_addresses    = {},
         .allowed_i2c_address_count = 0U,
         .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
@@ -687,6 +747,10 @@ bool SensorRegistry::validateRecord(const SensorRecord& record, std::string& err
 
     if (record.transport_kind == TransportKind::kI2c) {
         return validateI2cAddress(*descriptor, record, error);
+    }
+
+    if (record.transport_kind == TransportKind::kUart) {
+        return validateUartPort(*descriptor, record, error);
     }
 
     error.clear();

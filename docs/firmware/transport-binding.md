@@ -99,16 +99,18 @@ The vendored SPS30 Sensirion C library still exposes global HAL hooks. SPS30 dri
 
 ## `UartPortManager`
 
-Manages UART ports for sensors that use serial communication. Current UART sensor assignments:
+Manages UART ports for sensors that use serial communication. UART0 is reserved for the ESP-IDF console. Sensor UART records may select one of the descriptor-allowed sensor UART ports:
 
-| Sensor | Port | RX | TX | Baud |
-|--------|------|----|----|------|
-| GPS (NMEA) | UART1 | GPIO18 | GPIO17 | 9600 |
-| MH-Z19B | UART2 | GPIO16 | GPIO15 | 9600 |
+| Port | RX | TX | Default sensors |
+|------|----|----|-----------------|
+| UART1 | GPIO18 | GPIO17 | GPS (NMEA) default |
+| UART2 | GPIO16 | GPIO15 | MH-Z19B default |
+
+GPS (NMEA) and MH-Z19B both allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
 
 ### Port mapping
 
-`port_id` maps directly to `uart_port_t`. Port 0 is rejected (`ESP_ERR_INVALID_ARG`) because it is the console UART. Any port in `[1, UART_NUM_MAX)` is accepted; the runtime rejects values outside that range. Kconfig defaults for GPS and MH-Z19B use `range 1 9` to match.
+`port_id` maps directly to `uart_port_t`. Port 0 is rejected (`ESP_ERR_INVALID_ARG`) because it is the console UART. Sensor configuration validation narrows the accepted values to the descriptor's allowed UART ports, currently UART1 and UART2.
 
 `ports_` is `std::array<PortState, UART_NUM_MAX>` indexed directly by `port_id` — slot 0 is always empty.
 
@@ -126,7 +128,7 @@ Fixed for all UART sensors:
 | TX buffer size | 0 (blocking TX) |
 | Clock source | `UART_SCLK_DEFAULT` |
 
-Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_baud_rate`, `uart_rx_gpio_pin`, `uart_tx_gpio_pin`). Drivers that expect bursty UART traffic may also request an event queue and a larger RX ring buffer when opening the port. The GPS driver does both: it enables an event queue and sizes RX to at least `max(4096, max_bytes_per_poll + 256)`.
+Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_baud_rate`, `uart_rx_gpio_pin`, `uart_tx_gpio_pin`). The web UI sets RX/TX from the selected UART port binding, and `SensorRegistry::validateRecord()` rejects records where the pins do not match the selected port. Drivers that expect bursty UART traffic may also request an event queue and a larger RX ring buffer when opening the port. The GPS driver does both: it enables an event queue and sizes RX to at least `max(4096, max_bytes_per_poll + 256)`.
 
 ### Lazy initialisation
 

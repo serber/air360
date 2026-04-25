@@ -24,12 +24,12 @@ UART GPS receiver with NMEA sentence parsing via the TinyGPSPlus library.
 
 ## Transport
 
-- UART1 (fixed port)
-- RX: GPIO18, TX: GPIO17 (default, configurable via `Kconfig`)
+- Default UART1: RX=GPIO18, TX=GPIO17
+- UART2 selectable: RX=GPIO16, TX=GPIO15
 - Baud rate: 9600 (default, configurable)
 - RX buffer: `max(4096, max_bytes_per_poll + 256)` bytes, where `max_bytes_per_poll = ceil((baud / 10) * poll_interval_seconds) + 256`
 
-All UART parameters are taken from the sensor record (`SensorRecord`), which is pre-populated with `Kconfig` defaults when the sensor is created.
+UART port selection is taken from the sensor record (`SensorRecord`), which is pre-populated from the sensor descriptor when the sensor is created. The web UI lets the record select UART1 or UART2 and writes the matching RX/TX pins from the firmware UART map.
 
 ## Initialization
 

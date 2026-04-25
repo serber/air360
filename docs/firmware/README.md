@@ -101,12 +101,12 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | I2C `0x10` | Illuminance |
 | [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | I2C `0x40` | Temperature, humidity |
 | [sensors/sht4x.md](sensors/sht4x.md) | SHT4X | I2C `0x44` | Temperature, humidity |
-| [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | UART1 | Latitude, longitude, altitude, speed, satellites, HDOP |
+| [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | UART1 default; UART2 selectable | Latitude, longitude, altitude, speed, satellites, HDOP |
 | [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | GPIO | Temperature, humidity |
 | [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | GPIO (1-Wire) | Temperature |
 | [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Analog (ADC) | Raw ADC count, voltage |
 | [sensors/ina219.md](sensors/ina219.md) | INA219 | I2C `0x40` | Bus voltage, current, power |
-| [sensors/mhz19b.md](sensors/mhz19b.md) | MH-Z19B | UART2 | CO2 |
+| [sensors/mhz19b.md](sensors/mhz19b.md) | MH-Z19B | UART2 default; UART1 selectable | CO2 |
 
 ---
 

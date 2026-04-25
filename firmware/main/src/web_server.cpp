@@ -145,6 +145,9 @@ struct SensorCardViewModel {
     bool show_i2c_address_input = false;
     std::string i2c_address_value;
     std::string i2c_address_options_html;
+    bool show_uart_port_select = false;
+    std::string uart_port_options_html;
+    std::string uart_pin_hint;
     bool show_gpio_pin_select = false;
     std::string gpio_options_html;
     bool enabled = false;
@@ -184,6 +187,9 @@ struct SensorCategorySectionViewModel {
     bool add_show_i2c_address_input = false;
     std::string add_i2c_address_value;
     std::string add_i2c_address_options_html;
+    bool add_show_uart_port_select = false;
+    std::string add_uart_port_options_html;
+    std::string add_uart_pin_hint;
     std::string add_gpio_options_html;
     std::uint32_t add_poll_interval_ms = 10000U;
     bool add_show_gpio_pin_select = false;
@@ -410,6 +416,76 @@ void appendI2cAddressOptions(
         }
         html += ">";
         html += formatI2cAddress(address);
+        html += "</option>";
+    }
+}
+
+std::string allowedUartBindingsValue(const SensorDescriptor& descriptor) {
+    std::string value;
+    for (std::size_t index = 0; index < descriptor.allowed_uart_port_count; ++index) {
+        const SensorUartPortBinding* binding =
+            findSensorUartPortBinding(descriptor.allowed_uart_ports[index]);
+        if (binding == nullptr) {
+            continue;
+        }
+        if (!value.empty()) {
+            value += ",";
+        }
+        value += std::to_string(binding->port_id);
+        value += ":";
+        value += std::to_string(binding->rx_gpio_pin);
+        value += ":";
+        value += std::to_string(binding->tx_gpio_pin);
+    }
+    return value;
+}
+
+std::string uartPortLabel(const SensorUartPortBinding& binding) {
+    std::string label = "UART";
+    label += std::to_string(binding.port_id);
+    label += " - RX GPIO";
+    label += std::to_string(binding.rx_gpio_pin);
+    label += ", TX GPIO";
+    label += std::to_string(binding.tx_gpio_pin);
+    return label;
+}
+
+std::string uartPinHint(std::uint8_t port_id) {
+    const SensorUartPortBinding* binding = findSensorUartPortBinding(port_id);
+    if (binding == nullptr) {
+        return "";
+    }
+
+    std::string hint = "Pins: RX GPIO";
+    hint += std::to_string(binding->rx_gpio_pin);
+    hint += ", TX GPIO";
+    hint += std::to_string(binding->tx_gpio_pin);
+    return hint;
+}
+
+void appendUartPortOptions(
+    std::string& html,
+    const SensorDescriptor& descriptor,
+    std::uint8_t selected_port) {
+    for (std::size_t index = 0; index < descriptor.allowed_uart_port_count; ++index) {
+        const SensorUartPortBinding* binding =
+            findSensorUartPortBinding(descriptor.allowed_uart_ports[index]);
+        if (binding == nullptr) {
+            continue;
+        }
+        html += "<option value='";
+        html += std::to_string(binding->port_id);
+        html += "'";
+        html += " data-rx-gpio='";
+        html += std::to_string(binding->rx_gpio_pin);
+        html += "' data-tx-gpio='";
+        html += std::to_string(binding->tx_gpio_pin);
+        html += "'";
+        if (binding->port_id == selected_port) {
+            html += " selected";
+        }
+        html += ">";
+        html += htmlEscape(uartPortLabel(*binding));
         html += "</option>";
     }
 }
@@ -686,19 +762,18 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         return hint;
     }
 
+    if (descriptor.supports_uart) {
+        std::string hint = "Defaults: UART ";
+        hint += std::to_string(descriptor.default_uart_port_id);
+        hint += ", ";
+        hint += uartPinHint(descriptor.default_uart_port_id);
+        hint += " @ ";
+        hint += std::to_string(descriptor.default_uart_baud_rate);
+        hint += " baud.";
+        return hint;
+    }
+
     switch (descriptor.type) {
-        case SensorType::kGpsNmea: {
-            std::string hint = "Defaults: fixed UART ";
-            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_UART_PORT);
-            hint += " RX";
-            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_RX_GPIO);
-            hint += " TX";
-            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_TX_GPIO);
-            hint += " @ ";
-            hint += std::to_string(CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE);
-            hint += " baud.";
-            return hint;
-        }
         case SensorType::kDht11:
         case SensorType::kDht22:
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
@@ -706,16 +781,6 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
             return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
         case SensorType::kMe3No2:
             return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6).";
-        case SensorType::kMhz19b: {
-            std::string hint = "Defaults: UART ";
-            hint += std::to_string(CONFIG_AIR360_MHZ19B_DEFAULT_UART_PORT);
-            hint += " RX";
-            hint += std::to_string(CONFIG_AIR360_MHZ19B_DEFAULT_RX_GPIO);
-            hint += " TX";
-            hint += std::to_string(CONFIG_AIR360_MHZ19B_DEFAULT_TX_GPIO);
-            hint += " @ 9600 baud.";
-            return hint;
-        }
         case SensorType::kUnknown:
         default:
             return "";
@@ -735,6 +800,8 @@ std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool select
     html += (descriptor.supports_gpio || descriptor.supports_analog) ? "true" : "false";
     html += "' data-requires-i2c='";
     html += descriptor.supports_i2c ? "true" : "false";
+    html += "' data-requires-uart='";
+    html += descriptor.supports_uart ? "true" : "false";
     html += "' data-defaults-hint='";
     html += htmlEscape(sensorDefaultsHint(descriptor));
     html += "' data-default-i2c-address='";
@@ -742,6 +809,10 @@ std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool select
                                     : "";
     html += "' data-allowed-i2c-addresses='";
     html += descriptor.supports_i2c ? htmlEscape(allowedI2cAddressesValue(descriptor)) : "";
+    html += "' data-default-uart-port='";
+    html += descriptor.supports_uart ? std::to_string(descriptor.default_uart_port_id) : "";
+    html += "' data-allowed-uart-bindings='";
+    html += descriptor.supports_uart ? htmlEscape(allowedUartBindingsValue(descriptor)) : "";
     html += "'>";
     html += htmlEscape(descriptor.display_name);
     html += "</option>";
@@ -1177,6 +1248,21 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
         i2c_field_block += "</select></div>";
     }
 
+    std::string uart_field_block;
+    uart_field_block.reserve(512U);
+    if (card.show_uart_port_select) {
+        uart_field_block += "<div class='field' data-sensor-uart-field><label for='uart_port_";
+        uart_field_block += std::to_string(card.id);
+        uart_field_block += "'>UART port</label>";
+        uart_field_block += "<select class='select' id='uart_port_";
+        uart_field_block += std::to_string(card.id);
+        uart_field_block += "' name='uart_port_id' data-sensor-uart-port-select>";
+        uart_field_block += card.uart_port_options_html;
+        uart_field_block += "</select><p class='hint' data-sensor-uart-pins>";
+        uart_field_block += htmlEscape(card.uart_pin_hint);
+        uart_field_block += "</p></div>";
+    }
+
     std::string gpio_field_block;
     gpio_field_block.reserve(384U);
     if (card.show_gpio_pin_select) {
@@ -1205,6 +1291,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
             {"DEFAULTS_HINT_TEXT", htmlEscape(card.defaults_hint)},
             {"DEFAULTS_HINT_HIDDEN", card.defaults_hint.empty() ? "hidden" : ""},
             {"I2C_FIELD_BLOCK", i2c_field_block},
+            {"UART_FIELD_BLOCK", uart_field_block},
             {"GPIO_FIELD_BLOCK", gpio_field_block},
             {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
         });
@@ -1241,6 +1328,26 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
         i2c_field_block += ">";
         i2c_field_block += section.add_i2c_address_options_html;
         i2c_field_block += "</select></div>";
+
+        std::string uart_field_block;
+        uart_field_block.reserve(512U);
+        uart_field_block += "<div class='field' data-sensor-uart-field";
+        if (!section.add_show_uart_port_select) {
+            uart_field_block += " hidden";
+        }
+        uart_field_block += "><label for='uart_port_add_";
+        uart_field_block += htmlEscape(section.key);
+        uart_field_block += "'>UART port</label><select class='select' id='uart_port_add_";
+        uart_field_block += htmlEscape(section.key);
+        uart_field_block += "' name='uart_port_id' data-sensor-uart-port-select";
+        if (!section.add_show_uart_port_select) {
+            uart_field_block += " disabled";
+        }
+        uart_field_block += ">";
+        uart_field_block += section.add_uart_port_options_html;
+        uart_field_block += "</select><p class='hint' data-sensor-uart-pins>";
+        uart_field_block += htmlEscape(section.add_uart_pin_hint);
+        uart_field_block += "</p></div>";
 
         std::string gpio_field_block;
         gpio_field_block.reserve(512U);
@@ -1284,6 +1391,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
         add_form_block += std::to_string(section.add_poll_interval_ms);
         add_form_block += "'></div>";
         add_form_block += i2c_field_block;
+        add_form_block += uart_field_block;
         add_form_block += gpio_field_block;
         add_form_block += "<label class='checkbox'><input name='enabled' type='checkbox'><span class='checkbox__label'>Enabled</span></label><div class='split-actions'><button class='button' type='submit'>";
         add_form_block += htmlEscape(section.add_button_label);
@@ -1365,6 +1473,12 @@ SensorsPageViewModel buildSensorsPageViewModel(
                 section.add_i2c_address_options_html,
                 *descriptor,
                 descriptor->default_i2c_address);
+            section.add_show_uart_port_select = descriptor->supports_uart;
+            appendUartPortOptions(
+                section.add_uart_port_options_html,
+                *descriptor,
+                descriptor->default_uart_port_id);
+            section.add_uart_pin_hint = uartPinHint(descriptor->default_uart_port_id);
             section.add_show_gpio_pin_select =
                 descriptor->supports_gpio || descriptor->supports_analog;
         }
@@ -1425,6 +1539,7 @@ SensorsPageViewModel buildSensorsPageViewModel(
         if (descriptor != nullptr) {
             card.defaults_hint = sensorDefaultsHint(*descriptor);
             card.show_i2c_address_input = descriptor->supports_i2c;
+            card.show_uart_port_select = descriptor->supports_uart;
         }
         if (card.show_i2c_address_input) {
             card.i2c_address_value = formatI2cAddress(record.i2c_address);
@@ -1434,6 +1549,13 @@ SensorsPageViewModel buildSensorsPageViewModel(
                     *descriptor,
                     record.i2c_address);
             }
+        }
+        if (card.show_uart_port_select && descriptor != nullptr) {
+            appendUartPortOptions(
+                card.uart_port_options_html,
+                *descriptor,
+                record.uart_port_id);
+            card.uart_pin_hint = uartPinHint(record.uart_port_id);
         }
         card.show_gpio_pin_select =
             record.transport_kind == TransportKind::kGpio ||

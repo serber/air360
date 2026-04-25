@@ -257,6 +257,21 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             return sendHtmlResponse(request, html);
         }
 
+        const std::string uart_port_value = findFormValue(fields, "uart_port_id");
+        unsigned long parsed_uart_port = 0UL;
+        if (!uart_port_value.empty() &&
+            (!parseUnsignedLong(uart_port_value, parsed_uart_port) ||
+             parsed_uart_port > 255UL)) {
+            const std::string html = renderSensorsPage(
+                server->staged_sensor_config_,
+                *server->sensor_manager_,
+                *server->measurement_store_,
+                server->has_pending_sensor_changes_,
+                "UART port must be 1 or 2.",
+                true);
+            return sendHtmlResponse(request, html);
+        }
+
         SensorRecord record{};
         const SensorRecord* existing = nullptr;
         if (action == "update") {
@@ -315,9 +330,15 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 }
                 break;
             case TransportKind::kUart:
-                record.uart_port_id = descriptor->default_uart_port_id;
-                record.uart_rx_gpio_pin = descriptor->default_uart_rx_gpio_pin;
-                record.uart_tx_gpio_pin = descriptor->default_uart_tx_gpio_pin;
+                record.uart_port_id = uart_port_value.empty()
+                    ? descriptor->default_uart_port_id
+                    : static_cast<std::uint8_t>(parsed_uart_port);
+                if (const SensorUartPortBinding* binding =
+                        findSensorUartPortBinding(record.uart_port_id);
+                    binding != nullptr) {
+                    record.uart_rx_gpio_pin = binding->rx_gpio_pin;
+                    record.uart_tx_gpio_pin = binding->tx_gpio_pin;
+                }
                 if (type_changed || record.uart_baud_rate == 0U) {
                     record.uart_baud_rate = descriptor->default_uart_baud_rate;
                 }

@@ -25,7 +25,7 @@ Infrared CO2 sensor from Zhengzhou Winsen Electronics Technology. Communicates v
 ## Transport
 
 - UART (9600 baud, 8N1)
-- Default binding: UART2, RX=`GPIO16`, TX=`GPIO15`
+- Default binding: UART2, RX=`GPIO16`, TX=`GPIO15`; UART1 is selectable through the sensor descriptor
 - The `esp-idf-lib/mhz19b` component manages UART initialization internally; the driver calls `mhz19b_init()` directly and does not go through `UartPortManager`
 - Baud rate is fixed at 9600 by both the sensor and the component library
 
@@ -78,7 +78,7 @@ Default poll interval: 10 seconds. The sensor updates its reading approximately 
 ## Notes
 
 - If `mhz19b_read_co2()` returns an error, `initialized_` is set to `false` and the next poll cycle re-initializes the device.
-- The driver assigns UART2 by default (`uart_port_id = 2`) to avoid conflict with GPS and SIM7600E, which share UART1 on the default wiring.
+- The descriptor assigns UART2 by default (`uart_port_id = 2`) to avoid conflict with GPS and SIM7600E on UART1. The web UI can move the sensor to UART1 when that port is free.
 - The MH-Z19B measuring range is `0–5000 ppm`. Indoor air is typically `400–1000 ppm`; values above `1000 ppm` indicate poor ventilation.
 
 ## Recommended poll interval

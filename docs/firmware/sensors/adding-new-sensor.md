@@ -54,18 +54,16 @@ Run `idf.py build` once to fetch the component and update `dependencies.lock`.
 
 ---
 
-## Step 3 — Add Kconfig defaults (UART sensors only)
+## Step 3 — Add UART defaults (UART sensors only)
 
-File: `firmware/main/Kconfig.projbuild`
+UART0 is reserved for the console. Sensor UART ports use the fixed map in `SensorRegistry`:
 
-Add default port, RX/TX GPIO, and baud rate inside `menu "air360 firmware"`. Follow the existing GPS and MH-Z19B blocks as a template. Choose a port and GPIO pair that does not conflict with existing assignments:
+| Port | RX | TX |
+|------|----|----|
+| UART1 | GPIO18 | GPIO17 |
+| UART2 | GPIO16 | GPIO15 |
 
-| Sensor | Port | RX | TX |
-|--------|------|----|----|
-| GPS (NMEA) | UART1 | GPIO18 | GPIO17 |
-| MH-Z19B | UART2 | GPIO16 | GPIO15 |
-
-Do **not** add `#ifndef` fallback guards for these values anywhere in `.cpp` files — Kconfig always provides them in an ESP-IDF build.
+Set the sensor's default UART and allowed UART list in its descriptor. Add a Kconfig value only for parameters that really remain build-time defaults, such as a sensor-specific baud rate.
 
 ---
 
@@ -155,9 +153,11 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
     .default_i2c_address       = 0x00U,
     .allowed_i2c_addresses     = {},
     .allowed_i2c_address_count = 0U,
-    .default_uart_port_id      = CONFIG_AIR360_MYNEWSENSOR_DEFAULT_UART_PORT,
-    .default_uart_rx_gpio_pin  = CONFIG_AIR360_MYNEWSENSOR_DEFAULT_RX_GPIO,
-    .default_uart_tx_gpio_pin  = CONFIG_AIR360_MYNEWSENSOR_DEFAULT_TX_GPIO,
+    .default_uart_port_id      = 2U,
+    .allowed_uart_ports        = {1U, 2U},
+    .allowed_uart_port_count   = 2U,
+    .default_uart_rx_gpio_pin  = 16,
+    .default_uart_tx_gpio_pin  = 15,
     .default_uart_baud_rate    = 9600U,
     .validate                  = &validateMyNewSensorRecord,
     .create_driver             = &createMyNewSensor,
@@ -165,6 +165,8 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
 ```
 
 For an I2C sensor, set `.default_i2c_address` to the address used when a new record is created and list every accepted address in `.allowed_i2c_addresses`, for example `{0x76U, 0x77U}` with `.allowed_i2c_address_count = 2U`.
+
+For a UART sensor, set `.default_uart_port_id` to `1U` or `2U` and list every selectable port in `.allowed_uart_ports`. RX/TX pins must match the selected UART port binding: UART1 uses RX=`GPIO18`, TX=`GPIO17`; UART2 uses RX=`GPIO16`, TX=`GPIO15`.
 
 ---
 
@@ -183,12 +185,7 @@ case SensorType::kMyNewSensor:
     return SensorCategory::kGas;  // or whichever category
 ```
 
-**c) Add to `sensorDefaultsHint()`:**
-```cpp
-case SensorType::kMyNewSensor:
-    return "Defaults: UART 2 RX16 TX15 @ 9600 baud.";
-```
-For UART sensors with Kconfig constants, build the string dynamically as GPS and MH-Z19B do.
+**c) Review `sensorDefaultsHint()` output.** I2C and UART defaults are generated from descriptor fields. Add custom text only for a new non-I2C/non-UART transport or for a sensor-specific exception.
 
 ---
 

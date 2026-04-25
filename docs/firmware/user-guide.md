@@ -302,14 +302,14 @@ All categories except **Gas** allow only one configured sensor at a time.
 | SCD30 | I2C at 0x61 | SDA=GPIO8, SCL=GPIO9 |
 | VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
 | SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
-| GPS (NMEA) | UART1 at 9600 baud | RX=GPIO18, TX=GPIO17 |
+| GPS (NMEA) | UART1 at 9600 baud (UART2 selectable) | UART1 RX=GPIO18/TX=GPIO17; UART2 RX=GPIO16/TX=GPIO15 |
 | DHT11, DHT22 | GPIO | GPIO4, GPIO5, or GPIO6 |
 | DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
 | ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
 | INA219 | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
-| MH-Z19B | UART2 at 9600 baud | RX=GPIO16, TX=GPIO15 |
+| MH-Z19B | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |
 
-I2C sensors allow an optional address override if your module uses a non-default address. GPIO and analog sensors require selecting one of the three available board pins.
+I2C sensors allow selecting one of the descriptor-supported addresses if your module uses a non-default address. UART sensors allow selecting one of the descriptor-supported UART ports; the UI shows the RX/TX pins for each port. GPIO and analog sensors require selecting one of the three available board pins.
 
 ### Cellular modem (SIM7600E)
 
@@ -319,7 +319,7 @@ The modem is not configured on the Sensors page — it is managed on the Device 
 |--------|-----------|------|
 | SIM7600E | UART1 at 115200 baud | RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21 |
 
-> **Note:** GPS (NMEA) and the SIM7600E share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on the default configuration. If you need both, change the pin assignment for one of them before building the firmware.
+> **Note:** GPS (NMEA) and the SIM7600E share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on UART1. If you need both, move GPS to UART2 on the Sensor Configuration page or change the modem UART assignment.
 
 ### Adding a sensor
 

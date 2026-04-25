@@ -28,12 +28,25 @@ document.addEventListener("DOMContentLoaded", () => {
         : null;
     const requiresPin = selectedOption?.dataset.requiresPin === "true";
     const requiresI2c = selectedOption?.dataset.requiresI2c === "true";
+    const requiresUart = selectedOption?.dataset.requiresUart === "true";
     const defaultsHint = selectedOption?.dataset.defaultsHint ?? "";
     const defaultI2cAddress = selectedOption?.dataset.defaultI2cAddress ?? "";
+    const defaultUartPort = selectedOption?.dataset.defaultUartPort ?? "";
     const allowedI2cAddresses = (selectedOption?.dataset.allowedI2cAddresses ?? "")
       .split(",")
       .map((address) => address.trim())
       .filter((address) => address.length > 0);
+    const allowedUartBindings = (selectedOption?.dataset.allowedUartBindings ?? "")
+      .split(",")
+      .map((binding) => {
+        const parts = binding.split(":");
+        return {
+          port: parts[0]?.trim() ?? "",
+          rx: parts[1]?.trim() ?? "",
+          tx: parts[2]?.trim() ?? "",
+        };
+      })
+      .filter((binding) => binding.port.length > 0);
 
     const i2cField = form.querySelector("[data-sensor-i2c-field]");
     if (i2cField instanceof HTMLElement) {
@@ -68,6 +81,43 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    const uartField = form.querySelector("[data-sensor-uart-field]");
+    if (uartField instanceof HTMLElement) {
+      uartField.hidden = !requiresUart;
+      for (const control of uartField.querySelectorAll("input, select, textarea")) {
+        if (
+          control instanceof HTMLInputElement ||
+          control instanceof HTMLSelectElement ||
+          control instanceof HTMLTextAreaElement
+        ) {
+          control.disabled = !requiresUart;
+          if (
+            requiresUart &&
+            control instanceof HTMLSelectElement &&
+            control.name === "uart_port_id" &&
+            allowedUartBindings.length > 0
+          ) {
+            const currentValue = control.value;
+            const allowedPorts = allowedUartBindings.map((binding) => binding.port);
+            const selectedValue = allowedPorts.includes(currentValue)
+              ? currentValue
+              : defaultUartPort;
+            control.innerHTML = "";
+            for (const binding of allowedUartBindings) {
+              const option = document.createElement("option");
+              option.value = binding.port;
+              option.textContent = `UART${binding.port} - RX GPIO${binding.rx}, TX GPIO${binding.tx}`;
+              option.dataset.rxGpio = binding.rx;
+              option.dataset.txGpio = binding.tx;
+              option.selected = binding.port === selectedValue;
+              control.appendChild(option);
+            }
+          }
+        }
+      }
+      syncUartPinHint(form);
+    }
+
     const pinField = form.querySelector("[data-sensor-pin-field]");
     if (pinField instanceof HTMLElement) {
       pinField.hidden = !requiresPin;
@@ -87,6 +137,22 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultsNode.textContent = defaultsHint;
       defaultsNode.hidden = defaultsHint.length === 0;
     }
+  }
+
+  function syncUartPinHint(form) {
+    const select = form.querySelector("[data-sensor-uart-port-select]");
+    const hintNode = form.querySelector("[data-sensor-uart-pins]");
+    if (!(select instanceof HTMLSelectElement) || !(hintNode instanceof HTMLElement)) {
+      return;
+    }
+
+    const selectedOption =
+      select.selectedOptions.length > 0 ? select.selectedOptions[0] : null;
+    const rx = selectedOption?.dataset.rxGpio ?? "";
+    const tx = selectedOption?.dataset.txGpio ?? "";
+    hintNode.textContent =
+      rx.length > 0 && tx.length > 0 ? `Pins: RX GPIO${rx}, TX GPIO${tx}` : "";
+    hintNode.hidden = hintNode.textContent.length === 0;
   }
 
   function syncConfigForm(form) {
@@ -409,6 +475,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sensorTypeSelect instanceof HTMLSelectElement) {
       sensorTypeSelect.addEventListener("change", () => {
         syncSensorForm(form);
+      });
+    }
+    const uartPortSelect = form.querySelector("[data-sensor-uart-port-select]");
+    if (uartPortSelect instanceof HTMLSelectElement) {
+      uartPortSelect.addEventListener("change", () => {
+        syncUartPinHint(form);
       });
     }
   }
