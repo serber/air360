@@ -303,9 +303,9 @@ All categories except **Gas** allow only one configured sensor at a time.
 | VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
 | SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
 | GPS (NMEA) | UART1 at 9600 baud (UART2 selectable) | UART1 RX=GPIO18/TX=GPIO17; UART2 RX=GPIO16/TX=GPIO15 |
-| DHT11, DHT22 | GPIO | GPIO4, GPIO5, or GPIO6 |
-| DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
-| ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
+| DHT11, DHT22 | GPIO | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
+| DS18B20 | GPIO (1-Wire) | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
+| ME3-NO2 | Analog (ADC) | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
 | INA219 | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
 | MH-Z19B | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |
 

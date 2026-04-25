@@ -23,7 +23,6 @@ constexpr std::uint32_t kRestartDelayMs = 400U;
 constexpr std::uint32_t kRestartTaskStackSize = 2048U;
 
 using web::FormFields;
-using web::defaultBoardGpioPin;
 using web::findFormValue;
 using web::formHasKey;
 using web::inferredTransportKind;
@@ -310,7 +309,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
             SensorRecord rebuilt{};
             rebuilt.id = preserved_id;
             rebuilt.enabled = preserved_enabled;
-            rebuilt.analog_gpio_pin = defaultBoardGpioPin();
+            rebuilt.analog_gpio_pin = firstAllowedGpioPin(*descriptor);
             record = rebuilt;
         }
 
@@ -348,7 +347,7 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 if (!analog_gpio_pin_value.empty()) {
                     record.analog_gpio_pin = analog_pin;
                 } else if (type_changed || record.analog_gpio_pin < 0) {
-                    record.analog_gpio_pin = defaultBoardGpioPin();
+                    record.analog_gpio_pin = firstAllowedGpioPin(*descriptor);
                 }
                 break;
             case TransportKind::kUnknown:

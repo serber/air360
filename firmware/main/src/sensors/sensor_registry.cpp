@@ -124,6 +124,28 @@ bool validateUartPort(
     return true;
 }
 
+bool validateGpioPin(
+    const SensorDescriptor& descriptor,
+    const SensorRecord& record,
+    std::string& error) {
+    if (descriptor.allowed_gpio_pin_count == 0U ||
+        descriptor.allowed_gpio_pin_count > kMaxGpioPinsPerSensor) {
+        error = std::string(descriptor.display_name) +
+                " GPIO pin descriptor is not configured.";
+        return false;
+    }
+
+    for (std::size_t index = 0; index < descriptor.allowed_gpio_pin_count; ++index) {
+        if (record.analog_gpio_pin == descriptor.allowed_gpio_pins[index]) {
+            return true;
+        }
+    }
+
+    error = std::string(descriptor.display_name) +
+            " GPIO pin must match one of the descriptor's allowed pins.";
+    return false;
+}
+
 bool validateCommonRecord(const SensorRecord& record, std::string& error) {
     if (record.id == 0U) {
         error = "Sensor id must not be zero.";
@@ -257,13 +279,6 @@ bool validateDhtRecord(const SensorRecord& record, std::string& error, std::uint
         return false;
     }
 
-    if (record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_0 &&
-        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_1 &&
-        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_2) {
-        error = "GPIO pin must match one of the board sensor GPIO slots.";
-        return false;
-    }
-
     if (record.poll_interval_ms < min_poll_interval_ms) {
         error = "Poll interval is too short for selected DHT sensor.";
         return false;
@@ -287,13 +302,6 @@ bool validateDs18b20Record(const SensorRecord& record, std::string& error) {
 
     if (record.transport_kind != TransportKind::kGpio) {
         error = "DS18B20 currently supports only GPIO / 1-Wire transport.";
-        return false;
-    }
-
-    if (record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_0 &&
-        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_1 &&
-        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_2) {
-        error = "GPIO pin must match one of the board sensor GPIO slots.";
         return false;
     }
 
@@ -341,19 +349,12 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_0 &&
-        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_1 &&
-        record.analog_gpio_pin != CONFIG_AIR360_GPIO_SENSOR_PIN_2) {
-        error = "Analog pin must match one of the board sensor GPIO slots.";
-        return false;
-    }
-
     return true;
 }
 
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
-// Size computed for ESP32 (32-bit, 4-byte pointers): 21 fields, 52 bytes with padding.
-static_assert(sizeof(SensorDescriptor) == 52U,
+// Size computed for ESP32 (32-bit, 4-byte pointers): 23 fields, 60 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
 constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
@@ -377,6 +378,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateBme280Record,
         .create_driver            = &createBme280Sensor,
     },
@@ -400,6 +403,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateBme680Record,
         .create_driver            = &createBme680Sensor,
     },
@@ -423,6 +428,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateSps30Record,
         .create_driver            = &createSps30Sensor,
     },
@@ -446,6 +453,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateScd30Record,
         .create_driver            = &createScd30Sensor,
     },
@@ -469,6 +478,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateVeml7700Record,
         .create_driver            = &createVeml7700Sensor,
     },
@@ -492,6 +503,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = 18,
         .default_uart_tx_gpio_pin = 17,
         .default_uart_baud_rate   = CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateGpsNmeaRecord,
         .create_driver            = &createGpsNmeaSensor,
     },
@@ -515,6 +528,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = kBoardSensorGpioPins,
+        .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateDht11Record,
         .create_driver            = &createDht11Sensor,
     },
@@ -538,6 +553,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = kBoardSensorGpioPins,
+        .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateDht22Record,
         .create_driver            = &createDht22Sensor,
     },
@@ -561,6 +578,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = kBoardSensorGpioPins,
+        .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateDs18b20Record,
         .create_driver            = &createDs18b20Sensor,
     },
@@ -584,6 +603,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateHtu2xRecord,
         .create_driver            = &createHtu2xSensor,
     },
@@ -607,6 +628,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateSht4xRecord,
         .create_driver            = &createSht4xSensor,
     },
@@ -630,6 +653,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateIna219Record,
         .create_driver            = &createIna219Sensor,
     },
@@ -653,6 +678,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = 16,
         .default_uart_tx_gpio_pin = 15,
         .default_uart_baud_rate   = 9600U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateMhz19bRecord,
         .create_driver            = &createMhz19bSensor,
     },
@@ -676,6 +703,8 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .default_uart_rx_gpio_pin = -1,
         .default_uart_tx_gpio_pin = -1,
         .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = kBoardSensorGpioPins,
+        .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateMe3No2Record,
         .create_driver            = &createMe3No2Sensor,
     },
@@ -751,6 +780,11 @@ bool SensorRegistry::validateRecord(const SensorRecord& record, std::string& err
 
     if (record.transport_kind == TransportKind::kUart) {
         return validateUartPort(*descriptor, record, error);
+    }
+
+    if (record.transport_kind == TransportKind::kGpio ||
+        record.transport_kind == TransportKind::kAnalog) {
+        return validateGpioPin(*descriptor, record, error);
     }
 
     error.clear();

@@ -134,7 +134,7 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
 #include "air360/sensors/drivers/mynewsensor_sensor.hpp"
 ```
 
-**b) Add a validate function** before `kDescriptors[]`. Follow the pattern of the nearest transport type. Validate transport kind, UART baud rate, or GPIO pin as appropriate. I2C bus and address validation is shared by `SensorRegistry::validateRecord()` and uses the descriptor fields below.
+**b) Add a validate function** before `kDescriptors[]`. Follow the pattern of the nearest transport type. Validate transport kind and sensor-specific constraints such as UART baud rate. I2C address validation and GPIO/analog pin validation are shared by `SensorRegistry::validateRecord()` and use the descriptor fields below.
 
 **c) Add a descriptor entry** to `kDescriptors[]`:
 
@@ -159,6 +159,8 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
     .default_uart_rx_gpio_pin  = 16,
     .default_uart_tx_gpio_pin  = 15,
     .default_uart_baud_rate    = 9600U,
+    .allowed_gpio_pins         = {},
+    .allowed_gpio_pin_count    = 0U,
     .validate                  = &validateMyNewSensorRecord,
     .create_driver             = &createMyNewSensor,
 },
@@ -167,6 +169,8 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
 For an I2C sensor, set `.default_i2c_address` to the address used when a new record is created and list every accepted address in `.allowed_i2c_addresses`, for example `{0x76U, 0x77U}` with `.allowed_i2c_address_count = 2U`.
 
 For a UART sensor, set `.default_uart_port_id` to `1U` or `2U` and list every selectable port in `.allowed_uart_ports`. RX/TX pins must match the selected UART port binding: UART1 uses RX=`GPIO18`, TX=`GPIO17`; UART2 uses RX=`GPIO16`, TX=`GPIO15`.
+
+For a GPIO or analog sensor, leave UART fields empty and list every selectable GPIO in `.allowed_gpio_pins`. There is no separate default GPIO field; the web UI and add route use the first allowed pin as the initial selection.
 
 ---
 
@@ -185,7 +189,7 @@ case SensorType::kMyNewSensor:
     return SensorCategory::kGas;  // or whichever category
 ```
 
-**c) Review `sensorDefaultsHint()` output.** I2C and UART defaults are generated from descriptor fields. Add custom text only for a new non-I2C/non-UART transport or for a sensor-specific exception.
+**c) Review `sensorDefaultsHint()` output.** I2C, UART, and GPIO/analog defaults are generated from descriptor fields. Add custom text only for a new transport or for a sensor-specific exception.
 
 ---
 

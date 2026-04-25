@@ -490,6 +490,53 @@ void appendUartPortOptions(
     }
 }
 
+std::string allowedGpioPinsValue(const SensorDescriptor& descriptor) {
+    std::string value;
+    for (std::size_t index = 0; index < descriptor.allowed_gpio_pin_count; ++index) {
+        if (!value.empty()) {
+            value += ",";
+        }
+        value += std::to_string(descriptor.allowed_gpio_pins[index]);
+    }
+    return value;
+}
+
+std::string formatAllowedGpioPins(const SensorDescriptor& descriptor) {
+    std::string formatted;
+    for (std::size_t index = 0; index < descriptor.allowed_gpio_pin_count; ++index) {
+        if (index > 0U) {
+            if (descriptor.allowed_gpio_pin_count == 2U) {
+                formatted += " or ";
+            } else if (index + 1U == descriptor.allowed_gpio_pin_count) {
+                formatted += ", or ";
+            } else {
+                formatted += ", ";
+            }
+        }
+        formatted += "GPIO ";
+        formatted += std::to_string(descriptor.allowed_gpio_pins[index]);
+    }
+    return formatted;
+}
+
+void appendGpioPinOptions(
+    std::string& html,
+    const SensorDescriptor& descriptor,
+    std::int16_t selected_pin) {
+    for (std::size_t index = 0; index < descriptor.allowed_gpio_pin_count; ++index) {
+        const std::int16_t pin = descriptor.allowed_gpio_pins[index];
+        html += "<option value='";
+        html += std::to_string(pin);
+        html += "'";
+        if (selected_pin == pin) {
+            html += " selected";
+        }
+        html += ">GPIO ";
+        html += std::to_string(pin);
+        html += "</option>";
+    }
+}
+
 std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
     return std::max<std::uint32_t>(value, kMinSensorPollIntervalMs);
 }
@@ -723,30 +770,6 @@ std::string transportSummaryForRecord(const SensorRecord& record) {
     }
 }
 
-void appendBoardGpioOptions(std::string& html, std::int16_t selected_pin) {
-    const int pins[] = {
-        CONFIG_AIR360_GPIO_SENSOR_PIN_0,
-        CONFIG_AIR360_GPIO_SENSOR_PIN_1,
-        CONFIG_AIR360_GPIO_SENSOR_PIN_2,
-    };
-
-    for (const int pin : pins) {
-        html += "<option value='";
-        html += std::to_string(pin);
-        html += "'";
-        if (selected_pin == pin) {
-            html += " selected";
-        }
-        html += ">GPIO ";
-        html += std::to_string(pin);
-        html += "</option>";
-    }
-}
-
-std::int16_t defaultBoardGpioPin() {
-    return static_cast<std::int16_t>(CONFIG_AIR360_GPIO_SENSOR_PIN_0);
-}
-
 std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
     if (descriptor.supports_i2c) {
         std::string hint = "Defaults: I2C bus ";
@@ -773,14 +796,14 @@ std::string sensorDefaultsHint(const SensorDescriptor& descriptor) {
         return hint;
     }
 
+    if (descriptor.supports_gpio || descriptor.supports_analog) {
+        std::string hint = "Defaults: choose ";
+        hint += formatAllowedGpioPins(descriptor);
+        hint += ".";
+        return hint;
+    }
+
     switch (descriptor.type) {
-        case SensorType::kDht11:
-        case SensorType::kDht22:
-            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
-        case SensorType::kDs18b20:
-            return "Defaults: choose one of the board GPIO sensor slots (GPIO 4, 5, or 6).";
-        case SensorType::kMe3No2:
-            return "Defaults: analog input on one of the board sensor GPIO slots (GPIO 4, 5, or 6).";
         case SensorType::kUnknown:
         default:
             return "";
@@ -813,6 +836,10 @@ std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool select
     html += descriptor.supports_uart ? std::to_string(descriptor.default_uart_port_id) : "";
     html += "' data-allowed-uart-bindings='";
     html += descriptor.supports_uart ? htmlEscape(allowedUartBindingsValue(descriptor)) : "";
+    html += "' data-allowed-gpio-pins='";
+    html += (descriptor.supports_gpio || descriptor.supports_analog)
+        ? htmlEscape(allowedGpioPinsValue(descriptor))
+        : "";
     html += "'>";
     html += htmlEscape(descriptor.display_name);
     html += "</option>";
@@ -1357,7 +1384,7 @@ std::string renderSensorCategorySection(const SensorCategorySectionViewModel& se
         }
         gpio_field_block += "><label for='analog_gpio_pin_add_";
         gpio_field_block += htmlEscape(section.key);
-        gpio_field_block += "'>GPIO pin (4, 5, or 6)</label><select class='select' id='analog_gpio_pin_add_";
+        gpio_field_block += "'>GPIO pin</label><select class='select' id='analog_gpio_pin_add_";
         gpio_field_block += htmlEscape(section.key);
         gpio_field_block += "' name='analog_gpio_pin'";
         if (!section.add_show_gpio_pin_select) {
@@ -1481,8 +1508,11 @@ SensorsPageViewModel buildSensorsPageViewModel(
             section.add_uart_pin_hint = uartPinHint(descriptor->default_uart_port_id);
             section.add_show_gpio_pin_select =
                 descriptor->supports_gpio || descriptor->supports_analog;
+            appendGpioPinOptions(
+                section.add_gpio_options_html,
+                *descriptor,
+                firstAllowedGpioPin(*descriptor));
         }
-        appendBoardGpioOptions(section.add_gpio_options_html, defaultBoardGpioPin());
         model.sections.push_back(std::move(section));
     }
 
@@ -1560,8 +1590,8 @@ SensorsPageViewModel buildSensorsPageViewModel(
         card.show_gpio_pin_select =
             record.transport_kind == TransportKind::kGpio ||
             record.transport_kind == TransportKind::kAnalog;
-        if (card.show_gpio_pin_select) {
-            appendBoardGpioOptions(card.gpio_options_html, record.analog_gpio_pin);
+        if (card.show_gpio_pin_select && descriptor != nullptr) {
+            appendGpioPinOptions(card.gpio_options_html, *descriptor, record.analog_gpio_pin);
         }
 
         for (auto& section : model.sections) {
@@ -1791,10 +1821,6 @@ bool parseI2cAddress(const std::string& input, std::uint8_t& value) {
 
 TransportKind inferredTransportKind(const SensorDescriptor& descriptor) {
     return ::air360::inferredTransportKind(descriptor);
-}
-
-std::int16_t defaultBoardGpioPin() {
-    return ::air360::defaultBoardGpioPin();
 }
 
 bool validateSensorCategorySelection(

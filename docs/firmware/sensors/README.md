@@ -36,15 +36,15 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | Default UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud; UART2 selectable | Latitude, longitude, altitude, satellites, speed, course, HDOP |
-| [dht.md](dht.md) | DHT11 / DHT22 | GPIO | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
-| [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
-| [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | One of `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
+| [dht.md](dht.md) | DHT11 / DHT22 | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
+| [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
+| [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
 | [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
 | [mhz19b.md](mhz19b.md) | MH-Z19B | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | CO2 |
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
-GPIO sensor slots (`GPIO4` / `GPIO5` / `GPIO6`) are shared across DHT11, DHT22, DS18B20, and ME3-NO2. Only one sensor can occupy a slot at a time.
+GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
 
 ## Datasheet Notes
 

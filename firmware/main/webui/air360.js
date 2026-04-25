@@ -47,6 +47,10 @@ document.addEventListener("DOMContentLoaded", () => {
         };
       })
       .filter((binding) => binding.port.length > 0);
+    const allowedGpioPins = (selectedOption?.dataset.allowedGpioPins ?? "")
+      .split(",")
+      .map((pin) => pin.trim())
+      .filter((pin) => pin.length > 0);
 
     const i2cField = form.querySelector("[data-sensor-i2c-field]");
     if (i2cField instanceof HTMLElement) {
@@ -128,6 +132,25 @@ document.addEventListener("DOMContentLoaded", () => {
           control instanceof HTMLTextAreaElement
         ) {
           control.disabled = !requiresPin;
+          if (
+            requiresPin &&
+            control instanceof HTMLSelectElement &&
+            control.name === "analog_gpio_pin" &&
+            allowedGpioPins.length > 0
+          ) {
+            const currentValue = control.value;
+            const selectedValue = allowedGpioPins.includes(currentValue)
+              ? currentValue
+              : allowedGpioPins[0];
+            control.innerHTML = "";
+            for (const pin of allowedGpioPins) {
+              const option = document.createElement("option");
+              option.value = pin;
+              option.textContent = `GPIO ${pin}`;
+              option.selected = pin === selectedValue;
+              control.appendChild(option);
+            }
+          }
         }
       }
     }

@@ -316,7 +316,7 @@ Manages the `SensorConfigList` NVS blob (up to 8 sensors).
 | uart.port_id | UART_NUM_1 or UART_NUM_2 |
 | uart.rx_gpio / tx_gpio | Pin numbers |
 | uart.baud_rate | 1200–115200 |
-| gpio.gpio_pin | Must be in allowed board set |
+| gpio.gpio_pin | Must be in the selected sensor descriptor's allowed GPIO pins |
 
 **Log tag:** `air360.sensor_cfg`
 
@@ -331,7 +331,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 - default I2C address (for I2C sensors)
 - allowed I2C addresses (for I2C validation)
 - default UART port and allowed UART ports (for UART sensors)
-- default UART/GPIO values (for board-pin sensors)
+- default UART values and allowed GPIO pins (for UART and board-pin sensors)
 - minimum poll interval
 - `validateRecord()` polymorphic validator
 - `createDriver()` factory function
@@ -674,9 +674,6 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 | `CONFIG_AIR360_I2C0_SDA_GPIO` | 8 | I2C bus 0 SDA |
 | `CONFIG_AIR360_I2C0_SCL_GPIO` | 9 | I2C bus 0 SCL |
 | `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | 9600 | GPS baud |
-| `CONFIG_AIR360_GPIO_SENSOR_PIN_0` | GPIO4 | Slot 0 pin |
-| `CONFIG_AIR360_GPIO_SENSOR_PIN_1` | GPIO5 | Slot 1 pin |
-| `CONFIG_AIR360_GPIO_SENSOR_PIN_2` | GPIO6 | Slot 2 pin |
 | `CONFIG_AIR360_ENABLE_LAB_AP` | y | Lab AP default on |
 | `CONFIG_AIR360_LAB_AP_SSID` | `air360` | Lab AP SSID |
 | `CONFIG_AIR360_LAB_AP_PASSWORD` | `air360password` | Lab AP password |
@@ -729,9 +726,9 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 
 | GPIO | Role | Configurable |
 |------|------|-------------|
-| 4 | GPIO sensor slot 0 | Kconfig |
-| 5 | GPIO sensor slot 1 | Kconfig |
-| 6 | GPIO sensor slot 2 | Kconfig |
+| 4 | GPIO/analog sensor allowed pin | Sensor descriptor |
+| 5 | GPIO/analog sensor allowed pin | Sensor descriptor |
+| 6 | GPIO/analog sensor allowed pin | Sensor descriptor |
 | 8 | I2C bus 0 SDA | Kconfig |
 | 9 | I2C bus 0 SCL | Kconfig |
 | 48 | RGB status LED (WS2812, built-in) | No |
@@ -760,7 +757,7 @@ The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 
 ### GPIO / Analog
 
-- GPIO4, GPIO5, GPIO6: shared slots for DHT11, DHT22, DS18B20 (1-Wire), ME3-NO2 (ADC)
+- GPIO4, GPIO5, GPIO6: descriptor-allowed pins for DHT11, DHT22, DS18B20 (1-Wire), ME3-NO2 (ADC)
 - One sensor per slot; selection through the `/sensors` web UI
 
 ---

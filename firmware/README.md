@@ -129,10 +129,6 @@ This file defines the project-specific `CONFIG_AIR360_*` options:
   Board-level I2C bus 0 SCL pin.
 - `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE`
   Default GPS baud rate.
-- `CONFIG_AIR360_GPIO_SENSOR_PIN_0`
-- `CONFIG_AIR360_GPIO_SENSOR_PIN_1`
-- `CONFIG_AIR360_GPIO_SENSOR_PIN_2`
-  The allowed board sensor pins used by GPIO-backed and analog-backed sensors. The current defaults are GPIO4, GPIO5, and GPIO6.
 - `CONFIG_AIR360_ENABLE_LAB_AP`
   Controls whether setup AP defaults are enabled in the initial persisted config.
 - `CONFIG_AIR360_LAB_AP_SSID`
@@ -394,7 +390,7 @@ Current UI/runtime notes confirmed by the implementation:
 - the diagnostics raw JSON includes both numeric `reset_reason` and string `reset_reason_label`
 - the diagnostics raw JSON also includes `health_status`, `health_summary`, and `health_checks`
 - `DHT11`, `DHT22`, `ME3-NO2`
-  Board-pin sensors restricted to the shared sensor pins from `CONFIG_AIR360_GPIO_SENSOR_PIN_{0,1,2}`. The selected sensor type determines whether the runtime uses GPIO or ADC.
+  Board-pin sensors restricted to the allowed GPIO pins listed in each sensor descriptor. The selected sensor type determines whether the runtime uses GPIO or ADC.
 
 Current default I2C addresses from the registry are:
 
@@ -404,7 +400,7 @@ Current default I2C addresses from the registry are:
 - `VEML7700`: `0x10`
 - `SPS30`: `0x69`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Light`, `Particulate Matter`, `Location`, `Gas`, `Power`), transport is inferred from the selected model, board-pin sensors expose only the allowed GPIO4/GPIO5/GPIO6 options, I2C sensors expose an optional I2C-address override, and UART sensors use the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Light`, `Particulate Matter`, `Location`, `Gas`, `Power`), transport is inferred from the selected model, board-pin sensors expose only the GPIO pins allowed by the selected sensor descriptor, I2C sensors expose an I2C-address selector, and UART sensors expose the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 

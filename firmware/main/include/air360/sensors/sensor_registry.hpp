@@ -16,6 +16,11 @@ using SensorDriverFactory = std::unique_ptr<SensorDriver> (*)();
 
 constexpr std::size_t kMaxI2cAddressesPerSensor = 4U;
 constexpr std::size_t kMaxUartPortsPerSensor = 2U;
+constexpr std::size_t kMaxGpioPinsPerSensor = 3U;
+inline constexpr std::array<std::int16_t, kMaxGpioPinsPerSensor>
+    kBoardSensorGpioPins{{4, 5, 6}};
+inline constexpr std::uint8_t kBoardSensorGpioPinCount =
+    static_cast<std::uint8_t>(kBoardSensorGpioPins.size());
 
 struct SensorUartPortBinding {
     std::uint8_t port_id;
@@ -58,9 +63,15 @@ struct SensorDescriptor {
     std::int16_t default_uart_rx_gpio_pin;
     std::int16_t default_uart_tx_gpio_pin;
     std::uint32_t default_uart_baud_rate;
+    std::array<std::int16_t, kMaxGpioPinsPerSensor> allowed_gpio_pins;
+    std::uint8_t allowed_gpio_pin_count;
     SensorValidationFn validate;
     SensorDriverFactory create_driver;
 };
+
+inline std::int16_t firstAllowedGpioPin(const SensorDescriptor& descriptor) {
+    return descriptor.allowed_gpio_pin_count > 0U ? descriptor.allowed_gpio_pins[0] : -1;
+}
 
 class SensorRegistry {
   public:

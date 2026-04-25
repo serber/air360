@@ -36,7 +36,6 @@ bool parseUnsignedLong(const std::string& input, unsigned long& value, int base 
 bool parseSignedLong(const std::string& input, long& value);
 bool parseI2cAddress(const std::string& input, std::uint8_t& value);
 TransportKind inferredTransportKind(const SensorDescriptor& descriptor);
-std::int16_t defaultBoardGpioPin();
 bool validateSensorCategorySelection(
     const SensorConfigList& sensor_config_list,
     const SensorRecord& record,

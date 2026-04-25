@@ -26,7 +26,7 @@ Digital temperature and humidity sensors with a single-wire interface. One drive
 
 - GPIO (single-wire digital protocol)
 - Pin configured from the sensor record (`record.analog_gpio_pin`)
-- Valid pins: GPIO4, GPIO5, GPIO6 (configurable via `Kconfig`)
+- Valid pins come from the sensor descriptor; current descriptors allow GPIO4, GPIO5, and GPIO6
 
 ## Initialization
 

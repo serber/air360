@@ -6,7 +6,7 @@ Implemented. Keep this document aligned with the current transport abstractions 
 
 ## Scope
 
-This document covers the shared transport layer that sensor drivers use for I2C and UART access, including board-default pins and ownership boundaries.
+This document covers the shared transport layer that sensor drivers use for I2C and UART access, plus the descriptor-owned GPIO/analog pin lists used by board-pin sensors.
 
 ## Source of truth in code
 
@@ -152,6 +152,14 @@ Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_bau
 Both managers are owned as members of `SensorManager`. `I2cBusManager::init()` is called in `SensorManager::applyConfig()` before any driver is constructed. Both managers live for the duration of the application. `UartPortManager::shutdown()` is called from its destructor and from `SensorManager::stop()`.
 
 For the list of all sensor drivers that use these managers, see [sensors/README.md](sensors/README.md).
+
+---
+
+## GPIO / Analog Pins
+
+GPIO-backed and analog-backed sensors do not go through a shared transport manager. Their selectable pins are listed in each `SensorDescriptor::allowed_gpio_pins`, and the selected value is stored in `SensorRecord::analog_gpio_pin`.
+
+There is no separate default GPIO field in the descriptor. The add form and type-change path use the first allowed pin as the initial selection, and `SensorRegistry::validateRecord()` rejects GPIO/analog records whose selected pin is not in the descriptor list. Current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow GPIO4, GPIO5, and GPIO6.
 
 ---
 

@@ -79,7 +79,6 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` | Timeout for synchronous station join and `ensureStationTime()`-driven joins |
 | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` | Shared queued-sample capacity before oldest uploads are dropped |
 | `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` | Period between BTHome payload rebuilds in `air360_ble` |
-| `CONFIG_AIR360_GPIO_SENSOR_PIN_0/1/2` | `4` / `5` / `6` | Valid GPIO slots for GPIO/analog sensors |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.
 
@@ -212,7 +211,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `uart_rx_gpio_pin` | `int16_t` | Selected UART binding | UART sensors only; must match the selected UART port binding |
 | `uart_tx_gpio_pin` | `int16_t` | Selected UART binding | UART sensors only; must match the selected UART port binding |
 | `uart_baud_rate` | `uint32_t` | `9600` | UART sensors: 1 200–115 200 |
-| `analog_gpio_pin` | `int16_t` | `-1` | GPIO/analog sensors; `-1` = unused |
+| `analog_gpio_pin` | `int16_t` | First descriptor allowed pin | GPIO/analog sensors only; must be one of the descriptor's allowed GPIO pins |
 
 ### Per-sensor constraints
 
@@ -226,16 +225,18 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | HTU2X | I2C | Bus 0, `0x40` | `0x40` | 5 000 ms | — |
 | SHT4X | I2C | Bus 0, `0x44` | `0x44` | 5 000 ms | — |
 | GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 5 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
-| DHT11 | GPIO | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
-| DHT22 | GPIO | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
-| DS18B20 | GPIO (1-Wire) | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | One device per pin only |
-| ME3-NO2 | Analog | PIN_0 (GPIO4) | PIN_0/1/2 (4/5/6) | 5 000 ms | — |
+| DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
+| DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
+| DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | One device per pin only |
+| ME3-NO2 | Analog | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
 | INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 5 000 ms | — |
 | MH-Z19B | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 10 000 ms | Baud rate must be 9600 |
 
 The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
 
 UART validation uses each sensor descriptor's `allowed_uart_ports`. UART0 is reserved for the console. UART1 maps to RX=GPIO18/TX=GPIO17, and UART2 maps to RX=GPIO16/TX=GPIO15; the web UI writes the matching RX/TX pins into the sensor record when a port is selected.
+
+GPIO and analog validation uses each sensor descriptor's `allowed_gpio_pins`. There is no separate default GPIO field; new records use the first allowed pin as the initial selection and persist the chosen value in `analog_gpio_pin`.
 
 ---
 

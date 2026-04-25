@@ -189,6 +189,8 @@ struct SensorRecord {
 };
 ```
 
+`analog_gpio_pin` stores the selected GPIO for GPIO-backed and analog-backed sensors. The allowed values are not Kconfig fields; they come from the selected sensor descriptor's `allowed_gpio_pins` list.
+
 ### `SensorType` enum values
 
 | Value | Sensor |

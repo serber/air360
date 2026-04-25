@@ -26,7 +26,7 @@ Analog electrochemical nitrogen dioxide (NO₂) sensor from the ME3 series. Conn
 
 - Analog input (ADC)
 - Pin configured from the sensor record (`record.analog_gpio_pin`)
-- Valid pins: GPIO4, GPIO5, GPIO6
+- Valid pins come from the sensor descriptor; current descriptor allows GPIO4, GPIO5, and GPIO6
 - ADC unit: `ADC_UNIT_1` (resolved automatically from the GPIO number)
 - Attenuation: `ADC_ATTEN_DB_12` (input range 0–3.9 V)
 - Bit width: `ADC_BITWIDTH_DEFAULT`
