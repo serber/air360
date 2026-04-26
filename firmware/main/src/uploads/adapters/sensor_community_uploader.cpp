@@ -1,59 +1,20 @@
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
 
-#include <cstdio>
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
+#include "air360/string_utils.hpp"
+#include "air360/uploads/backend_config.hpp"
 
 namespace air360 {
 
 namespace {
 
 constexpr char kLegacyPrefix[] = "esp32-";
-
-std::string jsonEscape(const std::string& input) {
-    std::string escaped;
-    escaped.reserve(input.size());
-
-    for (const char ch : input) {
-        switch (ch) {
-            case '\\':
-                escaped += "\\\\";
-                break;
-            case '"':
-                escaped += "\\\"";
-                break;
-            case '\n':
-                escaped += "\\n";
-                break;
-            case '\r':
-                escaped += "\\r";
-                break;
-            case '\t':
-                escaped += "\\t";
-                break;
-            default:
-                escaped.push_back(ch);
-                break;
-        }
-    }
-
-    return escaped;
-}
-
-std::string formatValue(SensorValueKind kind, float value) {
-    char buffer[48];
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "%.*f",
-        sensorValueKindPrecision(kind),
-        static_cast<double>(value));
-    return buffer;
-}
 
 std::string legacyChipId(const MeasurementBatch& batch) {
     if (!batch.short_chip_id.empty()) {
@@ -63,16 +24,7 @@ std::string legacyChipId(const MeasurementBatch& batch) {
 }
 
 std::string overrideChipId(const BackendRecord& record) {
-    const char* raw = record.device_id_override;
-    if (raw == nullptr || raw[0] == '\0') {
-        return "";
-    }
-
-    std::size_t length = 0U;
-    while (length < kBackendIdentifierCapacity && raw[length] != '\0') {
-        ++length;
-    }
-    return std::string(raw, length);
+    return boundedCString(record.sensor_community_device_id, kBackendIdentifierCapacity);
 }
 
 bool mapMeasurement(
@@ -210,7 +162,7 @@ void upsertLatestValue(
     SensorValueKind kind,
     float value) {
     const std::string value_type_key = value_type != nullptr ? value_type : "";
-    const std::string formatted_value = formatValue(kind, value);
+    const std::string formatted_value = formatSensorValue(kind, value);
 
     for (auto& entry : group.values) {
         if (entry.first == value_type_key) {
@@ -249,18 +201,17 @@ BackendType SensorCommunityUploader::type() const {
     return BackendType::kSensorCommunity;
 }
 
-const char* SensorCommunityUploader::backendKey() const {
-    return "sensor_community";
-}
-
 bool SensorCommunityUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
-    if (backendDefaultEndpointUrl(record.backend_type)[0] == '\0') {
-        error = "Sensor.Community endpoint URL is empty.";
+    if (record.host[0] == '\0') {
+        error = "Sensor.Community host must not be empty.";
         return false;
     }
-
+    if (record.port == 0U) {
+        error = "Sensor.Community port must be greater than zero.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -299,6 +250,7 @@ bool SensorCommunityUploader::buildRequests(
     const std::string x_mac = std::string(kLegacyPrefix) + batch.esp_mac_id;
     const std::string user_agent =
         batch.project_version + "/" + chip_id + "/" + batch.esp_mac_id;
+    const std::string endpoint_url = buildBackendUrl(record);
 
     for (const auto& group : groups) {
         if (group.values.empty()) {
@@ -308,7 +260,7 @@ bool SensorCommunityUploader::buildRequests(
         UploadRequestSpec request;
         request.request_key =
             std::string("sensor_community:") + std::to_string(group.sensor_id);
-        request.url = backendDefaultEndpointUrl(record.backend_type);
+        request.url = endpoint_url;
         request.timeout_ms = 15000;
         request.headers.push_back({"Content-Type", "application/json"});
         request.headers.push_back({"X-Sensor", x_sensor});

@@ -7,6 +7,8 @@ export const measurementKinds = [
   "altitude_m",
   "satellites",
   "speed_knots",
+  "course_deg",
+  "hdop",
   "gas_resistance_ohms",
   "pm1_0_ug_m3",
   "pm2_5_ug_m3",
@@ -18,11 +20,12 @@ export const measurementKinds = [
   "nc4_0_per_cm3",
   "nc10_0_per_cm3",
   "typical_particle_size_um",
-  "aqi",
-  "tvoc_ppb",
-  "eco2_ppm",
+  "co2_ppm",
+  "illuminance_lux",
   "adc_raw",
   "voltage_mv",
+  "current_ma",
+  "power_mw",
 ] as const;
 
 export type MeasurementKind = (typeof measurementKinds)[number];

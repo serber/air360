@@ -32,6 +32,7 @@ SensorType Me3No2Sensor::type() const {
 esp_err_t Me3No2Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
+    // ME3-NO2 is an ADC-only driver and does not need the shared driver context.
     static_cast<void>(context);
 
     releaseHandles();

@@ -1,8 +1,9 @@
 #include "air360/config_repository.hpp"
 
-#include <cstddef>
+#include <cstdint>
 #include <cstring>
 
+#include "air360/string_utils.hpp"
 #include "esp_log.h"
 #include "nvs.h"
 
@@ -15,16 +16,31 @@ constexpr char kNamespace[] = "air360";
 constexpr char kConfigKey[] = "device_cfg";
 constexpr char kBootCountKey[] = "boot_count";
 
-void copyString(char* destination, std::size_t destination_size, const char* source) {
-    if (destination_size == 0U) {
-        return;
+bool parseIpv4Octet(std::string_view value, std::uint8_t& out_octet) {
+    if (value.empty() || value.size() > 3U) {
+        return false;
+    }
+    if (value.size() > 1U && value.front() == '0') {
+        return false;
     }
 
-    std::strncpy(destination, source, destination_size - 1U);
-    destination[destination_size - 1U] = '\0';
+    std::uint16_t parsed = 0U;
+    for (const char ch : value) {
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+
+        parsed = static_cast<std::uint16_t>((parsed * 10U) + static_cast<std::uint16_t>(ch - '0'));
+        if (parsed > 255U) {
+            return false;
+        }
+    }
+
+    out_octet = static_cast<std::uint8_t>(parsed);
+    return true;
 }
 
-esp_err_t saveInternal(nvs_handle_t handle, const DeviceConfig& config) {
+[[nodiscard]] esp_err_t saveInternal(nvs_handle_t handle, const DeviceConfig& config) {
     esp_err_t err = nvs_set_blob(handle, kConfigKey, &config, sizeof(config));
     if (err != ESP_OK) {
         return err;
@@ -34,6 +50,71 @@ esp_err_t saveInternal(nvs_handle_t handle, const DeviceConfig& config) {
 }
 
 }  // namespace
+
+bool isValidIpv4Address(std::string_view value) {
+    if (value.size() < 7U || value.size() > 15U) {
+        return false;
+    }
+
+    std::size_t cursor = 0U;
+    for (std::uint8_t octet_index = 0U; octet_index < 4U; ++octet_index) {
+        const std::size_t delimiter =
+            octet_index == 3U ? std::string_view::npos : value.find('.', cursor);
+        const std::size_t end = delimiter == std::string_view::npos ? value.size() : delimiter;
+        std::uint8_t octet = 0U;
+        if (!parseIpv4Octet(value.substr(cursor, end - cursor), octet)) {
+            return false;
+        }
+
+        // The parsed octet range is the validation signal; the numeric value is not needed here.
+        static_cast<void>(octet);
+        cursor = end + 1U;
+    }
+
+    return cursor == value.size() + 1U;
+}
+
+bool validateStaticIpv4Config(
+    bool sta_use_static_ip,
+    std::string_view sta_ip,
+    std::string_view sta_netmask,
+    std::string_view sta_gateway,
+    std::string_view sta_dns,
+    const char*& out_error) {
+    out_error = nullptr;
+    if (!sta_use_static_ip) {
+        return true;
+    }
+
+    if (!isValidIpv4Address(sta_ip)) {
+        out_error = "IP address is not a valid IPv4 address.";
+        return false;
+    }
+    if (!isValidIpv4Address(sta_netmask)) {
+        out_error = "Subnet mask is not a valid IPv4 address.";
+        return false;
+    }
+    if (!isValidIpv4Address(sta_gateway)) {
+        out_error = "Gateway is not a valid IPv4 address.";
+        return false;
+    }
+    if (!sta_dns.empty() && !isValidIpv4Address(sta_dns)) {
+        out_error = "DNS server is not a valid IPv4 address.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateStaticIpv4Config(const DeviceConfig& config, const char*& out_error) {
+    return validateStaticIpv4Config(
+        config.sta_use_static_ip != 0U,
+        config.sta_ip,
+        config.sta_netmask,
+        config.sta_gateway,
+        config.sta_dns,
+        out_error);
+}
 
 DeviceConfig makeDefaultDeviceConfig() {
     DeviceConfig config{};
@@ -47,7 +128,10 @@ DeviceConfig makeDefaultDeviceConfig() {
     config.lab_ap_enabled = 0U;
 #endif
     config.local_auth_enabled = 0U;
-    config.reserved0 = 0U;
+    config.ble_advertise_enabled = 0U;
+    config.ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
+    config.reserved1[0] = 0U;
+    config.reserved1[1] = 0U;
     copyString(config.device_name, sizeof(config.device_name), CONFIG_AIR360_DEVICE_NAME);
 #ifdef CONFIG_AIR360_LAB_AP_SSID
     copyString(config.lab_ap_ssid, sizeof(config.lab_ap_ssid), CONFIG_AIR360_LAB_AP_SSID);
@@ -101,6 +185,11 @@ bool ConfigRepository::isValid(const DeviceConfig& config) const {
     }
 
     if (password_length != 0U && (password_length < 8U || password_length > 63U)) {
+        return false;
+    }
+
+    const char* static_ip_error = nullptr;
+    if (!validateStaticIpv4Config(config, static_ip_error)) {
         return false;
     }
 

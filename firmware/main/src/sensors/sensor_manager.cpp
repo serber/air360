@@ -1,24 +1,52 @@
 #include "air360/sensors/sensor_manager.hpp"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "air360/time_utils.hpp"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 
 namespace air360 {
 
 namespace {
 
 constexpr char kTag[] = "air360.sensor";
-constexpr std::uint64_t kRetryDelayMs = 5000U;
+// First re-init retry after 1 s catches transient bus-settle issues quickly.
+constexpr std::uint32_t kInitBackoffBaseMs = 1000U;
+// Stop exponential growth at 5 min so failed sensors do not wake the task too
+// often, but still retry eventually after long outages.
+constexpr std::uint32_t kInitBackoffCapMs = 5U * 60U * 1000U;
+// Eight shifts already exceed the 5 min cap, so further growth is wasted.
+constexpr std::uint32_t kInitBackoffShiftCap = 8U;
+// After 16 consecutive failures the sensor is treated as operator-visiblely
+// broken and automatic retries stop until config is rebuilt.
+constexpr std::uint32_t kSensorFailureStopThreshold = 16U;
+// Soft poll failures retry after at most 5 s to absorb short bus glitches
+// without tearing down a driver that was otherwise healthy.
+constexpr std::uint64_t kSoftPollRetryDelayMs = 5000U;
+// 250 ms loop cadence is fast enough for 1 s retry granularity while keeping
+// the manager mostly idle between scheduled sensor actions.
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
+// 6 KB covers the driver registry walk plus per-sensor error formatting.
 constexpr uint32_t kManagerTaskStackSize = 6144U;
+// Run above idle so scheduled polls are not delayed by background maintenance.
 constexpr UBaseType_t kManagerTaskPriority = 5U;
+// Stop should complete within one short loop iteration plus driver cleanup.
+constexpr std::uint32_t kStopTimeoutMs = 5000U;
+
+std::uint32_t initBackoffDelayMs(std::uint32_t consecutive_failures) {
+    const std::uint32_t shift =
+        std::min<std::uint32_t>(consecutive_failures, kInitBackoffShiftCap);
+    const std::uint32_t delay = kInitBackoffBaseMs << shift;
+    return std::min(delay, kInitBackoffCapMs);
+}
 
 SensorRuntimeState classifyFailureState(esp_err_t err) {
     if (err == ESP_ERR_NOT_FOUND ||
@@ -108,14 +136,22 @@ const ClaimedUartBinding* findClaimedUartBinding(
 
 SensorManager::SensorManager() {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+    lifecycle_events_ = xEventGroupCreateStatic(&lifecycle_events_buffer_);
 }
 
 void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
     measurement_store_ = &measurement_store;
 }
 
-void SensorManager::applyConfig(const SensorConfigList& config) {
-    stop();
+esp_err_t SensorManager::applyConfig(const SensorConfigList& config) {
+    const esp_err_t stop_err = stop();
+    if (stop_err != ESP_OK) {
+        ESP_LOGE(
+            kTag,
+            "Sensor reconfigure aborted: previous task did not stop within %" PRIu32 " ms",
+            kStopTimeoutMs);
+        return stop_err;
+    }
 
     const esp_err_t i2c_err = i2c_bus_manager_.init();
     if (i2c_err != ESP_OK) {
@@ -126,8 +162,9 @@ void SensorManager::applyConfig(const SensorConfigList& config) {
 
     lock();
     sensors_ = std::move(next_sensors);
-    startLocked();
+    const esp_err_t start_err = startLocked();
     unlock();
+    return start_err;
 }
 
 std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
@@ -193,6 +230,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                     managed.driver_ready = false;
                     managed.runtime.state = SensorRuntimeState::kConfigured;
                     managed.runtime.last_error.clear();
+                    managed.next_init_allowed_ms = now_ms;
                     managed.next_action_time_ms = now_ms;
                 }
             }
@@ -205,6 +243,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                 managed.driver_ready = false;
                 managed.runtime.state = SensorRuntimeState::kConfigured;
                 managed.runtime.last_error.clear();
+                managed.next_init_allowed_ms = now_ms;
                 managed.next_action_time_ms = now_ms;
             }
         }
@@ -215,28 +254,34 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     return sensors;
 }
 
-void SensorManager::stop() {
+esp_err_t SensorManager::stop() {
     lock();
-    const bool had_task = task_ != nullptr;
-    stop_requested_ = true;
+    const TaskHandle_t task = task_;
+    if (task != nullptr) {
+        stop_requested_.store(true, std::memory_order_release);
+        xTaskNotifyGive(task);
+    }
     unlock();
 
-    if (had_task) {
-        for (;;) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-            lock();
-            const bool task_stopped = task_ == nullptr;
-            unlock();
-            if (task_stopped) {
-                break;
-            }
+    if (task != nullptr) {
+        const EventBits_t bits = xEventGroupWaitBits(
+            lifecycle_events_,
+            kTaskStoppedBit,
+            pdTRUE,
+            pdFALSE,
+            pdMS_TO_TICKS(kStopTimeoutMs));
+        if ((bits & kTaskStoppedBit) == 0U) {
+            ESP_LOGE(
+                kTag,
+                "Timed out waiting for sensor manager task to stop (%" PRIu32 " ms)",
+                kStopTimeoutMs);
+            return ESP_ERR_TIMEOUT;
         }
     }
 
-    lock();
-    stop_requested_ = false;
-    unlock();
+    stop_requested_.store(false, std::memory_order_release);
     uart_port_manager_.shutdown();
+    return ESP_OK;
 }
 
 std::vector<SensorRuntimeInfo> SensorManager::sensors() const {
@@ -289,9 +334,9 @@ void SensorManager::unlock() const {
     xSemaphoreGive(mutex_);
 }
 
-void SensorManager::startLocked() {
+esp_err_t SensorManager::startLocked() {
     if (task_ != nullptr) {
-        return;
+        return ESP_OK;
     }
 
     bool has_pollable_sensor = false;
@@ -303,8 +348,11 @@ void SensorManager::startLocked() {
     }
 
     if (!has_pollable_sensor) {
-        return;
+        return ESP_OK;
     }
+
+    stop_requested_.store(false, std::memory_order_release);
+    xEventGroupClearBits(lifecycle_events_, kTaskStoppedBit);
 
     const BaseType_t created = xTaskCreate(
         &SensorManager::taskEntry,
@@ -322,7 +370,14 @@ void SensorManager::startLocked() {
                 sensor.runtime.last_error = "Failed to start sensor manager task.";
             }
         }
+        return ESP_FAIL;
     }
+
+    return ESP_OK;
+}
+
+bool SensorManager::stopRequested() const {
+    return stop_requested_.load(std::memory_order_acquire);
 }
 
 void SensorManager::taskEntry(void* arg) {
@@ -330,13 +385,13 @@ void SensorManager::taskEntry(void* arg) {
 }
 
 void SensorManager::taskMain() {
+    esp_task_wdt_add(nullptr);
+    ESP_LOGI(kTag, "TWDT: air360_sensor subscribed");
+
     const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
 
     for (;;) {
-        lock();
-        const bool stop_requested = stop_requested_;
-        unlock();
-        if (stop_requested) {
+        if (stopRequested()) {
             break;
         }
 
@@ -347,6 +402,10 @@ void SensorManager::taskMain() {
         unlock();
 
         for (std::size_t index = 0; index < sensor_count; ++index) {
+            if (stopRequested()) {
+                break;
+            }
+
             SensorDriver* driver = nullptr;
             SensorRecord record{};
             bool needs_init = false;
@@ -355,6 +414,7 @@ void SensorManager::taskMain() {
             if (index < sensors_.size()) {
                 auto& sensor = sensors_[index];
                 if (sensor.runtime.enabled && sensor.driver != nullptr &&
+                    sensor.runtime.state != SensorRuntimeState::kFailed &&
                     now_ms >= sensor.next_action_time_ms) {
                     driver = sensor.driver.get();
                     record = sensor.record;
@@ -398,27 +458,88 @@ void SensorManager::taskMain() {
 
             if (op_err == ESP_OK) {
                 sensor.driver_ready = true;
+                sensor.consecutive_poll_failures = 0U;
                 sensor.runtime.state = needs_init ? SensorRuntimeState::kInitialized
                                                   : SensorRuntimeState::kPolling;
+                if (!needs_init) {
+                    sensor.runtime.failures = 0U;
+                }
+                sensor.runtime.soft_fails = driver->softFailCount();
+                sensor.runtime.next_retry_ms = 0U;
                 sensor.runtime.last_error = driver_status;
                 sensor.next_action_time_ms =
                     now_ms + (needs_init ? 0U : sensor.record.poll_interval_ms);
             } else {
-                sensor.driver_ready = false;
                 sensor.runtime.state = classifyFailureState(op_err);
                 sensor.runtime.last_error = last_error;
-                sensor.next_action_time_ms =
-                    now_ms + std::min<std::uint32_t>(sensor.record.poll_interval_ms, kRetryDelayMs);
+                sensor.runtime.failures++;
+
+                if (!needs_init) {
+                    sensor.consecutive_poll_failures++;
+                }
+
+                const bool soft_poll_failure =
+                    !needs_init &&
+                    sensor.consecutive_poll_failures < kSensorPollFailureReinitThreshold;
+                if (soft_poll_failure) {
+                    sensor.driver_ready = true;
+                    sensor.next_action_time_ms =
+                        now_ms + std::min<std::uint64_t>(
+                                     sensor.record.poll_interval_ms,
+                                     kSoftPollRetryDelayMs);
+                    sensor.runtime.next_retry_ms = sensor.next_action_time_ms;
+                    sensor.runtime.soft_fails = driver->softFailCount();
+                    unlock();
+                    continue;
+                }
+                sensor.runtime.soft_fails = driver->softFailCount();
+
+                sensor.driver_ready = false;
+                sensor.consecutive_poll_failures = 0U;
+
+                if (sensor.runtime.failures >= kSensorFailureStopThreshold) {
+                    sensor.runtime.state = SensorRuntimeState::kFailed;
+                    sensor.runtime.next_retry_ms = 0U;
+                    sensor.next_init_allowed_ms = 0U;
+                    sensor.next_action_time_ms = std::numeric_limits<std::uint64_t>::max();
+                    ESP_LOGE(
+                        kTag,
+                        "Sensor #%" PRIu32 " (%s) marked failed after %" PRIu32
+                        " consecutive failures; re-enable or reload config to retry",
+                        sensor.runtime.id,
+                        sensor.runtime.type_key.c_str(),
+                        sensor.runtime.failures);
+                    unlock();
+                    continue;
+                }
+
+                const std::uint32_t delay_ms = initBackoffDelayMs(sensor.runtime.failures - 1U);
+                sensor.next_init_allowed_ms = now_ms + delay_ms;
+                sensor.next_action_time_ms = sensor.next_init_allowed_ms;
+                sensor.runtime.next_retry_ms = sensor.next_init_allowed_ms;
+                ESP_LOGW(
+                    kTag,
+                    "Sensor #%" PRIu32 " (%s) init backoff after %" PRIu32
+                    " consecutive failures; retry in %" PRIu32 " ms at uptime %" PRIu64 " ms",
+                    sensor.runtime.id,
+                    sensor.runtime.type_key.c_str(),
+                    sensor.runtime.failures,
+                    delay_ms,
+                    sensor.next_init_allowed_ms);
             }
             unlock();
         }
 
-        vTaskDelay(kManagerLoopDelay);
+        // The notification count only wakes the polling loop; no per-notification state is encoded.
+        static_cast<void>(ulTaskNotifyTake(pdTRUE, kManagerLoopDelay));
+        esp_task_wdt_reset();
     }
 
     lock();
     task_ = nullptr;
     unlock();
+    esp_task_wdt_delete(nullptr);
+    xEventGroupSetBits(lifecycle_events_, kTaskStoppedBit);
     vTaskDelete(nullptr);
 }
 

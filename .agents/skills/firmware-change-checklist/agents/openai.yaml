@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firmware Checklist"
+  short_description: "Build a firmware co-change checklist"
+  default_prompt: "Use $firmware-change-checklist to produce a concrete Air360 firmware change checklist."

@@ -4,7 +4,16 @@
 
 namespace air360 {
 
-void sps30HalSetContext(i2c_dev_t* device);
-void sps30HalClearContext();
+class SensirionI2cContextGuard final {
+  public:
+    explicit SensirionI2cContextGuard(i2c_dev_t* device);
+    ~SensirionI2cContextGuard();
+
+    SensirionI2cContextGuard(const SensirionI2cContextGuard&) = delete;
+    SensirionI2cContextGuard& operator=(const SensirionI2cContextGuard&) = delete;
+
+  private:
+    bool locked_ = false;
+};
 
 }  // namespace air360

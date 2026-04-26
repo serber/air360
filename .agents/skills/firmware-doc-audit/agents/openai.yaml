@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firmware Doc Audit"
+  short_description: "Audit Air360 firmware docs against code"
+  default_prompt: "Use $firmware-doc-audit to audit Air360 firmware docs against the current implementation."

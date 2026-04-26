@@ -7,11 +7,11 @@ namespace air360 {
 
 class SensorConfigRepository {
   public:
-    esp_err_t loadOrCreate(
+    [[nodiscard]] esp_err_t loadOrCreate(
         SensorConfigList& out_config,
         bool& loaded_from_storage,
         bool& wrote_defaults);
-    esp_err_t save(const SensorConfigList& config);
+    [[nodiscard]] esp_err_t save(const SensorConfigList& config);
 
   private:
     bool isValid(const SensorConfigList& config) const;

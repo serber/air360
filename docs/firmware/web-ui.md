@@ -1,5 +1,31 @@
 # Web UI
 
+## Status
+
+Implemented. Keep this document aligned with the current embedded HTTP server routes, rendered pages, and form-handling behavior.
+
+## Scope
+
+This document covers the local firmware web interface, including routes, page purpose, server-side rendering, actions, and route-level interactions with runtime state.
+
+## Source of truth in code
+
+- `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web/web_form.cpp`
+- `firmware/main/src/web/web_runtime_routes.cpp`
+- `firmware/main/src/web/web_mutating_routes.cpp`
+- `firmware/main/src/web/web_server_helpers.cpp`
+- `firmware/main/src/web_ui.cpp`
+- `firmware/main/src/web_assets.cpp`
+- `firmware/main/src/status_service.cpp`
+- `firmware/main/webui/`
+
+## Read next
+
+- [configuration-reference.md](configuration-reference.md)
+- [network-manager.md](network-manager.md)
+- [sensors/README.md](sensors/README.md)
+
 The firmware includes an embedded HTTP server that serves a multi-page configuration and monitoring interface. All pages are rendered server-side by template substitution — no client-side rendering framework is used.
 
 ---
@@ -9,13 +35,26 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | Parameter | Value |
 |-----------|-------|
 | Port | `http_port` from `DeviceConfig` (default 80) |
-| Task stack | 10 240 bytes |
-| URI handlers | up to 12 |
+| Task stack | 10 240 bytes (`web::kHttpdStackBytes`) |
+| Worker model | Single httpd task; all concurrent connections share the one stack |
+| URI handlers | up to 15 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
+| Request body limit | 4 096 bytes; oversized POST bodies return `413 Payload Too Large` |
+| Request body receive timeouts | `httpd_req_recv()` timeout results are retried up to 5 consecutive times before the request fails with a timeout |
 | Response caching | `Cache-Control: no-store` on all pages |
 | Log tag | `air360.web` |
+| mDNS name | `{device_name}.local` (station mode only) |
+| Stack overflow | `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y`; `vApplicationStackOverflowHook` logs and reboots |
 
 The server starts during boot step 9/9. A startup failure is fatal — the boot LED is set to the error state.
+
+In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
+
+`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
+
+**Response streaming**: all HTML page handlers use `web::sendHtmlResponse()` which sends the response body in 1 KB chunks via `httpd_resp_send_chunk`, avoiding the need for a contiguous HTTP transport buffer equal to the full page size.
+
+**Stack watermark monitoring**: each HTML handler calls `web::logHttpHandlerWatermark()` on entry. This compares the FreeRTOS `uxTaskGetStackHighWaterMark` against `kHttpdStackBytes` and logs at `INFO` when usage historically exceeded 50 %, and at `WARN` when it exceeded 70 % or 90 %. Monitor the `air360.web` log tag during worst-case page renders (maximum sensors, backends, and Wi-Fi scan results) to verify the stack headroom.
 
 ---
 
@@ -24,9 +63,11 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 | Method | Path | Handler |
 |--------|------|---------|
 | `GET` | `/` | Overview page |
-| `GET` | `/diagnostics` | Diagnostics page |
+| `GET` | `/diagnostics` | Diagnostics page (includes live log console) |
+| `GET` | `/logs/data` | Plain-text log buffer (polled by diagnostics page JS) |
 | `GET` | `/assets/*` | Static assets (CSS, JS) |
-| `GET` | `/wifi-scan` | JSON Wi-Fi scan results |
+| `GET` | `/wifi-scan` | JSON Wi-Fi scan results (cached; non-blocking) |
+| `POST` | `/wifi-scan` | Trigger a new async Wi-Fi scan (202 / 429) |
 | `GET` / `POST` | `/config` | Device configuration page |
 | `POST` | `/check-sntp` | SNTP server reachability check |
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
@@ -39,6 +80,10 @@ All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set 
 ## Setup AP redirect
 
 When the device is in `kSetupAp` mode (no station credentials, or station connection failed), `GET /`, `GET /sensors`, and `GET /backends` redirect with `302 Found` to `/config`. Navigation links on the config page are also hidden in this mode — only the device configuration form is shown.
+
+## Captive portal
+
+When a client connects to the setup AP, the OS attempts a captive portal probe. The `nordesems/esp-captive-portal` component intercepts this: a DNS server resolves all hostnames to `192.168.4.1`, and a wildcard `/*` HTTP handler (registered last in `WebServer::start()`) redirects any unrecognised request to `/`. The result is that most phones and laptops surface a "sign in to network" prompt automatically and open the config page without the user having to type an IP address.
 
 ---
 
@@ -75,10 +120,10 @@ Read-only troubleshooting page with runtime internals that are useful when the d
 The page currently shows:
 
 - **Stats bar**: total available 8-bit heap, current free heap, minimum free heap seen since boot, and largest free block
-- **Memory**: free/minimum/largest block for both 8-bit heap and internal heap
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
-- **Network Recovery**: current Wi-Fi mode / last Wi-Fi error and cellular reconnect counters
-- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, and diagnostics fields
+- **Network Recovery**: current Wi-Fi mode / last Wi-Fi error, cellular reconnect counters, consecutive cellular failures, and PWRKEY cycle count
+- **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, and `next_retry_ms`.
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.
@@ -102,11 +147,11 @@ In `kSetupAp` mode, the SSID field also shows a **network selector** dropdown po
 
 The **Check SNTP** button fires `POST /check-sntp` with the current input value and displays the result inline below the field. It does not submit the form.
 
-**Static IP fields** (collapsed unless `Use static IP` is checked):
+**Static IP fields** (collapsed unless the Static IP switch is on):
 
 | Field | Input | Notes |
 |-------|-------|-------|
-| Use static IP | `<input type=checkbox>` | Enables the fieldset; toggles disabled state via JS |
+| Use static IP | `.switch` button + hidden `<input type=checkbox name=sta_use_static_ip>` | Switch shows/hides the section body; checkbox carries the value in POST |
 | IP address | `<input maxlength=15>` | `sta_ip` in `DeviceConfig`; placeholder `192.168.1.100` |
 | Subnet mask | `<input maxlength=15>` | `sta_netmask`; placeholder `255.255.255.0` |
 | Gateway | `<input maxlength=15>` | `sta_gateway`; placeholder `192.168.1.1` |
@@ -114,11 +159,11 @@ The **Check SNTP** button fires `POST /check-sntp` with the current input value 
 
 When `sta_ip` is not yet stored and the device is currently connected via DHCP, the IP, netmask, and gateway fields are **pre-filled from the current DHCP lease** (`esp_netif_get_ip_info` on `WIFI_STA_DEF`) to make it easier to convert an existing lease to a static assignment. DNS is pre-filled from the primary DNS server if available.
 
-**Mobile Uplink fields** (collapsed unless `Enable cellular uplink` is checked):
+**Mobile Uplink fields** (collapsed unless the Mobile uplink switch is on):
 
 | Field | Input | Notes |
 |-------|-------|-------|
-| Enable cellular | `<input type=checkbox>` | Stored as `cellular_enabled` in `CellularConfig`; enables the fieldset |
+| Enable cellular | `.switch` button + hidden `<input type=checkbox name=cellular_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
 | APN | `<input maxlength=63>` | Required; pre-filled with `internet` when empty |
 | Username | `<input maxlength=31>` | Optional; leave empty if carrier does not require it |
 | Password | `<input type=password maxlength=63>` | Optional; Show/Hide toggle |
@@ -126,11 +171,18 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 | Connectivity check host | `<input maxlength=63>` | IPv4 address to ping after PPP connects; pre-filled with `8.8.8.8` when empty; leave empty to skip |
 | Wi-Fi debug window | `<input type=number min=0 max=3600>` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 
+**BLE fields** (collapsed unless the BLE advertising switch is on):
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Enable BLE advertising | `.switch` button + hidden `<input type=checkbox name=ble_advertise_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
+| Advertising interval | `<select>` | Stored as `ble_adv_interval_index`; options map to `100 ms`, `300 ms`, `1 s`, and `3 s` |
+
 **Submit action:** `POST /config`
 - Validates field lengths, password constraints, and SNTP server characters server-side.
-- Saves `DeviceConfig` via `ConfigRepository::save()` and `CellularConfig` via `CellularConfigRepository::save()`.
-- Responds with "Configuration saved. Device is rebooting now." and calls `esp_restart()`.
-- On validation failure, re-renders the form with the submitted values preserved and an error notice.
+- Builds `DeviceConfig` and `CellularConfig`, validates both records, and saves `device_cfg` plus `cellular_cfg` with one NVS commit through `saveDeviceAndCellularConfig()`.
+- Responds with "Configuration saved. Device is rebooting now." and schedules a short one-shot reboot task after the response has been sent; `esp_restart()` is not called from an ESP timer callback.
+- On validation or save failure, re-renders the form with the submitted values preserved and an error notice. Runtime config pointers and status are updated only after the combined save succeeds.
 
 ---
 
@@ -139,7 +191,7 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-sensor address rules, and poll interval ranges are in [configuration-reference.md](configuration-reference.md#sensor-configuration-sensor_cfg).
 
 1. Each form action (`add`, `update`, `delete`) modifies an in-memory **staged config** (`staged_sensor_config_`) and sets `has_pending_sensor_changes_ = true`. Nothing is written to NVS yet.
-2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes take effect immediately without a reboot.
+2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes normally take effect immediately without a reboot. If the old sensor task does not acknowledge stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 3. "Discard pending changes" (`action=discard`) resets the staged config to the last saved config.
 
 **Staging banner** — shown at the top of the page whenever `has_pending_sensor_changes_` is true. Displays current pending status and the Apply / Discard buttons.
@@ -152,19 +204,21 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 | Light | VEML7700 | No |
 | Particulate Matter | SPS30 | No |
 | Location | GPS (NMEA) | No |
-| Gas / CO2 | SCD30, ME3-NO2 | Yes |
+| Gas | SCD30, ME3-NO2, MH-Z19B | Yes |
+| Power | INA219 | No |
 
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 
 **Per-sensor card** — each configured sensor shows:
-- Runtime state pill (`kInitialized`, `kPolling`, `kAbsent`, `kError`)
+- Runtime state pill (`kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`)
 - Transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`)
 - Poll interval and queued sample count
+- Consecutive failure count and next retry uptime when a sensor is backing off
 - Latest reading values
-- Edit form (model selector, poll interval, I2C address or GPIO pin, enabled checkbox)
+- Edit form (model selector, poll interval, I2C address selector, UART port selector, or GPIO pin selector, enabled checkbox)
 - "Stage sensor deletion" button
 
-**Model selector behaviour** — when the sensor type is changed within a form, JavaScript updates the visible I2C address field or GPIO pin selector to match the new sensor's transport type and injects the default I2C address.
+**Model selector behaviour** — when the sensor type is changed within a form, JavaScript updates the visible I2C address selector, UART port selector, or GPIO pin selector to match the new sensor's transport type. I2C address, UART port, and GPIO pin options come from the selected sensor descriptor; the current binding is preserved when it is still valid, otherwise the descriptor default or first allowed GPIO pin is selected. The UART selector shows the RX/TX pins for the selected UART port.
 
 **POST `/sensors` actions:**
 
@@ -173,7 +227,7 @@ For single-sensor categories, the "Add sensor" form is hidden if the category al
 | `add` | Creates a new `SensorRecord`, assigns next ID, stages it |
 | `update` | Updates the existing record with matching `sensor_id`, stages it |
 | `delete` | Removes the record by `sensor_id`, stages the deletion |
-| `apply` | Writes staged config to NVS, calls `applyConfig()` |
+| `apply` | Writes staged config to NVS, calls `applyConfig()`, reports runtime apply failure if the old task cannot stop |
 | `discard` | Resets staged config to last saved config |
 
 Category uniqueness is enforced at stage time — staging a second sensor in a single-sensor category returns an error.
@@ -186,22 +240,39 @@ A single form containing upload settings and one card per backend type.
 
 **Upload settings panel** — `upload_interval_ms` numeric input (range 10 000–300 000 ms). Validated server-side.
 
-**Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`):
-- Enabled checkbox — toggling it dims the card via JavaScript.
+**Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
+- Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.
+- `Use HTTPS` checkbox — enabled by default for new configs; saving updates the stored protocol.
+- `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
+- `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
+- `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
 - Sensor.Community only: `device_id_override` field (overrides the short chip ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`
 - Validates upload interval.
 - Reads enabled state from checkboxes (unchecked = absent from form body = `enabled = 0`).
-- Calls `applyBackendStaticDefaults()` to rewrite `endpoint_url` from the compiled-in default (endpoint URL is not user-editable via the web UI).
-- Saves to NVS and calls `UploadManager::applyConfig()` — takes effect immediately without a reboot.
+- Updates `Sensor.Community` and `Air360 API` by changing the stored protocol; host and path stay in dedicated config fields.
+- Validates and stores `Custom Upload` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`).
+- Validates and stores `InfluxDB` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`, `username`, `password`) plus `measurement_name`.
+- Empty editable port fields save as the selected protocol default. Request URLs omit `:443` for HTTPS and `:80` for HTTP.
+- Saves to NVS and calls `UploadManager::applyConfig()` — normally takes effect immediately without a reboot. If the old upload task cannot stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 
 ---
 
 ## Endpoint: `/wifi-scan`
 
-`GET /wifi-scan` returns JSON with the last Wi-Fi scan result:
+The Wi-Fi scan endpoint uses an async, event-driven model. Scans run on the `air360_net` worker task and complete via `WIFI_EVENT_SCAN_DONE`. The HTTP handlers never block waiting for a scan to finish.
+
+### `GET /wifi-scan`
+
+Returns the **cached** scan result immediately, regardless of whether a scan is in progress. The response always includes:
+
+- `X-Scan-Age: <seconds>` — seconds since the last successful scan (`"none"` if no scan has run yet)
+- `Content-Type: application/json`
+- `Cache-Control: no-store`
+
+Response body:
 
 ```json
 {
@@ -210,11 +281,24 @@ A single form containing upload settings and one card per backend type.
     { "ssid": "OtherNet",  "rssi": -78 }
   ],
   "last_scan_uptime_ms": 12345,
+  "scan_in_progress": false,
   "last_scan_error": ""
 }
 ```
 
-If in `kSetupAp` mode and no scan has been done yet (`last_scan_uptime_ms == 0`), a new scan is triggered synchronously on this request. Otherwise the cached result from the last scan is returned. Duplicate SSIDs and hidden networks are already filtered by `NetworkManager::scanAvailableNetworks()`.
+When `scan_in_progress` is `true`, the cached `networks` list is from the previous scan. Clients should poll `GET /wifi-scan` until `scan_in_progress` becomes `false` to see fresh results. Duplicate SSIDs and hidden networks (empty SSID) are filtered by `NetworkManager` before storing.
+
+### `POST /wifi-scan`
+
+Triggers a new async Wi-Fi scan. Returns immediately — the scan runs in the background and results become available via `GET /wifi-scan`.
+
+| Condition | Status | Body |
+|-----------|--------|------|
+| Scan started | `202 Accepted` | `{"scanning":true}` |
+| Scan already running | `429 Too Many Requests` | `{"scanning":true}` |
+| WiFi not ready | `503 Service Unavailable` | `{"error":"<reason>"}` |
+
+A scan started by `startLabAp()` at boot (when the device enters setup AP mode) counts as an in-progress scan for the purposes of the 429 response. The client should call `GET /wifi-scan` and wait for `scan_in_progress: false` before retrying.
 
 ---
 
@@ -236,6 +320,7 @@ If in `kSetupAp` mode and no scan has been done yet (`last_scan_uptime_ms == 0`)
 |---------------|---------|
 | `invalid_input` | Server string is empty, too long, or contains invalid characters |
 | `not_connected` | Device is not connected to station Wi-Fi |
+| `request_timeout` | The device timed out while receiving the form body |
 | `sync_failed` | SNTP init failed or server did not respond within the timeout |
 
 The check deinitialises the existing SNTP session (if any) and initialises a new one with the test server. If the check succeeds, SNTP stays running with the test server until the next reboot. If it fails, SNTP is deinitialised and the maintenance loop will retry with the configured server.
@@ -248,24 +333,28 @@ This endpoint does not modify stored configuration. Use `POST /config` followed 
 
 CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.css` and `/assets/air360.js`. Both are compiled into the firmware binary as C arrays via `web_assets.hpp`. Requests to unrecognised asset paths return HTTP 404.
 
+The CSS uses a token-based design system with full light/dark theme support (`[data-theme="dark"]` on `<html>`). Theme preference is stored in `localStorage` under `air360-theme` and restored before first paint by `air360.js`. No external font or library CDN is used — all fallbacks are system fonts.
+
 ---
 
 ## JavaScript behaviour
 
-`air360.js` runs one `DOMContentLoaded` listener that sets up:
+`air360.js` wraps all code in an IIFE. Theme restoration runs immediately (before `DOMContentLoaded`) to avoid a flash of unstyled content. Click delegation and switch initialisation run inside `DOMContentLoaded`.
 
 | Feature | Mechanism |
 |---------|-----------|
+| **Theme toggle** | `#theme-toggle` button toggles `data-theme="dark"` on `<html>` and persists to `localStorage`. |
+| **Switch buttons** | Buttons with `.switch[data-drives-checkbox="name"]` toggle `.on`, show/hide the element identified by `data-reveals`, and sync a hidden `<input type="checkbox" name="name">`. The checkbox dispatches a `change` event so existing sync functions (`syncStaticIpFields`, `syncCellularFields`, `syncBleFields`) still fire. Initialised from the server-rendered checkbox `checked` attribute. |
 | **Dirty tracking** | Forms with `data-dirty-track` mark their parent panel with `panel--dirty` when any field changes. A `beforeunload` guard warns if unsaved changes exist when leaving the page. |
-| **Sensor form sync** | When the sensor type `<select>` changes, the I2C address field or GPIO pin selector is shown/hidden and the default I2C address is injected. |
+| **Sensor form sync** | When the sensor type `<select>` changes, the I2C address selector, UART port selector, or GPIO pin selector is shown/hidden. I2C, UART, and GPIO options come from descriptor allowed lists. |
 | **Config form sync** | When the Wi-Fi SSID field is cleared, the password field is disabled and the hint text updates. |
-| **Wi-Fi network selector** | On the config page in setup AP mode, `loadWifiNetworks()` calls `GET /wifi-scan` asynchronously and populates the SSID dropdown. Selecting an option fills the SSID text input. |
-| **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status paragraph. |
+| **Wi-Fi network selector** | On the config page, `loadWifiNetworks()` calls `GET /wifi-scan`, populates the SSID `<select>`, and — if a `.wifi-menu-list` element is present — also populates the custom picker. Selecting a `.wifi-option` updates the hidden `<select>` value. |
+| **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status span. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |
-| **Show/Hide password** | Buttons with `data-secret-toggle` toggle `input.type` between `"password"` and `"text"`. |
+| **Password visibility** | Buttons with `data-toggle-pw="id"` (new) or `data-secret-toggle="id"` (legacy) toggle `input.type` between `"password"` and `"text"`. |
 
-No external libraries are used. The script is plain ES2020 and runs synchronously with the page load.
+No external libraries are used. The script is plain ES2020.
 
 ---
 
@@ -273,4 +362,4 @@ No external libraries are used. The script is plain ES2020 and runs synchronousl
 
 HTML pages are assembled server-side using a simple `{{PLACEHOLDER}}` substitution engine (`renderTemplate` / `renderPageDocument`). Templates live in `firmware/main/webui/` and are compiled into the binary as C string literals. All user-supplied values passed into templates are HTML-escaped before substitution to prevent injection.
 
-The page shell (navigation, `<head>`, layout wrapper) is generated by `renderPageDocument()`, which takes an active page key to highlight the correct navigation link.
+The page shell (navigation, `<head>`, layout wrapper) is generated by `renderPageDocument()`, which takes an active page key to highlight the correct navigation link. The generated `<body>` element receives a `data-page` attribute (`overview`, `device`, `sensors`, `backends`, `diagnostics`) that can be used as a CSS hook. The top navigation bar is rendered server-side as `<header class="topnav">` with SVG icons and a theme toggle button; it does not depend on client-side JavaScript to render. Each page emits a `.crumb` (uppercase section label) and `<h1 class="page-title">` in a `.page-header` wrapper above the template content.

@@ -1,5 +1,26 @@
 # Firmware Startup Sequence
 
+## Status
+
+Implemented. Keep this document aligned with the current `firmware/` startup code.
+
+## Scope
+
+This document covers the boot chain and application initialization order from `app_main()` through the point where the long-lived runtime services are active.
+
+## Source of truth in code
+
+- `firmware/main/src/app_main.cpp`
+- `firmware/main/src/app.cpp`
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/uploads/upload_manager.cpp`
+
+## Read next
+
+- [nvs.md](nvs.md)
+- [network-manager.md](network-manager.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+
 This document describes the full application startup process — from the ESP-IDF boot chain through each initialization step to the moment the device is ready and running.
 
 ---
@@ -12,7 +33,7 @@ ROM bootloader
        └─ ESP-IDF runtime init
             └─ app_main task (FreeRTOS, stack 8 KB)
                  └─ App::run()  ← 9 sequential boot steps
-                      ├─ step 4b → CellularManager::start() (may spawn air360_cellular task)
+                      ├─ step 4b → CellularManager::start() (may spawn cellular task)
                       ├─ step 5  → spawns air360_sensor task
                       ├─ step 8  → spawns air360_upload task
                       └─ step 9  → starts esp_http_server (its own task)
@@ -34,38 +55,41 @@ This phase is handled entirely by ESP-IDF and the hardware bootloader. The appli
 
 ## Phase 1 — Entry point (`app_main`)
 
-`app_main.cpp` is a three-line C entry point. It constructs an `air360::App` on the main task stack and calls `run()`.
+`app_main.cpp` is a small C entry point. It keeps the top-level `air360::App` object in static storage and calls `run()`.
 
 ```cpp
 extern "C" void app_main(void) {
-    air360::App app;
+    static air360::App app;
     app.run();
 }
 ```
 
-`App::run()` is where all initialization happens and where the main task spends the rest of its life. To prevent large objects from overflowing the 8 KB main task stack, every long-lived runtime object inside `run()` is declared `static`:
+`App::run()` is where all initialization happens and where the main task spends the rest of its life. To prevent large objects from overflowing the 8 KB main task stack, `App` owns long-lived runtime objects as explicit members and the single `App` instance itself lives in static storage:
 
 ```cpp
-static BuildInfo build_info = getBuildInfo();
-static ConfigRepository config_repository;
-static DeviceConfig config = makeDefaultDeviceConfig();
-static StatusService status_service(build_info);
-static SensorConfigRepository sensor_config_repository;
-static SensorConfigList sensor_config_list = ...;
-static SensorManager sensor_manager;
-static MeasurementStore measurement_store;
-static CellularConfigRepository cellular_config_repository;
-static CellularConfig cellular_config = makeDefaultCellularConfig();
-static CellularManager cellular_manager;
-static BackendConfigRepository backend_config_repository;
-static BackendConfigList backend_config_list = ...;
-static UploadManager upload_manager;
-static NetworkManager network_manager;
-static WebServer web_server;
-static esp_timer_handle_t debug_window_timer = nullptr;
+class App {
+    BuildInfo build_info_;
+    ConfigRepository config_repository_;
+    DeviceConfig config_;
+    StatusService status_service_;
+    SensorConfigRepository sensor_config_repository_;
+    SensorConfigList sensor_config_list_;
+    SensorManager sensor_manager_;
+    MeasurementStore measurement_store_;
+    CellularConfigRepository cellular_config_repository_;
+    CellularConfig cellular_config_;
+    CellularManager cellular_manager_;
+    BackendConfigRepository backend_config_repository_;
+    BackendConfigList backend_config_list_;
+    UploadManager upload_manager_;
+    NetworkManager network_manager_;
+    WebServer web_server_;
+    esp_timer_handle_t debug_window_timer_ = nullptr;
+    BleAdvertiser ble_advertiser_;
+};
 ```
 
-Static allocation places these objects in BSS/data segment rather than on the stack.
+This makes lifecycle ownership visible in `app.hpp` while still placing the runtime graph in BSS/data rather than on the main task stack. `App`, the manager classes, the web server, BLE advertiser, and transport managers are non-copyable so RTOS handles, callback registrations, and shared mutex-protected state cannot be accidentally duplicated.
 
 ---
 
@@ -76,16 +100,16 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | Step | Action | Fatal? | Side effect |
 |------|--------|--------|-------------|
 | pre | Init RGB LED (GPIO48 WS2812) | No | LED turns blue |
-| 1/9 | Arm task watchdog (10 s, no panic) | No | Main task subscribed to TWDT |
+| 1/9 | Arm task watchdog (30 s, panic on timeout) | No | Main task subscribed to TWDT |
 | 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | Red LED on failure |
 | 3/9 | Initialize network core (`netif` + event loop) | **Yes** | Red LED on failure |
 | 4/9 | Load or create `device_cfg` | No | `boot_count` incremented; `StatusService` updated |
-| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | **`air360_cellular` task spawned** if `enabled != 0` |
+| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | **`cellular` task spawned** if `enabled != 0` |
 | 5/9 | Load or create `sensor_cfg`; start sensor task | No | **`air360_sensor` task spawned** |
 | 6/9 | Load or create `backend_cfg` | No | — |
 | 7/9 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `StatusService` updated with network and cellular state |
 | 8/9 | Start upload manager; apply backend config | No | **`air360_upload` task spawned** |
-| 9/9 | Start web server | **Yes** | Green or pink LED on success; WDT removed from main task |
+| 9/9 | Start web server | **Yes** | Green or pink LED on success; main task enters maintenance loop |
 
 ---
 
@@ -106,12 +130,14 @@ The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via th
 
 `esp_task_wdt_add(nullptr)` subscribes the main task to the Task Watchdog Timer (TWDT).
 
-- Timeout: 10 seconds
-- Panic on timeout: **disabled** (logs warning, does not reboot)
+- Timeout: **30 seconds**
+- Panic on timeout: **enabled** (triggers `esp_system_abort`, device reboots via panic handler)
 - If TWDT was already initialized by ESP-IDF (from `sdkconfig`), the call simply attaches to it
 - If TWDT is not pre-initialized, the firmware initializes it with the parameters above
 
-The watchdog is fed (reset) implicitly at long-blocking calls during steps 7 and 8 by the respective subsystems. After step 9 is complete, the main task **removes itself** from the watchdog (`esp_task_wdt_delete(nullptr)`) — the maintenance loop does not need watchdog supervision.
+The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `cellular`, `air360_ble`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
+
+Spawned helper tasks created by `NetworkManager` during Wi-Fi reconnect (issue C6) are **not yet subscribed** — they are short-lived and addressed as part of the C6 refactor.
 
 ---
 
@@ -154,9 +180,9 @@ Config load failure is **non-fatal** — in-memory defaults are used and the boo
 Then:
 
 1. `CellularManager::init(network_manager)` — wires the network manager reference into the cellular manager so it can update uplink state
-2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `air360_cellular` FreeRTOS task** which manages the SIM7600E PPP session, reconnect backoff, and hardware reset cycles
+2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `cellular` FreeRTOS task** which manages the SIM7600E PPP session, reconnect backoff, and hardware reset cycles
 
-> **`air360_cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point.
+> **`cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point.
 
 `StatusService` is updated with the cellular manager reference.
 
@@ -196,7 +222,7 @@ cellular_config.enabled != 0?
   ├─ YES (cellular is primary uplink)
   │    ├─ wifi_sta_ssid non-empty?
   │    │    ├─ YES → NetworkManager::connectStation()  (debug window only)
-  │    │    │          └─ wifi_debug_window_s > 0 → arm esp_timer to stop station after N seconds
+  │    │    │          └─ wifi_debug_window_s > 0 → arm esp_timer that notifies air360_net after N seconds
   │    │    └─ NO  → skip Wi-Fi entirely
   │    └─ No AP fallback — CellularManager drives reconnect from this point
   └─ NO (Wi-Fi / setup-AP flow)
@@ -222,7 +248,8 @@ cellular_config.enabled != 0?
 - If station credentials exist, arms a background station retry loop while setup AP stays available
 
 **Wi-Fi debug window (cellular mode only):**
-- If `cellular_config.wifi_debug_window_s > 0`, an `esp_timer` fires after that many seconds and calls `NetworkManager::stopStation()`
+- If `cellular_config.wifi_debug_window_s > 0`, an `esp_timer` fires after that many seconds and calls only `NetworkManager::requestStopStation()`
+- `requestStopStation()` notifies the existing `air360_net` worker; the worker task calls `NetworkManager::stopStation()` outside the ESP timer callback
 - This gives an operator a short Wi-Fi access window at boot for diagnostics while cellular is the permanent uplink
 
 Network failures at this step are **non-fatal** — the device continues booting without a network connection.
@@ -253,16 +280,16 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 `WebServer::start()` configures and starts `esp_http_server`:
 
 - Stack size: 10 240 bytes
-- Max URI handlers: 12
+- Max URI handlers: 14
 
-All nine HTTP routes are registered (`/`, `/diagnostics`, `/config`, `/sensors`, `/backends`, `/wifi-scan`, `/assets/*`, etc.). The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
+HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
 
 Failure is **fatal** — sets red LED, returns from `run()`.
 
 On success:
 - `StatusService` is updated (web server started flag)
 - LED turns green (station mode) or pink (setup AP mode)
-- Main task **removes itself from the watchdog**
+- Main task enters the maintenance loop (remains subscribed to TWDT)
 
 ---
 
@@ -277,14 +304,16 @@ for (;;) {
     }
     status_service.setNetworkState(network_manager.state());
     status_service.setCellularState(cellular_manager.state());
+    esp_task_wdt_reset();   // feed TWDT before sleeping
     vTaskDelay(10000 ms);
 }
 ```
 
-The loop has three responsibilities:
+The loop has four responsibilities:
 - **SNTP retry** — if the device is in station mode but time sync has not succeeded yet, it retries every 10 seconds
 - **Network state refresh** — keeps `StatusService` in sync with the current Wi-Fi network state so the web UI reflects live uplink status
 - **Cellular state refresh** — keeps `StatusService` in sync with the current cellular state (PPP IP, RSSI, ping result)
+- **Watchdog feed** — resets the TWDT on every iteration; the 30-second timeout gives a comfortable margin above the 10-second sleep
 
 The main task runs at the default FreeRTOS task priority and stays alive for the lifetime of the firmware.
 
@@ -294,17 +323,18 @@ The main task runs at the default FreeRTOS task priority and stays alive for the
 
 After the boot sequence completes, the following tasks run concurrently:
 
-| Task | Stack | Priority | Loop period | Spawned at |
-|------|-------|----------|-------------|------------|
-| `app_main` (main task) | 8 192 B | default | 10 s | ESP-IDF runtime |
-| `air360_cellular` | 8 192 B | 5 | event-driven | Step 4b — `CellularManager::start()` (when enabled) |
-| `air360_sensor` | 6 144 B | 5 | 250 ms | Step 5 — `SensorManager::applyConfig()` |
-| `air360_upload` | 7 168 B | 4 | 1 s | Step 8 — `UploadManager::start()` |
-| `esp_httpd` (web server) | 10 240 B | default | event-driven | Step 9 — `WebServer::start()` |
-| ESP-IDF Wi-Fi task | (IDF managed) | (IDF managed) | event-driven | Step 7 — `esp_netif_init` / `esp_wifi_start` |
-| ESP-IDF event loop task | (IDF managed) | (IDF managed) | event-driven | Step 3 — `esp_event_loop_create_default` |
+| Task | Stack | Priority | Loop period | TWDT | Spawned at |
+|------|-------|----------|-------------|------|------------|
+| `app_main` (main task) | 8 192 B | default | 10 s | ✓ subscribed | ESP-IDF runtime |
+| `cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 4b — `CellularManager::start()` (when enabled) |
+| `air360_net` | 6 144 B | 2 | event-driven | ✓ subscribed | Step 7 — `NetworkManager::ensureWifiInit()` |
+| `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()` |
+| `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 8 — `UploadManager::start()` |
+| `air360_ble` | 4 096 B | 3 | 5 s | ✓ subscribed | Step 5 — `BleAdvertiser::start()` (when enabled) |
+| `esp_httpd` (web server) | 10 240 B | default | event-driven | ✗ IDF-managed | Step 9 — `WebServer::start()` |
+| ESP-IDF Wi-Fi / event loop | (IDF managed) | (IDF managed) | event-driven | ✗ IDF-managed | Steps 3 / 7 |
 
-`air360_sensor` and `air360_upload` can be stopped and restarted at runtime — `air360_sensor` is restarted by `SensorManager::applyConfig()` when the user applies sensor changes through the web UI, and `air360_upload` is restarted when backend config changes.
+`air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task. `BleAdvertiser::stop()` also uses task notification plus a stop-acknowledge semaphore; the `air360_ble` task self-deletes after leaving NimBLE calls so no caller deletes it from a foreign task context.
 
 ---
 

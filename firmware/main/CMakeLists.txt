@@ -2,21 +2,31 @@ idf_component_register(
     SRCS
         "src/app_main.cpp"
         "src/app.cpp"
+        "src/ble_advertiser.cpp"
         "src/build_info.cpp"
         "src/cellular_config_repository.cpp"
         "src/cellular_manager.cpp"
         "src/modem_gpio.cpp"
         "src/config_repository.cpp"
+        "src/config_transaction.cpp"
         "src/connectivity_checker.cpp"
         "src/network_manager.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
+        "src/web/web_request_body.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
+        "src/uploads/adapters/air360_json_payload.cpp"
         "src/uploads/adapters/air360_api_uploader.cpp"
+        "src/uploads/adapters/custom_upload_uploader.cpp"
+        "src/uploads/adapters/influxdb_uploader.cpp"
         "src/uploads/adapters/sensor_community_uploader.cpp"
         "src/uploads/measurement_store.cpp"
+        "src/uploads/upload_log_endpoint.cpp"
+        "src/uploads/upload_prune_policy.cpp"
         "src/uploads/upload_manager.cpp"
+        "src/uploads/upload_manager_config.cpp"
+        "src/uploads/upload_manager_status.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
@@ -25,6 +35,8 @@ idf_component_register(
         "src/sensors/drivers/ds18b20_sensor.cpp"
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/htu2x_sensor.cpp"
+        "src/sensors/drivers/ina219_sensor.cpp"
+        "src/sensors/drivers/mhz19b_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/scd30_sensor.cpp"
         "src/sensors/drivers/sht4x_sensor.cpp"
@@ -38,7 +50,12 @@ idf_component_register(
         "third_party/sps30/sensirion_i2c.c"
         "third_party/sps30/sps30_i2c.c"
         "src/status_service.cpp"
+        "src/log_buffer.cpp"
         "src/web_server.cpp"
+        "src/web/web_form.cpp"
+        "src/web/web_runtime_routes.cpp"
+        "src/web/web_mutating_routes.cpp"
+        "src/web/web_server_helpers.cpp"
     INCLUDE_DIRS
         "include"
         "third_party/sps30"
@@ -56,6 +73,8 @@ idf_component_register(
         esp-idf-lib__dht
         esp-idf-lib__scd30
         esp-idf-lib__sht4x
+        esp-idf-lib__ina219
+        esp-idf-lib__mhz19b
         esp-idf-lib__si7021
         esp-idf-lib__veml7700
         espressif__bme280
@@ -73,9 +92,14 @@ idf_component_register(
         lwip
         esp_timer
         esp_wifi
+        bt
+        espressif__mdns
+        nordesems__esp-captive-portal
         esp_modem
         freertos
         nvs_flash
+    EMBED_FILES
+        "webui/favicon.ico"
     EMBED_TXTFILES
         "webui/air360.css"
         "webui/air360.js"
@@ -88,6 +112,10 @@ idf_component_register(
         "webui/card_sensor.html"
         "webui/item_overview_backend.html"
         "webui/item_overview_sensor.html"
+        "webui/page_shell.html"
+        "webui/item_reading.html"
+        "webui/item_section_row.html"
 )
 
-target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_17)
+target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wunused-result)

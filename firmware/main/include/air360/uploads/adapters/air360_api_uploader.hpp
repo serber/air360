@@ -9,7 +9,6 @@ namespace air360 {
 class Air360ApiUploader : public IBackendUploader {
   public:
     BackendType type() const override;
-    const char* backendKey() const override;
     bool validateConfig(const BackendRecord& record, std::string& error) const override;
     bool buildRequests(
         const BackendRecord& record,

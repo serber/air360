@@ -1,6 +1,5 @@
 #include "air360/web_ui.hpp"
 
-#include <array>
 #include <cstdint>
 
 #include "air360/web_assets.hpp"
@@ -9,20 +8,6 @@
 namespace air360 {
 
 namespace {
-
-struct NavItem {
-    WebPageKey page;
-    const char* href;
-    const char* label;
-};
-
-constexpr std::array<NavItem, 5> kNavItems{{
-    {WebPageKey::kHome, "/", "Overview"},
-    {WebPageKey::kDiagnostics, "/diagnostics", "Diagnostics"},
-    {WebPageKey::kConfig, "/config", "Device"},
-    {WebPageKey::kSensors, "/sensors", "Sensors"},
-    {WebPageKey::kBackends, "/backends", "Backends"},
-}};
 
 struct EmbeddedTemplateView {
     const char* data;
@@ -47,6 +32,12 @@ extern const std::uint8_t item_overview_backend_html_start[] asm("_binary_item_o
 extern const std::uint8_t item_overview_backend_html_end[] asm("_binary_item_overview_backend_html_end");
 extern const std::uint8_t item_overview_sensor_html_start[] asm("_binary_item_overview_sensor_html_start");
 extern const std::uint8_t item_overview_sensor_html_end[] asm("_binary_item_overview_sensor_html_end");
+extern const std::uint8_t page_shell_html_start[] asm("_binary_page_shell_html_start");
+extern const std::uint8_t page_shell_html_end[] asm("_binary_page_shell_html_end");
+extern const std::uint8_t item_reading_html_start[] asm("_binary_item_reading_html_start");
+extern const std::uint8_t item_reading_html_end[] asm("_binary_item_reading_html_end");
+extern const std::uint8_t item_section_row_html_start[] asm("_binary_item_section_row_html_start");
+extern const std::uint8_t item_section_row_html_end[] asm("_binary_item_section_row_html_end");
 
 std::size_t embeddedTextSize(const std::uint8_t* start, const std::uint8_t* end) {
     if (start == nullptr || end == nullptr || end <= start) {
@@ -73,7 +64,29 @@ std::string firmwareVersionLabel() {
         return "version unavailable";
     }
 
-    return std::string("version ") + app->version;
+    return std::string(app->version);
+}
+
+const char* pageDataKey(WebPageKey page) {
+    switch (page) {
+        case WebPageKey::kHome:         return "overview";
+        case WebPageKey::kConfig:       return "device";
+        case WebPageKey::kSensors:      return "sensors";
+        case WebPageKey::kBackends:     return "backends";
+        case WebPageKey::kDiagnostics:  return "diagnostics";
+        default:                        return "overview";
+    }
+}
+
+const char* pageCrumb(WebPageKey page) {
+    switch (page) {
+        case WebPageKey::kHome:         return "OVERVIEW";
+        case WebPageKey::kConfig:       return "DEVICE";
+        case WebPageKey::kSensors:      return "SENSORS";
+        case WebPageKey::kBackends:     return "BACKENDS";
+        case WebPageKey::kDiagnostics:  return "DIAGNOSTICS";
+        default:                        return "";
+    }
 }
 
 const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
@@ -95,7 +108,12 @@ const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
         makeTemplateView(item_overview_backend_html_start, item_overview_backend_html_end);
     static const EmbeddedTemplateView kOverviewSensorItemTemplate =
         makeTemplateView(item_overview_sensor_html_start, item_overview_sensor_html_end);
-
+    static const EmbeddedTemplateView kShellTemplate =
+        makeTemplateView(page_shell_html_start, page_shell_html_end);
+    static const EmbeddedTemplateView kReadingTemplate =
+        makeTemplateView(item_reading_html_start, item_reading_html_end);
+    static const EmbeddedTemplateView kSectionRowTemplate =
+        makeTemplateView(item_section_row_html_start, item_section_row_html_end);
     switch (template_key) {
         case WebTemplateKey::kHome:
             return &kRootTemplate;
@@ -115,6 +133,12 @@ const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
             return &kOverviewBackendItemTemplate;
         case WebTemplateKey::kOverviewSensorItem:
             return &kOverviewSensorItemTemplate;
+        case WebTemplateKey::kShell:
+            return &kShellTemplate;
+        case WebTemplateKey::kReading:
+            return &kReadingTemplate;
+        case WebTemplateKey::kSectionRow:
+            return &kSectionRowTemplate;
         default:
             return nullptr;
     }
@@ -171,8 +195,8 @@ std::string renderNotice(const std::string& notice, bool error_notice) {
 
     std::string html;
     html.reserve(notice.size() + 64U);
-    html += "<div class='notice ";
-    html += error_notice ? "notice--err" : "notice--ok";
+    html += "<div class='banner ";
+    html += error_notice ? "err" : "ok";
     html += "'>";
     html += htmlEscape(notice);
     html += "</div>";
@@ -212,67 +236,20 @@ std::string renderPageDocument(
     std::string_view heading,
     std::string_view lead_html,
     std::string_view body_html,
-    bool wide_layout,
+    bool /*wide_layout*/,
     bool device_only_navigation) {
-    std::string html;
-    html.reserve(body_html.size() + 1200U);
-
-    html += "<!doctype html><html><head><meta charset='utf-8'>";
-    html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>";
-    html += htmlEscape(title);
-    html += "</title>";
-    html += "<link rel='stylesheet' href='";
-    html += webUiStylesHref();
-    html += "'>";
-    html += "<script defer src='";
-    html += webUiScriptHref();
-    html += "'></script>";
-    html += "</head><body><div class='shell";
-    if (!wide_layout) {
-        html += " shell--narrow";
-    }
-    html += "'><div class='chrome'><header class='topbar'>";
-    html += "<div class='brand'><div class='brand__eyebrow'>Air360</div><div class='brand__version'>";
-    html += htmlEscape(firmwareVersionLabel());
-    html += "</div></div><nav class='nav'>";
-
-    for (const auto& item : kNavItems) {
-        if (device_only_navigation && item.page != WebPageKey::kConfig) {
-            continue;
-        }
-        html += "<a class='nav__link";
-        if (item.page == active_page) {
-            html += " nav__link--active";
-        }
-        html += "' href='";
-        html += item.href;
-        html += "'>";
-        html += htmlEscape(item.label);
-        html += "</a>";
-    }
-
-    html += "</nav></header><main class='page'><section class='pagehead'>";
-    if (active_page == WebPageKey::kHome && !lead_html.empty()) {
-        html += "<div class='pagehead__row'><h1>";
-        html += htmlEscape(heading);
-        html += "</h1><div class='pagehead__meta'>";
-        html += lead_html;
-        html += "</div></div>";
-    } else {
-        html += "<h1>";
-        html += htmlEscape(heading);
-        html += "</h1>";
-        if (!lead_html.empty()) {
-            html += "<p class='lead'>";
-            html += lead_html;
-            html += "</p>";
-        }
-    }
-    html += "</section>";
-    html += body_html;
-    html += "</main></div></div></body></html>";
-    return html;
+    return renderTemplate(WebTemplateKey::kShell, {
+        {"TITLE",            htmlEscape(title)},
+        {"STYLES_HREF",      webUiStylesHref()},
+        {"SCRIPT_HREF",      webUiScriptHref()},
+        {"DATA_PAGE",        pageDataKey(active_page)},
+        {"DEVICE_NAV_ATTR",  device_only_navigation ? " data-nav='device-only'" : ""},
+        {"FW_VERSION",       htmlEscape(firmwareVersionLabel())},
+        {"CRUMB",            pageCrumb(active_page)},
+        {"HEADING",          htmlEscape(heading)},
+        {"LEAD_HTML",        std::string(lead_html)},
+        {"BODY_HTML",        std::string(body_html)},
+    });
 }
 
 }  // namespace air360

@@ -1,11 +1,28 @@
 # Supported Sensors
 
+## Status
+
+Implemented. Keep this index aligned with the sensor types and driver files currently present in `firmware/`.
+
+## Scope
+
+This document is the detailed sensor documentation index and hardware reference for the Air360 firmware.
+
+## Source of truth in code
+
+- `firmware/main/include/air360/sensors/sensor_types.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+- `firmware/main/src/sensors/drivers/`
+
+## Read next
+
+- [supported-sensors.md](supported-sensors.md)
+- [adding-new-sensor.md](adding-new-sensor.md)
+- [../transport-binding.md](../transport-binding.md)
+
 Reference index for every sensor driver implemented in `firmware/main/src/sensors/drivers/`.
 
-This README replaces the former `supported-sensors.md` and combines both roles:
-
-- the driver documentation index
-- the hardware reference notes for each supported sensor
+Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [adding-new-sensor.md](adding-new-sensor.md) for the implementation checklist.
 
 ## Sensor Index
 
@@ -18,14 +35,16 @@ This README replaces the former `supported-sensors.md` and combines both roles:
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
-| [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud | Latitude, longitude, altitude, satellites, speed, course, HDOP |
-| [dht.md](dht.md) | DHT11 / DHT22 | GPIO | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
-| [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | One of `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
-| [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | One of `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
+| [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | Default UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud; UART2 selectable | Latitude, longitude, altitude, satellites, speed, course, HDOP |
+| [dht.md](dht.md) | DHT11 / DHT22 | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
+| [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
+| [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
+| [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
+| [mhz19b.md](mhz19b.md) | MH-Z19B | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | CO2 |
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
-GPIO sensor slots (`GPIO4` / `GPIO5` / `GPIO6`) are shared across DHT11, DHT22, DS18B20, and ME3-NO2. Only one sensor can occupy a slot at a time.
+GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
 
 ## Datasheet Notes
 
@@ -196,6 +215,32 @@ GPIO sensor slots (`GPIO4` / `GPIO5` / `GPIO6`) are shared across DHT11, DHT22, 
 | Maximum current | Not stated; the public Winsen manual describes the sensor as low-consumption and specifies sensitivity in `uA/ppm` rather than supply current |
 | Reference links | [Winsen product page](https://de.winsen-sensor.com/product/me3-no2.html?lang=tr), [Winsen manual](https://www.winsen-sensor.com/d/files/4-series-electrochemical-toxic-gas-sensor/me3-no2/me3-no2-0-20ppm.pdf) |
 
+### INA219
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Texas Instruments |
+| Air360 measurements | Bus voltage, current, power |
+| Declared service life | Not stated in the public datasheet |
+| Operating temperature | `-40..125 deg C` |
+| Supply voltage | `2.7..5.5 V` |
+| Accuracy | Voltage `0.5 %` full-scale; current accuracy depends on shunt resistor tolerance |
+| Maximum current | `1 mA` quiescent; shunt current limited by gain setting (±3.2 A with 100 mΩ shunt at `INA219_GAIN_0_125`) |
+| Reference links | [TI product page](https://www.ti.com/product/INA219), [TI datasheet](https://www.ti.com/lit/ds/symlink/ina219.pdf) |
+
+### MH-Z19B
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Zhengzhou Winsen Electronics Technology Co., Ltd. |
+| Air360 measurements | CO2 |
+| Declared service life | `5 years` |
+| Operating temperature | `0..50 deg C` |
+| Supply voltage | `4.5..5.5 V` (Vin); UART logic levels `3.3 V` |
+| Accuracy | `±(50 ppm + 5 % of reading)` |
+| Maximum current | `150 mA` peak during heating; `60 mA` typical |
+| Reference links | [Winsen product page](https://www.winsen-sensor.com/sensors/co2-sensor/mh-z19b.html), [Winsen datasheet](https://www.winsen-sensor.com/d/files/infrared-gas-sensor/mh-z19b-co2-ver1_0.pdf) |
+
 ## Peripheral Hardware
 
 The SIM7600E modem is not a sensor. It is managed by `CellularManager` independently of the sensor pipeline.
@@ -204,4 +249,4 @@ The SIM7600E modem is not a sensor. It is managed by `CellularManager` independe
 |------|--------|-----------|------|
 | [sim7600e.md](sim7600e.md) | SIM7600E | UART1 (RX=`GPIO18`, TX=`GPIO17`) | Cellular PPP uplink; built-in GNSS is not yet used by the firmware |
 
-> The default modem UART conflicts with the default GPS UART. GPS and cellular cannot be used simultaneously on the stock `GPIO17` / `GPIO18` wiring without changing one binding in `Kconfig`.
+> The default modem UART conflicts with the default GPS UART. GPS and cellular cannot be used simultaneously on the stock `GPIO17` / `GPIO18` wiring unless the GPS sensor is moved to UART2 in the Sensor Configuration page or the modem UART is reconfigured.

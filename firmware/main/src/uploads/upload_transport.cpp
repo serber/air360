@@ -1,7 +1,9 @@
 #include "air360/uploads/upload_transport.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 
+#include "air360/uploads/upload_log_endpoint.hpp"
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
@@ -34,17 +36,18 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
     config.method = toEspMethod(request.method);
     config.timeout_ms = request.timeout_ms;
     config.disable_auto_redirect = true;
-    config.buffer_size = 512;
-    config.buffer_size_tx = 512;
+    config.buffer_size = 2048;
+    config.buffer_size_tx = 1024;
     config.keep_alive_enable = false;
     config.addr_type = HTTP_ADDR_TYPE_INET;
     config.crt_bundle_attach = esp_crt_bundle_attach;
 
+    const std::string endpoint = formatUploadEndpointForLog(request.url);
     ESP_LOGI(
         kTag,
-        "HTTP request: method=%s url=%s body_len=%u",
+        "HTTP request: method=%s endpoint=%s body_len=%u",
         request.method == UploadMethod::kPut ? "PUT" : "POST",
-        request.url.c_str(),
+        endpoint.c_str(),
         static_cast<unsigned>(request.body.size()));
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -81,6 +84,17 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
         response.http_status = esp_http_client_get_status_code(client);
         const auto content_length = esp_http_client_get_content_length(client);
         response.response_size = content_length > 0 ? static_cast<int>(content_length) : 0;
+
+        char* retry_after_val = nullptr;
+        if (esp_http_client_get_header(client, "Retry-After", &retry_after_val) == ESP_OK &&
+            retry_after_val != nullptr) {
+            const unsigned long parsed = std::strtoul(retry_after_val, nullptr, 10);
+            if (parsed > 0UL && parsed <= 3600UL) {
+                response.retry_after_seconds = static_cast<std::uint32_t>(parsed);
+            }
+        }
+    } else if (response.transport_err == ESP_ERR_HTTP_FETCH_HEADER) {
+        ESP_LOGE(kTag, "HTTP header parse failed (buffer too small?): %s", endpoint.c_str());
     }
 
     const std::int64_t finished_us = esp_timer_get_time();

@@ -1,9 +1,8 @@
 #include "air360/uploads/backend_config_repository.hpp"
 
-#include <cstddef>
-#include <cstring>
 #include <string>
 
+#include "air360/string_utils.hpp"
 #include "air360/uploads/backend_registry.hpp"
 #include "esp_log.h"
 #include "nvs.h"
@@ -16,16 +15,7 @@ constexpr char kTag[] = "air360.backend_cfg";
 constexpr char kNamespace[] = "air360";
 constexpr char kConfigKey[] = "backend_cfg";
 
-void copyString(char* destination, std::size_t destination_size, const char* source) {
-    if (destination_size == 0U) {
-        return;
-    }
-
-    std::strncpy(destination, source != nullptr ? source : "", destination_size - 1U);
-    destination[destination_size - 1U] = '\0';
-}
-
-esp_err_t saveInternal(nvs_handle_t handle, const BackendConfigList& config) {
+[[nodiscard]] esp_err_t saveInternal(nvs_handle_t handle, const BackendConfigList& config) {
     esp_err_t err = nvs_set_blob(handle, kConfigKey, &config, sizeof(config));
     if (err != ESP_OK) {
         return err;
@@ -34,32 +24,57 @@ esp_err_t saveInternal(nvs_handle_t handle, const BackendConfigList& config) {
     return nvs_commit(handle);
 }
 
-BackendRecord makeDefaultRecord(
-    std::uint32_t id,
-    BackendType type,
-    const char* display_name) {
+BackendRecord makeDefaultRecord(std::uint32_t id, const BackendDescriptor& descriptor) {
     BackendRecord record{};
     record.id = id;
     record.enabled = 0U;
-    record.backend_type = type;
-    copyString(record.display_name, sizeof(record.display_name), display_name);
-    applyBackendStaticDefaults(record);
+    record.backend_type = descriptor.type;
+    copyString(record.display_name, sizeof(record.display_name), descriptor.display_name);
+    copyString(record.host, sizeof(record.host), descriptor.defaults.host);
+    copyString(record.path, sizeof(record.path), descriptor.defaults.path);
+    record.port = descriptor.defaults.port;
+    record.protocol = descriptor.defaults.protocol;
+    if (descriptor.type == BackendType::kInfluxDb) {
+        copyString(record.influxdb_measurement, sizeof(record.influxdb_measurement), "air360");
+    }
     return record;
+}
+
+bool appendDefaultRecordForDescriptor(
+    BackendConfigList& config,
+    const BackendDescriptor& descriptor) {
+    if (config.backend_count >= kMaxConfiguredBackends) {
+        return false;
+    }
+
+    const std::uint32_t id = config.next_backend_id++;
+    config.backends[config.backend_count++] = makeDefaultRecord(id, descriptor);
+    return true;
+}
+
+bool normalizeBackendConfigList(BackendConfigList& config) {
+    BackendRegistry registry;
+    bool changed = false;
+
+    for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
+        const BackendDescriptor& descriptor = registry.descriptors()[index];
+        if (findBackendRecordByType(config, descriptor.type) != nullptr) {
+            continue;
+        }
+
+        if (!appendDefaultRecordForDescriptor(config, descriptor)) {
+            break;
+        }
+        changed = true;
+    }
+
+    return changed;
 }
 
 void assignDefaultBackendConfigList(BackendConfigList& config) {
     config = BackendConfigList{};
-    config.backend_count = 2U;
-    config.next_backend_id = 3U;
     config.upload_interval_ms = kDefaultUploadIntervalMs;
-    config.backends[0] = makeDefaultRecord(
-        1U,
-        BackendType::kSensorCommunity,
-        "Sensor.Community");
-    config.backends[1] = makeDefaultRecord(
-        2U,
-        BackendType::kAir360Api,
-        "Air360 API");
+    normalizeBackendConfigList(config);
 }
 
 }  // namespace
@@ -86,6 +101,12 @@ bool BackendConfigRepository::isValid(const BackendConfigList& config) const {
         std::string error;
         if (!registry.validateRecord(config.backends[index], error)) {
             return false;
+        }
+
+        for (std::size_t compare = index + 1U; compare < config.backend_count; ++compare) {
+            if (config.backends[index].backend_type == config.backends[compare].backend_type) {
+                return false;
+            }
         }
     }
 
@@ -128,6 +149,13 @@ esp_err_t BackendConfigRepository::loadOrCreate(
         if (err == ESP_OK &&
             blob_size == sizeof(BackendConfigList) &&
             isValid(out_config)) {
+            if (normalizeBackendConfigList(out_config)) {
+                err = saveInternal(handle, out_config);
+                if (err != ESP_OK) {
+                    nvs_close(handle);
+                    return err;
+                }
+            }
             loaded_from_storage = true;
             nvs_close(handle);
             return ESP_OK;
@@ -145,7 +173,10 @@ esp_err_t BackendConfigRepository::loadOrCreate(
 }
 
 esp_err_t BackendConfigRepository::save(const BackendConfigList& config) {
-    if (!isValid(config)) {
+    BackendConfigList normalized = config;
+    normalizeBackendConfigList(normalized);
+
+    if (!isValid(normalized)) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -155,7 +186,7 @@ esp_err_t BackendConfigRepository::save(const BackendConfigList& config) {
         return err;
     }
 
-    err = saveInternal(handle, config);
+    err = saveInternal(handle, normalized);
     nvs_close(handle);
     return err;
 }

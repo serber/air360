@@ -1,5 +1,25 @@
 # SCD30
 
+## Status
+
+Implemented. Keep this document aligned with the current SCD30 driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 SCD30 driver, including default I2C binding, output fields, and noteworthy initialization behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/scd30_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/scd30_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [../transport-binding.md](../transport-binding.md)
+
 Optical CO₂ sensor (NDIR) with temperature and humidity from Sensirion.
 
 ## Transport

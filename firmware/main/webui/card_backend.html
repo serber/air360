@@ -1,10 +1,15 @@
-<div class='panel panel--backend stack' data-backend-card>
-    <h2>{{DISPLAY_NAME}}</h2>
-    <label class='checkbox'>
-        <input type='checkbox' name='enabled_{{BACKEND_KEY_ATTR}}' {{ENABLED_CHECKED}} data-backend-enabled-toggle>
-        <span class='checkbox__label'>Enabled</span>
-    </label>
+<section class='card' data-backend-card>
+  <div class='card-header'>
+    <div><h3 class='card-title'>{{DISPLAY_NAME}}</h3></div>
+    <div class='card-right'>
+      <button class='switch' type='button' data-drives-checkbox='enabled_{{BACKEND_KEY_ATTR}}' data-reveals='backend-body-{{BACKEND_KEY_ATTR}}' aria-label='Toggle {{DISPLAY_NAME}}'></button>
+      <input type='checkbox' name='enabled_{{BACKEND_KEY_ATTR}}' {{ENABLED_CHECKED}} data-backend-enabled-toggle hidden>
+    </div>
+  </div>
+  <div class='card-body stack-14' id='backend-body-{{BACKEND_KEY_ATTR}}' data-backend-fields>
+    {{HTTPS_BLOCK}}
     {{ENDPOINT_BLOCK}}
     {{DEVICE_ID_OVERRIDE_BLOCK}}
     {{STATUS_BLOCK}}
-</div>
+  </div>
+</section>

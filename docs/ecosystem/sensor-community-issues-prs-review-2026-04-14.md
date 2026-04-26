@@ -176,12 +176,12 @@ Relevant upstream threads:
 
 Why this is a strong Air360 task now:
 
-- Air360 already has a backend registry in [`../firmware/upload-adapters.md`](../firmware/upload-adapters.md) and even carries a reserved `bearer_token` field in backend config, but the current firmware does not use it.
+- Air360 already has a backend registry in [`../firmware/upload-adapters.md`](../firmware/upload-adapters.md), but token-based backend authentication is not implemented as a first-class feature yet.
 - This is a clean extension of the existing architecture, not a new subsystem.
 
 Recommended scope:
 
-- make `bearer_token` and custom auth headers real, not reserved-only
+- make token-based auth and custom auth headers real first-class backend features
 - add a dedicated openSenseMap uploader with device API key support
 - add an `InfluxDB 2.x` uploader using token auth
 - keep TLS based on ESP-IDF certificate bundle and report certificate failures cleanly

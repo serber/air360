@@ -9,17 +9,24 @@
 
 namespace air360 {
 
-using BackendValidationFn = bool (*)(const BackendRecord& record, std::string& error);
+using BackendValidationFn  = bool (*)(const BackendRecord& record, std::string& error);
 using BackendUploaderFactory = std::unique_ptr<IBackendUploader> (*)();
 
+struct BackendTypeDefaults {
+    const char*     host;
+    const char*     path;
+    std::uint16_t   port;
+    BackendProtocol protocol;
+    bool            host_is_fixed;
+    bool            path_is_fixed;
+};
+
 struct BackendDescriptor {
-    BackendType type = BackendType::kUnknown;
-    const char* backend_key = nullptr;
-    const char* display_name = nullptr;
-    bool implemented = false;
-    bool legacy = false;
-    bool supports_dual_upload = false;
-    BackendValidationFn validate = nullptr;
+    BackendType          type          = BackendType::kUnknown;
+    const char*          backend_key   = nullptr;
+    const char*          display_name  = nullptr;
+    BackendTypeDefaults  defaults      = {};
+    BackendValidationFn  validate      = nullptr;
     BackendUploaderFactory create_uploader = nullptr;
 };
 

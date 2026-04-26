@@ -1,17 +1,16 @@
-<div class='stack stack--scene'>
-    {{NOTICE}}
-    <form class='stack' method='POST' action='/backends' data-dirty-track='backends'>
-        <div class='panel panel--policy stack'>
-            <h2>Upload settings</h2>
-            <div class='field'>
-                <label for='upload_interval_ms'>Upload interval (ms)</label>
-                <input class='input' id='upload_interval_ms' name='upload_interval_ms' inputmode='numeric' value='{{UPLOAD_INTERVAL_VALUE}}'>
-            </div>
-            <p class='hint'>Allowed range: <code>10000</code> to <code>300000</code> ms.</p>
-        </div>
-        {{BACKEND_CARDS}}
-        <div class='split-actions'>
-            <button class='button' type='submit'>Save</button>
-        </div>
-    </form>
-</div>
+{{NOTICE}}
+<form id='backends-form' method='POST' action='/backends' data-dirty-track='backends'>
+  <section class='card'>
+    <div class='card-header'><div><h3 class='card-title'>Upload settings</h3><div class='card-sub'>How often measurements are flushed to all enabled backends</div></div></div>
+    <div class='card-body'>
+      <label class='field'>
+        <span class='field-label'>Upload interval (ms)</span>
+        <input class='input' id='upload_interval_ms' name='upload_interval_ms' inputmode='numeric' value='{{UPLOAD_INTERVAL_VALUE}}'>
+        <span class='field-hint'>Allowed range: <code>10000</code> to <code>300000</code> ms.</span>
+      </label>
+    </div>
+  </section>
+
+  {{BACKEND_CARDS}}
+
+</form>

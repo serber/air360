@@ -30,6 +30,7 @@ Treat `firmware/` as the firmware project root.
 
 Relevant files include:
 
+- `firmware/AGENTS.md`
 - `firmware/CMakeLists.txt`
 - `firmware/main/CMakeLists.txt`
 - `firmware/main/Kconfig.projbuild`
@@ -63,7 +64,8 @@ When this skill is used, produce firmware documentation that helps a developer:
 
 Check:
 
-- `CLAUDE.md`
+- `AGENTS.md`
+- `firmware/AGENTS.md`
 
 Respect repository-wide rules before writing firmware docs.
 
@@ -118,6 +120,7 @@ Preferred templates for firmware documentation:
 
 - `.claude/skills/air360-firmware-docs/templates/firmware-readme.template.md`
 - `.claude/skills/air360-firmware-docs/templates/firmware-architecture.template.md`
+- `docs/firmware/doc-template.md`
 
 When generating firmware documentation, read the closest matching template and fill it with repository-specific details from the `firmware/` project.
 
@@ -217,6 +220,16 @@ Run the following checks before touching any doc:
 | Sensor category membership | grep `kParticulateMatter\|kClimate\|kLight\|kGas\|kLocation` in `web_server.cpp` |
 | FreeRTOS task names, stacks, priorities | grep `xTaskCreate\|kTaskStack\|kTaskPriority` |
 | Managed components | `ls firmware/managed_components/` |
+
+#### Step 2 — Validate docs
+
+Run:
+
+```bash
+python3 scripts/check_firmware_docs.py
+```
+
+Use `docs/firmware/change-impact-map.md` to identify which companion docs should move with a subsystem change.
 
 #### Step 2 — Map inventory to docs
 

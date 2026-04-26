@@ -1,5 +1,26 @@
 # Air360 Firmware User Guide
 
+## Status
+
+Implemented. Keep this guide aligned with the user-visible firmware behavior currently exposed by the device.
+
+## Scope
+
+This guide explains operational use of the device firmware from the perspective of a device user, not a firmware maintainer.
+
+## Source of truth in code
+
+- `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web_ui.cpp`
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/status_service.cpp`
+
+## Read next
+
+- [web-ui.md](web-ui.md)
+- [configuration-reference.md](configuration-reference.md)
+- [network-manager.md](network-manager.md)
+
 This guide explains how to use the Air360 firmware web interface — from first boot through sensor and backend configuration in normal operation.
 
 It is written for device users, not for firmware developers.
@@ -42,7 +63,7 @@ The firmware operates in one of two modes:
 | Mode | When | Access |
 |------|------|--------|
 | `setup AP` | No valid station credentials, or station join failed | Connect to the device's own Wi-Fi network, open `http://192.168.4.1/` |
-| `station` | Joined the configured Wi-Fi network | Open the device by its DHCP IP address on your network |
+| `station` | Joined the configured Wi-Fi network | Open `http://{device-name}.local/` or the device's DHCP IP address |
 
 In **setup AP mode** the navigation is intentionally limited to the `Device` page only. All other pages redirect to `Device`.
 
@@ -75,7 +96,7 @@ When no Wi-Fi credentials are configured, the device starts in setup AP mode.
 
 ### Step 2 — Open the setup page
 
-Open `http://192.168.4.1/` or `http://192.168.4.1/config` in a browser.
+After connecting to the AP, most phones and laptops automatically show a "sign in to network" prompt and open the configuration page — no manual navigation required. If the prompt does not appear, open `http://192.168.4.1/` in a browser manually.
 
 In setup AP mode both routes lead to the Device configuration page.
 
@@ -94,15 +115,29 @@ The device reboots and attempts to join the configured network.
 
 ## Finding The Device In Station Mode
 
-After a successful join, the device receives a DHCP address from your router.
+After a successful join, the device is reachable in two ways:
 
-Ways to find it:
+### By name (recommended)
 
-- Check the connected client list in your router admin panel — look for the configured Device name as the hostname.
+Open `http://{device-name}.local/` in a browser on the same network.
+
+The `{device-name}` part matches the **Device name** field you configured — lowercased and with spaces replaced by `-`. The default is `air360`, so the default address is:
+
+```
+http://air360.local/
+```
+
+mDNS is supported natively on macOS, iOS, Android, and most Linux systems. On Windows it requires the Bonjour service (installed automatically with iTunes, Apple devices, or some printer drivers). If `.local` does not resolve, use the IP address method below.
+
+### By IP address
+
+If mDNS does not work on your network:
+
+- Check the connected client list in your router admin panel — look for the configured Device name as the DHCP hostname.
 - Use a network scanner app on your phone.
 - Check the serial monitor output during boot — the assigned IP is logged.
 
-Once you have the IP, open `http://<device-ip>/` in a browser.
+Then open `http://<device-ip>/` in a browser.
 
 ---
 
@@ -228,7 +263,7 @@ When cellular is enabled it becomes the primary uplink — the device connects t
 - The Connection block shows the PPP IP address, signal strength (RSSI in dBm), and ping result if a connectivity check host is configured.
 - Uploads and SNTP proceed through the cellular link.
 
-**Reconnect behaviour:** if the PPP session drops, the firmware reconnects automatically with exponential backoff (10 s → up to 5 min). After 5 consecutive failures the modem is power-cycled via PWRKEY before the next attempt.
+**Reconnect behaviour:** if the PPP session drops, the firmware reconnects automatically with table backoff (10 s, 30 s, 1 min, 2 min, 5 min, 10 min, then 15 min). PWRKEY is only used after at least 10 minutes of continuous failure and is capped at one cycle per hour; registration state `searching` keeps polling without PWRKEY escalation.
 
 **To disable cellular**, uncheck **Enable cellular uplink** and save.
 
@@ -251,7 +286,8 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | Light | VEML7700 |
 | Particulate Matter | SPS30 |
 | Location | GPS (NMEA) |
-| Gas | ME3-NO2 |
+| Gas | ME3-NO2, MH-Z19B |
+| Power Monitoring | INA219 |
 
 All categories except **Gas** allow only one configured sensor at a time.
 
@@ -266,12 +302,14 @@ All categories except **Gas** allow only one configured sensor at a time.
 | SCD30 | I2C at 0x61 | SDA=GPIO8, SCL=GPIO9 |
 | VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
 | SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
-| GPS (NMEA) | UART1 at 9600 baud | RX=GPIO18, TX=GPIO17 |
-| DHT11, DHT22 | GPIO | GPIO4, GPIO5, or GPIO6 |
-| DS18B20 | GPIO (1-Wire) | GPIO4, GPIO5, or GPIO6 |
-| ME3-NO2 | Analog (ADC) | GPIO4, GPIO5, or GPIO6 |
+| GPS (NMEA) | UART1 at 9600 baud (UART2 selectable) | UART1 RX=GPIO18/TX=GPIO17; UART2 RX=GPIO16/TX=GPIO15 |
+| DHT11, DHT22 | GPIO | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
+| DS18B20 | GPIO (1-Wire) | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
+| ME3-NO2 | Analog (ADC) | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
+| INA219 | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
+| MH-Z19B | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |
 
-I2C sensors allow an optional address override if your module uses a non-default address. GPIO and analog sensors require selecting one of the three available board pins.
+I2C sensors allow selecting one of the descriptor-supported addresses if your module uses a non-default address. UART sensors allow selecting one of the descriptor-supported UART ports; the UI shows the RX/TX pins for each port. GPIO and analog sensors require selecting one of the three available board pins.
 
 ### Cellular modem (SIM7600E)
 
@@ -281,7 +319,7 @@ The modem is not configured on the Sensors page — it is managed on the Device 
 |--------|-----------|------|
 | SIM7600E | UART1 at 115200 baud | RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21 |
 
-> **Note:** GPS (NMEA) and the SIM7600E share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on the default configuration. If you need both, change the pin assignment for one of them before building the firmware.
+> **Note:** GPS (NMEA) and the SIM7600E share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on UART1. If you need both, move GPS to UART2 on the Sensor Configuration page or change the modem UART assignment.
 
 ### Adding a sensor
 
@@ -337,6 +375,31 @@ To use Sensor.Community:
 
 Enable Air360 API and press **Save**. No additional credentials are required in the current firmware version.
 
+### Custom Upload
+
+Use this backend when you want to send the same Air360 JSON body to your own HTTP endpoint:
+
+1. Open **Backends**.
+2. Enable **Custom Upload**.
+3. Set **Use HTTPS** as needed.
+4. Fill in **Host**, **Path**, and **Port**.
+5. Press **Save**.
+
+The firmware sends a single `POST` request per upload cycle with the same JSON body shape as `Air360 API`.
+
+### InfluxDB
+
+Use this backend when you want the firmware to write sensor samples as Influx line protocol:
+
+1. Open **Backends**.
+2. Enable **InfluxDB**.
+3. Set **Use HTTPS** as needed.
+4. Fill in **Host**, **Path**, **Port**, and **Measurement**.
+5. Optionally fill in **User** and **Password** for Basic Auth.
+6. Press **Save**.
+
+The firmware sends one POST per upload cycle. The body contains multiple line protocol rows, one row per grouped sensor sample.
+
 ### Save behavior
 
 Backend settings are saved immediately when you press **Save** — there is no staged apply flow for backends.
@@ -346,7 +409,7 @@ Backend settings are saved immediately when you press **Save** — there is no s
 Each backend card shows:
 
 - Enabled or disabled state
-- Endpoint URL
+- Endpoint
 - Last upload attempt time
 - HTTP status code
 - Response time in ms
@@ -360,7 +423,7 @@ The Diagnostics page includes a formatted raw runtime JSON dump at the bottom:
 
 This page is useful for advanced troubleshooting. The raw dump includes build information, boot count, reset reason, network state, sensor runtime state with latest measurements and queued sample counts, and backend runtime state.
 
-The JSON also includes a top-level `diagnostics` object with heap totals, heap headroom, largest free block, task stack high watermarks, and measurement queue counters.
+The JSON also includes a top-level `diagnostics` object with heap totals, heap headroom, largest free block, task stack high watermarks, and measurement queue counters. The `cellular` object includes reconnect attempts, consecutive setup failures, `pwrkey_cycles_total`, and `last_pwrkey_ms_ago` for modem escalation diagnostics.
 
 ### Diagnostics page
 
@@ -421,7 +484,7 @@ What this means in practice:
 3. Open `http://192.168.4.1/`.
 4. Enter station Wi-Fi SSID and password.
 5. Press **Save and reboot**.
-6. Find the device IP in your router and open the full UI.
+6. Once the LED turns green, open `http://air360.local/` (or the IP from your router if `.local` does not resolve).
 
 ### Configuring sensors
 
@@ -438,6 +501,15 @@ What this means in practice:
 3. Open **Backends** → enable Sensor.Community → press **Save**.
 4. Set the upload interval as needed.
 5. Monitor upload status on **Overview** or **Backends**.
+
+### Enabling custom HTTP upload
+
+1. Open **Backends**.
+2. Enable **Custom Upload**.
+3. Set **Use HTTPS** as needed.
+4. Fill in **Host**, **Path**, and **Port**.
+5. Press **Save**.
+6. Monitor upload status on **Overview** or **Backends**.
 
 ### Assigning a static IP
 
@@ -505,7 +577,7 @@ The modem is not reaching the network. Check:
 - PAP username/password are correct if your carrier requires them.
 - Serial monitor logs from the modem task (`air360.cellular`) may show the exact failure reason.
 
-The firmware retries automatically with backoff. After 5 failures the modem is power-cycled — you do not need to reboot the device manually.
+The firmware retries automatically with backoff. If the modem reports "searching", it keeps polling without PWRKEY cycling. PWRKEY is only used after a long continuous failure window and is rate-limited, so you normally do not need to reboot the device manually.
 
 ### Cellular connected but uploads are not going through
 

@@ -40,6 +40,7 @@ struct UploadTransportResponse {
     std::uint32_t connect_time_ms = 0U;
     std::uint32_t request_send_time_ms = 0U;
     std::uint32_t first_response_time_ms = 0U;
+    std::uint32_t retry_after_seconds = 0U;
     std::string body_snippet;
 };
 
@@ -48,7 +49,6 @@ class IBackendUploader {
     virtual ~IBackendUploader() = default;
 
     virtual BackendType type() const = 0;
-    virtual const char* backendKey() const = 0;
     virtual bool validateConfig(const BackendRecord& record, std::string& error) const = 0;
     virtual bool buildRequests(
         const BackendRecord& record,

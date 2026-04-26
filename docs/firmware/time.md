@@ -1,5 +1,25 @@
 # Time
 
+## Status
+
+Implemented. Keep this document aligned with the current uptime, SNTP, and time-validity logic used by the firmware.
+
+## Scope
+
+This document explains the two time domains used by the firmware and where time validity gates status, uploads, and user-visible behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/network_manager.cpp`
+- `firmware/main/src/uploads/upload_manager.cpp`
+- `firmware/main/include/air360/time_utils.hpp`
+
+## Read next
+
+- [network-manager.md](network-manager.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+- [startup-pipeline.md](startup-pipeline.md)
+
 The firmware operates with two independent time domains: **uptime** and **wall clock (Unix time)**. They serve different purposes and have different availability guarantees.
 
 ---
@@ -142,9 +162,9 @@ The upload task skips the upload cycle entirely if any of these conditions are t
 
 In this case the task waits 1 second and checks again.
 
-### `Air360ApiUploader::buildRequests()`
+### Upload adapter time preconditions
 
-The Air360 API adapter enforces an explicit precondition:
+The Air360 JSON-based adapters (`Air360ApiUploader` and `CustomUploadUploader`) and the `InfluxDbUploader` enforce an explicit precondition:
 
 ```
 batch.created_unix_ms <= 0  →  returns false with error
@@ -154,7 +174,7 @@ This prevents sending a batch with an invalid timestamp to the server. The Senso
 
 ### `MeasurementBatch.created_unix_ms`
 
-Set during batch assembly from `currentUnixMilliseconds()` at the time the upload cycle begins. This is the timestamp used in the Air360 API `sent_at_unix_ms` field. Individual sample timestamps (`sample_time_ms` in each `MeasurementPoint`) come from the original `MeasurementSample.sample_time_ms`, recorded at poll time.
+Set during batch assembly from `currentUnixMilliseconds()` at the time the upload cycle begins. This is the timestamp used in the Air360 JSON `sent_at_unix_ms` field for `Air360 API` and `Custom Upload`. For `InfluxDB`, each emitted line uses the original per-sample `sample_time_ms` converted to nanoseconds. Individual sample timestamps (`sample_time_ms` in each `MeasurementPoint`) come from the original `MeasurementSample.sample_time_ms`, recorded at poll time.
 
 ---
 

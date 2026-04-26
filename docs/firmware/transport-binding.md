@@ -1,5 +1,26 @@
 # Transport Binding
 
+## Status
+
+Implemented. Keep this document aligned with the current transport abstractions and board-level pin defaults.
+
+## Scope
+
+This document covers the shared transport layer that sensor drivers use for I2C and UART access, plus the descriptor-owned GPIO/analog pin lists used by board-pin sensors.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/transport_binding.cpp`
+- `firmware/main/include/air360/sensors/transport_binding.hpp`
+- `firmware/main/include/air360/sensors/bus_config.hpp`
+- `firmware/main/include/air360/sensors/sensor_driver.hpp`
+
+## Read next
+
+- [sensors/README.md](sensors/README.md)
+- [sensors/adding-new-sensor.md](sensors/adding-new-sensor.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+
 This document covers `I2cBusManager` and `UartPortManager` — the two hardware transport abstractions shared across all sensor drivers. Both classes are owned by `SensorManager` and passed to each driver via `SensorDriverContext` at init time.
 
 ---
@@ -32,24 +53,41 @@ A thin coordination layer that owns the `i2cdev` subsystem lifecycle and central
 
 ### Bus configuration
 
+The bus list is a `constexpr BusConfig[]` array defined in the anonymous namespace of `transport_binding.cpp`. `init()` stores a `std::span` over it before calling `i2cdev_init()`. All `resolvePins()` calls search that span by `BusConfig::id`.
+
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| Bus | `I2C_NUM_0` | bus id 0 |
+| Bus | `I2C_NUM_0` | bus id 0 (`kPrimaryI2cBus`) |
 | SDA pin | GPIO 8 | `CONFIG_AIR360_I2C0_SDA_GPIO` |
 | SCL pin | GPIO 9 | `CONFIG_AIR360_I2C0_SCL_GPIO` |
-| Default clock | 100 000 Hz | `kDefaultI2cClockHz` |
+| Default clock | 100 000 Hz | defined in `transport_binding.cpp` |
 | Pull-ups | enabled | set in `setupDevice()` |
 
-Pin constants are defined once in `transport_binding.cpp`. No driver duplicates them.
+`kPrimaryI2cBus = 0U` is defined in `bus_config.hpp` and used by sensor descriptors instead of the literal `0` so that a future bus renumbering produces a compile-time error rather than a silent mismatch.
+
+### `BusConfig`
+
+```cpp
+struct BusConfig {
+    std::uint8_t  id;
+    gpio_num_t    sda;
+    gpio_num_t    scl;
+    std::uint32_t clock_hz;
+};
+```
+
+Adding a second bus requires only adding an entry to `kBuses[]` in `transport_binding.cpp` and a new symbolic ID in `bus_config.hpp`.
 
 ### Public API
 
 | Method | Description |
 |--------|-------------|
-| `init()` | Calls `i2cdev_init()`. Idempotent — safe to call on every `applyConfig()`. Must be called before any driver's `init()`. |
-| `resolvePins(bus_id, out_port, out_sda, out_scl)` | Fills `out_port`, `out_sda`, and `out_scl` for a given logical bus id. Returns `false` if the id is unknown. Used by drivers whose underlying component library manages its own `i2c_dev_t` (e.g., VEML7700, SCD30, SHT4X). |
+| `init()` | Stores the bus list span and calls `i2cdev_init()`. Idempotent — safe to call on every `applyConfig()`. Must be called before any driver's `init()`. |
+| `resolvePins(bus_id, out_port, out_sda, out_scl)` | Searches the stored bus list for `bus_id`. Returns `false` if the id is not configured on this build. |
 | `setupDevice(record, speed_hz, out_dev)` | Resolves pins for `record.i2c_bus_id`, fills all fields of `out_dev` (`port`, `addr`, `cfg`), and calls `i2c_dev_create_mutex()`. Used by drivers that manage a bare `i2c_dev_t` directly (SPS30, BME280). |
-| `getComponentBus(bus_id, out_handle)` | Returns an `i2c_bus_handle_t` that borrows the bus already initialised by `i2cdev`. Internally calls `i2c_bus_create()`, which detects the existing bus handle via `i2c_master_get_bus_handle()` and avoids creating a second master. Used by BME280, which relies on the `espressif__bme280` component. |
+| `getComponentBus(bus_id, out_handle)` | Returns an `i2c_bus_handle_t` that borrows the bus already initialised by `i2cdev`. Internally calls `i2c_bus_create()`, which detects the existing bus handle via `i2c_master_get_bus_handle()` and avoids creating a second master. Used by BME280. |
+
+The vendored SPS30 Sensirion C library still exposes global HAL hooks. SPS30 driver code must wrap every vendor call that may touch I2C in `SensirionI2cContextGuard`; the guard serializes the global HAL context with a static FreeRTOS mutex while the call is active.
 
 ### Bus ownership
 
@@ -61,20 +99,20 @@ Pin constants are defined once in `transport_binding.cpp`. No driver duplicates 
 
 ## `UartPortManager`
 
-Manages UART ports for sensors that use serial communication. Current UART sensor assignments:
+Manages UART ports for sensors that use serial communication. UART0 is reserved for the ESP-IDF console. Sensor UART records may select one of the descriptor-allowed sensor UART ports:
 
-| Sensor | Port | RX | TX | Baud |
-|--------|------|----|----|------|
-| GPS (NMEA) | UART1 | GPIO18 | GPIO17 | 9600 |
+| Port | RX | TX | Default sensors |
+|------|----|----|-----------------|
+| UART1 | GPIO18 | GPIO17 | GPS (NMEA) default |
+| UART2 | GPIO16 | GPIO15 | MH-Z19B default |
+
+GPS (NMEA) and MH-Z19B both allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
 
 ### Port mapping
 
-| `port_id` | ESP-IDF port |
-|-----------|-------------|
-| 1 | `UART_NUM_1` |
-| 2 | `UART_NUM_2` |
+`port_id` maps directly to `uart_port_t`. Port 0 is rejected (`ESP_ERR_INVALID_ARG`) because it is the console UART. Sensor configuration validation narrows the accepted values to the descriptor's allowed UART ports, currently UART1 and UART2.
 
-Port 0 is rejected (`ESP_ERR_INVALID_ARG`). Port IDs map to the 1-based `uart_port_id` field in `SensorRecord`.
+`ports_` is `std::array<PortState, UART_NUM_MAX>` indexed directly by `port_id` — slot 0 is always empty.
 
 ### Port configuration
 
@@ -86,11 +124,11 @@ Fixed for all UART sensors:
 | Parity | None |
 | Stop bits | 1 |
 | Flow control | None |
-| RX buffer size | 4 096 bytes |
+| RX buffer size | Default `4 096` bytes; callers may request a larger ring buffer per port |
 | TX buffer size | 0 (blocking TX) |
 | Clock source | `UART_SCLK_DEFAULT` |
 
-Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_baud_rate`, `uart_rx_gpio_pin`, `uart_tx_gpio_pin`).
+Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_baud_rate`, `uart_rx_gpio_pin`, `uart_tx_gpio_pin`). The web UI sets RX/TX from the selected UART port binding, and `SensorRegistry::validateRecord()` rejects records where the pins do not match the selected port. Drivers that expect bursty UART traffic may also request an event queue and a larger RX ring buffer when opening the port. The GPS driver does both: it enables an event queue and sizes RX to at least `max(4096, max_bytes_per_poll + 256)`.
 
 ### Lazy initialisation
 
@@ -100,8 +138,10 @@ Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_bau
 
 | Method | Description |
 |--------|-------------|
-| `open(port_id, rx_pin, tx_pin, baud_rate)` | Installs the UART driver and sets pins. Idempotent if called again with identical parameters. |
+| `open(port_id, rx_pin, tx_pin, baud_rate, rx_buffer_size, event_queue_size)` | Installs the UART driver and sets pins. Idempotent if called again with identical parameters. Callers may request a larger RX ring buffer and a UART event queue. |
 | `read(port_id, buffer, size, timeout_ticks)` | Reads up to `size` bytes from the RX ring buffer. Blocks up to `timeout_ticks`. Returns byte count or `-1` on error. |
+| `bufferedDataLength(port_id, out_length)` | Wraps `uart_get_buffered_data_len()` so a driver can keep draining RX until the UART ring buffer is empty. |
+| `drainEvents(port_id, out_summary)` | Drains the port's UART event queue without blocking. Counts `UART_FIFO_OVF` and `UART_BUFFER_FULL` as overruns and flushes RX so the next poll restarts from a clean buffer. |
 | `flush(port_id)` | Clears the RX ring buffer (`uart_flush_input`). Called by the GPS driver before starting a new parse cycle. |
 | `shutdown()` | Deletes all UART drivers and resets all port states. Called from the destructor. |
 
@@ -115,12 +155,21 @@ For the list of all sensor drivers that use these managers, see [sensors/README.
 
 ---
 
+## GPIO / Analog Pins
+
+GPIO-backed and analog-backed sensors do not go through a shared transport manager. Their selectable pins are listed in each `SensorDescriptor::allowed_gpio_pins`, and the selected value is stored in `SensorRecord::analog_gpio_pin`.
+
+There is no separate default GPIO field in the descriptor. The add form and type-change path use the first allowed pin as the initial selection, and `SensorRegistry::validateRecord()` rejects GPIO/analog records whose selected pin is not in the descriptor list. Current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow GPIO4, GPIO5, and GPIO6.
+
+---
+
 ## Constants summary
 
 | Constant | Value | Applies to |
 |----------|-------|-----------|
+| `kPrimaryI2cBus` | `0U` | All I2C sensor descriptors |
 | I2C default clock | 100 000 Hz | All I2C sensors |
-| I2C pull-ups | enabled | Bus 0 |
-| UART RX buffer | 4 096 bytes | All UART ports |
+| I2C pull-ups | enabled | All configured buses |
+| UART RX buffer | Default `4 096` bytes; GPS requests more when its derived per-poll budget exceeds that floor | All UART ports |
 | UART TX buffer | 0 (blocking) | All UART ports |
 | Log tag | `air360.transport` | Both managers |

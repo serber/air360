@@ -1,13 +1,35 @@
 # NVS Storage
 
+## Status
+
+Implemented. Keep this document aligned with the current NVS blob layouts and keys used by the firmware.
+
+## Scope
+
+This document explains the persistent storage schema used by the firmware, including namespaces, keys, blob layouts, schema guards, and reset behavior.
+
+## Source of truth in code
+
+- `firmware/main/src/config_repository.cpp`
+- `firmware/main/src/config_transaction.cpp`
+- `firmware/main/src/sensors/sensor_config_repository.cpp`
+- `firmware/main/src/uploads/backend_config_repository.cpp`
+- `firmware/main/src/cellular_config_repository.cpp`
+
+## Read next
+
+- [configuration-reference.md](configuration-reference.md)
+- [startup-pipeline.md](startup-pipeline.md)
+- [cellular-manager.md](cellular-manager.md)
+
 The firmware uses a single NVS namespace `"air360"` for all persistent state. There are five keys stored under that namespace.
 
 ## Namespace and keys
 
 | Key | NVS type | Stored structure | Written by |
 |-----|----------|-----------------|------------|
-| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository` |
-| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository` |
+| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository`; `/config` combined save |
+| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository`; `/config` combined save |
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
 | `boot_count` | u32 | `uint32_t` | `ConfigRepository` |
@@ -16,7 +38,7 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 ## Blob guard fields
 
-All three blob structs share the same integrity guard pattern at the start of the struct:
+All blob structs share the same integrity guard pattern at the start of the struct:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -33,6 +55,10 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 | `SensorConfigList` | `0x41333631` ("A361") | 1 |
 | `BackendConfigList` | `0x41333632` ("A362") | 1 |
 
+Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
+
+`device_cfg` and `cellular_cfg` are loaded independently at boot, but the Device Configuration page saves them together. `saveDeviceAndCellularConfig()` validates both records, stages both blobs with one NVS handle, and performs a single `nvs_commit()` after both `nvs_set_blob()` calls succeed. This prevents the web UI from committing only the device part of the form when the cellular write fails. The firmware does not yet keep dual slots or a pending transaction marker for power-loss rollback during commit.
+
 ---
 
 ## `device_cfg` — `DeviceConfig`
@@ -41,19 +67,27 @@ Device identity and network credentials.
 
 ```cpp
 struct DeviceConfig {
-    uint32_t magic;               // 0x41333630
-    uint16_t schema_version;      // 1
+    uint32_t magic;                  // 0x41333630
+    uint16_t schema_version;         // 1
     uint16_t record_size;
-    uint16_t http_port;           // default: 80
-    uint8_t  lab_ap_enabled;      // 0 or 1
-    uint8_t  local_auth_enabled;  // reserved, not enforced
-    uint16_t reserved0;
-    char     device_name[32];     // default: "air360"
+    uint16_t http_port;              // default: 80
+    uint8_t  lab_ap_enabled;         // 0 or 1
+    uint8_t  local_auth_enabled;     // reserved, not enforced
+    uint8_t  wifi_power_save_enabled;// 0 or 1
+    uint8_t  ble_advertise_enabled;  // 0 or 1
+    char     device_name[32];        // default: "air360"
     char     wifi_sta_ssid[33];
     char     wifi_sta_password[65];
-    char     lab_ap_ssid[33];     // default: "air360"
-    char     lab_ap_password[65]; // default: "air360password"
-    char     sntp_server[64];     // default: "" (use pool.ntp.org)
+    char     lab_ap_ssid[33];        // default: "air360"
+    char     lab_ap_password[65];    // default: "air360password"
+    char     sntp_server[64];        // default: "" (use pool.ntp.org)
+    uint8_t  sta_use_static_ip;      // 0 = DHCP, 1 = static
+    uint8_t  ble_adv_interval_index; // index into kBleAdvIntervalTable {100,300,1000,3000} ms
+    uint8_t  reserved1[2];
+    char     sta_ip[16];
+    char     sta_netmask[16];
+    char     sta_gateway[16];
+    char     sta_dns[16];
 };
 ```
 
@@ -62,11 +96,15 @@ struct DeviceConfig {
 | `http_port` | `80` | Web server port |
 | `lab_ap_enabled` | `1` | Whether setup AP is enabled by default |
 | `local_auth_enabled` | `0` | Stored but not enforced in the current firmware |
-| `device_name` | `"air360"` | Also used as the DHCP hostname (lowercased, alphanumeric) |
+| `wifi_power_save_enabled` | `0` | 0 = off; 1 = `WIFI_PS_MIN_MODEM` in station mode |
+| `ble_advertise_enabled` | `0` | 0 = BLE off; 1 = BTHome v2 advertising active |
+| `device_name` | `"air360"` | Also used as the DHCP hostname and BLE device name |
 | `wifi_sta_ssid` | `""` | Empty string means no station credentials |
 | `lab_ap_ssid` | `"air360"` | From `CONFIG_AIR360_LAB_AP_SSID` |
 | `lab_ap_password` | `"air360password"` | From `CONFIG_AIR360_LAB_AP_PASSWORD` |
 | `sntp_server` | `""` | Empty means use firmware default (`pool.ntp.org`) |
+| `sta_use_static_ip` | `0` | 0 = DHCP; 1 = use static IP fields |
+| `ble_adv_interval_index` | `2` | Index into `{100, 300, 1000, 3000}` ms; default = 1000 ms |
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
 
@@ -90,13 +128,13 @@ struct CellularConfig {
     uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
     uint8_t  reset_gpio;         // 0xFF = not wired
     uint8_t  reserved0;
-    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; 0 = disabled
+    uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; default: 600
     uint16_t reserved1;
     char     apn[64];             // PDP context APN; required when enabled
     char     username[32];        // optional PAP/CHAP username; empty if not required
     char     password[64];        // optional PAP/CHAP password
     char     sim_pin[8];          // optional SIM PIN; empty if SIM has no PIN lock
-    char     connectivity_check_host[64]; // IPv4 address for ICMP check; empty = skip
+    char     connectivity_check_host[64]; // IPv4 address for ICMP check; default: "8.8.8.8"
 };
 ```
 
@@ -110,9 +148,9 @@ struct CellularConfig {
 | `pwrkey_gpio` | `0xFF` | `0xFF` = not wired; used for hardware power-cycle |
 | `sleep_gpio` | `0xFF` | `0xFF` = not wired; asserted during reconnect backoff |
 | `reset_gpio` | `0xFF` | `0xFF` = not wired; reserved, not actively used |
-| `wifi_debug_window_s` | `0` | `0` = Wi-Fi station stops immediately when cellular is active |
+| `wifi_debug_window_s` | `600` | `0` = Wi-Fi station stops immediately when cellular is active |
 | `apn` | `""` | Must be non-empty when `enabled != 0` |
-| `connectivity_check_host` | `""` | Must be an IPv4 address (not a hostname); empty skips the check |
+| `connectivity_check_host` | `"8.8.8.8"` | Must be an IPv4 address (not a hostname); empty skips the check |
 
 ---
 
@@ -151,6 +189,8 @@ struct SensorRecord {
 };
 ```
 
+`analog_gpio_pin` stores the selected GPIO for GPIO-backed and analog-backed sensors. The allowed values are not Kconfig fields; they come from the selected sensor descriptor's `allowed_gpio_pins` list.
+
 ### `SensorType` enum values
 
 | Value | Sensor |
@@ -169,6 +209,8 @@ struct SensorRecord {
 | 11 | SCD30 |
 | 12 | HTU2X |
 | 13 | SHT4X |
+| 14 | INA219 |
+| 15 | MH-Z19B |
 
 ### `TransportKind` enum values
 
@@ -206,10 +248,15 @@ struct BackendRecord {
     BackendType backend_type;     // uint8_t enum
     uint16_t    reserved0;
     char        display_name[32];
+    char        host[96];               // backend host without protocol
+    char        path[96];
+    uint16_t    port;
+    BackendProtocol protocol;           // uint8_t enum
+    uint8_t     reserved1;
+    BackendAuthConfig auth;             // auth type + Basic Auth credentials
     char        device_id_override[32]; // Sensor.Community: overrides Short ID
-    char        endpoint_url[160];      // static default per backend type
-    char        bearer_token[160];      // reserved, not used in current firmware
-    uint8_t     reserved1[8];
+    char        measurement_name[32];   // InfluxDB only
+    uint8_t     reserved2[8];
 };
 ```
 
@@ -220,15 +267,19 @@ struct BackendRecord {
 | 0 | Unknown |
 | 1 | Sensor.Community |
 | 2 | Air360 API |
+| 3 | Custom Upload |
+| 4 | InfluxDB |
 
-### Default endpoint URLs
+### Default endpoint settings
 
-| Backend | Default `endpoint_url` |
-|---------|----------------------|
-| Sensor.Community | `http://api.sensor.community/v1/push-sensor-data/` |
-| Air360 API | `http://api.air360.ru` |
+| Backend | `host` | `path` | `port` | `use_https` |
+|---------|--------|--------|--------|-------------|
+| Sensor.Community | `api.sensor.community` | `/v1/push-sensor-data/` | `443` | `1` |
+| Air360 API | `api.air360.ru` | `/v1/devices/{chip_id}/batches/{batch_id}` | `443` | `1` |
+| Custom Upload | `""` | `""` | `0` | `0` |
+| InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 
-Endpoint URLs are written into the record when defaults are applied. They are stored in NVS but the current UI does not expose them for editing.
+HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` uses the same common HTTP fields as the built-in backends. `InfluxDB` also stores `measurement_name`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
 
 ---
 

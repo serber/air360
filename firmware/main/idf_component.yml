@@ -1,5 +1,5 @@
 dependencies:
-  espressif/esp_modem: "^1.1.0"
+  espressif/esp_modem: ^1.1.0
   espressif/ds18b20: 0.3.1
   esp-idf-lib/scd30: 1.0.12
   esp-idf-lib/si7021: 1.0.8
@@ -8,5 +8,9 @@ dependencies:
   esp-idf-lib/dht: 1.2.0
   espressif/bme280: ^0.1.1
   esp-idf-lib/bme680: ^1.0.7
-  cinderblocks/esp_tinygpsplusplus: "1.1.1"
-  espressif/led_strip: "^3.0.0"
+  cinderblocks/esp_tinygpsplusplus: 1.1.1
+  espressif/led_strip: ^3.0.0
+  esp-idf-lib/ina219: 1.0.7
+  esp-idf-lib/mhz19b: 1.2.0
+  espressif/mdns: '*'
+  nordesems/esp-captive-portal: 1.2.0

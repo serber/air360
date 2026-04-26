@@ -8,14 +8,46 @@ namespace air360 {
 constexpr std::size_t kMaxConfiguredBackends = 4U;
 constexpr std::size_t kBackendDisplayNameCapacity = 32U;
 constexpr std::size_t kBackendIdentifierCapacity = 32U;
-constexpr std::size_t kBackendUrlCapacity = 160U;
-constexpr std::size_t kBackendTokenCapacity = 160U;
+constexpr std::size_t kBackendHostCapacity = 96U;
+constexpr std::size_t kBackendPathCapacity = 96U;
+constexpr std::size_t kBackendUsernameCapacity = 48U;
+constexpr std::size_t kBackendPasswordCapacity = 64U;
+constexpr std::size_t kBackendMeasurementCapacity = 32U;
 
 enum class BackendType : std::uint8_t {
     kUnknown = 0U,
     kSensorCommunity = 1U,
     kAir360Api = 2U,
+    kCustomUpload = 3U,
+    kInfluxDb = 4U,
 };
+
+enum class BackendProtocol : std::uint8_t {
+    kUnknown = 0U,
+    kHttp = 1U,
+    kHttps = 2U,
+};
+
+enum class BackendAuthType : std::uint8_t {
+    kNone = 0U,
+    kBasic = 1U,
+};
+
+inline const char* backendProtocolKey(BackendProtocol protocol) {
+    switch (protocol) {
+        case BackendProtocol::kHttp:  return "http";
+        case BackendProtocol::kHttps: return "https";
+        default:                      return "unknown";
+    }
+}
+
+inline const char* backendProtocolScheme(BackendProtocol protocol) {
+    switch (protocol) {
+        case BackendProtocol::kHttps: return "https://";
+        case BackendProtocol::kHttp:
+        default:                      return "http://";
+    }
+}
 
 enum class BackendRuntimeState : std::uint8_t {
     kDisabled = 0U,
@@ -23,7 +55,6 @@ enum class BackendRuntimeState : std::uint8_t {
     kUploading = 2U,
     kOk = 3U,
     kError = 4U,
-    kNotImplemented = 5U,
 };
 
 enum class UploadResultClass : std::uint8_t {
@@ -43,6 +74,10 @@ inline const char* backendTypeKey(BackendType type) {
             return "sensor_community";
         case BackendType::kAir360Api:
             return "air360_api";
+        case BackendType::kCustomUpload:
+            return "custom_upload";
+        case BackendType::kInfluxDb:
+            return "influxdb";
         case BackendType::kUnknown:
         default:
             return "unknown";
@@ -61,8 +96,6 @@ inline const char* backendRuntimeStateKey(BackendRuntimeState state) {
             return "ok";
         case BackendRuntimeState::kError:
             return "error";
-        case BackendRuntimeState::kNotImplemented:
-            return "not_implemented";
         default:
             return "unknown";
     }

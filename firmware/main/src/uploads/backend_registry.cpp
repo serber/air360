@@ -1,21 +1,18 @@
 #include "air360/uploads/backend_registry.hpp"
 
+#include <array>
 #include <cstring>
 #include <string>
 
+#include "air360/string_utils.hpp"
 #include "air360/uploads/adapters/air360_api_uploader.hpp"
+#include "air360/uploads/adapters/custom_upload_uploader.hpp"
+#include "air360/uploads/adapters/influxdb_uploader.hpp"
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
 
 namespace air360 {
 
 namespace {
-
-bool isNullTerminated(const char* value, std::size_t capacity) {
-    if (value == nullptr || capacity == 0U) {
-        return false;
-    }
-    return value[capacity - 1U] == '\0';
-}
 
 bool validateCommonRecord(const BackendRecord& record, std::string& error) {
     if (record.id == 0U) {
@@ -23,19 +20,39 @@ bool validateCommonRecord(const BackendRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.display_name[0] == '\0') {
-        error = "Backend display name must not be empty.";
-        return false;
-    }
-
-    if (record.display_name[kBackendDisplayNameCapacity - 1U] != '\0') {
-        error = "Backend display name is not null-terminated.";
-        return false;
-    }
-
-    const std::size_t display_name_length = std::strlen(record.display_name);
-    if (display_name_length == 0U || display_name_length >= kBackendDisplayNameCapacity) {
+    if (!isNullTerminated(record.display_name, kBackendDisplayNameCapacity) ||
+        record.display_name[0] == '\0') {
         error = "Backend display name is invalid.";
+        return false;
+    }
+
+    if (!isNullTerminated(record.host, kBackendHostCapacity) ||
+        !isNullTerminated(record.path, kBackendPathCapacity)) {
+        error = "Backend host or path is not null-terminated.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateHttpEndpoint(const BackendRecord& record, std::string& error) {
+    if (record.host[0] == '\0') {
+        error = "Backend host must not be empty.";
+        return false;
+    }
+
+    if (record.path[0] == '\0' || record.path[0] != '/') {
+        error = "Backend path must start with '/'.";
+        return false;
+    }
+
+    if (record.port == 0U) {
+        error = "Backend port must be greater than zero.";
+        return false;
+    }
+
+    if (record.protocol == BackendProtocol::kUnknown) {
+        error = "Backend protocol must be set.";
         return false;
     }
 
@@ -47,83 +64,128 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
-    if (!isNullTerminated(record.device_id_override, kBackendIdentifierCapacity)) {
-        error = "Sensor.Community device id override is not null-terminated.";
+    if (!isNullTerminated(record.sensor_community_device_id, kBackendIdentifierCapacity)) {
+        error = "Sensor.Community device ID is not null-terminated.";
         return false;
     }
 
-    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
-        error = "Sensor.Community endpoint URL is not null-terminated.";
-        return false;
-    }
-
-    if (record.enabled == 0U) {
-        error.clear();
-        return true;
-    }
-
-    if (record.endpoint_url[0] == '\0') {
-        error = "Sensor.Community endpoint URL must not be empty.";
-        return false;
-    }
-
-    return true;
+    return validateHttpEndpoint(record, error);
 }
 
-bool validateAir360ApiRecord(const BackendRecord& record, std::string& error) {
+bool validateHttpBackendRecord(const BackendRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+    return validateHttpEndpoint(record, error);
+}
+
+bool validateCustomUploadRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
     }
 
-    if (!isNullTerminated(record.endpoint_url, kBackendUrlCapacity)) {
-        error = "Air360 API base URL is not null-terminated.";
-        return false;
-    }
-
     if (record.enabled == 0U) {
         error.clear();
         return true;
     }
 
-    if (record.endpoint_url[0] == '\0') {
-        error = "Air360 API base URL must not be empty.";
+    return validateHttpEndpoint(record, error);
+}
+
+bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (!validateHttpEndpoint(record, error)) {
+        return false;
+    }
+
+    if (!isNullTerminated(record.influxdb_measurement, kBackendMeasurementCapacity) ||
+        record.influxdb_measurement[0] == '\0') {
+        error = "InfluxDB measurement name must not be empty.";
         return false;
     }
 
     return true;
 }
 
-constexpr BackendDescriptor kDescriptors[] = {
+static_assert(sizeof(BackendTypeDefaults) == 16U,
+    "BackendTypeDefaults layout changed — update kDescriptors designated initializers");
+static_assert(sizeof(BackendDescriptor) == 36U,
+    "BackendDescriptor layout changed — update kDescriptors designated initializers");
+
+constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
     {
-        BackendType::kSensorCommunity,
-        "sensor_community",
-        "Sensor.Community",
-        true,
-        true,
-        true,
-        &validateSensorCommunityRecord,
-        &createSensorCommunityUploader,
+        .type           = BackendType::kSensorCommunity,
+        .backend_key    = "sensor_community",
+        .display_name   = "Sensor.Community",
+        .defaults       = {
+            .host          = "api.sensor.community",
+            .path          = "/v1/push-sensor-data/",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = true,
+            .path_is_fixed = true,
+        },
+        .validate        = &validateSensorCommunityRecord,
+        .create_uploader = &createSensorCommunityUploader,
     },
     {
-        BackendType::kAir360Api,
-        "air360_api",
-        "Air360 API",
-        true,
-        false,
-        true,
-        &validateAir360ApiRecord,
-        &createAir360ApiUploader,
+        .type           = BackendType::kAir360Api,
+        .backend_key    = "air360_api",
+        .display_name   = "Air360",
+        .defaults       = {
+            .host          = "api.air360.ru",
+            .path          = "/v1/devices/{chip_id}/batches/{batch_id}",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = true,
+            .path_is_fixed = true,
+        },
+        .validate        = &validateHttpBackendRecord,
+        .create_uploader = &createAir360ApiUploader,
     },
-};
+    {
+        .type           = BackendType::kCustomUpload,
+        .backend_key    = "custom_upload",
+        .display_name   = "Custom Upload",
+        .defaults       = {
+            .host          = "",
+            .path          = "",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = false,
+            .path_is_fixed = false,
+        },
+        .validate        = &validateCustomUploadRecord,
+        .create_uploader = &createCustomUploadUploader,
+    },
+    {
+        .type           = BackendType::kInfluxDb,
+        .backend_key    = "influxdb",
+        .display_name   = "InfluxDB",
+        .defaults       = {
+            .host          = "",
+            .path          = "",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = false,
+            .path_is_fixed = false,
+        },
+        .validate        = &validateInfluxDbRecord,
+        .create_uploader = &createInfluxDbUploader,
+    },
+}};
 
 }  // namespace
 
 const BackendDescriptor* BackendRegistry::descriptors() const {
-    return kDescriptors;
+    return kDescriptors.data();
 }
 
 std::size_t BackendRegistry::descriptorCount() const {
-    return sizeof(kDescriptors) / sizeof(kDescriptors[0]);
+    return kDescriptors.size();
 }
 
 const BackendDescriptor* BackendRegistry::findByType(BackendType type) const {
@@ -132,7 +194,6 @@ const BackendDescriptor* BackendRegistry::findByType(BackendType type) const {
             return &descriptor;
         }
     }
-
     return nullptr;
 }
 
@@ -142,7 +203,6 @@ const BackendDescriptor* BackendRegistry::findByKey(const std::string& backend_k
             return &descriptor;
         }
     }
-
     return nullptr;
 }
 
@@ -151,6 +211,11 @@ bool BackendRegistry::validateRecord(const BackendRecord& record, std::string& e
     if (descriptor == nullptr) {
         error = "Unsupported backend type.";
         return false;
+    }
+
+    if (record.enabled == 0U) {
+        error.clear();
+        return true;
     }
 
     if (descriptor->validate == nullptr) {

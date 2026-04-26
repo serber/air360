@@ -1,6 +1,29 @@
 # Upload Adapters
 
-This document describes the two backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
+## Status
+
+Implemented. Keep this document aligned with the currently supported backend adapters and payload mapping logic.
+
+## Scope
+
+This document covers the adapter-specific layer that turns Air360 measurements into backend requests and classifies backend responses.
+
+## Source of truth in code
+
+- `firmware/main/src/uploads/adapters/air360_api_uploader.cpp`
+- `firmware/main/src/uploads/adapters/air360_json_payload.cpp`
+- `firmware/main/src/uploads/adapters/custom_upload_uploader.cpp`
+- `firmware/main/src/uploads/adapters/influxdb_uploader.cpp`
+- `firmware/main/src/uploads/adapters/sensor_community_uploader.cpp`
+- `firmware/main/src/uploads/backend_registry.cpp`
+
+## Read next
+
+- [upload-transport.md](upload-transport.md)
+- [measurement-pipeline.md](measurement-pipeline.md)
+- [configuration-reference.md](configuration-reference.md)
+
+This document describes the four backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
 
 ---
 
@@ -32,7 +55,7 @@ struct UploadRequestSpec {
 };
 ```
 
-`classifyResponse()` maps the transport result to `UploadResultClass`. The upload manager uses this to decide whether to acknowledge or restore the inflight queue.
+`classifyResponse()` maps the transport result to `UploadResultClass`. `UploadManager` applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry. Backend-specific failures also feed the best-effort demotion policy documented in [measurement-pipeline.md](measurement-pipeline.md); shared `kNoNetwork` failures do not.
 
 ---
 
@@ -41,8 +64,12 @@ struct UploadRequestSpec {
 ### Endpoint
 
 ```
-POST http://api.sensor.community/v1/push-sensor-data/
+POST {scheme}://{host}{:port}{path}
 ```
+
+Default value: `https://api.sensor.community/v1/push-sensor-data/`
+
+The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### Grouping — one request per sensor
 
@@ -180,13 +207,14 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 ### Endpoint
 
 ```
-PUT http://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}
+PUT {scheme}://{host}{:port}{path}
 ```
 
 - `{chip_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
 - `{batch_id}` — unique `uint64_t` batch identifier from `MeasurementBatch`
-
-Trailing slashes are stripped from the base URL before constructing the path.
+- Default value: `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`
+- Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{chip_id}/batches/{batch_id}` for backward compatibility.
+- The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### One request per batch
 
@@ -266,9 +294,117 @@ Any other HTTP status → `kHttpError`.
 
 ---
 
+## Custom Upload
+
+### Endpoint
+
+```
+POST {scheme}://{host}{:port}{path}
+```
+
+- No compiled-in default URL is provided.
+- The user must enter host and path before enabling the backend.
+- The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
+
+### One request per batch
+
+Like `Air360 API`, this adapter emits exactly **one request per upload cycle** and includes all supported sensor types in a single JSON body.
+
+### Payload and preconditions
+
+`Custom Upload` reuses the same shared Air360 JSON payload builder as `Air360 API`. That means it has the same behavior for:
+
+- preconditions: `batch.created_unix_ms > 0` and at least one of `batch.chip_id` / `batch.short_chip_id` must be present
+- grouping: points are grouped by `(sensor_type, sample_time_ms)`
+- value formatting: JSON numbers with per-kind precision from `sensorValueKindPrecision()`
+- sensor coverage: all sensor types are passed through without filtering
+
+### Headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `User-Agent` | `air360/{project_version}` |
+
+### Body format
+
+The JSON body is identical to the `Air360 API` body shown above. Only the HTTP method and destination URL differ.
+
+### Success condition
+
+HTTP 200–208 and **409** → `kSuccess`.
+
+Any other HTTP status → `kHttpError`.
+
+---
+
+## InfluxDB
+
+### Endpoint
+
+```
+POST {scheme}://{host}{:port}{path}
+```
+
+- The URL is built from the InfluxDB form fields on the Backends page.
+- No compiled-in host or path is provided.
+- The default measurement name is `air360`.
+- The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
+
+### One request per batch
+
+The adapter emits exactly **one POST per upload cycle**. The body contains multiple Influx line protocol rows, one row per grouped sample.
+
+### Grouping
+
+Batch points are grouped by `(sensor_id, sensor_type, sample_time_ms)`.
+
+Each group becomes one line:
+- measurement: configured `measurement_name`
+- tags: `node`, `sensor_type`, `sensor_id`
+- fields: one field per `SensorValueKind`
+- timestamp: `sample_time_ms` converted to nanoseconds
+
+If the same `SensorValueKind` appears more than once in one group, the latest value wins.
+
+### Headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/x-www-form-urlencoded` |
+| `User-Agent` | `air360/{project_version}` |
+| `Authorization` | `Basic ...` when username or password is configured |
+
+The `Content-Type` follows the historical airrohr InfluxDB integration.
+
+### Body format
+
+Example:
+
+```text
+air360,node=789012,sensor_type=bme280,sensor_id=1 temperature_c=24.1,humidity_percent=53.2,pressure_hpa=1013.1 1744400000000000000
+air360,node=789012,sensor_type=sps30,sensor_id=2 pm1_0_ug_m3=1.3,pm2_5_ug_m3=2.1 1744399995000000000
+```
+
+Field names use `sensorValueKindKey()`. Numeric values are sent without quotes.
+
+### Extra preconditions
+
+- `batch.created_unix_ms > 0`
+- at least one measurement point is present
+- valid InfluxDB configuration when the backend is enabled
+
+### Success condition
+
+HTTP 200–208 → `kSuccess`.
+
+Any other HTTP status → `kHttpError`.
+
+---
+
 ## Transport layer
 
-Both adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
+All adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
 
 - HTTP client: `esp_http_client` with CRT bundle (TLS capable)
 - Timeout: 15 000 ms per request
@@ -290,19 +426,19 @@ struct UploadTransportResponse {
 };
 ```
 
-If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classifyResponse()` returns `kTransportError` in both adapters — regardless of what the HTTP status might say.
+If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classifyResponse()` returns `kTransportError` in all adapters — regardless of what the HTTP status might say.
 
 ---
 
 ## Comparison
 
-| Property | Sensor.Community | Air360 API |
-|----------|-----------------|------------|
-| Method | POST | PUT |
-| Requests per cycle | One per supported sensor | One per batch |
-| Payload format | String values in `sensordatavalues` | Number values in typed `samples` |
-| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` |
-| Authentication | None | None |
-| Supported sensors | BME280, BME680, DHT11/22, DS18B20, GPS, SPS30 | All sensor types |
-| Success HTTP codes | 200–208 | 200–208, 409 |
-| Extra preconditions | None | unix_ms > 0, chip_id non-empty |
+| Property | Sensor.Community | Air360 API | Custom Upload | InfluxDB |
+|----------|-----------------|------------|---------------|----------|
+| Method | POST | PUT | POST | POST |
+| Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
+| Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
+| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
+| Authentication | None | None | None | Optional Basic Auth |
+| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT4X, DS18B20, SCD30, GPS, SPS30 | All sensor types | All sensor types | All sensor types |
+| Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
+| Extra preconditions | None | unix_ms > 0, chip_id non-empty | unix_ms > 0, chip_id non-empty | unix_ms > 0, valid Influx config |

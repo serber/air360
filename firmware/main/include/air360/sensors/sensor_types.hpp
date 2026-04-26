@@ -22,6 +22,8 @@ enum class SensorType : std::uint8_t {
     kScd30 = 11U,
     kHtu2x = 12U,
     kSht4x = 13U,
+    kIna219 = 14U,
+    kMhz19b = 15U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -40,6 +42,7 @@ enum class SensorRuntimeState : std::uint8_t {
     kAbsent = 4U,
     kUnsupported = 5U,
     kError = 6U,
+    kFailed = 7U,
 };
 
 inline const char* transportKindKey(TransportKind kind) {
@@ -87,6 +90,8 @@ enum class SensorValueKind : std::uint8_t {
     kCourseDeg = 26U,
     kHdop = 27U,
     kIlluminanceLux = 28U,
+    kCurrentMa = 29U,
+    kPowerMw = 30U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -141,6 +146,10 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "hdop";
         case SensorValueKind::kIlluminanceLux:
             return "illuminance_lux";
+        case SensorValueKind::kCurrentMa:
+            return "current_ma";
+        case SensorValueKind::kPowerMw:
+            return "power_mw";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -199,6 +208,10 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "HDOP";
         case SensorValueKind::kIlluminanceLux:
             return "Illuminance";
+        case SensorValueKind::kCurrentMa:
+            return "Current";
+        case SensorValueKind::kPowerMw:
+            return "Power";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -249,6 +262,10 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "mV";
         case SensorValueKind::kIlluminanceLux:
             return "lux";
+        case SensorValueKind::kCurrentMa:
+            return "mA";
+        case SensorValueKind::kPowerMw:
+            return "mW";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -284,6 +301,9 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
             return 0;
         case SensorValueKind::kIlluminanceLux:
             return 1;
+        case SensorValueKind::kCurrentMa:
+        case SensorValueKind::kPowerMw:
+            return 1;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:
             return 6;
@@ -292,6 +312,28 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
         case SensorValueKind::kUnknown:
         default:
             return 2;
+    }
+}
+
+inline const char* sensorTypeKey(SensorType type) {
+    switch (type) {
+        case SensorType::kBme280:   return "bme280";
+        case SensorType::kGpsNmea:  return "gps_nmea";
+        case SensorType::kDht11:    return "dht11";
+        case SensorType::kDht22:    return "dht22";
+        case SensorType::kDs18b20:  return "ds18b20";
+        case SensorType::kBme680:   return "bme680";
+        case SensorType::kSps30:    return "sps30";
+        case SensorType::kScd30:    return "scd30";
+        case SensorType::kHtu2x:    return "htu2x";
+        case SensorType::kSht4x:    return "sht4x";
+        case SensorType::kMe3No2:   return "me3_no2";
+        case SensorType::kVeml7700: return "veml7700";
+        case SensorType::kIna219:   return "ina219";
+        case SensorType::kMhz19b:   return "mhz19b";
+        case SensorType::kSds011:
+        case SensorType::kUnknown:
+        default:                    return "unknown";
     }
 }
 
@@ -309,6 +351,8 @@ inline const char* sensorRuntimeStateKey(SensorRuntimeState state) {
             return "absent";
         case SensorRuntimeState::kUnsupported:
             return "unsupported";
+        case SensorRuntimeState::kFailed:
+            return "failed";
         case SensorRuntimeState::kError:
         default:
             return "error";

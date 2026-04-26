@@ -18,7 +18,7 @@ interface IngestValue {
 
 interface IngestSample {
   sensor_type: SensorType;
-  sample_time_unix_ms?: number;
+  sample_time_unix_ms: number;
   values: IngestValue[];
 }
 

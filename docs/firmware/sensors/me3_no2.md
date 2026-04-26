@@ -1,12 +1,32 @@
 # ME3-NO2
 
+## Status
+
+Implemented. Keep this document aligned with the current ME3-NO2 driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 ME3-NO2 analog sensor path, including ADC binding, output fields, and current limitations.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/me3_no2_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/me3_no2_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [adding-new-sensor.md](adding-new-sensor.md)
+
 Analog electrochemical nitrogen dioxide (NO₂) sensor from the ME3 series. Connected via ADC.
 
 ## Transport
 
 - Analog input (ADC)
 - Pin configured from the sensor record (`record.analog_gpio_pin`)
-- Valid pins: GPIO4, GPIO5, GPIO6
+- Valid pins come from the sensor descriptor; current descriptor allows GPIO4, GPIO5, and GPIO6
 - ADC unit: `ADC_UNIT_1` (resolved automatically from the GPIO number)
 - Attenuation: `ADC_ATTEN_DB_12` (input range 0–3.9 V)
 - Bit width: `ADC_BITWIDTH_DEFAULT`

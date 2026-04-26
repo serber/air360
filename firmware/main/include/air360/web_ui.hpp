@@ -25,6 +25,9 @@ enum class WebTemplateKey {
     kSensorCard = 7,
     kOverviewBackendItem = 8,
     kOverviewSensorItem = 9,
+    kShell = 10,
+    kReading = 11,
+    kSectionRow = 12,
 };
 
 using WebTemplateBindings = std::vector<std::pair<std::string, std::string>>;

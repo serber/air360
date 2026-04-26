@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -13,6 +14,35 @@ namespace air360 {
 using SensorValidationFn = bool (*)(const SensorRecord& record, std::string& error);
 using SensorDriverFactory = std::unique_ptr<SensorDriver> (*)();
 
+constexpr std::size_t kMaxI2cAddressesPerSensor = 4U;
+constexpr std::size_t kMaxUartPortsPerSensor = 2U;
+constexpr std::size_t kMaxGpioPinsPerSensor = 3U;
+inline constexpr std::array<std::int16_t, kMaxGpioPinsPerSensor>
+    kBoardSensorGpioPins{{4, 5, 6}};
+inline constexpr std::uint8_t kBoardSensorGpioPinCount =
+    static_cast<std::uint8_t>(kBoardSensorGpioPins.size());
+
+struct SensorUartPortBinding {
+    std::uint8_t port_id;
+    std::int16_t rx_gpio_pin;
+    std::int16_t tx_gpio_pin;
+};
+
+inline constexpr std::array<SensorUartPortBinding, kMaxUartPortsPerSensor>
+    kSensorUartPortBindings{{
+        {1U, 18, 17},
+        {2U, 16, 15},
+    }};
+
+inline const SensorUartPortBinding* findSensorUartPortBinding(std::uint8_t port_id) {
+    for (const auto& binding : kSensorUartPortBindings) {
+        if (binding.port_id == port_id) {
+            return &binding;
+        }
+    }
+    return nullptr;
+}
+
 struct SensorDescriptor {
     SensorType type;
     const char* type_key;
@@ -25,13 +55,23 @@ struct SensorDescriptor {
     std::uint32_t default_poll_interval_ms;
     std::uint8_t default_i2c_bus_id;
     std::uint8_t default_i2c_address;
+    std::array<std::uint8_t, kMaxI2cAddressesPerSensor> allowed_i2c_addresses;
+    std::uint8_t allowed_i2c_address_count;
     std::uint8_t default_uart_port_id;
+    std::array<std::uint8_t, kMaxUartPortsPerSensor> allowed_uart_ports;
+    std::uint8_t allowed_uart_port_count;
     std::int16_t default_uart_rx_gpio_pin;
     std::int16_t default_uart_tx_gpio_pin;
     std::uint32_t default_uart_baud_rate;
+    std::array<std::int16_t, kMaxGpioPinsPerSensor> allowed_gpio_pins;
+    std::uint8_t allowed_gpio_pin_count;
     SensorValidationFn validate;
     SensorDriverFactory create_driver;
 };
+
+inline std::int16_t firstAllowedGpioPin(const SensorDescriptor& descriptor) {
+    return descriptor.allowed_gpio_pin_count > 0U ? descriptor.allowed_gpio_pins[0] : -1;
+}
 
 class SensorRegistry {
   public:

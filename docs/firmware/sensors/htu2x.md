@@ -1,5 +1,25 @@
 # HTU2X
 
+## Status
+
+Implemented. Keep this document aligned with the current HTU2X-compatible driver and registry defaults.
+
+## Scope
+
+This document covers the Air360 HTU2X family driver, including protocol compatibility assumptions and default I2C binding.
+
+## Source of truth in code
+
+- `firmware/main/src/sensors/drivers/htu2x_sensor.cpp`
+- `firmware/main/include/air360/sensors/drivers/htu2x_sensor.hpp`
+- `firmware/main/src/sensors/sensor_registry.cpp`
+
+## Read next
+
+- [README.md](README.md)
+- [supported-sensors.md](supported-sensors.md)
+- [../transport-binding.md](../transport-binding.md)
+
 Temperature and humidity sensor from the HTU2x family (HTU21D and compatible) by TE Connectivity. The driver uses the `si7021` component, which is protocol-compatible with HTU2X.
 
 ## Transport
