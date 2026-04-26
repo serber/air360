@@ -90,7 +90,7 @@ std::string firmwareVersionLabel() {
         return "version unavailable";
     }
 
-    return std::string("\xc2\xb7 ") + app->version;
+    return std::string(app->version);
 }
 
 const char* pageDataKey(WebPageKey page) {
@@ -311,11 +311,10 @@ std::string renderPageDocument(
     html += "<div class='crumb'>"; html += pageCrumb(active_page); html += "</div>";
     html += "<div class='title-row'>";
     html += "<h1 class='page-title'>"; html += htmlEscape(heading); html += "</h1>";
-    html += "</div></div>";
-
     if (!lead_html.empty()) {
-        html += "<p class='lead'>"; html += lead_html; html += "</p>";
+        html += lead_html;
     }
+    html += "</div></div>";
 
     // Page content
     html += "<div class='content'>"; html += body_html; html += "</div>";

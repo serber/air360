@@ -212,6 +212,13 @@ html, body {
   gap: 12px;
   flex-wrap: wrap;
 }
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.actions:empty { display: none; }
 .crumb {
   font-size: 11px;
   color: var(--ink-4);

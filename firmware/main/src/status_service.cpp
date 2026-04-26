@@ -1558,7 +1558,7 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
         WebPageKey::kDiagnostics,
         "Air 360 diagnostics",
         "Diagnostics",
-        "Runtime tasks, network recovery, application logs, and raw status output for troubleshooting.",
+        "",
         body,
         true);
 }
