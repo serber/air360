@@ -134,7 +134,7 @@ constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
     {
         .type           = BackendType::kAir360Api,
         .backend_key    = "air360_api",
-        .display_name   = "Air360 API",
+        .display_name   = "Air360",
         .defaults       = {
             .host          = "api.air360.ru",
             .path          = "/v1/devices/{chip_id}/batches/{batch_id}",

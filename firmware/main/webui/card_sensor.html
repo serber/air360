@@ -1,41 +1,39 @@
-<div class='panel panel--sensor stack'>
-    <h2>{{DISPLAY_NAME}}</h2>
-    <div class='meta'>
-        <span class='pill'>Runtime <code>{{RUNTIME_STATE}}</code></span>
-        <span class='pill'>Transport {{TRANSPORT_SUMMARY}}</span>
-        <span class='pill'>Poll {{POLL_INTERVAL_MS}} ms</span>
-        <span class='pill'>Queued {{QUEUED_SAMPLE_COUNT}}</span>
+<div class='card' style='background:var(--bg-sunken);border-color:var(--line-3)'>
+  <div class='card-header' style='border-bottom-color:var(--line-3)'>
+    <div style='display:flex;align-items:center;gap:10px'>
+      <span style='font-family:var(--font-display);font-weight:700;font-size:14px'>{{DISPLAY_NAME}}</span>
+      {{RUNTIME_STATE_CHIP}}
     </div>
-    {{RUNTIME_ERROR_BLOCK}}
-    {{LATEST_READING_BLOCK}}
-    <form class='stack' method='POST' action='/sensors' data-dirty-track='sensor-{{SENSOR_ID}}' data-sensor-form>
-        <input type='hidden' name='action' value='update'>
-        <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
-        <div class='field'>
-            <label for='sensor_type_{{SENSOR_ID}}'>Model</label>
-            <select class='select' id='sensor_type_{{SENSOR_ID}}' name='sensor_type' data-sensor-type-select>
-                {{SENSOR_TYPE_OPTIONS}}
-            </select>
-        </div>
-        <p class='hint' data-sensor-defaults {{DEFAULTS_HINT_HIDDEN}}>{{DEFAULTS_HINT_TEXT}}</p>
-        <div class='field'>
-            <label for='poll_interval_ms_{{SENSOR_ID}}'>Poll interval (ms)</label>
-            <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='{{POLL_INTERVAL_MS}}'>
-        </div>
+    <div class='card-right'>
+      <button class='btn sm' type='submit' form='sensor-update-{{SENSOR_ID}}'>Save</button>
+      <button class='btn sm danger' type='submit' form='sensor-delete-{{SENSOR_ID}}'>Remove</button>
+    </div>
+  </div>
+  <div class='card-body'>
+    {{STATUS_BLOCK}}
+    <form id='sensor-update-{{SENSOR_ID}}' method='POST' action='/sensors' data-dirty-track='sensor-{{SENSOR_ID}}' data-sensor-form>
+      <input type='hidden' name='action' value='update'>
+      <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
+      <div class='{{FIELD_ROW_CLASS}}'>
+        <label class='field'>
+          <span class='field-label'>Model</span>
+          <select class='select' id='sensor_type_{{SENSOR_ID}}' name='sensor_type' data-sensor-type-select>
+            {{SENSOR_TYPE_OPTIONS}}
+          </select>
+          <span class='field-hint' data-sensor-defaults {{DEFAULTS_HINT_HIDDEN}}>{{DEFAULTS_HINT_TEXT}}</span>
+        </label>
         {{I2C_FIELD_BLOCK}}
         {{UART_FIELD_BLOCK}}
         {{GPIO_FIELD_BLOCK}}
-        <label class='checkbox'>
-            <input name='enabled' type='checkbox' {{ENABLED_CHECKED}}>
-            <span class='checkbox__label'>Enabled</span>
+        <label class='field'>
+          <span class='field-label'>Poll interval (ms)</span>
+          <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='{{POLL_INTERVAL_MS}}'>
         </label>
-        <div class='split-actions'>
-            <button class='button' type='submit'>Stage sensor changes</button>
-        </div>
+      </div>
     </form>
-    <form method='POST' action='/sensors' data-confirm='Stage deletion for this sensor?'>
-        <input type='hidden' name='action' value='delete'>
-        <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
-        <button class='button button--danger' type='submit'>Stage sensor deletion</button>
+    <form id='sensor-delete-{{SENSOR_ID}}' method='POST' action='/sensors' data-confirm='Remove this sensor?'>
+      <input type='hidden' name='action' value='delete'>
+      <input type='hidden' name='sensor_id' value='{{SENSOR_ID}}'>
     </form>
+  </div>
 </div>

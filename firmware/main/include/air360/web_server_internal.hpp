@@ -22,7 +22,7 @@ namespace air360::web {
 inline constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
 // Shared with web_server.cpp so that logHttpHandlerWatermark() can compare
 // the FreeRTOS high-water mark against the configured httpd task stack.
-inline constexpr std::size_t kHttpdStackBytes = 10240U;
+inline constexpr std::size_t kHttpdStackBytes = 16384U;
 
 esp_err_t readRequestBody(httpd_req_t* request, std::string& out_body);
 esp_err_t sendRequestBodyTooLarge(httpd_req_t* request);

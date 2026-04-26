@@ -54,11 +54,11 @@ bool Air360ApiUploader::validateConfig(
     const BackendRecord& record,
     std::string& error) const {
     if (record.host[0] == '\0') {
-        error = "Air360 API host must not be empty.";
+        error = "Air360 host must not be empty.";
         return false;
     }
     if (record.port == 0U) {
-        error = "Air360 API port must be greater than zero.";
+        error = "Air360 port must be greater than zero.";
         return false;
     }
     error.clear();

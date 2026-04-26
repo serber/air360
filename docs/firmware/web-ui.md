@@ -147,11 +147,11 @@ In `kSetupAp` mode, the SSID field also shows a **network selector** dropdown po
 
 The **Check SNTP** button fires `POST /check-sntp` with the current input value and displays the result inline below the field. It does not submit the form.
 
-**Static IP fields** (collapsed unless `Use static IP` is checked):
+**Static IP fields** (collapsed unless the Static IP switch is on):
 
 | Field | Input | Notes |
 |-------|-------|-------|
-| Use static IP | `<input type=checkbox>` | Enables the fieldset; toggles disabled state via JS |
+| Use static IP | `.switch` button + hidden `<input type=checkbox name=sta_use_static_ip>` | Switch shows/hides the section body; checkbox carries the value in POST |
 | IP address | `<input maxlength=15>` | `sta_ip` in `DeviceConfig`; placeholder `192.168.1.100` |
 | Subnet mask | `<input maxlength=15>` | `sta_netmask`; placeholder `255.255.255.0` |
 | Gateway | `<input maxlength=15>` | `sta_gateway`; placeholder `192.168.1.1` |
@@ -159,11 +159,11 @@ The **Check SNTP** button fires `POST /check-sntp` with the current input value 
 
 When `sta_ip` is not yet stored and the device is currently connected via DHCP, the IP, netmask, and gateway fields are **pre-filled from the current DHCP lease** (`esp_netif_get_ip_info` on `WIFI_STA_DEF`) to make it easier to convert an existing lease to a static assignment. DNS is pre-filled from the primary DNS server if available.
 
-**Mobile Uplink fields** (collapsed unless `Enable cellular uplink` is checked):
+**Mobile Uplink fields** (collapsed unless the Mobile uplink switch is on):
 
 | Field | Input | Notes |
 |-------|-------|-------|
-| Enable cellular | `<input type=checkbox>` | Stored as `cellular_enabled` in `CellularConfig`; enables the fieldset |
+| Enable cellular | `.switch` button + hidden `<input type=checkbox name=cellular_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
 | APN | `<input maxlength=63>` | Required; pre-filled with `internet` when empty |
 | Username | `<input maxlength=31>` | Optional; leave empty if carrier does not require it |
 | Password | `<input type=password maxlength=63>` | Optional; Show/Hide toggle |
@@ -171,11 +171,11 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 | Connectivity check host | `<input maxlength=63>` | IPv4 address to ping after PPP connects; pre-filled with `8.8.8.8` when empty; leave empty to skip |
 | Wi-Fi debug window | `<input type=number min=0 max=3600>` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 
-**BLE fields** (collapsed unless `Enable BLE advertising` is checked):
+**BLE fields** (collapsed unless the BLE advertising switch is on):
 
 | Field | Input | Notes |
 |-------|-------|-------|
-| Enable BLE advertising | `<input type=checkbox>` | Stored as `ble_advertise_enabled` in `DeviceConfig`; starts `BleAdvertiser` on boot |
+| Enable BLE advertising | `.switch` button + hidden `<input type=checkbox name=ble_advertise_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
 | Advertising interval | `<select>` | Stored as `ble_adv_interval_index`; options map to `100 ms`, `300 ms`, `1 s`, and `3 s` |
 
 **Submit action:** `POST /config`
@@ -333,24 +333,28 @@ This endpoint does not modify stored configuration. Use `POST /config` followed 
 
 CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.css` and `/assets/air360.js`. Both are compiled into the firmware binary as C arrays via `web_assets.hpp`. Requests to unrecognised asset paths return HTTP 404.
 
+The CSS uses a token-based design system with full light/dark theme support (`[data-theme="dark"]` on `<html>`). Theme preference is stored in `localStorage` under `air360-theme` and restored before first paint by `air360.js`. No external font or library CDN is used — all fallbacks are system fonts.
+
 ---
 
 ## JavaScript behaviour
 
-`air360.js` runs one `DOMContentLoaded` listener that sets up:
+`air360.js` wraps all code in an IIFE. Theme restoration runs immediately (before `DOMContentLoaded`) to avoid a flash of unstyled content. Click delegation and switch initialisation run inside `DOMContentLoaded`.
 
 | Feature | Mechanism |
 |---------|-----------|
+| **Theme toggle** | `#theme-toggle` button toggles `data-theme="dark"` on `<html>` and persists to `localStorage`. |
+| **Switch buttons** | Buttons with `.switch[data-drives-checkbox="name"]` toggle `.on`, show/hide the element identified by `data-reveals`, and sync a hidden `<input type="checkbox" name="name">`. The checkbox dispatches a `change` event so existing sync functions (`syncStaticIpFields`, `syncCellularFields`, `syncBleFields`) still fire. Initialised from the server-rendered checkbox `checked` attribute. |
 | **Dirty tracking** | Forms with `data-dirty-track` mark their parent panel with `panel--dirty` when any field changes. A `beforeunload` guard warns if unsaved changes exist when leaving the page. |
 | **Sensor form sync** | When the sensor type `<select>` changes, the I2C address selector, UART port selector, or GPIO pin selector is shown/hidden. I2C, UART, and GPIO options come from descriptor allowed lists. |
 | **Config form sync** | When the Wi-Fi SSID field is cleared, the password field is disabled and the hint text updates. |
-| **Wi-Fi network selector** | On the config page in setup AP mode, `loadWifiNetworks()` calls `GET /wifi-scan` and populates the SSID dropdown. If `scan_in_progress` is true, it polls until the scan completes. Selecting an option fills the SSID text input. A "Refresh" action fires `POST /wifi-scan` and then polls `GET /wifi-scan` until `scan_in_progress` is false. |
-| **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status paragraph. |
+| **Wi-Fi network selector** | On the config page, `loadWifiNetworks()` calls `GET /wifi-scan`, populates the SSID `<select>`, and — if a `.wifi-menu-list` element is present — also populates the custom picker. Selecting a `.wifi-option` updates the hidden `<select>` value. |
+| **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status span. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |
-| **Show/Hide password** | Buttons with `data-secret-toggle` toggle `input.type` between `"password"` and `"text"`. |
+| **Password visibility** | Buttons with `data-toggle-pw="id"` (new) or `data-secret-toggle="id"` (legacy) toggle `input.type` between `"password"` and `"text"`. |
 
-No external libraries are used. The script is plain ES2020 and runs synchronously with the page load.
+No external libraries are used. The script is plain ES2020.
 
 ---
 
@@ -358,4 +362,4 @@ No external libraries are used. The script is plain ES2020 and runs synchronousl
 
 HTML pages are assembled server-side using a simple `{{PLACEHOLDER}}` substitution engine (`renderTemplate` / `renderPageDocument`). Templates live in `firmware/main/webui/` and are compiled into the binary as C string literals. All user-supplied values passed into templates are HTML-escaped before substitution to prevent injection.
 
-The page shell (navigation, `<head>`, layout wrapper) is generated by `renderPageDocument()`, which takes an active page key to highlight the correct navigation link.
+The page shell (navigation, `<head>`, layout wrapper) is generated by `renderPageDocument()`, which takes an active page key to highlight the correct navigation link. The generated `<body>` element receives a `data-page` attribute (`overview`, `device`, `sensors`, `backends`, `diagnostics`) that can be used as a CSS hook. The top navigation bar is rendered server-side as `<header class="topnav">` with SVG icons and a theme toggle button; it does not depend on client-side JavaScript to render. Each page emits a `.crumb` (uppercase section label) and `<h1 class="page-title">` in a `.page-header` wrapper above the template content.

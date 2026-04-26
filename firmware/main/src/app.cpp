@@ -1,5 +1,6 @@
 #include "air360/app.hpp"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdint>
 
@@ -22,7 +23,10 @@ namespace {
 constexpr char kTag[] = "air360.app";
 // The maintenance loop only retries SNTP and housekeeping, so 10 s is frequent
 // enough for recovery while keeping the main task mostly asleep.
-constexpr TickType_t kRuntimeMaintenanceDelay = pdMS_TO_TICKS(10000);
+constexpr std::uint32_t kRuntimeMaintenanceDelayMs = 10000U;
+// Must be well under CONFIG_ESP_TASK_WDT_TIMEOUT_S so the main task feeds TWDT
+// on every slice even if the scheduler is under load.
+constexpr std::uint32_t kRuntimeMaintenanceSliceMs = 3000U;
 // GPIO48: built-in WS2812 RGB LED on ESP32-S3-DevKitC-1.
 constexpr int kRgbLedGpio = 48;
 // Keep the status LED intentionally dim so the board remains readable on a
@@ -465,8 +469,13 @@ void App::run() {
 
         status_service_.setNetworkState(network_manager_.state());
         status_service_.setCellularState(cellular_manager_.state());
-        esp_task_wdt_reset();
-        vTaskDelay(kRuntimeMaintenanceDelay);
+        std::uint32_t remaining_ms = kRuntimeMaintenanceDelayMs;
+        while (remaining_ms > 0U) {
+            const std::uint32_t slice = std::min(remaining_ms, kRuntimeMaintenanceSliceMs);
+            vTaskDelay(pdMS_TO_TICKS(slice));
+            esp_task_wdt_reset();
+            remaining_ms -= slice;
+        }
     }
 }
 

@@ -50,11 +50,13 @@ constexpr std::size_t kNetworkWorkerTaskStackSize = 6144U;
 // Slightly above idle priority so reconnect/scan work runs promptly but never
 // starves the sensor and upload workers.
 constexpr UBaseType_t kNetworkWorkerTaskPriority = tskIDLE_PRIORITY + 2U;
-// 5 s idle wait feeds TWDT regularly even if no reconnect/scan request arrives.
-constexpr TickType_t kNetworkWorkerWait = pdMS_TO_TICKS(5000U);
+// 3 s idle wait — must be well under the 5 s TWDT timeout so the reset always
+// lands before the watchdog fires, even with scheduler jitter.
+constexpr TickType_t kNetworkWorkerWait = pdMS_TO_TICKS(3000U);
 // 20 s scan timeout allows active scans to finish on crowded bands without
 // blocking the worker forever if Wi-Fi firmware stops reporting completion.
-constexpr TickType_t kScanRequestTimeout = pdMS_TO_TICKS(20000U);
+constexpr std::uint32_t kScanTotalTimeoutMs = 20000U;
+constexpr std::uint32_t kScanWaitSliceMs = 500U;
 constexpr std::uint32_t kWorkerReconnectReq = (1UL << 0);
 constexpr std::uint32_t kWorkerSetupApRetryReq = (1UL << 1);
 constexpr std::uint32_t kWorkerScanReq = (1UL << 2);
@@ -1343,9 +1345,17 @@ esp_err_t NetworkManager::startAsyncScanAndWait() {
         return fail(start_err);
     }
 
-    // Block until WIFI_EVENT_SCAN_DONE gives the semaphore (or timeout)
-    const BaseType_t taken = xSemaphoreTake(context.scan_done, kScanRequestTimeout);
-    if (taken != pdTRUE) {
+    // Poll in short slices so the worker task can feed TWDT during a long scan.
+    const std::int64_t scan_started_ms = uptimeMilliseconds();
+    bool scan_taken = false;
+    while ((uptimeMilliseconds() - scan_started_ms) < kScanTotalTimeoutMs) {
+        if (xSemaphoreTake(context.scan_done, pdMS_TO_TICKS(kScanWaitSliceMs)) == pdTRUE) {
+            scan_taken = true;
+            break;
+        }
+        resetCurrentTaskWatchdogIfSubscribed();
+    }
+    if (!scan_taken) {
         esp_wifi_scan_stop();
         return fail(ESP_ERR_TIMEOUT, "Wi-Fi scan timeout");
     }
