@@ -31,9 +31,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-// Current route set plus captive-portal catchall fits in 15 slots while
-// leaving a little room for future diagnostics endpoints.
-constexpr std::size_t kHttpServerMaxUriHandlers = 15U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 20U;
 // Match the save-time validation floor so the web UI cannot submit a poll
 // interval below what SensorManager supports at runtime.
 constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
