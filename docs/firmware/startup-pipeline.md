@@ -280,7 +280,7 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 `WebServer::start()` configures and starts `esp_http_server`:
 
 - Stack size: 16 384 bytes
-- Max URI handlers: 15
+- Max URI handlers: 20
 
 HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
 

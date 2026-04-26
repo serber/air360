@@ -37,7 +37,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | Port | `http_port` from `DeviceConfig` (default 80) |
 | Task stack | 16 384 bytes (`web::kHttpdStackBytes`) |
 | Worker model | Single httpd task; all concurrent connections share the one stack |
-| URI handlers | up to 15 |
+| URI handlers | up to 20 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
 | Request body limit | 4 096 bytes; oversized POST bodies return `413 Payload Too Large` |
 | Request body receive timeouts | `httpd_req_recv()` timeout results are retried up to 5 consecutive times before the request fails with a timeout |
