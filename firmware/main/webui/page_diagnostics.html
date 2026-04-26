@@ -1,39 +1,37 @@
-<div class='stack stack--scene'>
-    <section class='stats'>
-        <div class='stat'><div class='stat__label'>Total Available</div><div class='stat__value'><code>{{TOTAL_HEAP}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Free Heap</div><div class='stat__value'><code>{{FREE_HEAP}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Min Heap</div><div class='stat__value'><code>{{MIN_HEAP}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Largest Block</div><div class='stat__value'><code>{{LARGEST_BLOCK}}</code></div></div>
-    </section>
-
-    <section class='panel panel--runtime stack'>
-        <h2>Tasks</h2>
-        {{TASK_BLOCK}}
-    </section>
-
-    <section class='panel panel--runtime stack'>
-        <h2>Network Recovery</h2>
-        {{NETWORK_BLOCK}}
-    </section>
-
-    <section class='panel panel--runtime stack runtime-dump'>
-        <div class='runtime-dump__head'>
-            <h2>Application Logs</h2>
-            <div class='runtime-dump__actions'>
-                <span class='muted runtime-dump__status' data-logs-status aria-live='polite'></span>
-            </div>
-        </div>
-        <textarea class='runtime-dump__console' readonly spellcheck='false' data-logs-console>{{LOG_CONTENTS}}</textarea>
-    </section>
-
-    <section class='panel panel--runtime stack runtime-dump'>
-        <div class='runtime-dump__head'>
-            <h2>Raw Status JSON</h2>
-            <div class='runtime-dump__actions'>
-                <span class='muted runtime-dump__status' data-copy-runtime-dump-status aria-live='polite'></span>
-                <button type='button' class='button button--secondary' data-copy-runtime-dump>Copy JSON</button>
-            </div>
-        </div>
-        <textarea class='runtime-dump__console' readonly spellcheck='false'>{{STATUS_JSON_DUMP}}</textarea>
-    </section>
+<div class='row-4'>
+  <div class='stat'><div class='stat-label'>Total heap</div><div class='stat-value sm'>{{TOTAL_HEAP}}</div></div>
+  <div class='stat'><div class='stat-label'>Free heap</div><div class='stat-value sm'>{{FREE_HEAP}}</div></div>
+  <div class='stat'><div class='stat-label'>Min heap</div><div class='stat-value sm'>{{MIN_HEAP}}</div></div>
+  <div class='stat'><div class='stat-label'>Largest block</div><div class='stat-value sm'>{{LARGEST_BLOCK}}</div></div>
 </div>
+
+<section class='card'>
+  <div class='card-header'><div><h3 class='card-title'>Tasks</h3></div></div>
+  <div class='card-body'>{{TASK_BLOCK}}</div>
+</section>
+
+<section class='card'>
+  <div class='card-header'><div><h3 class='card-title'>Network recovery</h3></div></div>
+  <div class='card-body'>{{NETWORK_BLOCK}}</div>
+</section>
+
+<section class='card runtime-dump'>
+  <div class='card-header'>
+    <div><h3 class='card-title'>Application logs</h3></div>
+    <div class='card-right'>
+      <span class='muted' data-logs-status aria-live='polite'></span>
+    </div>
+  </div>
+  <textarea class='console-area' readonly spellcheck='false' data-logs-console>{{LOG_CONTENTS}}</textarea>
+</section>
+
+<section class='card runtime-dump'>
+  <div class='card-header'>
+    <div><h3 class='card-title'>Raw status JSON</h3></div>
+    <div class='card-right'>
+      <span class='muted' data-copy-runtime-dump-status aria-live='polite'></span>
+      <button type='button' class='btn sm' data-copy-runtime-dump>Copy JSON</button>
+    </div>
+  </div>
+  <textarea class='console-area runtime-dump__console' readonly spellcheck='false'>{{STATUS_JSON_DUMP}}</textarea>
+</section>

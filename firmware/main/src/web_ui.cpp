@@ -14,15 +14,32 @@ struct NavItem {
     WebPageKey page;
     const char* href;
     const char* label;
+    const char* icon;  // inner content of the nav SVG (24×24 viewBox)
 };
 
+// clang-format off
 constexpr std::array<NavItem, 5> kNavItems{{
-    {WebPageKey::kHome, "/", "Overview"},
-    {WebPageKey::kDiagnostics, "/diagnostics", "Diagnostics"},
-    {WebPageKey::kConfig, "/config", "Device"},
-    {WebPageKey::kSensors, "/sensors", "Sensors"},
-    {WebPageKey::kBackends, "/backends", "Backends"},
+    {WebPageKey::kHome, "/", "Overview",
+     "<rect x='3' y='3' width='7' height='9' rx='1.5'/>"
+     "<rect x='14' y='3' width='7' height='5' rx='1.5'/>"
+     "<rect x='14' y='12' width='7' height='9' rx='1.5'/>"
+     "<rect x='3' y='16' width='7' height='5' rx='1.5'/>"},
+    {WebPageKey::kConfig, "/config", "Device",
+     "<rect x='4' y='3' width='16' height='18' rx='2'/>"
+     "<circle cx='12' cy='17' r='1.2'/>"
+     "<path d='M8 7h8M8 11h5'/>"},
+    {WebPageKey::kSensors, "/sensors", "Sensors",
+     "<path d='M3 12h3l3-8 4 16 3-8h5'/>"},
+    {WebPageKey::kBackends, "/backends", "Backends",
+     "<ellipse cx='12' cy='5.5' rx='7' ry='2.5'/>"
+     "<path d='M5 5.5v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-6'/>"
+     "<path d='M5 11.5v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-6'/>"},
+    {WebPageKey::kDiagnostics, "/diagnostics", "Diagnostics",
+     "<path d='M12 3a9 9 0 1 0 9 9'/>"
+     "<path d='M12 7v5l3 2'/>"
+     "<path d='M17 3l4 4-4 4'/>"},
 }};
+// clang-format on
 
 struct EmbeddedTemplateView {
     const char* data;
@@ -73,7 +90,29 @@ std::string firmwareVersionLabel() {
         return "version unavailable";
     }
 
-    return std::string("version ") + app->version;
+    return std::string("\xc2\xb7 ") + app->version;
+}
+
+const char* pageDataKey(WebPageKey page) {
+    switch (page) {
+        case WebPageKey::kHome:         return "overview";
+        case WebPageKey::kConfig:       return "device";
+        case WebPageKey::kSensors:      return "sensors";
+        case WebPageKey::kBackends:     return "backends";
+        case WebPageKey::kDiagnostics:  return "diagnostics";
+        default:                        return "overview";
+    }
+}
+
+const char* pageCrumb(WebPageKey page) {
+    switch (page) {
+        case WebPageKey::kHome:         return "OVERVIEW";
+        case WebPageKey::kConfig:       return "DEVICE";
+        case WebPageKey::kSensors:      return "SENSORS";
+        case WebPageKey::kBackends:     return "BACKENDS";
+        case WebPageKey::kDiagnostics:  return "DIAGNOSTICS";
+        default:                        return "";
+    }
 }
 
 const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
@@ -171,8 +210,8 @@ std::string renderNotice(const std::string& notice, bool error_notice) {
 
     std::string html;
     html.reserve(notice.size() + 64U);
-    html += "<div class='notice ";
-    html += error_notice ? "notice--err" : "notice--ok";
+    html += "<div class='banner ";
+    html += error_notice ? "err" : "ok";
     html += "'>";
     html += htmlEscape(notice);
     html += "</div>";
@@ -212,66 +251,76 @@ std::string renderPageDocument(
     std::string_view heading,
     std::string_view lead_html,
     std::string_view body_html,
-    bool wide_layout,
+    bool /*wide_layout*/,
     bool device_only_navigation) {
     std::string html;
-    html.reserve(body_html.size() + 1200U);
+    html.reserve(body_html.size() + 2400U);
 
+    // Document head
     html += "<!doctype html><html><head><meta charset='utf-8'>";
     html += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>";
-    html += htmlEscape(title);
-    html += "</title>";
-    html += "<link rel='stylesheet' href='";
-    html += webUiStylesHref();
-    html += "'>";
-    html += "<script defer src='";
-    html += webUiScriptHref();
-    html += "'></script>";
-    html += "</head><body><div class='shell";
-    if (!wide_layout) {
-        html += " shell--narrow";
-    }
-    html += "'><div class='chrome'><header class='topbar'>";
-    html += "<div class='brand'><div class='brand__eyebrow'>Air360</div><div class='brand__version'>";
-    html += htmlEscape(firmwareVersionLabel());
-    html += "</div></div><nav class='nav'>";
+    html += "<title>"; html += htmlEscape(title); html += "</title>";
+    html += "<link rel='stylesheet' href='"; html += webUiStylesHref(); html += "'>";
+    html += "<script defer src='"; html += webUiScriptHref(); html += "'></script>";
+    html += "</head><body data-page='"; html += pageDataKey(active_page); html += "'>";
+
+    // App shell
+    html += "<div class='app'>";
+
+    // ── Top navigation bar ──────────────────────────────────────────────────
+    html += "<header class='topnav'>";
+    html += "<div class='topnav-brand'>";
+    html += "<div class='brand-mark'>A</div>";
+    html += "<div style='display:flex;flex-direction:column'>";
+    html += "<div class='brand-name'>AIR360</div>";
+    html += "<div class='brand-sub'>"; html += htmlEscape(firmwareVersionLabel()); html += "</div>";
+    html += "</div></div>";
+    html += "<nav class='topnav-nav'>";
+
+    static constexpr char kSvgOpen[] =
+        "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor'"
+        " stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>";
 
     for (const auto& item : kNavItems) {
         if (device_only_navigation && item.page != WebPageKey::kConfig) {
             continue;
         }
-        html += "<a class='nav__link";
+        html += "<a class='nav-item";
         if (item.page == active_page) {
-            html += " nav__link--active";
+            html += " active";
         }
-        html += "' href='";
-        html += item.href;
-        html += "'>";
+        html += "' href='"; html += item.href; html += "'>";
+        html += kSvgOpen; html += item.icon; html += "</svg>";
         html += htmlEscape(item.label);
         html += "</a>";
     }
 
-    html += "</nav></header><main class='page'><section class='pagehead'>";
-    if (active_page == WebPageKey::kHome && !lead_html.empty()) {
-        html += "<div class='pagehead__row'><h1>";
-        html += htmlEscape(heading);
-        html += "</h1><div class='pagehead__meta'>";
-        html += lead_html;
-        html += "</div></div>";
-    } else {
-        html += "<h1>";
-        html += htmlEscape(heading);
-        html += "</h1>";
-        if (!lead_html.empty()) {
-            html += "<p class='lead'>";
-            html += lead_html;
-            html += "</p>";
-        }
+    html += "</nav><div class='topnav-right'>";
+    html += "<button class='btn sm ghost' id='theme-toggle' type='button'"
+            " aria-label='Toggle theme' title='Toggle theme'>";
+    html += kSvgOpen;
+    html += "<path d='M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'/>";
+    html += "</svg></button>";
+    html += "</div></header>";
+
+    // ── Main area ───────────────────────────────────────────────────────────
+    html += "<div class='main'>";
+
+    // Page header (crumb + title)
+    html += "<div class='page-header'>";
+    html += "<div class='crumb'>"; html += pageCrumb(active_page); html += "</div>";
+    html += "<div class='title-row'>";
+    html += "<h1 class='page-title'>"; html += htmlEscape(heading); html += "</h1>";
+    html += "</div></div>";
+
+    if (!lead_html.empty()) {
+        html += "<p class='lead'>"; html += lead_html; html += "</p>";
     }
-    html += "</section>";
-    html += body_html;
-    html += "</main></div></div></body></html>";
+
+    // Page content
+    html += "<div class='content'>"; html += body_html; html += "</div>";
+
+    html += "</div></div></body></html>";
     return html;
 }
 

@@ -1,21 +1,21 @@
-<div class='stack stack--scene'>
-    {{NOTICE}}
-    <section class='stack'>
-        <div class='panel panel--staging stack'>
-            <h2>Pending Sensor Changes</h2>
-            <p class='muted'>Sensor edits are staged in memory only. Use <code>Apply now</code> to persist and activate them, or discard them to return to the last stored config.</p>
-            <div class='meta'><span class='pill'>Status {{PENDING_STATUS_LOWER}}</span></div>
-            <div class='split-actions'>
-                <form method='POST' action='/sensors' data-confirm='Apply staged sensor changes now?'>
-                    <input type='hidden' name='action' value='apply'>
-                    <button class='button' type='submit'>Apply now</button>
-                </form>
-                <form method='POST' action='/sensors' data-confirm='Discard all staged sensor changes?'>
-                    <input type='hidden' name='action' value='discard'>
-                    <button class='button button--secondary' type='submit'>Discard pending changes</button>
-                </form>
-            </div>
-        </div>
-        {{CATEGORY_SECTIONS}}
-    </section>
-</div>
+{{NOTICE}}
+<section class='card'>
+  <div class='card-header'>
+    <div>
+      <h3 class='card-title'>Pending changes</h3>
+      <div class='card-sub'>Status: {{PENDING_STATUS_LOWER}}</div>
+    </div>
+    <div class='card-right' style='display:flex;gap:8px'>
+      <form method='POST' action='/sensors' data-confirm='Discard all staged sensor changes?'>
+        <input type='hidden' name='action' value='discard'>
+        <button class='btn sm' type='submit'>Discard</button>
+      </form>
+      <form method='POST' action='/sensors' data-confirm='Apply staged sensor changes now?'>
+        <input type='hidden' name='action' value='apply'>
+        <button class='btn sm primary' type='submit'>Apply and reboot</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{{CATEGORY_SECTIONS}}

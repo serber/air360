@@ -1,26 +1,26 @@
-<div class='stack stack--scene'>
-    <section class='stats'>
-        <div class='stat'><div class='stat__label'>Mode</div><div class='stat__value'><code>{{NETWORK_MODE}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Uplink</div><div class='stat__value'><code>{{UPLINK_STAT}}</code></div></div>
-        <div class='stat'><div class='stat__label'>Uptime</div><div class='stat__value'>{{UPTIME}}</div></div>
-        <div class='stat'><div class='stat__label'>Boot Count</div><div class='stat__value'>{{BOOT_COUNT}}</div></div>
-    </section>
-
-    <section class='panel panel--identity stack'>
-        <h2>Connection</h2>
-        {{CONNECTION_BLOCK}}
-    </section>
-
-    {{BLE_BLOCK}}
-
-    <section class='panel panel--overview stack'>
-        <h2>Backends</h2>
-        {{BACKEND_BLOCK}}
-    </section>
-
-    <section class='panel panel--overview stack'>
-        <h2>Sensors</h2>
-        <p class='muted'>Configured sensors: <code>{{SENSOR_COUNT}}</code></p>
-        {{SENSOR_BLOCK}}
-    </section>
+<div class='row-4'>
+  <div class='stat'><div class='stat-label'>Mode</div><div class='stat-value sm'>{{NETWORK_MODE}}</div></div>
+  <div class='stat'><div class='stat-label'>Uplink</div><div class='stat-value sm'>{{UPLINK_STAT}}</div></div>
+  <div class='stat'><div class='stat-label'>Uptime</div><div class='stat-value sm'>{{UPTIME}}</div></div>
+  <div class='stat'><div class='stat-label'>Boot count</div><div class='stat-value'>{{BOOT_COUNT}}</div></div>
 </div>
+
+<section class='card'>
+  <div class='card-header'><div><h3 class='card-title'>Connection</h3></div></div>
+  <div class='card-body'>{{CONNECTION_BLOCK}}</div>
+</section>
+
+{{BLE_BLOCK}}
+
+<section class='card'>
+  <div class='card-header'><div><h3 class='card-title'>Backends</h3></div></div>
+  <div class='card-body'>{{BACKEND_BLOCK}}</div>
+</section>
+
+<section class='card'>
+  <div class='card-header'>
+    <div><h3 class='card-title'>Sensors</h3></div>
+    <div class='card-right'><span class='chip'>{{SENSOR_COUNT}} configured</span></div>
+  </div>
+  <div class='card-body'>{{SENSOR_BLOCK}}</div>
+</section>

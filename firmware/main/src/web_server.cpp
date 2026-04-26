@@ -301,7 +301,7 @@ std::string renderConfigPage(
         WebPageKey::kConfig,
         "air360 device configuration",
         "Device Configuration",
-        "Manage station Wi-Fi and local device identity without leaving the firmware UI.",
+        "",
         body,
         true,
         network_state.mode == NetworkMode::kSetupAp);
@@ -1657,7 +1657,7 @@ std::string renderBackendsPage(
         WebPageKey::kBackends,
         "air360 upload backends",
         "Upload Backends",
-        "Tune upload cadence, enable or disable integrations, and inspect backend runtime state directly on the device.",
+        "",
         body);
 }
 
@@ -1699,7 +1699,7 @@ std::string renderSensorsPage(
         WebPageKey::kSensors,
         "air360 sensors",
         "Sensor Configuration",
-        "Configure sensors by category, keep one device per category where it makes sense, and stage the final sensor set before applying it with a reboot.",
+        "",
         body);
 }
 

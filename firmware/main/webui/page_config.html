@@ -1,147 +1,160 @@
-<div class='stack stack--scene'>
 {{NOTICE}}
-    <section class='stack'>
-        <div class='panel panel--form stack'>
-            <h2>Network and Device Settings</h2>
-            <p class='muted'>This form stores local device identity and station credentials. Saving applies the new configuration and schedules a reboot.</p>
-            {{NETWORK_ERROR}}
-            <form class='stack' method='POST' action='/config' data-dirty-track='config' data-network-mode='{{NETWORK_MODE}}'>
-                <div class='field'>
-                    <label for='device_name'>Device name</label>
-                    <input class='input' id='device_name' name='device_name' maxlength='31' value='{{DEVICE_NAME_VALUE}}'>
-                </div>
-                <div class='field'>
-                    <label for='wifi_ssid'>Wi-Fi SSID</label>
-                    <select class='select' id='wifi_ssid' name='wifi_ssid' data-wifi-ssid-select>
-                        {{WIFI_SSID_OPTIONS}}
-                    </select>
-                    <p class='hint' data-wifi-ssid-scan-status hidden></p>
-                </div>
-                <div class='field' data-wifi-password-field>
-                    <label for='wifi_password'>Wi-Fi password</label>
-                    <div class='input-action-row'>
-                        <input class='input' id='wifi_password' name='wifi_password' type='password' maxlength='63' value='{{WIFI_PASSWORD_VALUE}}'>
-                        <button class='button button--ghost' type='button' data-secret-toggle='wifi_password'>Show</button>
-                    </div>
-                    <p class='hint' data-wifi-password-hint>Leave Wi-Fi SSID empty to reboot into setup AP mode.</p>
-                </div>
-                <hr>
-                <h3>SNTP</h3>
-                <div class='field'>
-                    <label for='sntp_server'>SNTP server</label>
-                    <div class='input-action-row'>
-                        <input class='input' id='sntp_server' name='sntp_server' maxlength='63' placeholder='pool.ntp.org' value='{{SNTP_SERVER_VALUE}}'>
-                        <button class='button button--ghost' type='button' data-check-sntp>Check</button>
-                    </div>
-                    <p class='hint'>Leave empty to use the default server (pool.ntp.org).</p>
-                    <p class='hint' data-check-sntp-status hidden></p>
-                </div>
-                <hr>
-                <h3>Power Management</h3>
-                <div class='field'>
-                    <label class='label--inline'>
-                        <input type='checkbox' name='wifi_power_save' value='1' {{WIFI_POWER_SAVE_CHECKED}}>
-                        Enable Wi-Fi modem sleep
-                    </label>
-                    <p class='hint'>Reduces power consumption by sleeping the Wi-Fi modem between DTIM beacons. Increases latency slightly. Applies to station mode only.</p>
-                </div>
-                <hr>
-                <h3>Static IP</h3>
-                <p class='muted'>When enabled, the device uses the configured address instead of DHCP. Applies to station mode only; setup AP is unaffected.</p>
-                <div class='field'>
-                    <label class='label--inline'>
-                        <input type='checkbox' name='sta_use_static_ip' value='1' {{STA_USE_STATIC_IP_CHECKED}} data-static-ip-toggle>
-                        Use static IP
-                    </label>
-                </div>
-                <div class='stack config-group {{STA_STATIC_IP_GROUP_DISABLED_CLASS}}' data-static-ip-fields>
-                    <div class='field'>
-                        <label for='sta_ip'>IP address</label>
-                        <input class='input' id='sta_ip' name='sta_ip' maxlength='15' placeholder='192.168.1.100' value='{{STA_IP_VALUE}}'>
-                    </div>
-                    <div class='field'>
-                        <label for='sta_netmask'>Subnet mask</label>
-                        <input class='input' id='sta_netmask' name='sta_netmask' maxlength='15' placeholder='255.255.255.0' value='{{STA_NETMASK_VALUE}}'>
-                    </div>
-                    <div class='field'>
-                        <label for='sta_gateway'>Gateway</label>
-                        <input class='input' id='sta_gateway' name='sta_gateway' maxlength='15' placeholder='192.168.1.1' value='{{STA_GATEWAY_VALUE}}'>
-                    </div>
-                    <div class='field'>
-                        <label for='sta_dns'>DNS server</label>
-                        <input class='input' id='sta_dns' name='sta_dns' maxlength='15' placeholder='8.8.8.8' value='{{STA_DNS_VALUE}}'>
-                        <p class='hint'>Leave empty to use the gateway as DNS.</p>
-                    </div>
-                </div>
-                <hr>
-                <h3>Mobile Uplink</h3>
-                <p class='muted'>When enabled, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for a configurable debug window after boot, then stops automatically.</p>
-                <div class='field'>
-                    <label class='label--inline'>
-                        <input type='checkbox' name='cellular_enabled' value='1' {{CELLULAR_ENABLED_CHECKED}} data-cellular-toggle>
-                        Enable cellular uplink (SIM7600E)
-                    </label>
-                </div>
-                <div class='stack config-group {{CELLULAR_GROUP_DISABLED_CLASS}}' data-cellular-fields>
-                    <div class='field'>
-                        <label for='cellular_apn'>APN</label>
-                        <input class='input' id='cellular_apn' name='cellular_apn' maxlength='63' placeholder='internet' value='{{CELLULAR_APN_VALUE}}'>
-                        <p class='hint'>Required. Provided by your carrier (e.g. "internet", "hologram").</p>
-                    </div>
-                    <div class='field'>
-                        <label for='cellular_username'>Username</label>
-                        <input class='input' id='cellular_username' name='cellular_username' maxlength='31' value='{{CELLULAR_USERNAME_VALUE}}'>
-                        <p class='hint'>Leave empty if not required by the carrier.</p>
-                    </div>
-                    <div class='field'>
-                        <label for='cellular_password'>Password</label>
-                        <div class='input-action-row'>
-                            <input class='input' id='cellular_password' name='cellular_password' type='password' maxlength='63' value='{{CELLULAR_PASSWORD_VALUE}}' autocomplete='new-password'>
-                            <button class='button button--ghost' type='button' data-secret-toggle='cellular_password'>Show</button>
-                        </div>
-                        <p class='hint'>Leave empty if not required by the carrier.</p>
-                    </div>
-                    <div class='field'>
-                        <label for='cellular_sim_pin'>SIM PIN</label>
-                        <div class='input-action-row'>
-                            <input class='input' id='cellular_sim_pin' name='cellular_sim_pin' type='password' maxlength='7' value='{{CELLULAR_SIM_PIN_VALUE}}' autocomplete='new-password'>
-                            <button class='button button--ghost' type='button' data-secret-toggle='cellular_sim_pin'>Show</button>
-                        </div>
-                        <p class='hint'>Leave empty if the SIM has no PIN lock.</p>
-                    </div>
-                    <div class='field'>
-                        <label for='cellular_connectivity_check_host'>Connectivity check host</label>
-                        <input class='input' id='cellular_connectivity_check_host' name='cellular_connectivity_check_host' maxlength='63' placeholder='8.8.8.8' value='{{CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE}}'>
-                        <p class='hint'>IPv4 address to ping after PPP connects. Leave empty to skip.</p>
-                    </div>
-                    <div class='field'>
-                        <label for='cellular_wifi_debug_window_s'>Wi-Fi debug window (seconds)</label>
-                        <input class='input' id='cellular_wifi_debug_window_s' name='cellular_wifi_debug_window_s' type='number' min='0' max='3600' value='{{CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE}}'>
-                        <p class='hint'>How long Wi-Fi station stays active alongside cellular after boot. 0 = disabled.</p>
-                    </div>
-                </div>
-                <hr>
-                <h3>BLE Advertising</h3>
-                <p class='muted'>Broadcasts current sensor readings as passive BLE advertisements (BTHome v2). Compatible with Home Assistant Bluetooth integration and any BTHome scanner. No pairing required.</p>
-                <div class='field'>
-                    <label class='label--inline'>
-                        <input type='checkbox' name='ble_advertise_enabled' value='1' {{BLE_ADVERTISE_ENABLED_CHECKED}} data-ble-toggle>
-                        Enable BLE advertising
-                    </label>
-                </div>
-                <div class='stack config-group {{BLE_GROUP_DISABLED_CLASS}}' data-ble-fields>
-                    <div class='field'>
-                        <label for='ble_adv_interval_index'>Advertising interval</label>
-                        <select class='select' id='ble_adv_interval_index' name='ble_adv_interval_index'>
-                            {{BLE_ADV_INTERVAL_OPTIONS}}
-                        </select>
-                        <p class='hint'>Shorter intervals update faster but increase power draw. 1 s is a good balance for Home Assistant.</p>
-                    </div>
-                </div>
-                <div class='split-actions'>
-                    <button class='button' type='submit'>Save and reboot</button>
-                </div>
-            </form>
+<form method='POST' action='/config' data-dirty-track='config' data-network-mode='{{NETWORK_MODE}}'>
+  {{NETWORK_ERROR}}
+
+  <section class='card'>
+    <div class='card-header'><div><h3 class='card-title'>Identity</h3><div class='card-sub'>Local device name shown on the network</div></div></div>
+    <div class='card-body'>
+      <label class='field'>
+        <span class='field-label'>Device name</span>
+        <input class='input' id='device_name' name='device_name' maxlength='31' value='{{DEVICE_NAME_VALUE}}'>
+        <span class='field-hint'>Appears in mDNS, AP name, and upload payloads.</span>
+      </label>
+    </div>
+  </section>
+
+  <section class='card'>
+    <div class='card-header'><div><h3 class='card-title'>Wi-Fi station</h3><div class='card-sub'>Credentials for the primary uplink</div></div></div>
+    <div class='card-body stack-14'>
+      <label class='field'>
+        <span class='field-label'>SSID</span>
+        <select class='select' id='wifi_ssid' name='wifi_ssid' data-wifi-ssid-select>
+          {{WIFI_SSID_OPTIONS}}
+        </select>
+        <span class='field-hint' data-wifi-ssid-scan-status hidden></span>
+        <span class='field-hint'>Leave empty to reboot into setup AP mode.</span>
+      </label>
+      <div class='field' data-wifi-password-field>
+        <span class='field-label'>Password</span>
+        <div class='input-group'>
+          <input class='input' id='wifi_password' name='wifi_password' type='password' maxlength='63' value='{{WIFI_PASSWORD_VALUE}}'>
+          <button class='btn sm' type='button' data-secret-toggle='wifi_password'>Show</button>
         </div>
-    </section>
-</div>
+        <span class='field-hint' data-wifi-password-hint>Leave Wi-Fi SSID empty to reboot into setup AP mode.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class='card'>
+    <div class='card-header'>
+      <div><h3 class='card-title'>Time (SNTP)</h3></div>
+      <div class='card-right'><button class='btn sm' type='button' data-check-sntp>Check SNTP</button></div>
+    </div>
+    <div class='card-body stack-14'>
+      <label class='field'>
+        <span class='field-label'>SNTP server</span>
+        <input class='input' id='sntp_server' name='sntp_server' maxlength='63' placeholder='pool.ntp.org' value='{{SNTP_SERVER_VALUE}}'>
+        <span class='field-hint'>Leave empty to use the default server (<code>pool.ntp.org</code>).</span>
+        <span class='field-hint' data-check-sntp-status hidden></span>
+      </label>
+      <div class='field'>
+        <span class='field-label'>Wi-Fi power save</span>
+        <label class='label--inline'>
+          <input type='checkbox' name='wifi_power_save' value='1' {{WIFI_POWER_SAVE_CHECKED}}>
+          Enable Wi-Fi modem sleep
+        </label>
+        <span class='field-hint'>Reduces power draw by sleeping the modem between DTIM beacons. Station mode only.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class='card'>
+    <div class='card-header'>
+      <div><h3 class='card-title'>Static IP</h3><div class='card-sub'>Applies to station mode only. Setup AP is unaffected.</div></div>
+      <div class='card-right'>
+        <button class='switch' type='button' data-drives-checkbox='sta_use_static_ip' data-reveals='static-ip-body' aria-label='Toggle static IP'></button>
+        <input type='checkbox' name='sta_use_static_ip' value='1' {{STA_USE_STATIC_IP_CHECKED}} data-static-ip-toggle hidden>
+      </div>
+    </div>
+    <div class='card-body' id='static-ip-body'>
+      <div class='row-2'>
+        <label class='field'><span class='field-label'>IP address</span><input class='input' id='sta_ip' name='sta_ip' maxlength='15' placeholder='192.168.1.100' value='{{STA_IP_VALUE}}'></label>
+        <label class='field'><span class='field-label'>Subnet mask</span><input class='input' id='sta_netmask' name='sta_netmask' maxlength='15' placeholder='255.255.255.0' value='{{STA_NETMASK_VALUE}}'></label>
+        <label class='field'><span class='field-label'>Gateway</span><input class='input' id='sta_gateway' name='sta_gateway' maxlength='15' placeholder='192.168.1.1' value='{{STA_GATEWAY_VALUE}}'></label>
+        <label class='field'>
+          <span class='field-label'>DNS server</span>
+          <input class='input' id='sta_dns' name='sta_dns' maxlength='15' placeholder='8.8.8.8' value='{{STA_DNS_VALUE}}'>
+          <span class='field-hint'>Leave empty to use the gateway as DNS.</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class='card'>
+    <div class='card-header'>
+      <div><h3 class='card-title'>Mobile uplink</h3><div class='card-sub'>SIM7600E modem as primary uplink. Wi-Fi stays active for a debug window after boot.</div></div>
+      <div class='card-right'>
+        <button class='switch' type='button' data-drives-checkbox='cellular_enabled' data-reveals='cell-body' aria-label='Toggle cellular'></button>
+        <input type='checkbox' name='cellular_enabled' value='1' {{CELLULAR_ENABLED_CHECKED}} data-cellular-toggle hidden>
+      </div>
+    </div>
+    <div class='card-body stack-14' id='cell-body'>
+      <label class='field'>
+        <span class='field-label'>APN</span>
+        <input class='input' id='cellular_apn' name='cellular_apn' maxlength='63' placeholder='internet' value='{{CELLULAR_APN_VALUE}}'>
+        <span class='field-hint'>Required. Provided by your carrier (e.g. <code>internet</code>, <code>hologram</code>).</span>
+      </label>
+      <div class='row-2'>
+        <label class='field'>
+          <span class='field-label'>Username</span>
+          <input class='input' id='cellular_username' name='cellular_username' maxlength='31' value='{{CELLULAR_USERNAME_VALUE}}'>
+          <span class='field-hint'>Leave empty if not required.</span>
+        </label>
+        <label class='field'>
+          <span class='field-label'>Password</span>
+          <div class='input-group'>
+            <input class='input' id='cellular_password' name='cellular_password' type='password' maxlength='63' value='{{CELLULAR_PASSWORD_VALUE}}' autocomplete='new-password'>
+            <button class='btn sm' type='button' data-toggle-pw='cellular_password'><span class='pw-label'>Show</span></button>
+          </div>
+          <span class='field-hint'>Leave empty if not required.</span>
+        </label>
+      </div>
+      <label class='field'>
+        <span class='field-label'>SIM PIN</span>
+        <div class='input-group'>
+          <input class='input' id='cellular_sim_pin' name='cellular_sim_pin' type='password' maxlength='7' value='{{CELLULAR_SIM_PIN_VALUE}}' autocomplete='new-password'>
+          <button class='btn sm' type='button' data-toggle-pw='cellular_sim_pin'><span class='pw-label'>Show</span></button>
+        </div>
+        <span class='field-hint'>Leave empty if the SIM has no PIN lock.</span>
+      </label>
+      <div class='row-2'>
+        <label class='field'>
+          <span class='field-label'>Connectivity check host</span>
+          <input class='input' id='cellular_connectivity_check_host' name='cellular_connectivity_check_host' maxlength='63' placeholder='8.8.8.8' value='{{CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE}}'>
+          <span class='field-hint'>IPv4 address to ping after PPP connects.</span>
+        </label>
+        <label class='field'>
+          <span class='field-label'>Wi-Fi debug window (seconds)</span>
+          <input class='input' id='cellular_wifi_debug_window_s' name='cellular_wifi_debug_window_s' type='number' min='0' max='3600' value='{{CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE}}'>
+          <span class='field-hint'>How long Wi-Fi stays active alongside cellular after boot. 0 = disabled.</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class='card'>
+    <div class='card-header'>
+      <div><h3 class='card-title'>BLE advertising</h3><div class='card-sub'>Broadcasts sensor readings as BTHome v2 advertisements (no pairing required).</div></div>
+      <div class='card-right'>
+        <button class='switch' type='button' data-drives-checkbox='ble_advertise_enabled' data-reveals='ble-body' aria-label='Toggle BLE advertising'></button>
+        <input type='checkbox' name='ble_advertise_enabled' value='1' {{BLE_ADVERTISE_ENABLED_CHECKED}} data-ble-toggle hidden>
+      </div>
+    </div>
+    <div class='card-body' id='ble-body'>
+      <label class='field'>
+        <span class='field-label'>Advertising interval</span>
+        <select class='select' id='ble_adv_interval_index' name='ble_adv_interval_index'>
+          {{BLE_ADV_INTERVAL_OPTIONS}}
+        </select>
+        <span class='field-hint'>Shorter intervals update faster but increase power draw. 1 s is a good balance for Home Assistant.</span>
+      </label>
+    </div>
+  </section>
+
+  <div class='row-end' style='gap:8px'>
+    <button class='btn primary' type='submit'>
+      <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12l5 5L20 7'/></svg>
+      Save and reboot
+    </button>
+  </div>
+</form>
