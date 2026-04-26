@@ -95,7 +95,7 @@ Current implementation files:
 - `sensors/`
   Contains sensor persistence, registry, transport helpers, background orchestration, and concrete drivers.
 - `uploads/`
-  Contains backend persistence, runtime backend registry, in-memory measurement queueing, upload scheduling, HTTP transport, and concrete backend adapters for Sensor.Community and Air360 API.
+  Contains backend persistence, runtime backend registry, in-memory measurement queueing, upload scheduling, HTTP transport, and concrete backend adapters for Sensor.Community and Air360.
 
 ## Requirements
 

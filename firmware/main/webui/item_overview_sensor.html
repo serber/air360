@@ -1,11 +1,9 @@
-<article class='list-card list-card--sensor'>
-  <div class='list-card__title'>{{DISPLAY_NAME}}</div>
-  <div class='meta'>
-    <span class='pill'>{{BINDING_SUMMARY}}</span>
-    <span class='pill'>poll {{POLL_INTERVAL_MS}} ms</span>
-    <span class='pill'>state {{STATE_KEY}}</span>
-    <span class='pill'>queued {{QUEUED_SAMPLE_COUNT}}</span>
+<div class='sensor-row'>
+  <div class='sensor-row-head'>
+    <span class='sensor-model'>{{DISPLAY_NAME}}</span>
+    {{STATE_CHIP}}
+    <div class='flex-1'></div>
+    <span class='mono-meta'>{{BINDING_META}}</span>
   </div>
-  {{READINGS_BLOCK}}
-  {{LAST_ERROR_BLOCK}}
-</article>
+  {{READINGS_BLOCK}}{{LAST_ERROR_BLOCK}}
+</div>

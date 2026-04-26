@@ -1,7 +1,7 @@
 {{NOTICE}}
-<form class='stack' method='POST' action='/backends' data-dirty-track='backends'>
+<form id='backends-form' method='POST' action='/backends' data-dirty-track='backends'>
   <section class='card'>
-    <div class='card-header'><div><h3 class='card-title'>Upload settings</h3></div></div>
+    <div class='card-header'><div><h3 class='card-title'>Upload settings</h3><div class='card-sub'>How often measurements are flushed to all enabled backends</div></div></div>
     <div class='card-body'>
       <label class='field'>
         <span class='field-label'>Upload interval (ms)</span>
@@ -13,7 +13,4 @@
 
   {{BACKEND_CARDS}}
 
-  <div class='row-end'>
-    <button class='btn primary' type='submit'>Save</button>
-  </div>
 </form>

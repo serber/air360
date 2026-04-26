@@ -1,5 +1,5 @@
 {{NOTICE}}
-<form method='POST' action='/config' data-dirty-track='config' data-network-mode='{{NETWORK_MODE}}'>
+<form id='config-form' method='POST' action='/config' data-dirty-track='config' data-network-mode='{{NETWORK_MODE}}'>
   {{NETWORK_ERROR}}
 
   <section class='card'>
@@ -37,24 +37,26 @@
 
   <section class='card'>
     <div class='card-header'>
+      <div><h3 class='card-title'>Wi-Fi power save</h3><div class='card-sub'>Modem sleep between DTIM beacons. Station mode only.</div></div>
+      <div class='card-right'>
+        <button class='switch' type='button' data-drives-checkbox='wifi_power_save' aria-label='Toggle Wi-Fi power save'></button>
+        <input type='checkbox' name='wifi_power_save' value='1' {{WIFI_POWER_SAVE_CHECKED}} hidden>
+      </div>
+    </div>
+  </section>
+
+  <section class='card'>
+    <div class='card-header'>
       <div><h3 class='card-title'>Time (SNTP)</h3></div>
       <div class='card-right'><button class='btn sm' type='button' data-check-sntp>Check SNTP</button></div>
     </div>
-    <div class='card-body stack-14'>
+    <div class='card-body'>
       <label class='field'>
         <span class='field-label'>SNTP server</span>
         <input class='input' id='sntp_server' name='sntp_server' maxlength='63' placeholder='pool.ntp.org' value='{{SNTP_SERVER_VALUE}}'>
         <span class='field-hint'>Leave empty to use the default server (<code>pool.ntp.org</code>).</span>
         <span class='field-hint' data-check-sntp-status hidden></span>
       </label>
-      <div class='field'>
-        <span class='field-label'>Wi-Fi power save</span>
-        <label class='label--inline'>
-          <input type='checkbox' name='wifi_power_save' value='1' {{WIFI_POWER_SAVE_CHECKED}}>
-          Enable Wi-Fi modem sleep
-        </label>
-        <span class='field-hint'>Reduces power draw by sleeping the modem between DTIM beacons. Station mode only.</span>
-      </div>
     </div>
   </section>
 
@@ -151,10 +153,4 @@
     </div>
   </section>
 
-  <div class='row-end' style='gap:8px'>
-    <button class='btn primary' type='submit'>
-      <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12l5 5L20 7'/></svg>
-      Save and reboot
-    </button>
-  </div>
 </form>

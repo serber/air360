@@ -1,26 +1,23 @@
 <div class='row-4'>
-  <div class='stat'><div class='stat-label'>Mode</div><div class='stat-value sm'>{{NETWORK_MODE}}</div></div>
-  <div class='stat'><div class='stat-label'>Uplink</div><div class='stat-value sm'>{{UPLINK_STAT}}</div></div>
-  <div class='stat'><div class='stat-label'>Uptime</div><div class='stat-value sm'>{{UPTIME}}</div></div>
-  <div class='stat'><div class='stat-label'>Boot count</div><div class='stat-value'>{{BOOT_COUNT}}</div></div>
+  <div class='stat accent'><div class='stat-label'>Mode</div><div class='stat-value sm'>{{NETWORK_MODE}}</div></div>
+  <div class='stat accent'><div class='stat-label'>Uplink</div><div class='stat-value sm'>{{UPLINK_STAT}}</div></div>
+  <div class='stat accent'><div class='stat-label'>Uptime</div><div class='stat-value sm'>{{UPTIME}}</div></div>
+  <div class='stat accent'><div class='stat-label'>Boot count</div><div class='stat-value sm'>{{BOOT_COUNT}}</div></div>
+</div>
+
+<div class='split-2'>
+  <section class='card'>
+    <header class='card-header'><div><h3 class='card-title'>System</h3><div class='card-sub'>Network, time &amp; radio</div></div></header>
+    <div class='card-body'>{{CONNECTION_BLOCK}}</div>
+  </section>
+
+  <section class='card'>
+    <header class='card-header'><div><h3 class='card-title'>Backends</h3><div class='card-sub'>Last upload attempts</div></div></header>
+    <div class='card-body'>{{BACKEND_BLOCK}}</div>
+  </section>
 </div>
 
 <section class='card'>
-  <div class='card-header'><div><h3 class='card-title'>Connection</h3></div></div>
-  <div class='card-body'>{{CONNECTION_BLOCK}}</div>
-</section>
-
-{{BLE_BLOCK}}
-
-<section class='card'>
-  <div class='card-header'><div><h3 class='card-title'>Backends</h3></div></div>
-  <div class='card-body'>{{BACKEND_BLOCK}}</div>
-</section>
-
-<section class='card'>
-  <div class='card-header'>
-    <div><h3 class='card-title'>Sensors</h3></div>
-    <div class='card-right'><span class='chip'>{{SENSOR_COUNT}} configured</span></div>
-  </div>
-  <div class='card-body'>{{SENSOR_BLOCK}}</div>
+  <header class='card-header'><div><h3 class='card-title'>Configured sensors</h3><div class='card-sub'>Latest readings from each active sensor</div></div></header>
+  <div class='card-body nopad'>{{SENSOR_BLOCK}}</div>
 </section>

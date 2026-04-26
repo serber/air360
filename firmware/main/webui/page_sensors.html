@@ -1,21 +1,9 @@
 {{NOTICE}}
-<section class='card'>
-  <div class='card-header'>
-    <div>
-      <h3 class='card-title'>Pending changes</h3>
-      <div class='card-sub'>Status: {{PENDING_STATUS_LOWER}}</div>
-    </div>
-    <div class='card-right' style='display:flex;gap:8px'>
-      <form method='POST' action='/sensors' data-confirm='Discard all staged sensor changes?'>
-        <input type='hidden' name='action' value='discard'>
-        <button class='btn sm' type='submit'>Discard</button>
-      </form>
-      <form method='POST' action='/sensors' data-confirm='Apply staged sensor changes now?'>
-        <input type='hidden' name='action' value='apply'>
-        <button class='btn sm primary' type='submit'>Apply and reboot</button>
-      </form>
-    </div>
-  </div>
-</section>
+<form id='sensor-discard-form' method='POST' action='/sensors' data-confirm='Discard all staged sensor changes?'>
+  <input type='hidden' name='action' value='discard'>
+</form>
+<form id='sensor-apply-form' method='POST' action='/sensors' data-confirm='Apply staged sensor changes?'>
+  <input type='hidden' name='action' value='apply'>
+</form>
 
 {{CATEGORY_SECTIONS}}

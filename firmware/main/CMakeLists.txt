@@ -110,6 +110,9 @@ idf_component_register(
         "webui/card_sensor.html"
         "webui/item_overview_backend.html"
         "webui/item_overview_sensor.html"
+        "webui/page_shell.html"
+        "webui/item_reading.html"
+        "webui/item_section_row.html"
 )
 
 target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)

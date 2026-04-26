@@ -198,7 +198,6 @@ struct SensorCategorySectionViewModel {
 };
 
 struct SensorsPageViewModel {
-    std::size_t configured_count = 0U;
     std::size_t max_sensors = 0U;
     bool has_pending_changes = false;
     std::size_t runtime_sensor_count = 0U;
@@ -299,9 +298,11 @@ std::string renderConfigPage(
 
     return renderPageDocument(
         WebPageKey::kConfig,
-        "air360 device configuration",
+        "Air360 device configuration",
         "Device Configuration",
-        "",
+        "<div class='actions'>"
+        "<button class='btn sm primary' type='submit' form='config-form'>"
+        "Save and reboot</button></div>",
         body,
         true,
         network_state.mode == NetworkMode::kSetupAp);
@@ -1071,9 +1072,9 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         case BackendType::kSensorCommunity:
             https_block = renderHttpsCheckbox(card);
             if (!card.endpoint.empty()) {
-                endpoint_block += "<p>Endpoint: <code>";
+                endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
-                endpoint_block += "</code></p>";
+                endpoint_block += "</code></span>";
             }
             device_id_override_block += "<div class='field'><label for='device_id_";
             device_id_override_block += htmlEscape(card.backend_key);
@@ -1087,15 +1088,15 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             device_id_override_block += "' value='";
             device_id_override_block += htmlEscape(card.device_id_override);
             device_id_override_block += "'>";
-            device_id_override_block += "<p class='hint'>Prefilled from Short ID. Change it only for debugging.</p></div>";
+            device_id_override_block += "<span class='field-hint'>Prefilled from Short ID. Change it only for debugging.</span></div>";
             break;
 
         case BackendType::kAir360Api:
             https_block = renderHttpsCheckbox(card);
             if (!card.endpoint.empty()) {
-                endpoint_block += "<p>Endpoint: <code>";
+                endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
-                endpoint_block += "</code></p>";
+                endpoint_block += "</code></span>";
             }
             break;
 
@@ -1119,7 +1120,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += "' value='";
             endpoint_block += htmlEscape(card.measurement_name);
             endpoint_block += "'></div>";
-            endpoint_block += "<p class='hint'>Sends Influx line protocol with one line per sensor sample group.</p>";
+            endpoint_block += "<span class='field-hint'>Sends Influx line protocol with one line per sensor sample group.</span>";
             break;
 
         default:
@@ -1131,6 +1132,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     if (!card.enabled) {
         status_block.clear();
     } else if (card.has_status) {
+        status_block += "<div class='backend-status'>";
         status_block += "<p>Last attempt: <code>";
         status_block += htmlEscape(card.last_attempt);
         status_block += "</code></p>";
@@ -1147,8 +1149,9 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             status_block += htmlEscape(card.last_error);
             status_block += "</code></p>";
         }
+        status_block += "</div>";
     } else {
-        status_block = "<p>Status: <code>unavailable</code></p>";
+        status_block = "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
     }
 
     return renderTemplate(
@@ -1235,213 +1238,264 @@ BackendsPageViewModel buildBackendsPageViewModel(
 }
 
 std::string renderSensorCard(const SensorCardViewModel& card) {
-    std::string runtime_error_block;
-    runtime_error_block.reserve(256U);
+    // Runtime state chip
+    const std::string& state = card.runtime_state_key;
+    std::string runtime_state_chip = "<span class='chip ";
+    if (state == "polling" || state == "initialized") {
+        runtime_state_chip += "ok'><span class='dot'></span>";
+    } else if (state == "error" || state == "failed" || state == "absent" || state == "unsupported") {
+        runtime_state_chip += "err'><span class='dot'></span>";
+    } else {
+        runtime_state_chip += "'>";
+    }
+    runtime_state_chip += htmlEscape(state);
+    runtime_state_chip += "</span>";
+
+    // Status block (error + latest reading, shown above form when non-empty)
+    std::string status_inner;
+    status_inner.reserve(256U);
     if (!card.runtime_error.empty()) {
-        runtime_error_block += "<p>Runtime error: <code>";
-        runtime_error_block += htmlEscape(card.runtime_error);
-        runtime_error_block += "</code></p>";
+        status_inner += "<p>Error: <code>";
+        status_inner += htmlEscape(card.runtime_error);
+        status_inner += "</code></p>";
     }
     if (card.failures > 0U) {
-        runtime_error_block += "<p>Runtime failures: <code>";
-        runtime_error_block += std::to_string(card.failures);
-        runtime_error_block += "</code>";
+        status_inner += "<p>Failures: <code>";
+        status_inner += std::to_string(card.failures);
+        status_inner += "</code>";
         if (card.next_retry_ms > 0U) {
-            runtime_error_block += " next retry uptime <code>";
-            runtime_error_block += std::to_string(card.next_retry_ms);
-            runtime_error_block += " ms</code>";
+            status_inner += " &middot; retry at <code>";
+            status_inner += std::to_string(card.next_retry_ms);
+            status_inner += " ms</code>";
         }
-        runtime_error_block += "</p>";
+        status_inner += "</p>";
     }
-
-    std::string latest_reading_block;
-    latest_reading_block.reserve(256U);
     if (!card.latest_reading.empty()) {
-        latest_reading_block += "<p>Latest reading: <code>";
-        latest_reading_block += htmlEscape(card.latest_reading);
-        latest_reading_block += "</code></p>";
+        status_inner += "<p>Latest: <code>";
+        status_inner += htmlEscape(card.latest_reading);
+        status_inner += "</code></p>";
+    }
+    std::string status_block;
+    if (!status_inner.empty()) {
+        status_block = "<div class='backend-status' style='margin-bottom:12px'>" + status_inner + "</div>";
     }
 
+    // Transport field blocks — <label class='field'> pattern for row grid layout
     std::string i2c_field_block;
-    i2c_field_block.reserve(384U);
     if (card.show_i2c_address_input) {
-        i2c_field_block += "<div class='field' data-sensor-i2c-field><label for='i2c_address_";
-        i2c_field_block += std::to_string(card.id);
-        i2c_field_block += "'>I2C address</label>";
+        i2c_field_block += "<label class='field' data-sensor-i2c-field>";
+        i2c_field_block += "<span class='field-label'>I2C address</span>";
         i2c_field_block += "<select class='select' id='i2c_address_";
         i2c_field_block += std::to_string(card.id);
         i2c_field_block += "' name='i2c_address'>";
         i2c_field_block += card.i2c_address_options_html;
-        i2c_field_block += "</select></div>";
+        i2c_field_block += "</select></label>";
     }
 
     std::string uart_field_block;
-    uart_field_block.reserve(512U);
     if (card.show_uart_port_select) {
-        uart_field_block += "<div class='field' data-sensor-uart-field><label for='uart_port_";
-        uart_field_block += std::to_string(card.id);
-        uart_field_block += "'>UART port</label>";
+        uart_field_block += "<label class='field' data-sensor-uart-field>";
+        uart_field_block += "<span class='field-label'>UART port</span>";
         uart_field_block += "<select class='select' id='uart_port_";
         uart_field_block += std::to_string(card.id);
         uart_field_block += "' name='uart_port_id' data-sensor-uart-port-select>";
         uart_field_block += card.uart_port_options_html;
-        uart_field_block += "</select><p class='hint' data-sensor-uart-pins>";
+        uart_field_block += "</select>";
+        uart_field_block += "<span class='field-hint' data-sensor-uart-pins>";
         uart_field_block += htmlEscape(card.uart_pin_hint);
-        uart_field_block += "</p></div>";
+        uart_field_block += "</span></label>";
     }
 
     std::string gpio_field_block;
-    gpio_field_block.reserve(384U);
     if (card.show_gpio_pin_select) {
-        gpio_field_block += "<div class='field' data-sensor-pin-field><label for='analog_gpio_pin_";
-        gpio_field_block += std::to_string(card.id);
-        gpio_field_block += "'>GPIO pin</label>";
+        gpio_field_block += "<label class='field' data-sensor-pin-field>";
+        gpio_field_block += "<span class='field-label'>GPIO pin</span>";
         gpio_field_block += "<select class='select' id='analog_gpio_pin_";
         gpio_field_block += std::to_string(card.id);
         gpio_field_block += "' name='analog_gpio_pin'>";
         gpio_field_block += card.gpio_options_html;
-        gpio_field_block += "</select></div>";
+        gpio_field_block += "</select></label>";
     }
+
+    const bool has_transport =
+        card.show_i2c_address_input || card.show_uart_port_select || card.show_gpio_pin_select;
 
     return renderTemplate(
         WebTemplateKey::kSensorCard,
         WebTemplateBindings{
             {"DISPLAY_NAME", htmlEscape(card.display_name.empty() ? "Sensor" : card.display_name)},
-            {"RUNTIME_STATE", htmlEscape(card.runtime_state_key)},
-            {"TRANSPORT_SUMMARY", htmlEscape(card.transport_summary)},
-            {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
-            {"QUEUED_SAMPLE_COUNT", std::to_string(card.queued_sample_count)},
-            {"RUNTIME_ERROR_BLOCK", runtime_error_block},
-            {"LATEST_READING_BLOCK", latest_reading_block},
+            {"RUNTIME_STATE_CHIP", runtime_state_chip},
+            {"STATUS_BLOCK", status_block},
             {"SENSOR_ID", std::to_string(card.id)},
             {"SENSOR_TYPE_OPTIONS", card.sensor_type_options_html},
             {"DEFAULTS_HINT_TEXT", htmlEscape(card.defaults_hint)},
             {"DEFAULTS_HINT_HIDDEN", card.defaults_hint.empty() ? "hidden" : ""},
+            {"FIELD_ROW_CLASS", has_transport ? "row-3" : "row-2"},
             {"I2C_FIELD_BLOCK", i2c_field_block},
             {"UART_FIELD_BLOCK", uart_field_block},
             {"GPIO_FIELD_BLOCK", gpio_field_block},
-            {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
+            {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
         });
 }
 
+// Builds the add-sensor form fields (shared by inline and sub-card forms).
+// Returns the inner form HTML only (no <form> wrapper).
+static std::string buildAddSensorFormFields(const SensorCategorySectionViewModel& section) {
+    const std::string add_key = htmlEscape(section.key);
+    std::string html;
+    html.reserve(2048U);
+
+    // Model + poll interval in a row-2
+    html += "<div class='row-2'>";
+    html += "<label class='field'><span class='field-label'>Model</span>";
+    html += "<select class='select' id='sensor_type_add_";
+    html += add_key;
+    html += "' name='sensor_type' data-sensor-type-select>";
+    html += section.add_sensor_type_options_html;
+    html += "</select>";
+    html += "<span class='field-hint' data-sensor-defaults";
+    if (section.add_defaults_hint.empty()) { html += " hidden"; }
+    html += ">";
+    html += htmlEscape(section.add_defaults_hint);
+    html += "</span></label>";
+    html += "<label class='field'><span class='field-label'>Poll interval (ms)</span>";
+    html += "<input class='input' id='poll_interval_ms_add_";
+    html += add_key;
+    html += "' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='";
+    html += std::to_string(section.add_poll_interval_ms);
+    html += "'></label></div>";
+
+    // Transport fields — hidden/shown by JS based on selected model
+    html += "<label class='field' data-sensor-i2c-field";
+    if (!section.add_show_i2c_address_input) { html += " hidden"; }
+    html += "><span class='field-label'>I2C address</span>";
+    html += "<select class='select' id='i2c_address_add_";
+    html += add_key;
+    html += "' name='i2c_address'";
+    if (!section.add_show_i2c_address_input) { html += " disabled"; }
+    html += ">";
+    html += section.add_i2c_address_options_html;
+    html += "</select></label>";
+
+    html += "<label class='field' data-sensor-uart-field";
+    if (!section.add_show_uart_port_select) { html += " hidden"; }
+    html += "><span class='field-label'>UART port</span>";
+    html += "<select class='select' id='uart_port_add_";
+    html += add_key;
+    html += "' name='uart_port_id' data-sensor-uart-port-select";
+    if (!section.add_show_uart_port_select) { html += " disabled"; }
+    html += ">";
+    html += section.add_uart_port_options_html;
+    html += "</select><span class='field-hint' data-sensor-uart-pins>";
+    html += htmlEscape(section.add_uart_pin_hint);
+    html += "</span></label>";
+
+    html += "<label class='field' data-sensor-pin-field";
+    if (!section.add_show_gpio_pin_select) { html += " hidden"; }
+    html += "><span class='field-label'>GPIO pin</span>";
+    html += "<select class='select' id='analog_gpio_pin_add_";
+    html += add_key;
+    html += "' name='analog_gpio_pin'";
+    if (!section.add_show_gpio_pin_select) { html += " disabled"; }
+    html += ">";
+    html += section.add_gpio_options_html;
+    html += "</select></label>";
+
+    return html;
+}
+
 std::string renderSensorCategorySection(const SensorCategorySectionViewModel& section) {
+    const std::string add_key = htmlEscape(section.key);
+    const bool has_sensors = !section.cards.empty();
+
+    // Card-right status chips
+    std::string right_chips;
+    if (section.allow_multiple) {
+        right_chips += "<span class='chip accent'>multiple</span>";
+    }
+    if (has_sensors) {
+        right_chips += "<span class='chip accent'>configured</span>";
+    } else {
+        right_chips += "<span class='chip'>not configured</span>";
+    }
+
+    // Sensor sub-cards
     std::string cards_html;
     cards_html.reserve(section.cards.size() * 2200U);
     for (const auto& card : section.cards) {
         cards_html += renderSensorCard(card);
     }
 
-    if (cards_html.empty()) {
-        cards_html = "<p class='muted'>No sensors configured in this category yet.</p>";
-    }
-
-    std::string add_form_block;
-    add_form_block.reserve(section.show_add_form ? 4096U : 0U);
+    // Add-sensor form (inline when unconfigured, sub-card when multiple+configured)
+    std::string add_form_html;
     if (section.show_add_form) {
-        std::string i2c_field_block;
-        i2c_field_block.reserve(512U);
-        i2c_field_block += "<div class='field' data-sensor-i2c-field";
-        if (!section.add_show_i2c_address_input) {
-            i2c_field_block += " hidden";
-        }
-        i2c_field_block += "><label for='i2c_address_add_";
-        i2c_field_block += htmlEscape(section.key);
-        i2c_field_block += "'>I2C address</label><select class='select' id='i2c_address_add_";
-        i2c_field_block += htmlEscape(section.key);
-        i2c_field_block += "' name='i2c_address'";
-        if (!section.add_show_i2c_address_input) {
-            i2c_field_block += " disabled";
-        }
-        i2c_field_block += ">";
-        i2c_field_block += section.add_i2c_address_options_html;
-        i2c_field_block += "</select></div>";
+        const std::string form_fields = buildAddSensorFormFields(section);
+        const std::string form_id = "sensor-add-" + add_key;
+        const std::string add_label = htmlEscape(section.add_button_label);
 
-        std::string uart_field_block;
-        uart_field_block.reserve(512U);
-        uart_field_block += "<div class='field' data-sensor-uart-field";
-        if (!section.add_show_uart_port_select) {
-            uart_field_block += " hidden";
+        if (has_sensors) {
+            // Sub-card style: sunken card below existing sensors
+            add_form_html += "<div class='card' style='background:var(--bg-sunken);border-color:var(--line-3)'>";
+            add_form_html += "<div class='card-header' style='border-bottom-color:var(--line-3)'>";
+            add_form_html += "<div style='font-family:var(--font-display);font-weight:700;font-size:14px'>";
+            add_form_html += section.allow_multiple ? "Add sensor" : "Add sensor";
+            add_form_html += "</div>";
+            add_form_html += "<div class='card-right'>";
+            add_form_html += "<button class='btn sm primary' type='submit' form='";
+            add_form_html += form_id;
+            add_form_html += "'>";
+            add_form_html += add_label;
+            add_form_html += "</button></div></div>";
+            add_form_html += "<div class='card-body'>";
+            add_form_html += "<form id='";
+            add_form_html += form_id;
+            add_form_html += "' method='POST' action='/sensors' data-dirty-track='sensor-add-";
+            add_form_html += add_key;
+            add_form_html += "' data-sensor-form><input type='hidden' name='action' value='add'>";
+            add_form_html += "<div class='stack-14'>";
+            add_form_html += form_fields;
+            add_form_html += "</div></form></div></div>";
+        } else {
+            // Inline style: fields directly in card body
+            add_form_html += "<form id='";
+            add_form_html += form_id;
+            add_form_html += "' method='POST' action='/sensors' data-dirty-track='sensor-add-";
+            add_form_html += add_key;
+            add_form_html += "' data-sensor-form><input type='hidden' name='action' value='add'>";
+            add_form_html += "<div class='stack-14'>";
+            add_form_html += form_fields;
+            add_form_html += "</div></form>";
+            add_form_html += "<div class='row-end' style='margin-top:14px'>";
+            add_form_html += "<button class='btn sm primary' type='submit' form='";
+            add_form_html += form_id;
+            add_form_html += "'>";
+            add_form_html += add_label;
+            add_form_html += "</button></div>";
         }
-        uart_field_block += "><label for='uart_port_add_";
-        uart_field_block += htmlEscape(section.key);
-        uart_field_block += "'>UART port</label><select class='select' id='uart_port_add_";
-        uart_field_block += htmlEscape(section.key);
-        uart_field_block += "' name='uart_port_id' data-sensor-uart-port-select";
-        if (!section.add_show_uart_port_select) {
-            uart_field_block += " disabled";
-        }
-        uart_field_block += ">";
-        uart_field_block += section.add_uart_port_options_html;
-        uart_field_block += "</select><p class='hint' data-sensor-uart-pins>";
-        uart_field_block += htmlEscape(section.add_uart_pin_hint);
-        uart_field_block += "</p></div>";
-
-        std::string gpio_field_block;
-        gpio_field_block.reserve(512U);
-        gpio_field_block += "<div class='field' data-sensor-pin-field";
-        if (!section.add_show_gpio_pin_select) {
-            gpio_field_block += " hidden";
-        }
-        gpio_field_block += "><label for='analog_gpio_pin_add_";
-        gpio_field_block += htmlEscape(section.key);
-        gpio_field_block += "'>GPIO pin</label><select class='select' id='analog_gpio_pin_add_";
-        gpio_field_block += htmlEscape(section.key);
-        gpio_field_block += "' name='analog_gpio_pin'";
-        if (!section.add_show_gpio_pin_select) {
-            gpio_field_block += " disabled";
-        }
-        gpio_field_block += ">";
-        gpio_field_block += section.add_gpio_options_html;
-        gpio_field_block += "</select></div>";
-
-        add_form_block += "<div class='list-card stack'><h3 class='list-card__title'>";
-        add_form_block += section.allow_multiple ? "Add Gas Sensor" : "Add Sensor";
-        add_form_block += "</h3><form class='stack' method='POST' action='/sensors' data-dirty-track='sensor-add-";
-        add_form_block += htmlEscape(section.key);
-        add_form_block += "' data-sensor-form><input type='hidden' name='action' value='add'><div class='field'><label for='sensor_type_add_";
-        add_form_block += htmlEscape(section.key);
-        add_form_block += "'>Model</label><select class='select' id='sensor_type_add_";
-        add_form_block += htmlEscape(section.key);
-        add_form_block += "' name='sensor_type' data-sensor-type-select>";
-        add_form_block += section.add_sensor_type_options_html;
-        add_form_block += "</select></div><p class='hint' data-sensor-defaults";
-        if (section.add_defaults_hint.empty()) {
-            add_form_block += " hidden";
-        }
-        add_form_block += ">";
-        add_form_block += htmlEscape(section.add_defaults_hint);
-        add_form_block += "</p><div class='field'><label for='poll_interval_ms_add_";
-        add_form_block += htmlEscape(section.key);
-        add_form_block += "'>Poll interval (ms)</label><input class='input' id='poll_interval_ms_add_";
-        add_form_block += htmlEscape(section.key);
-        add_form_block += "' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='";
-        add_form_block += std::to_string(section.add_poll_interval_ms);
-        add_form_block += "'></div>";
-        add_form_block += i2c_field_block;
-        add_form_block += uart_field_block;
-        add_form_block += gpio_field_block;
-        add_form_block += "<label class='checkbox'><input name='enabled' type='checkbox'><span class='checkbox__label'>Enabled</span></label><div class='split-actions'><button class='button' type='submit'>";
-        add_form_block += htmlEscape(section.add_button_label);
-        add_form_block += "</button></div></form></div>";
     }
 
+    // Assemble section
     std::string section_html;
-    section_html.reserve(cards_html.size() + add_form_block.size() + 1024U);
-    section_html += "<section class='panel stack'><div><h2>";
+    section_html.reserve(cards_html.size() + add_form_html.size() + 1024U);
+    section_html += "<section class='card'><div class='card-header'><div><h3 class='card-title'>";
     section_html += htmlEscape(section.title);
-    section_html += "</h2><p class='muted'>";
+    section_html += "</h3><div class='card-sub'>";
     section_html += htmlEscape(section.description);
-    section_html += "</p><div class='meta'><span class='pill'>";
-    section_html += section.allow_multiple ? "Multiple sensors allowed" : "Single sensor category";
-    section_html += "</span><span class='pill'>Configured ";
-    section_html += std::to_string(section.configured_count);
-    section_html += "</span>";
-    section_html += section.supported_models_html;
-    section_html += "</div></div>";
-    section_html += section.notice_html;
-    section_html += cards_html;
-    section_html += add_form_block;
-    section_html += "</section>";
+    section_html += "</div></div><div class='card-right'>";
+    section_html += right_chips;
+    section_html += "</div></div><div class='card-body'>";
+    if (!section.notice_html.empty()) {
+        section_html += section.notice_html;
+    }
+    if (has_sensors) {
+        section_html += "<div class='stack-14'>";
+        section_html += cards_html;
+        section_html += add_form_html;
+        section_html += "</div>";
+    } else {
+        section_html += add_form_html;
+    }
+    section_html += "</div></section>";
     return section_html;
 }
 
@@ -1456,7 +1510,6 @@ SensorsPageViewModel buildSensorsPageViewModel(
     SensorRegistry registry;
     const auto runtime_sensors = sensor_manager.sensors();
 
-    model.configured_count = sensor_config_list.sensor_count;
     model.max_sensors = kMaxConfiguredSensors;
     model.has_pending_changes = has_pending_changes;
     model.runtime_sensor_count = runtime_sensors.size();
@@ -1471,8 +1524,7 @@ SensorsPageViewModel buildSensorsPageViewModel(
         section.title = category_descriptor.title;
         section.description = category_descriptor.description;
         section.allow_multiple = category_descriptor.allow_multiple;
-        section.add_button_label =
-            category_descriptor.allow_multiple ? "Stage gas sensor" : "Stage sensor";
+        section.add_button_label = "Stage sensor";
 
         for (std::size_t index = 0; index < category_descriptor.sensor_type_count; ++index) {
             const SensorDescriptor* descriptor =
@@ -1655,9 +1707,11 @@ std::string renderBackendsPage(
         });
     return renderPageDocument(
         WebPageKey::kBackends,
-        "air360 upload backends",
+        "Air360 Upload Backends",
         "Upload Backends",
-        "",
+        "<div class='actions'>"
+        "<button class='btn sm primary' type='submit' form='backends-form'>"
+        "Apply</button></div>",
         body);
 }
 
@@ -1686,20 +1740,17 @@ std::string renderSensorsPage(
     const std::string body = renderPageTemplate(
         WebTemplateKey::kSensors,
         WebTemplateBindings{
-            {"CONFIGURED_COUNT", std::to_string(model.configured_count)},
-            {"MAX_SENSORS", std::to_string(model.max_sensors)},
-            {"PENDING_STATUS", model.has_pending_changes ? "Pending" : "Clean"},
-            {"PENDING_STATUS_LOWER", model.has_pending_changes ? "pending" : "clean"},
-            {"RUNTIME_SENSOR_COUNT", std::to_string(model.runtime_sensor_count)},
-            {"FREE_SLOTS", std::to_string(model.free_slots)},
             {"NOTICE", model.notice_html},
             {"CATEGORY_SECTIONS", category_sections_html},
         });
     return renderPageDocument(
         WebPageKey::kSensors,
-        "air360 sensors",
+        "Air360 Sensor Configuration",
         "Sensor Configuration",
-        "",
+        "<div class='actions'>"
+        "<button class='btn sm' type='submit' form='sensor-discard-form'>Discard</button>"
+        "<button class='btn sm primary' type='submit' form='sensor-apply-form'>Apply</button>"
+        "</div>",
         body);
 }
 

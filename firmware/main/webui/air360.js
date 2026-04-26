@@ -119,6 +119,13 @@
   });
 
   document.addEventListener('DOMContentLoaded', () => {
+    // Mark active nav item and apply device-only filtering
+    const activePage = document.body.dataset.page;
+    document.querySelectorAll('.nav-item[data-page]').forEach(a => {
+      if (a.dataset.page === activePage) a.classList.add('active');
+      if (document.body.dataset.nav === 'device-only' && a.dataset.page !== 'device') a.hidden = true;
+    });
+
     // Initialize switches that drive a hidden checkbox — read server-rendered state
     document.querySelectorAll('.switch[data-drives-checkbox]').forEach(sw => {
       const cb = document.querySelector(`input[type="checkbox"][name="${sw.getAttribute('data-drives-checkbox')}"]`);
@@ -490,11 +497,6 @@
 
     // ── Backend card sync ────────────────────────────────────────────────────
     function syncBackendCard(panel) {
-      const checkbox = panel.querySelector('[data-backend-enabled-toggle]');
-      const group    = panel.querySelector('[data-backend-fields]');
-      if (!(checkbox instanceof HTMLInputElement) || !(group instanceof HTMLElement)) return;
-      panel.classList.toggle('panel--inactive', !checkbox.checked);
-      setGroupEnabled(group, checkbox.checked);
       syncBackendProtocolPort(panel);
     }
 
@@ -510,8 +512,6 @@
     for (const panel of document.querySelectorAll('[data-backend-card]')) {
       if (!(panel instanceof HTMLElement)) continue;
       syncBackendCard(panel);
-      const cb = panel.querySelector('[data-backend-enabled-toggle]');
-      if (cb instanceof HTMLInputElement) cb.addEventListener('change', () => syncBackendCard(panel));
       const httpsTog = panel.querySelector('[data-backend-https-toggle]');
       if (httpsTog instanceof HTMLInputElement) httpsTog.addEventListener('change', () => syncBackendProtocolPort(panel));
     }

@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>{{TITLE}}</title>
+<link rel='stylesheet' href='{{STYLES_HREF}}'>
+<script defer src='{{SCRIPT_HREF}}'></script>
+</head>
+<body data-page='{{DATA_PAGE}}'{{DEVICE_NAV_ATTR}}>
+<div class='app'>
+  <header class='topnav'>
+    <div class='topnav-inner'>
+    <div class='topnav-brand'>
+      <div class='brand-mark'>A</div>
+      <div class='brand-info'>
+        <div class='brand-name'>AIR360</div>
+        <div class='brand-sub'>{{FW_VERSION}}</div>
+      </div>
+    </div>
+    <nav class='topnav-nav'>
+      <a class='nav-item' data-page='overview' href='/'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9' rx='1.5'/><rect x='14' y='3' width='7' height='5' rx='1.5'/><rect x='14' y='12' width='7' height='9' rx='1.5'/><rect x='3' y='16' width='7' height='5' rx='1.5'/></svg>Overview</a>
+      <a class='nav-item' data-page='device' href='/config'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='3' width='16' height='18' rx='2'/><circle cx='12' cy='17' r='1.2'/><path d='M8 7h8M8 11h5'/></svg>Device</a>
+      <a class='nav-item' data-page='sensors' href='/sensors'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12h3l3-8 4 16 3-8h5'/></svg>Sensors</a>
+      <a class='nav-item' data-page='backends' href='/backends'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><ellipse cx='12' cy='5.5' rx='7' ry='2.5'/><path d='M5 5.5v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-6'/><path d='M5 11.5v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-6'/></svg>Backends</a>
+      <a class='nav-item' data-page='diagnostics' href='/diagnostics'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 9 9'/><path d='M12 7v5l3 2'/><path d='M17 3l4 4-4 4'/></svg>Diagnostics</a>
+    </nav>
+    <div class='topnav-right'>
+      <button class='btn sm ghost' id='theme-toggle' type='button' aria-label='Toggle theme' title='Toggle theme'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'/></svg></button>
+    </div>
+    </div>
+  </header>
+  <div class='main'>
+    <div class='page-header'>
+      <div class='crumb'>{{CRUMB}}</div>
+      <div class='title-row'>
+        <h1 class='page-title'>{{HEADING}}</h1>{{LEAD_HTML}}
+      </div>
+    </div>
+    <div class='content'>{{BODY_HTML}}</div>
+  </div>
+</div>
+</body>
+</html>

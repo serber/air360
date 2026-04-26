@@ -304,16 +304,14 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
 
         const bool type_changed = existing == nullptr || existing->sensor_type != descriptor->type;
         if (type_changed) {
-            const std::uint32_t preserved_id = record.id;
-            const std::uint8_t preserved_enabled = formHasKey(fields, "enabled") ? 1U : 0U;
             SensorRecord rebuilt{};
-            rebuilt.id = preserved_id;
-            rebuilt.enabled = preserved_enabled;
+            rebuilt.id = record.id;
+            rebuilt.enabled = 1U;
             rebuilt.analog_gpio_pin = firstAllowedGpioPin(*descriptor);
             record = rebuilt;
         }
 
-        record.enabled = formHasKey(fields, "enabled") ? 1U : 0U;
+        record.enabled = 1U;
         record.sensor_type = descriptor->type;
         record.poll_interval_ms = static_cast<std::uint32_t>(poll_interval_ms);
 

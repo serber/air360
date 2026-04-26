@@ -1,5 +1,6 @@
 #include "air360/status_service.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cinttypes>
 #include <cstdio>
@@ -175,33 +176,23 @@ std::string prettyPrintJson(std::string_view json) {
     return formatted;
 }
 
-
-std::string formatMeasurementValue(const SensorValue& value) {
-    std::string text = sensorValueKindLabel(value.kind);
-    text += " ";
-    text += formatFloat(value.value, sensorValueKindPrecision(value.kind));
-    const char* unit = sensorValueKindUnit(value.kind);
-    if (unit[0] != '\0') {
-        text += " ";
-        text += unit;
-    }
-    return text;
-}
-
 std::string measurementListHtml(const SensorMeasurement& measurement) {
     if (measurement.empty()) {
         return "";
     }
 
     std::string html;
-    html.reserve(64U + static_cast<std::size_t>(measurement.value_count) * 64U);
-    html += "<ul class='list'>";
+    html.reserve(64U + static_cast<std::size_t>(measurement.value_count) * 128U);
+    html += "<div class='readings-grid'>";
     for (std::size_t index = 0; index < measurement.value_count; ++index) {
-        html += "<li>";
-        html += htmlEscape(formatMeasurementValue(measurement.values[index]));
-        html += "</li>";
+        const SensorValue& v = measurement.values[index];
+        html += renderTemplate(WebTemplateKey::kReading, {
+            {"LABEL", sensorValueKindLabel(v.kind)},
+            {"VALUE", formatFloat(v.value, sensorValueKindPrecision(v.kind))},
+            {"UNIT",  sensorValueKindUnit(v.kind)},
+        });
     }
-    html += "</ul>";
+    html += "</div>";
     return html;
 }
 
@@ -614,44 +605,50 @@ HealthViewModel buildHealthViewModel(
 
 std::string renderBackendOverviewBlock(
     const std::vector<BackendStatusSnapshot>& backends,
-    std::uint32_t upload_interval_ms) {
-    std::string html;
-    if (backends.empty()) {
-        return "<p class='muted'>No backends configured yet.</p>";
+    std::uint32_t /*upload_interval_ms*/) {
+    const bool any_enabled = std::any_of(
+        backends.begin(), backends.end(),
+        [](const BackendStatusSnapshot& b) { return b.enabled; });
+    if (!any_enabled) {
+        return "<p class='muted'>No backends enabled.</p>";
     }
 
-    html.reserve(64U + backends.size() * 1024U);
-    html += "<div class='list'>";
+    std::string html;
+    html.reserve(64U + backends.size() * 512U);
+    html += "<div class='stack-10'>";
     for (const auto& backend : backends) {
-        std::string details_block;
-        details_block.reserve(512U);
-        details_block += "<span class='pill'>interval ";
-        details_block += std::to_string(upload_interval_ms);
-        details_block += " ms</span>";
-        if (backend.enabled) {
-            details_block += "<span class='pill'>last attempt ";
-            details_block += htmlEscape(formatTimeForDisplay(
-                backend.last_attempt_unix_ms,
-                backend.last_attempt_uptime_ms));
-            details_block += "</span>";
-            details_block += "<span class='pill'>HTTP ";
-            details_block += backend.last_http_status > 0 ? std::to_string(backend.last_http_status)
-                                                          : std::string("n/a");
-            details_block += "</span>";
-            details_block += "<span class='pill'>response ";
-            details_block += backend.last_response_time_ms > 0
-                                 ? std::to_string(backend.last_response_time_ms) + " ms"
-                                 : std::string("n/a");
-            details_block += "</span>";
+        if (!backend.enabled) {
+            continue;
         }
 
-        html += renderTemplate(
-            WebTemplateKey::kOverviewBackendItem,
-            WebTemplateBindings{
-                {"DISPLAY_NAME", htmlEscape(backend.display_name)},
-                {"STATUS_KEY", backend.enabled ? "enabled" : "disabled"},
-                {"DETAILS_BLOCK", details_block},
-            });
+        std::string status_chips;
+        std::string last_attempt;
+
+        if (backend.last_http_status > 0) {
+            const bool ok = backend.last_http_status >= 200 && backend.last_http_status < 300;
+            status_chips  = "<span class='chip ";
+            status_chips += ok ? "ok" : "err";
+            status_chips += "'><span class='dot'></span>HTTP ";
+            status_chips += std::to_string(backend.last_http_status);
+            status_chips += "</span>";
+            if (backend.last_response_time_ms > 0) {
+                status_chips += "<span class='chip'>resp ";
+                status_chips += std::to_string(backend.last_response_time_ms);
+                status_chips += " ms</span>";
+            }
+            last_attempt = "last &middot; ";
+            last_attempt += htmlEscape(formatTimeForDisplay(
+                backend.last_attempt_unix_ms,
+                backend.last_attempt_uptime_ms));
+        } else {
+            status_chips = "<span class='chip'>no data yet</span>";
+        }
+
+        html += renderTemplate(WebTemplateKey::kOverviewBackendItem, {
+            {"DISPLAY_NAME",  htmlEscape(backend.display_name)},
+            {"STATUS_CHIPS",  status_chips},
+            {"LAST_ATTEMPT",  last_attempt},
+        });
     }
     html += "</div>";
     return html;
@@ -660,13 +657,12 @@ std::string renderBackendOverviewBlock(
 std::string renderSensorOverviewBlock(
     const std::vector<SensorRuntimeInfo>& sensors,
     const MeasurementStoreSnapshot& measurement_store) {
-    std::string html;
     if (sensors.empty()) {
         return "<p class='muted'>No sensors configured yet.</p>";
     }
 
+    std::string html;
     html.reserve(64U + sensors.size() * 1024U);
-    html += "<div class='list'>";
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
     for (const auto& sensor : sensors) {
         const MeasurementRuntimeInfo* measurement_runtime =
@@ -676,8 +672,38 @@ std::string renderSensorOverviewBlock(
             measurement_runtime != nullptr ? measurement_runtime->measurement : empty_measurement;
         const std::size_t queued_sample_count =
             measurement_runtime != nullptr ? measurement_runtime->queued_sample_count : 0U;
-        const std::string readings_block = measurementListHtml(measurement);
 
+        // State chip
+        const char* state_key   = sensorRuntimeStateKey(sensor.state);
+        const char* chip_color  = "";
+        bool        chip_dot    = false;
+        switch (sensor.state) {
+            case SensorRuntimeState::kPolling:
+                chip_color = " ok";  chip_dot = true;  break;
+            case SensorRuntimeState::kConfigured:
+            case SensorRuntimeState::kInitialized:
+                chip_color = " warn"; chip_dot = true; break;
+            case SensorRuntimeState::kAbsent:
+            case SensorRuntimeState::kFailed:
+            case SensorRuntimeState::kError:
+            case SensorRuntimeState::kUnsupported:
+                chip_color = " err"; chip_dot = true;  break;
+            default: break;
+        }
+        std::string state_chip = "<span class='chip";
+        state_chip += chip_color;
+        state_chip += "'>";
+        if (chip_dot) state_chip += "<span class='dot'></span>";
+        state_chip += state_key;
+        state_chip += "</span>";
+
+        // Binding meta
+        std::string binding_meta = htmlEscape(sensor.binding_summary);
+        binding_meta += " &middot; poll ";
+        binding_meta += std::to_string(sensor.poll_interval_ms);
+        binding_meta += " ms";
+
+        // Error / diagnostic block
         std::string last_error_block;
         last_error_block.reserve(256U);
         if (!sensor.last_error.empty()) {
@@ -700,91 +726,132 @@ std::string renderSensorOverviewBlock(
             }
             last_error_block += "</p>";
         }
+        if (queued_sample_count > 0U) {
+            last_error_block += "<p class='muted'>Queued: ";
+            last_error_block += std::to_string(queued_sample_count);
+            last_error_block += " samples</p>";
+        }
 
-        html += renderTemplate(
-            WebTemplateKey::kOverviewSensorItem,
-            WebTemplateBindings{
-                {"DISPLAY_NAME", htmlEscape(sensor.type_name)},
-                {"TYPE_KEY", htmlEscape(sensor.type_key)},
-                {"BINDING_SUMMARY", htmlEscape(sensor.binding_summary)},
-                {"STATE_KEY", htmlEscape(sensorRuntimeStateKey(sensor.state))},
-                {"POLL_INTERVAL_MS", std::to_string(sensor.poll_interval_ms)},
-                {"QUEUED_SAMPLE_COUNT", std::to_string(queued_sample_count)},
-                {"READINGS_BLOCK", readings_block},
-                {"LAST_ERROR_BLOCK", last_error_block},
-            });
+        html += renderTemplate(WebTemplateKey::kOverviewSensorItem, {
+            {"DISPLAY_NAME",    htmlEscape(sensor.type_name)},
+            {"STATE_CHIP",      state_chip},
+            {"BINDING_META",    binding_meta},
+            {"READINGS_BLOCK",  measurementListHtml(measurement)},
+            {"LAST_ERROR_BLOCK", last_error_block},
+        });
     }
-    html += "</div>";
     return html;
 }
 
 std::string renderConnectionBlock(
     const NetworkState& network_state,
-    const CellularState& cellular_state) {
+    const CellularState& cellular_state,
+    bool has_ble_state,
+    const BleState& ble_state) {
     std::string html;
     html.reserve(1024U);
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
 
-    // Current date
-    html += "<p>Date: <code>";
-    html += htmlEscape(currentUtcDateTimeLabel());
-    html += "</code></p>";
+    // Device time row
+    html += renderTemplate(WebTemplateKey::kSectionRow, {
+        {"LABEL",      "Device time"},
+        {"VALUE_HTML", htmlEscape(currentUtcDateTimeLabel())},
+    });
 
-    // Wi-Fi
-    html += "<p>Wi-Fi";
+    // Wi-Fi row
+    std::string wifi_val;
     if (!network_state.station_ssid.empty()) {
-        html += " <code>";
-        html += htmlEscape(network_state.station_ssid);
-        html += "</code>";
+        wifi_val += "<span class='chip'>";
+        wifi_val += htmlEscape(network_state.station_ssid);
+        wifi_val += "</span>";
     }
-    html += ": <code>";
-    html += network_state.station_connected
-                ? htmlEscape(network_state.ip_address.empty() ? "connected" : network_state.ip_address)
-                : std::string("not connected");
-    html += "</code></p>";
+    if (network_state.station_connected) {
+        wifi_val += "<span class='chip accent'>";
+        wifi_val += htmlEscape(network_state.ip_address.empty() ? "connected" : network_state.ip_address);
+        wifi_val += "</span>";
+    } else {
+        wifi_val += "<span class='chip err'>not connected</span>";
+    }
+    html += renderTemplate(WebTemplateKey::kSectionRow, {
+        {"LABEL",      "Wi-Fi"},
+        {"VALUE_HTML", wifi_val},
+    });
 
+    // Wi-Fi recovery row — only when retrying
     if (network_state.reconnect_backoff_active) {
-        html += "<p>Wi-Fi recovery: <code>retry ";
-        html += std::to_string(network_state.reconnect_attempt_count);
-        html += " in ";
-        html += htmlEscape(formatDelayFromNow(
-            network_state.next_reconnect_uptime_ms,
-            now_uptime_ms));
-        html += "</code></p>";
+        std::string val = "<span class='chip warn'>retry ";
+        val += std::to_string(network_state.reconnect_attempt_count);
+        val += " in ";
+        val += htmlEscape(formatDelayFromNow(
+            network_state.next_reconnect_uptime_ms, now_uptime_ms));
+        val += "</span>";
+        html += renderTemplate(WebTemplateKey::kSectionRow, {
+            {"LABEL",      "Wi-Fi recovery"},
+            {"VALUE_HTML", val},
+        });
     } else if (network_state.setup_ap_retry_active) {
-        html += "<p>Wi-Fi recovery: <code>setup AP retry in ";
-        html += htmlEscape(formatDelayFromNow(
-            network_state.next_setup_ap_retry_uptime_ms,
-            now_uptime_ms));
-        html += "</code></p>";
+        std::string val = "<span class='chip warn'>setup AP retry in ";
+        val += htmlEscape(formatDelayFromNow(
+            network_state.next_setup_ap_retry_uptime_ms, now_uptime_ms));
+        val += "</span>";
+        html += renderTemplate(WebTemplateKey::kSectionRow, {
+            {"LABEL",      "Wi-Fi recovery"},
+            {"VALUE_HTML", val},
+        });
     }
 
+    // Wi-Fi error row — only when present
     if (!network_state.last_error.empty()) {
-        html += "<p>Wi-Fi error: <code>";
-        html += htmlEscape(network_state.last_error);
-        html += "</code></p>";
+        html += renderTemplate(WebTemplateKey::kSectionRow, {
+            {"LABEL",      "Wi-Fi error"},
+            {"VALUE_HTML", "<span class='chip err'>" + htmlEscape(network_state.last_error) + "</span>"},
+        });
     }
 
-    // Cellular — only if enabled
+    // Cellular row — only if enabled
     if (cellular_state.enabled) {
-        html += "<p>Cellular: <code>";
-        if (cellular_state.ppp_connected && !cellular_state.ip_address.empty()) {
-            html += htmlEscape(cellular_state.ip_address);
+        std::string cell_val;
+        if (cellular_state.ppp_connected) {
+            cell_val += "<span class='chip ok'>";
+            cell_val += htmlEscape(
+                cellular_state.ip_address.empty() ? "connected" : cellular_state.ip_address);
+            cell_val += "</span>";
         } else {
-            html += cellular_state.ppp_connected ? "connected" : "not connected";
+            cell_val += "<span class='chip err'>not connected</span>";
         }
-        html += "</code>";
         if (cellular_state.rssi_dbm != 0) {
-            html += " · <code>";
-            html += std::to_string(cellular_state.rssi_dbm);
-            html += " dBm</code>";
+            cell_val += "<span class='chip accent'>";
+            cell_val += std::to_string(cellular_state.rssi_dbm);
+            cell_val += " dBm</span>";
         }
         if (cellular_state.ppp_connected && !cellular_state.connectivity_check_skipped) {
-            html += " · <code>ping ";
-            html += cellular_state.connectivity_ok ? "ok" : "failed";
-            html += "</code>";
+            const bool ok = cellular_state.connectivity_ok;
+            cell_val += "<span class='chip ";
+            cell_val += ok ? "ok'><span class='dot'></span>ping ok" : "err'><span class='dot'></span>ping failed";
+            cell_val += "</span>";
         }
-        html += "</p>";
+        html += renderTemplate(WebTemplateKey::kSectionRow, {
+            {"LABEL",      "Cellular"},
+            {"VALUE_HTML", cell_val},
+        });
+    }
+
+    // BLE row — only if enabled
+    if (has_ble_state && ble_state.enabled) {
+        std::string ble_val;
+        if (ble_state.running) {
+            ble_val  = "<span class='chip ok'><span class='dot'></span>Active</span>";
+            ble_val += "<span class='mono-meta'>BTHome v2 &middot; ";
+            ble_val += std::to_string(ble_state.adv_interval_ms);
+            ble_val += " ms</span>";
+        } else {
+            ble_val  = "<span class='chip'>Starting&hellip;</span>";
+            ble_val += "<span class='mono-meta'>BTHome v2</span>";
+        }
+        html += renderTemplate(WebTemplateKey::kSectionRow, {
+            {"LABEL",      "BLE"},
+            {"VALUE_HTML", ble_val},
+        });
     }
 
     return html;
@@ -796,14 +863,17 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     std::uint32_t boot_count,
     const std::vector<SensorRuntimeInfo>& sensors,
     const MeasurementStoreSnapshot& measurement_store,
-    const UploadManagerRuntimeSnapshot& upload) {
+    const UploadManagerRuntimeSnapshot& upload,
+    bool has_ble_state,
+    const BleState& ble_state) {
     RuntimeOverviewViewModel model;
     const HealthViewModel health =
         buildHealthViewModel(network_state, sensors, upload.backends, measurement_store);
     const bool healthy = (health.status == HealthStatus::kHealthy);
     model.health_status_pill_html = "<span class='";
-    model.health_status_pill_html += healthy ? "pill pill--ok" : "pill pill--danger";
+    model.health_status_pill_html += healthy ? "chip ok" : "chip err";
     model.health_status_pill_html += "'>";
+    model.health_status_pill_html += "<span class='dot'></span>";
     model.health_status_pill_html += healthy ? "Healthy" : "Unhealthy";
     model.health_status_pill_html += "</span>";
 
@@ -819,7 +889,8 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.network_mode = networkModeString(network_state.mode);
     model.uptime = formatUptimeCompact(uptimeMilliseconds());
     model.boot_count = boot_count;
-    model.connection_block_html = renderConnectionBlock(network_state, cellular_state);
+    model.connection_block_html = renderConnectionBlock(
+        network_state, cellular_state, has_ble_state, ble_state);
     model.sensor_count = sensors.size();
     model.backend_block_html =
         renderBackendOverviewBlock(upload.backends, upload.upload_interval_ms);
@@ -852,94 +923,6 @@ RuntimeDiagnosticsSnapshot buildRuntimeDiagnosticsSnapshot(
 }
 
 
-std::string renderDiagnosticsTaskBlock(const RuntimeDiagnosticsSnapshot& diagnostics) {
-    const auto taskCard = [](const char* title, std::size_t free_stack_bytes) {
-        std::string html;
-        html.reserve(256U);
-        html += "<div class='list-card stack'><h3 class='list-card__title'>";
-        html += htmlEscape(title);
-        html += "</h3><div class='meta'><span class='pill'>";
-        if (free_stack_bytes > 0U) {
-            html += "high watermark ";
-            html += htmlEscape(formatBytesCompact(free_stack_bytes));
-            html += " free";
-        } else {
-            html += "task inactive";
-        }
-        html += "</span></div></div>";
-        return html;
-    };
-
-    std::string html;
-    html.reserve(1024U);
-    html += "<div class='list'>";
-    html += taskCard("Sensor Task", diagnostics.sensor_task_stack_free_bytes);
-    html += taskCard("Upload Task", diagnostics.upload_task_stack_free_bytes);
-    html += taskCard("Cellular Task", diagnostics.cellular_task_stack_free_bytes);
-    html += "</div>";
-    return html;
-}
-
-std::string renderDiagnosticsNetworkBlock(
-    const NetworkState& network_state,
-    const CellularState& cellular_state) {
-    std::string html;
-    html.reserve(1536U);
-    const std::uint64_t now_uptime_ms = uptimeMilliseconds();
-
-    html += "<div class='list'>";
-    html += "<div class='list-card stack'><h3 class='list-card__title'>Wi-Fi</h3><div class='meta'>";
-    html += "<span class='pill'>mode ";
-    html += htmlEscape(networkModeString(network_state.mode));
-    html += "</span><span class='pill'>";
-    html += network_state.station_connected ? "station connected" : "station down";
-    html += "</span>";
-    html += "</div>";
-    if (!network_state.last_error.empty()) {
-        html += "<p>Last Wi-Fi error: <code>";
-        html += htmlEscape(network_state.last_error);
-        html += "</code></p>";
-    }
-    if (!network_state.time_sync_error.empty()) {
-        html += "<p>Time sync error: <code>";
-        html += htmlEscape(network_state.time_sync_error);
-        html += "</code></p>";
-    }
-    html += "</div>";
-
-    html += "<div class='list-card stack'><h3 class='list-card__title'>Cellular</h3><div class='meta'>";
-    html += "<span class='pill'>";
-    html += cellular_state.enabled ? "enabled" : "disabled";
-    html += "</span><span class='pill'>";
-    html += cellular_state.ppp_connected ? "PPP connected" : "PPP down";
-    html += "</span>";
-    if (cellular_state.enabled) {
-        html += "<span class='pill'>retry attempts ";
-        html += std::to_string(cellular_state.reconnect_attempts);
-        html += "</span><span class='pill'>failures ";
-        html += std::to_string(cellular_state.consecutive_failures);
-        html += "</span><span class='pill'>PWRKEY ";
-        html += std::to_string(cellular_state.pwrkey_cycles_total);
-        html += "</span>";
-        if (!cellular_state.ppp_connected &&
-            cellular_state.next_reconnect_uptime_ms > now_uptime_ms) {
-            html += "<span class='pill'>next retry in ";
-            html += htmlEscape(formatDelayFromNow(
-                cellular_state.next_reconnect_uptime_ms,
-                now_uptime_ms));
-            html += "</span>";
-        }
-    }
-    html += "</div>";
-    if (!cellular_state.last_error.empty()) {
-        html += "<p>Last cellular error: <code>";
-        html += htmlEscape(cellular_state.last_error);
-        html += "</code></p>";
-    }
-    html += "</div>";
-    html += "</div>";
-    return html;
-}
 
 std::string renderConfigLoadStatusJson(const ConfigLoadRuntimeStatus& status) {
     std::string json;
@@ -1435,29 +1418,9 @@ std::string StatusService::renderRootHtml() const {
         render_snapshot.boot_count,
         render_snapshot.sensors,
         render_snapshot.measurement_store,
-        render_snapshot.upload);
-
-    std::string ble_block_html;
-    ble_block_html.reserve(512U);
-    if (render_snapshot.has_ble_state) {
-        const BleState& ble_state = render_snapshot.ble_state;
-        if (ble_state.enabled) {
-            ble_block_html += "<section class='panel panel--identity stack'>";
-            ble_block_html += "<h2>BLE Advertising</h2>";
-            ble_block_html += "<div>";
-            if (ble_state.running) {
-                ble_block_html += "<p><span class='pill pill--ok'>Active</span></p>";
-                ble_block_html += "<p>Format: <code>BTHome v2</code> &mdash; interval: <code>";
-                ble_block_html += std::to_string(ble_state.adv_interval_ms);
-                ble_block_html += " ms</code></p>";
-                ble_block_html += "<p class='muted'>Home Assistant discovers this device automatically via its Bluetooth integration.</p>";
-            } else {
-                ble_block_html += "<p><span class='pill'>Starting&hellip;</span></p>";
-            }
-            ble_block_html += "</div>";
-            ble_block_html += "</section>";
-        }
-    }
+        render_snapshot.upload,
+        render_snapshot.has_ble_state,
+        render_snapshot.ble_state);
 
     const std::string body = renderPageTemplate(
         WebTemplateKey::kHome,
@@ -1470,12 +1433,11 @@ std::string StatusService::renderRootHtml() const {
             {"SENSOR_COUNT", std::to_string(model.sensor_count)},
             {"BACKEND_BLOCK", model.backend_block_html},
             {"SENSOR_BLOCK", model.sensor_block_html},
-            {"BLE_BLOCK", ble_block_html},
         });
 
     return renderPageDocument(
         WebPageKey::kHome,
-        "Air 360 runtime overview",
+        "Air 360 Runtime Overview",
         "Runtime Overview",
         model.health_status_pill_html,
         body,
@@ -1546,17 +1508,13 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
             {"FREE_HEAP", htmlEscape(formatBytesCompact(diagnostics.free_heap_bytes))},
             {"MIN_HEAP", htmlEscape(formatBytesCompact(diagnostics.min_free_heap_bytes))},
             {"LARGEST_BLOCK", htmlEscape(formatBytesCompact(diagnostics.largest_heap_block_bytes))},
-            {"TASK_BLOCK", renderDiagnosticsTaskBlock(diagnostics)},
-            {"NETWORK_BLOCK", renderDiagnosticsNetworkBlock(
-                                  render_snapshot.network_state,
-                                  render_snapshot.cellular_state)},
             {"LOG_CONTENTS", htmlEscape(log_contents)},
             {"STATUS_JSON_DUMP", htmlEscape(status_json)},
         });
 
     return renderPageDocument(
         WebPageKey::kDiagnostics,
-        "Air 360 diagnostics",
+        "Air 360 Diagnostics",
         "Diagnostics",
         "",
         body,
