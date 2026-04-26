@@ -35,7 +35,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | Parameter | Value |
 |-----------|-------|
 | Port | `http_port` from `DeviceConfig` (default 80) |
-| Task stack | 10 240 bytes (`web::kHttpdStackBytes`) |
+| Task stack | 16 384 bytes (`web::kHttpdStackBytes`) |
 | Worker model | Single httpd task; all concurrent connections share the one stack |
 | URI handlers | up to 15 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
@@ -66,6 +66,7 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `GET` | `/diagnostics` | Diagnostics page (includes live log console) |
 | `GET` | `/logs/data` | Plain-text log buffer (polled by diagnostics page JS) |
 | `GET` | `/assets/*` | Static assets (CSS, JS) |
+| `GET` | `/favicon.ico` | Browser favicon (ICO binary) |
 | `GET` | `/wifi-scan` | JSON Wi-Fi scan results (cached; non-blocking) |
 | `POST` | `/wifi-scan` | Trigger a new async Wi-Fi scan (202 / 429) |
 | `GET` / `POST` | `/config` | Device configuration page |
@@ -178,6 +179,12 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 | Enable BLE advertising | `.switch` button + hidden `<input type=checkbox name=ble_advertise_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
 | Advertising interval | `<select>` | Stored as `ble_adv_interval_index`; options map to `100 ms`, `300 ms`, `1 s`, and `3 s` |
 
+**Wi-Fi power save card:**
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Wi-Fi power save | `.switch` button + hidden `<input type=checkbox name=wifi_power_save>` | Enables `WIFI_PS_MIN_MODEM` (modem sleep between DTIM beacons); station mode only; off by default |
+
 **Submit action:** `POST /config`
 - Validates field lengths, password constraints, and SNTP server characters server-side.
 - Builds `DeviceConfig` and `CellularConfig`, validates both records, and saves `device_cfg` plus `cellular_cfg` with one NVS commit through `saveDeviceAndCellularConfig()`.
@@ -194,7 +201,7 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes normally take effect immediately without a reboot. If the old sensor task does not acknowledge stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 3. "Discard pending changes" (`action=discard`) resets the staged config to the last saved config.
 
-**Staging banner** — shown at the top of the page whenever `has_pending_sensor_changes_` is true. Displays current pending status and the Apply / Discard buttons.
+**Page header actions** — **Apply** and **Discard** buttons are always visible in the page `title-row` (rendered via `lead_html` in `renderPageDocument`). The notice area below the title row shows a staging summary message when `has_pending_sensor_changes_` is true.
 
 **Sensor categories** — sensors are grouped into five fixed categories:
 
@@ -210,13 +217,10 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 
 **Per-sensor card** — each configured sensor shows:
-- Runtime state pill (`kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`)
-- Transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`)
-- Poll interval and queued sample count
-- Consecutive failure count and next retry uptime when a sensor is backing off
-- Latest reading values
-- Edit form (model selector, poll interval, I2C address selector, UART port selector, or GPIO pin selector, enabled checkbox)
-- "Stage sensor deletion" button
+- Display name and runtime state chip (`kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`) in the card header alongside **Save** and **Remove** buttons
+- Status block: transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`), poll interval, queued sample count, consecutive failure count, and next retry uptime when backing off; latest reading values
+- Edit form (model selector, poll interval, I2C address selector, UART port selector, or GPIO pin selector)
+- Sensors are always expanded; there is no collapse/expand toggle
 
 **Model selector behaviour** — when the sensor type is changed within a form, JavaScript updates the visible I2C address selector, UART port selector, or GPIO pin selector to match the new sensor's transport type. I2C address, UART port, and GPIO pin options come from the selected sensor descriptor; the current binding is preserved when it is still valid, otherwise the descriptor default or first allowed GPIO pin is selected. The UART selector shows the RX/TX pins for the selected UART port.
 
@@ -329,9 +333,9 @@ This endpoint does not modify stored configuration. Use `POST /config` followed 
 
 ---
 
-## Static assets (`/assets/*`)
+## Static assets (`/assets/*` and `/favicon.ico`)
 
-CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.css` and `/assets/air360.js`. Both are compiled into the firmware binary as C arrays via `web_assets.hpp`. Requests to unrecognised asset paths return HTTP 404.
+CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.css` and `/assets/air360.js`. The browser favicon is served from `/favicon.ico` (`image/x-icon`). All three are compiled into the firmware binary via `EMBED_TXTFILES` / `EMBED_FILES` in `CMakeLists.txt` and exposed through linker symbols in `web_assets.cpp`. Asset lookup is centralised in `findEmbeddedWebAsset()`. Requests to unrecognised asset paths return HTTP 404.
 
 The CSS uses a token-based design system with full light/dark theme support (`[data-theme="dark"]` on `<html>`). Theme preference is stored in `localStorage` under `air360-theme` and restored before first paint by `air360.js`. No external font or library CDN is used — all fallbacks are system fonts.
 
@@ -362,4 +366,4 @@ No external libraries are used. The script is plain ES2020.
 
 HTML pages are assembled server-side using a simple `{{PLACEHOLDER}}` substitution engine (`renderTemplate` / `renderPageDocument`). Templates live in `firmware/main/webui/` and are compiled into the binary as C string literals. All user-supplied values passed into templates are HTML-escaped before substitution to prevent injection.
 
-The page shell (navigation, `<head>`, layout wrapper) is generated by `renderPageDocument()`, which takes an active page key to highlight the correct navigation link. The generated `<body>` element receives a `data-page` attribute (`overview`, `device`, `sensors`, `backends`, `diagnostics`) that can be used as a CSS hook. The top navigation bar is rendered server-side as `<header class="topnav">` with SVG icons and a theme toggle button; it does not depend on client-side JavaScript to render. Each page emits a `.crumb` (uppercase section label) and `<h1 class="page-title">` in a `.page-header` wrapper above the template content.
+The page shell (navigation, `<head>`, layout wrapper) is generated by `renderPageDocument()`, which takes an active page key to highlight the correct navigation link. The generated `<body>` element receives a `data-page` attribute (`overview`, `device`, `sensors`, `backends`, `diagnostics`) that can be used as a CSS hook. The top navigation bar is rendered server-side as `<header class="topnav">` containing a `<div class="topnav-inner">` that constrains brand, nav links, and theme toggle to the same 80 % / 1200 px column as the page content; it does not depend on client-side JavaScript to render. On narrow viewports the nav links stack vertically below the brand. Each page emits a `.crumb` (uppercase section label) and `<h1 class="page-title">` in a `.page-header` wrapper above the template content. Pages with a primary form action (Device Configuration, Backends, Sensor Configuration) place their submit button(s) in the `.title-row` alongside the heading via the `lead_html` parameter of `renderPageDocument()`.
