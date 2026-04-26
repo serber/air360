@@ -279,8 +279,8 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 
 `WebServer::start()` configures and starts `esp_http_server`:
 
-- Stack size: 10 240 bytes
-- Max URI handlers: 14
+- Stack size: 16 384 bytes
+- Max URI handlers: 15
 
 HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
 
@@ -331,7 +331,7 @@ After the boot sequence completes, the following tasks run concurrently:
 | `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()` |
 | `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 8 — `UploadManager::start()` |
 | `air360_ble` | 4 096 B | 3 | 5 s | ✓ subscribed | Step 5 — `BleAdvertiser::start()` (when enabled) |
-| `esp_httpd` (web server) | 10 240 B | default | event-driven | ✗ IDF-managed | Step 9 — `WebServer::start()` |
+| `esp_httpd` (web server) | 16 384 B | default | event-driven | ✗ IDF-managed | Step 9 — `WebServer::start()` |
 | ESP-IDF Wi-Fi / event loop | (IDF managed) | (IDF managed) | event-driven | ✗ IDF-managed | Steps 3 / 7 |
 
 `air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task. `BleAdvertiser::stop()` also uses task notification plus a stop-acknowledge semaphore; the `air360_ble` task self-deletes after leaving NimBLE calls so no caller deletes it from a foreign task context.
