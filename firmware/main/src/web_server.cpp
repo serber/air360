@@ -2037,6 +2037,17 @@ esp_err_t WebServer::start(
         return err;
     }
 
+    httpd_uri_t favicon_uri{};
+    favicon_uri.uri = "/favicon.ico";
+    favicon_uri.method = HTTP_GET;
+    favicon_uri.handler = &WebServer::handleFavicon;
+    favicon_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &favicon_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
     httpd_uri_t diagnostics_uri{};
     diagnostics_uri.uri = "/diagnostics";
     diagnostics_uri.method = HTTP_GET;

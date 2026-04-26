@@ -98,6 +98,8 @@ idf_component_register(
         esp_modem
         freertos
         nvs_flash
+    EMBED_FILES
+        "webui/favicon.ico"
     EMBED_TXTFILES
         "webui/air360.css"
         "webui/air360.js"

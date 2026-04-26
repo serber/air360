@@ -52,6 +52,10 @@ esp_err_t WebServer::handleAsset(httpd_req_t* request) {
     return sendAssetResponse(request, assetPathFromUri(request->uri));
 }
 
+esp_err_t WebServer::handleFavicon(httpd_req_t* request) {
+    return sendAssetResponse(request, "favicon.ico");
+}
+
 esp_err_t WebServer::handleRoot(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
     if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
