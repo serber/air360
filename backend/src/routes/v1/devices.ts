@@ -1,9 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
-import { upsertDevice } from "../../modules/devices/device-repository";
+import {
+  findDeviceByChipId,
+  upsertDevice,
+} from "../../modules/devices/device-repository";
+import { findLatestMeasurements } from "../../modules/measurements/measurement-repository";
 
-interface RegisterParams {
+interface DeviceParams {
   chip_id: string;
 }
 
@@ -15,7 +19,7 @@ interface RegisterBody {
 }
 
 export const deviceRoutes: FastifyPluginAsync = async (app) => {
-  app.put<{ Params: RegisterParams; Body: RegisterBody }>(
+  app.put<{ Params: DeviceParams; Body: RegisterBody }>(
     "/devices/:chip_id/register",
     async (request, reply) => {
       const { chip_id } = request.params;
@@ -70,6 +74,39 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
       });
 
       return reply.code(200).send(device);
+    },
+  );
+
+  app.get<{ Params: DeviceParams }>(
+    "/devices/:chip_id/latest",
+    async (request, reply) => {
+      const { chip_id } = request.params;
+      const db = getDb(app.config);
+
+      const device = await findDeviceByChipId(db, chip_id);
+      if (!device) {
+        return reply.code(404).send({
+          error: { code: "device_not_found", message: "Device is not registered" },
+        });
+      }
+
+      const rows = await findLatestMeasurements(db, device.id);
+
+      const sensorMap = new Map<string, { kind: string; value: number; sampled_at: Date }[]>();
+      for (const row of rows) {
+        const existing = sensorMap.get(row.sensor_type) ?? [];
+        existing.push({ kind: row.kind, value: row.value, sampled_at: row.sampled_at });
+        sensorMap.set(row.sensor_type, existing);
+      }
+
+      return reply.code(200).send({
+        chip_id: device.chip_id,
+        last_seen_at: device.last_seen_at,
+        sensors: Array.from(sensorMap.entries()).map(([sensor_type, readings]) => ({
+          sensor_type,
+          readings,
+        })),
+      });
     },
   );
 };

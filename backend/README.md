@@ -28,6 +28,8 @@ src/
       device-repository.ts  — device DB operations
     ingest/
       ingest-repository.ts  — batch and measurement DB operations
+    measurements/
+      measurement-repository.ts — measurement read queries
   db/
     client.ts            — Kysely singleton
     schema.ts            — TypeScript types for DB tables
@@ -244,8 +246,55 @@ Empty body.
 | 404  | `device_not_found` | Device has not been registered              |
 | 500  | `internal_error`   | Unexpected server error                     |
 
+---
+
+### `GET /v1/devices/:chip_id/latest`
+
+Returns the latest reading for each `(sensor_type, kind)` pair recorded by the device.
+
+**Path parameters**
+
+| Parameter | Type   | Description                |
+|-----------|--------|----------------------------|
+| `chip_id` | string | Device hardware identifier |
+
+**Response `200`**
+
+```json
+{
+  "chip_id": "AB1234CDEF56",
+  "last_seen_at": "2026-04-27T09:30:00.000Z",
+  "sensors": [
+    {
+      "sensor_type": "bme280",
+      "readings": [
+        { "kind": "temperature_c",   "value": 22.5,   "sampled_at": "2026-04-27T09:29:55.000Z" },
+        { "kind": "humidity_percent","value": 48.0,   "sampled_at": "2026-04-27T09:29:55.000Z" },
+        { "kind": "pressure_hpa",   "value": 1013.2, "sampled_at": "2026-04-27T09:29:55.000Z" }
+      ]
+    },
+    {
+      "sensor_type": "sps30",
+      "readings": [
+        { "kind": "pm2_5_ug_m3", "value": 12.3, "sampled_at": "2026-04-27T09:29:55.000Z" }
+      ]
+    }
+  ]
+}
+```
+
+If the device has no measurements yet, `sensors` is an empty array.
+
+**Error responses**
+
+| Code | `error.code`       | Reason                         |
+|------|--------------------|--------------------------------|
+| 404  | `device_not_found` | Device has not been registered |
+| 500  | `internal_error`   | Unexpected server error        |
+
 ## Current state
 
 - Device registration and upsert — implemented
 - Sensor batch ingest with persistence — implemented
+- Latest readings per device — implemented
 - Auth — not implemented (public API by design)
