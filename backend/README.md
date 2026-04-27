@@ -21,17 +21,17 @@ src/
   plugins/               — shared Fastify setup (error handler)
   routes/
     v1/
-      devices.ts         — device registration
+      devices.ts         — device registration and latest readings
       ingest.ts          — sensor batch ingest
   modules/
     devices/
-      device-repository.ts  — device DB operations
+      device-repository.ts     — device DB operations
     ingest/
-      ingest-repository.ts  — batch and measurement DB operations
+      ingest-repository.ts     — batch and measurement DB operations
     measurements/
       measurement-repository.ts — measurement read queries
   db/
-    client.ts            — Kysely singleton
+    client.ts            — Kysely singleton (BIGINT parsed as number)
     schema.ts            — TypeScript types for DB tables
   contracts/
     sensor-type.ts       — supported sensor types
@@ -67,7 +67,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/air360
 
 ## Migrations
 
-Migration files live in `migrations/` named `YYYYMMDDHHmmss_<description>.sql` and are applied in alphabetical order. Each migration runs in a transaction — on error it rolls back. Applied versions are tracked in the `schema_migrations` table.
+Migration files live in `migrations/` named `YYYYMMDDHHmmss_<description>.sql` and are applied in alphabetical order. Each file contains only DDL — the runner wraps each migration in a transaction and records the version in `schema_migrations` automatically.
 
 ```bash
 npm run migrate
@@ -79,31 +79,30 @@ Safe to run repeatedly — already applied migrations are skipped.
 
 ```
 devices
-  id               UUID PK
-  chip_id          TEXT UNIQUE       — hardware identifier (ESP32)
-  name             TEXT              — device name from firmware
+  device_id        BIGINT PK         — chip ID from firmware (48-bit MAC as decimal)
+  name             TEXT              — device name from firmware config
   latitude         NUMERIC(9,6)      — set by user when enabling Air360 API
   longitude        NUMERIC(9,6)
   firmware_version TEXT
-  registered_at    TIMESTAMPTZ
+  registered_at    TIMESTAMPTZ       — set once on first registration
   last_seen_at     TIMESTAMPTZ       — updated on every ingest batch
 
 batches
-  id               UUID PK
-  device_id        → devices.id
-  client_batch_id  TEXT              — assigned by firmware, used for idempotency
+  device_id        BIGINT  PK  → devices.device_id
+  batch_id         BIGINT  PK        — assigned by firmware, used for idempotency
   received_at      TIMESTAMPTZ       — server time
 
-measurements
-  id               UUID PK
-  device_id        → devices.id      — denormalized for direct queries
-  batch_id         → batches.id
+measurements                    — append-only log, no primary key
+  device_id        BIGINT  → batches(device_id, batch_id)
+  batch_id         BIGINT  → batches(device_id, batch_id)
   sensor_type      TEXT
   kind             TEXT
   value            DOUBLE PRECISION
   sampled_at       TIMESTAMPTZ       — timestamp from device (sample_time_unix_ms)
   received_at      TIMESTAMPTZ       — server time, for latency diagnostics
 ```
+
+`BIGINT` columns are parsed as JavaScript `number` by the pg driver (configured globally in `db/client.ts`). Device IDs are 48-bit values (max 2^48 − 1), safely within `Number.MAX_SAFE_INTEGER`.
 
 ## API
 
@@ -139,9 +138,9 @@ Registers a device or updates its metadata. Called by firmware on every boot. Id
 
 **Path parameters**
 
-| Parameter | Type   | Description                        |
-|-----------|--------|------------------------------------|
-| `chip_id` | string | Unique hardware identifier (ESP32) |
+| Parameter | Type    | Description                                     |
+|-----------|---------|-------------------------------------------------|
+| `chip_id` | integer | Hardware identifier — 48-bit MAC as decimal     |
 
 **Request body**
 
@@ -165,8 +164,7 @@ Registers a device or updates its metadata. Called by firmware on every boot. Id
 
 ```json
 {
-  "id": "019680ab-1234-7abc-8def-000000000001",
-  "chip_id": "AB1234CDEF56",
+  "device_id": 281474976710655,
   "name": "Air360-AB12",
   "latitude": 55.751244,
   "longitude": 37.618423,
@@ -188,16 +186,16 @@ On subsequent calls: `name`, `latitude`, `longitude`, `firmware_version`, and `l
 
 ---
 
-### `PUT /v1/devices/:chip_id/batches/:client_batch_id`
+### `PUT /v1/devices/:chip_id/batches/:batch_id`
 
-Ingests a batch of sensor samples from a device and persists them to the database. Idempotent — repeated calls with the same `client_batch_id` are accepted but not stored twice.
+Ingests a batch of sensor samples from a device and persists them to the database. Idempotent — repeated calls with the same `batch_id` are accepted but not stored twice.
 
 **Path parameters**
 
-| Parameter         | Type   | Description                                        |
-|-------------------|--------|----------------------------------------------------|
-| `chip_id`         | string | Device hardware identifier                         |
-| `client_batch_id` | string | Batch identifier assigned by firmware              |
+| Parameter  | Type    | Description                              |
+|------------|---------|------------------------------------------|
+| `chip_id`  | integer | Device hardware identifier               |
+| `batch_id` | integer | Batch identifier assigned by firmware    |
 
 **Request body**
 
@@ -206,7 +204,7 @@ Ingests a batch of sensor samples from a device and persists them to the databas
   "schema_version": 1,
   "sent_at_unix_ms": 1714220400000,
   "device": {
-    "chip_id": "AB1234CDEF56",
+    "chip_id": "281474976710655",
     "firmware_version": "1.2.0"
   },
   "batch": {
@@ -254,23 +252,23 @@ Returns the latest reading for each `(sensor_type, kind)` pair recorded by the d
 
 **Path parameters**
 
-| Parameter | Type   | Description                |
-|-----------|--------|----------------------------|
-| `chip_id` | string | Device hardware identifier |
+| Parameter | Type    | Description                |
+|-----------|---------|----------------------------|
+| `chip_id` | integer | Device hardware identifier |
 
 **Response `200`**
 
 ```json
 {
-  "chip_id": "AB1234CDEF56",
+  "device_id": 281474976710655,
   "last_seen_at": "2026-04-27T09:30:00.000Z",
   "sensors": [
     {
       "sensor_type": "bme280",
       "readings": [
-        { "kind": "temperature_c",   "value": 22.5,   "sampled_at": "2026-04-27T09:29:55.000Z" },
-        { "kind": "humidity_percent","value": 48.0,   "sampled_at": "2026-04-27T09:29:55.000Z" },
-        { "kind": "pressure_hpa",   "value": 1013.2, "sampled_at": "2026-04-27T09:29:55.000Z" }
+        { "kind": "temperature_c",    "value": 22.5,   "sampled_at": "2026-04-27T09:29:55.000Z" },
+        { "kind": "humidity_percent", "value": 48.0,   "sampled_at": "2026-04-27T09:29:55.000Z" },
+        { "kind": "pressure_hpa",    "value": 1013.2, "sampled_at": "2026-04-27T09:29:55.000Z" }
       ]
     },
     {

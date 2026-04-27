@@ -17,7 +17,6 @@ export interface BatchTable {
 }
 
 export interface MeasurementTable {
-  id: Generated<string>;
   device_id: number;
   batch_id: number;
   sensor_type: string;

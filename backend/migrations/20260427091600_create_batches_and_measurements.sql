@@ -6,7 +6,6 @@ CREATE TABLE batches (
 );
 
 CREATE TABLE measurements (
-  id          UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
   device_id   BIGINT           NOT NULL,
   batch_id    BIGINT           NOT NULL,
   sensor_type TEXT             NOT NULL,
