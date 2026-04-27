@@ -277,6 +277,8 @@ Four backends are pre-configured by default — all **disabled**:
 | `measurement_name` | `char[32]` | `"air360"` for InfluxDB, else `""` | InfluxDB measurement name |
 | `port` | `uint16_t` | backend default | HTTP backends |
 | `use_https` | `uint8_t` | backend default | `1` = HTTPS, `0` = HTTP |
+| `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
+| `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
 
 ### Default endpoint settings
 
@@ -302,6 +304,7 @@ HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom
 **Air360 API:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
 - If `enabled == 1`: `host`, `path`, and `port` must be valid.
+- `latitude` and `longitude` must both be non-zero before the first upload cycle; the adapter enforces this at registration time (not at config-load time).
 
 **Custom Upload:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.

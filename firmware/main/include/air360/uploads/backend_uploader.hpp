@@ -13,6 +13,8 @@
 
 namespace air360 {
 
+class UploadTransport;
+
 enum class UploadMethod : std::uint8_t {
     kPost = 1U,
     kPut = 2U,
@@ -50,6 +52,13 @@ class IBackendUploader {
 
     virtual BackendType type() const = 0;
     virtual bool validateConfig(const BackendRecord& record, std::string& error) const = 0;
+    virtual bool prepareSync(
+        const BackendRecord& record,
+        const MeasurementBatch& batch,
+        const UploadTransport& transport,
+        std::string& error) {
+        return true;
+    }
     virtual bool buildRequests(
         const BackendRecord& record,
         const MeasurementBatch& batch,

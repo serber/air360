@@ -352,6 +352,16 @@ void UploadManager::taskMain() {
                             acknowledge_window = true;
                             next_retry_count = 0U;
                         } else {
+                            resetUploadTaskWatchdog("before registration");
+                            const bool prepared = uploader->prepareSync(
+                                record, batch, transport_, last_error);
+                            resetUploadTaskWatchdog("after registration");
+
+                            if (!prepared) {
+                                aggregate_result = UploadResultClass::kTransportError;
+                                next_state = BackendRuntimeState::kError;
+                                ++next_retry_count;
+                            } else {
                             std::vector<UploadRequestSpec> requests;
                             if (!uploader->buildRequests(record, batch, requests, last_error)) {
                                 aggregate_result = UploadResultClass::kConfigError;
@@ -413,6 +423,7 @@ void UploadManager::taskMain() {
                                         static_cast<std::uint64_t>(retry_after_seconds) * 1000U;
                                 }
                             }
+                            }  // end prepareSync success branch
                         }
                     }
                 }
