@@ -1,6 +1,6 @@
 CREATE TABLE devices (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  chip_id          TEXT        NOT NULL UNIQUE,
+  chip_id          BIGINT      NOT NULL UNIQUE,
   name             TEXT        NOT NULL,
   latitude         NUMERIC(9,6)  NOT NULL,
   longitude        NUMERIC(9,6)  NOT NULL,
@@ -8,5 +8,3 @@ CREATE TABLE devices (
   registered_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-INSERT INTO schema_migrations (version) VALUES ('20260427091500_create_devices');

@@ -12,9 +12,8 @@ export interface DeviceTable {
 }
 
 export interface BatchTable {
-  id: Generated<string>;
   device_id: string;
-  client_batch_id: string;
+  batch_id: string;
   received_at: Generated<Date>;
 }
 

@@ -17,7 +17,7 @@ import { isSensorType, type SensorType } from "../../contracts/sensor-type";
 
 interface IngestParams {
   chip_id: string;
-  client_batch_id: string;
+  batch_id: string;
 }
 
 interface IngestValue {
@@ -46,9 +46,9 @@ interface IngestBody {
 
 export const ingestRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: IngestParams; Body: IngestBody }>(
-    "/devices/:chip_id/batches/:client_batch_id",
+    "/devices/:chip_id/batches/:batch_id",
     async (request, reply) => {
-      const { chip_id, client_batch_id } = request.params;
+      const { chip_id, batch_id } = request.params;
       const body = request.body;
       const samples = body?.batch?.samples;
 
@@ -122,12 +122,9 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const batchId = await insertBatch(db, {
-        device_id: device.id,
-        client_batch_id,
-      });
+      const inserted = await insertBatch(db, { device_id: device.id, batch_id });
 
-      if (batchId === null) {
+      if (!inserted) {
         // batch already processed — idempotent response
         return reply.code(200).send();
       }
@@ -135,7 +132,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       const measurements = samples.flatMap((sample) =>
         sample.values.map((v) => ({
           device_id: device.id,
-          batch_id: batchId,
+          batch_id,
           sensor_type: sample.sensor_type,
           kind: v.kind,
           value: v.value,

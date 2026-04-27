@@ -4,7 +4,7 @@ import type { Database } from "../../db/schema";
 
 interface InsertBatchData {
   device_id: string;
-  client_batch_id: string;
+  batch_id: string;
 }
 
 interface InsertMeasurementData {
@@ -19,17 +19,17 @@ interface InsertMeasurementData {
 export async function insertBatch(
   db: Kysely<Database>,
   data: InsertBatchData,
-): Promise<string | null> {
+): Promise<boolean> {
   const row = await db
     .insertInto("batches")
     .values(data)
     .onConflict((oc) =>
-      oc.columns(["device_id", "client_batch_id"]).doNothing(),
+      oc.columns(["device_id", "batch_id"]).doNothing(),
     )
-    .returning("id")
+    .returning("batch_id")
     .executeTakeFirst();
 
-  return row?.id ?? null;
+  return row !== undefined;
 }
 
 export async function insertMeasurements(
