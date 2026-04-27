@@ -1,8 +1,7 @@
 import type { ColumnType, Generated } from "kysely";
 
 export interface DeviceTable {
-  id: Generated<string>;
-  chip_id: string;
+  device_id: number;
   name: string;
   latitude: number;
   longitude: number;
@@ -12,15 +11,15 @@ export interface DeviceTable {
 }
 
 export interface BatchTable {
-  device_id: string;
-  batch_id: string;
+  device_id: number;
+  batch_id: number;
   received_at: Generated<Date>;
 }
 
 export interface MeasurementTable {
   id: Generated<string>;
-  device_id: string;
-  batch_id: string;
+  device_id: number;
+  batch_id: number;
   sensor_type: string;
   kind: string;
   value: number;
@@ -35,8 +34,7 @@ export interface Database {
 }
 
 export type Device = {
-  id: string;
-  chip_id: string;
+  device_id: number;
   name: string;
   latitude: number;
   longitude: number;

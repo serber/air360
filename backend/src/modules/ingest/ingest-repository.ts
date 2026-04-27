@@ -3,13 +3,13 @@ import type { Kysely } from "kysely";
 import type { Database } from "../../db/schema";
 
 interface InsertBatchData {
-  device_id: string;
-  batch_id: string;
+  device_id: number;
+  batch_id: number;
 }
 
 interface InsertMeasurementData {
-  device_id: string;
-  batch_id: string;
+  device_id: number;
+  batch_id: number;
   sensor_type: string;
   kind: string;
   value: number;

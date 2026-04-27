@@ -16,8 +16,8 @@ import {
 import { isSensorType, type SensorType } from "../../contracts/sensor-type";
 
 interface IngestParams {
-  chip_id: string;
-  batch_id: string;
+  chip_id: number;
+  batch_id: number;
 }
 
 interface IngestValue {
@@ -47,12 +47,24 @@ interface IngestBody {
 export const ingestRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: IngestParams; Body: IngestBody }>(
     "/devices/:chip_id/batches/:batch_id",
+    {
+      schema: {
+        params: {
+          type: "object",
+          properties: {
+            chip_id: { type: "integer" },
+            batch_id: { type: "integer" },
+          },
+          required: ["chip_id", "batch_id"],
+        },
+      },
+    },
     async (request, reply) => {
-      const { chip_id, batch_id } = request.params;
+      const { chip_id: device_id, batch_id } = request.params;
       const body = request.body;
       const samples = body?.batch?.samples;
 
-      if (body?.device?.chip_id && body.device.chip_id !== chip_id) {
+      if (body?.device?.chip_id && Number(body.device.chip_id) !== device_id) {
         return reply.code(400).send({
           error: {
             code: "invalid_payload",
@@ -112,7 +124,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
 
       const db = getDb(app.config);
 
-      const device = await findDeviceByChipId(db, chip_id);
+      const device = await findDeviceByChipId(db, device_id);
       if (!device) {
         return reply.code(404).send({
           error: {
@@ -122,7 +134,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const inserted = await insertBatch(db, { device_id: device.id, batch_id });
+      const inserted = await insertBatch(db, { device_id, batch_id });
 
       if (!inserted) {
         // batch already processed — idempotent response
@@ -131,7 +143,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
 
       const measurements = samples.flatMap((sample) =>
         sample.values.map((v) => ({
-          device_id: device.id,
+          device_id,
           batch_id,
           sensor_type: sample.sensor_type,
           kind: v.kind,
@@ -141,7 +153,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       );
 
       await insertMeasurements(db, measurements);
-      await updateDeviceLastSeen(db, device.id);
+      await updateDeviceLastSeen(db, device_id);
 
       return reply.code(200).send();
     },

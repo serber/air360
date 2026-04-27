@@ -11,7 +11,7 @@ export interface LatestReading {
 
 export async function findLatestMeasurements(
   db: Kysely<Database>,
-  device_id: string,
+  device_id: number,
 ): Promise<LatestReading[]> {
   return db
     .selectFrom("measurements")

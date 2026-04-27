@@ -8,7 +8,7 @@ import {
 import { findLatestMeasurements } from "../../modules/measurements/measurement-repository";
 
 interface DeviceParams {
-  chip_id: string;
+  chip_id: number;
 }
 
 interface RegisterBody {
@@ -18,9 +18,20 @@ interface RegisterBody {
   firmware_version: string;
 }
 
+const chipIdParam = {
+  schema: {
+    params: {
+      type: "object",
+      properties: { chip_id: { type: "integer" } },
+      required: ["chip_id"],
+    },
+  },
+} as const;
+
 export const deviceRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: DeviceParams; Body: RegisterBody }>(
     "/devices/:chip_id/register",
+    chipIdParam,
     async (request, reply) => {
       const { chip_id } = request.params;
       const { name, latitude, longitude, firmware_version } =
@@ -66,7 +77,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
       const db = getDb(app.config);
 
       const device = await upsertDevice(db, {
-        chip_id,
+        device_id: chip_id,
         name: name.trim(),
         latitude,
         longitude,
@@ -79,6 +90,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
 
   app.get<{ Params: DeviceParams }>(
     "/devices/:chip_id/latest",
+    chipIdParam,
     async (request, reply) => {
       const { chip_id } = request.params;
       const db = getDb(app.config);
@@ -90,7 +102,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const rows = await findLatestMeasurements(db, device.id);
+      const rows = await findLatestMeasurements(db, device.device_id);
 
       const sensorMap = new Map<string, { kind: string; value: number; sampled_at: Date }[]>();
       for (const row of rows) {
@@ -100,7 +112,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return reply.code(200).send({
-        chip_id: device.chip_id,
+        device_id: device.device_id,
         last_seen_at: device.last_seen_at,
         sensors: Array.from(sensorMap.entries()).map(([sensor_type, readings]) => ({
           sensor_type,
