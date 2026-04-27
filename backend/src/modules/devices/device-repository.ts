@@ -29,3 +29,25 @@ export async function upsertDevice(
     .returningAll()
     .executeTakeFirstOrThrow() as Promise<Device>;
 }
+
+export async function findDeviceByChipId(
+  db: Kysely<Database>,
+  chip_id: string,
+): Promise<Device | undefined> {
+  return db
+    .selectFrom("devices")
+    .selectAll()
+    .where("chip_id", "=", chip_id)
+    .executeTakeFirst() as Promise<Device | undefined>;
+}
+
+export async function updateDeviceLastSeen(
+  db: Kysely<Database>,
+  device_id: string,
+): Promise<void> {
+  await db
+    .updateTable("devices")
+    .set({ last_seen_at: new Date() })
+    .where("id", "=", device_id)
+    .execute();
+}

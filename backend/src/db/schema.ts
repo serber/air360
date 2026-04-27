@@ -11,8 +11,28 @@ export interface DeviceTable {
   last_seen_at: ColumnType<Date, never, Date>;
 }
 
+export interface BatchTable {
+  id: Generated<string>;
+  device_id: string;
+  client_batch_id: string;
+  received_at: Generated<Date>;
+}
+
+export interface MeasurementTable {
+  id: Generated<string>;
+  device_id: string;
+  batch_id: string;
+  sensor_type: string;
+  kind: string;
+  value: number;
+  sampled_at: Date;
+  received_at: Generated<Date>;
+}
+
 export interface Database {
   devices: DeviceTable;
+  batches: BatchTable;
+  measurements: MeasurementTable;
 }
 
 export type Device = {

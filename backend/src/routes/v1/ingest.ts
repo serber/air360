@@ -1,5 +1,14 @@
-import { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 
+import { getDb } from "../../db/client";
+import {
+  findDeviceByChipId,
+  updateDeviceLastSeen,
+} from "../../modules/devices/device-repository";
+import {
+  insertBatch,
+  insertMeasurements,
+} from "../../modules/ingest/ingest-repository";
 import {
   isMeasurementKind,
   type MeasurementKind,
@@ -27,10 +36,6 @@ interface IngestBody {
   sent_at_unix_ms?: number;
   device?: {
     chip_id?: string;
-    device_name?: string;
-    board_name?: string;
-    short_chip_id?: string;
-    esp_mac_id?: string;
     firmware_version?: string;
   };
   batch?: {
@@ -43,14 +48,12 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: IngestParams; Body: IngestBody }>(
     "/devices/:chip_id/batches/:client_batch_id",
     async (request, reply) => {
+      const { chip_id, client_batch_id } = request.params;
       const body = request.body;
-      const pathChipId = request.params.chip_id;
-      const batch = body?.batch;
-      const samples = batch?.samples;
+      const samples = body?.batch?.samples;
 
-      if (body?.device?.chip_id && body.device.chip_id !== pathChipId) {
+      if (body?.device?.chip_id && body.device.chip_id !== chip_id) {
         return reply.code(400).send({
-          accepted: false,
           error: {
             code: "invalid_payload",
             message: "device.chip_id must match the chip_id path parameter",
@@ -60,17 +63,12 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
 
       if (!Array.isArray(samples)) {
         return reply.code(400).send({
-          accepted: false,
-          error: {
-            code: "invalid_payload",
-            message: "batch.samples must be an array",
-          },
+          error: { code: "invalid_payload", message: "batch.samples must be an array" },
         });
       }
 
-      if (batch?.sample_count !== samples.length) {
+      if (body?.batch?.sample_count !== samples.length) {
         return reply.code(400).send({
-          accepted: false,
           error: {
             code: "invalid_payload",
             message: "batch.sample_count must equal batch.samples.length",
@@ -79,12 +77,10 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const missingSampleTime = samples.some(
-        (sample) => typeof sample.sample_time_unix_ms !== "number",
+        (s) => typeof s.sample_time_unix_ms !== "number",
       );
-
       if (missingSampleTime) {
         return reply.code(400).send({
-          accepted: false,
           error: {
             code: "invalid_payload",
             message: "sample_time_unix_ms is required for every sample",
@@ -92,13 +88,9 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const invalidSensorType = samples.find(
-        (sample) => !isSensorType(sample.sensor_type),
-      );
-
+      const invalidSensorType = samples.find((s) => !isSensorType(s.sensor_type));
       if (invalidSensorType) {
         return reply.code(400).send({
-          accepted: false,
           error: {
             code: "invalid_payload",
             message: "every sample.sensor_type must be a supported sensor type",
@@ -106,13 +98,11 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const invalidMeasurementKind = samples.find((sample) =>
-        sample.values.some((value) => !isMeasurementKind(value.kind)),
+      const invalidKind = samples.find((s) =>
+        s.values.some((v) => !isMeasurementKind(v.kind)),
       );
-
-      if (invalidMeasurementKind) {
+      if (invalidKind) {
         return reply.code(400).send({
-          accepted: false,
           error: {
             code: "invalid_payload",
             message: "every values[].kind must be a supported measurement kind",
@@ -120,11 +110,43 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      return reply.code(201).send({
-        accepted: true,
-        client_batch_id: request.params.client_batch_id,
-        accepted_samples: samples.length,
+      const db = getDb(app.config);
+
+      const device = await findDeviceByChipId(db, chip_id);
+      if (!device) {
+        return reply.code(404).send({
+          error: {
+            code: "device_not_found",
+            message: "Device is not registered",
+          },
+        });
+      }
+
+      const batchId = await insertBatch(db, {
+        device_id: device.id,
+        client_batch_id,
       });
+
+      if (batchId === null) {
+        // batch already processed — idempotent response
+        return reply.code(200).send();
+      }
+
+      const measurements = samples.flatMap((sample) =>
+        sample.values.map((v) => ({
+          device_id: device.id,
+          batch_id: batchId,
+          sensor_type: sample.sensor_type,
+          kind: v.kind,
+          value: v.value,
+          sampled_at: new Date(sample.sample_time_unix_ms),
+        })),
+      );
+
+      await insertMeasurements(db, measurements);
+      await updateDeviceLastSeen(db, device.id);
+
+      return reply.code(200).send();
     },
   );
 };

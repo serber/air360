@@ -9,4 +9,4 @@ CREATE TABLE devices (
   last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO schema_migrations (version) VALUES ('001_create_devices');
+INSERT INTO schema_migrations (version) VALUES ('20260427091500_create_devices');

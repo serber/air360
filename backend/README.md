@@ -19,16 +19,21 @@ src/
   app.ts                 — builds Fastify instance, registers config decorator
   config/env.ts          — environment variable parsing
   plugins/               — shared Fastify setup (error handler)
-  routes/                — route registration
+  routes/
     v1/
       devices.ts         — device registration
       ingest.ts          — sensor batch ingest
   modules/
     devices/
-      device-repository.ts — device DB operations
+      device-repository.ts  — device DB operations
+    ingest/
+      ingest-repository.ts  — batch and measurement DB operations
   db/
     client.ts            — Kysely singleton
     schema.ts            — TypeScript types for DB tables
+  contracts/
+    sensor-type.ts       — supported sensor types
+    measurement-kind.ts  — supported measurement kinds
 migrations/              — plain SQL migration files
 scripts/
   migrate.ts             — migration runner
@@ -60,13 +65,43 @@ DATABASE_URL=postgresql://user:password@localhost:5432/air360
 
 ## Migrations
 
-Migration files live in `migrations/` and are applied in alphabetical order. Each migration is wrapped in a transaction. Applied versions are tracked in the `schema_migrations` table.
+Migration files live in `migrations/` named `YYYYMMDDHHmmss_<description>.sql` and are applied in alphabetical order. Each migration runs in a transaction — on error it rolls back. Applied versions are tracked in the `schema_migrations` table.
 
 ```bash
 npm run migrate
 ```
 
 Safe to run repeatedly — already applied migrations are skipped.
+
+## Data model
+
+```
+devices
+  id               UUID PK
+  chip_id          TEXT UNIQUE       — hardware identifier (ESP32)
+  name             TEXT              — device name from firmware
+  latitude         NUMERIC(9,6)      — set by user when enabling Air360 API
+  longitude        NUMERIC(9,6)
+  firmware_version TEXT
+  registered_at    TIMESTAMPTZ
+  last_seen_at     TIMESTAMPTZ       — updated on every ingest batch
+
+batches
+  id               UUID PK
+  device_id        → devices.id
+  client_batch_id  TEXT              — assigned by firmware, used for idempotency
+  received_at      TIMESTAMPTZ       — server time
+
+measurements
+  id               UUID PK
+  device_id        → devices.id      — denormalized for direct queries
+  batch_id         → batches.id
+  sensor_type      TEXT
+  kind             TEXT
+  value            DOUBLE PRECISION
+  sampled_at       TIMESTAMPTZ       — timestamp from device (sample_time_unix_ms)
+  received_at      TIMESTAMPTZ       — server time, for latency diagnostics
+```
 
 ## API
 
@@ -117,12 +152,12 @@ Registers a device or updates its metadata. Called by firmware on every boot. Id
 }
 ```
 
-| Field              | Type   | Required | Description                          |
-|--------------------|--------|----------|--------------------------------------|
-| `name`             | string | yes      | Device name from firmware config     |
-| `latitude`         | number | yes      | Decimal degrees, −90 to 90           |
-| `longitude`        | number | yes      | Decimal degrees, −180 to 180         |
-| `firmware_version` | string | yes      | Firmware version string              |
+| Field              | Type   | Required | Description                      |
+|--------------------|--------|----------|----------------------------------|
+| `name`             | string | yes      | Device name from firmware config |
+| `latitude`         | number | yes      | Decimal degrees, −90 to 90       |
+| `longitude`        | number | yes      | Decimal degrees, −180 to 180     |
+| `firmware_version` | string | yes      | Firmware version string          |
 
 **Response `200`** — created or updated
 
@@ -134,8 +169,8 @@ Registers a device or updates its metadata. Called by firmware on every boot. Id
   "latitude": 55.751244,
   "longitude": 37.618423,
   "firmware_version": "1.2.0",
-  "registered_at": "2026-04-27T12:00:00.000Z",
-  "last_seen_at": "2026-04-27T15:30:00.000Z"
+  "registered_at": "2026-04-27T09:15:00.000Z",
+  "last_seen_at": "2026-04-27T09:15:00.000Z"
 }
 ```
 
@@ -144,23 +179,23 @@ On subsequent calls: `name`, `latitude`, `longitude`, `firmware_version`, and `l
 
 **Error responses**
 
-| Code | `error.code`       | Reason                              |
-|------|--------------------|-------------------------------------|
-| 400  | `validation_error` | Missing or invalid field            |
-| 500  | `internal_error`   | Unexpected server error             |
+| Code | `error.code`       | Reason                   |
+|------|--------------------|--------------------------|
+| 400  | `validation_error` | Missing or invalid field |
+| 500  | `internal_error`   | Unexpected server error  |
 
 ---
 
 ### `PUT /v1/devices/:chip_id/batches/:client_batch_id`
 
-Ingests a batch of sensor samples from a device. Currently validates payload and returns a mock accepted response — persistence is not yet implemented.
+Ingests a batch of sensor samples from a device and persists them to the database. Idempotent — repeated calls with the same `client_batch_id` are accepted but not stored twice.
 
 **Path parameters**
 
-| Parameter         | Type   | Description                              |
-|-------------------|--------|------------------------------------------|
-| `chip_id`         | string | Device hardware identifier               |
-| `client_batch_id` | string | Client-generated batch identifier        |
+| Parameter         | Type   | Description                                        |
+|-------------------|--------|----------------------------------------------------|
+| `chip_id`         | string | Device hardware identifier                         |
+| `client_batch_id` | string | Batch identifier assigned by firmware              |
 
 **Request body**
 
@@ -197,25 +232,20 @@ Ingests a batch of sensor samples from a device. Currently validates payload and
 
 `temperature_c` `humidity_percent` `pressure_hpa` `latitude_deg` `longitude_deg` `altitude_m` `satellites` `speed_knots` `course_deg` `hdop` `gas_resistance_ohms` `pm1_0_ug_m3` `pm2_5_ug_m3` `pm4_0_ug_m3` `pm10_0_ug_m3` `nc0_5_per_cm3` `nc1_0_per_cm3` `nc2_5_per_cm3` `nc4_0_per_cm3` `nc10_0_per_cm3` `typical_particle_size_um` `co2_ppm` `illuminance_lux` `adc_raw` `voltage_mv` `current_ma` `power_mw`
 
-**Response `201`**
+**Response `200`**
 
-```json
-{
-  "accepted": true,
-  "client_batch_id": "batch-001",
-  "accepted_samples": 1
-}
-```
+Empty body.
 
 **Error responses**
 
 | Code | `error.code`       | Reason                                      |
 |------|--------------------|---------------------------------------------|
 | 400  | `invalid_payload`  | Validation failed (see message for details) |
+| 404  | `device_not_found` | Device has not been registered              |
 | 500  | `internal_error`   | Unexpected server error                     |
 
 ## Current state
 
 - Device registration and upsert — implemented
-- Sensor batch ingest — payload validation only, no persistence yet
+- Sensor batch ingest with persistence — implemented
 - Auth — not implemented (public API by design)
