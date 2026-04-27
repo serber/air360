@@ -12,6 +12,7 @@ export function getDb(config: AppConfig): Kysely<Database> {
       dialect: new PostgresDialect({
         pool: new Pool({
           connectionString: config.databaseUrl,
+          options: "-c timezone=UTC",
         }),
       }),
     });

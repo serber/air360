@@ -1,0 +1,31 @@
+import type { Kysely } from "kysely";
+
+import type { Database, Device } from "../../db/schema";
+
+interface UpsertDeviceData {
+  chip_id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  firmware_version: string;
+}
+
+export async function upsertDevice(
+  db: Kysely<Database>,
+  data: UpsertDeviceData,
+): Promise<Device> {
+  return db
+    .insertInto("devices")
+    .values(data)
+    .onConflict((oc) =>
+      oc.column("chip_id").doUpdateSet({
+        name: data.name,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        firmware_version: data.firmware_version,
+        last_seen_at: new Date(),
+      }),
+    )
+    .returningAll()
+    .executeTakeFirstOrThrow() as Promise<Device>;
+}
