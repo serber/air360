@@ -1,3 +1,5 @@
+process.env.TZ = "UTC";
+
 import { buildApp } from "./app";
 import { loadConfig } from "./config/env";
 

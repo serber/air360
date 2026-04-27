@@ -216,6 +216,29 @@ PUT {scheme}://{host}{:port}{path}
 - Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{chip_id}/batches/{batch_id}` for backward compatibility.
 - The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
+### Device registration
+
+Before the first upload cycle, the Air360 API adapter calls `prepareSync()` to register the device with the backend. This step runs once per firmware boot and sets a `registered_` atomic flag on success; subsequent cycles skip it.
+
+**Registration request:**
+
+```
+PUT {scheme}://{host}{:port}/v1/devices/{chip_id}/register
+```
+
+```json
+{
+  "name": "<device_name>",
+  "latitude": 55.751244,
+  "longitude": 37.618423,
+  "firmware_version": "0.1.0"
+}
+```
+
+- If `latitude` and `longitude` are both `0.0`, `prepareSync()` returns an error and the upload cycle is skipped. Set coordinates on the Backends page before enabling Air360 API.
+- HTTP 2xx → device registered, `registered_` set to `true`.
+- Transport error or non-2xx HTTP → error is logged, the cycle is counted as a transport error, and registration retries on the next upload cycle.
+
 ### One request per batch
 
 Unlike Sensor.Community, the Air360 adapter emits exactly **one PUT request** per upload cycle, regardless of how many sensor types are in the batch. All samples and all sensor types are packed into a single JSON body.

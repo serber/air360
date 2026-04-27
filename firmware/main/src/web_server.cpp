@@ -91,6 +91,8 @@ struct BackendCardViewModel {
     std::string password;
     std::string measurement_name;
     std::string device_id_override;
+    std::string latitude;
+    std::string longitude;
     // Status:
     bool has_status = false;
     std::string state_key;
@@ -1096,6 +1098,26 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
                 endpoint_block += htmlEscape(card.endpoint);
                 endpoint_block += "</code></span>";
             }
+            endpoint_block += "<div class='field'><label for='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Latitude</label>";
+            endpoint_block += "<input class='input' id='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' type='number' step='any' min='-90' max='90' value='";
+            endpoint_block += htmlEscape(card.latitude);
+            endpoint_block += "' placeholder='e.g. 55.7512' required></div>";
+            endpoint_block += "<div class='field'><label for='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Longitude</label>";
+            endpoint_block += "<input class='input' id='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' type='number' step='any' min='-180' max='180' value='";
+            endpoint_block += htmlEscape(card.longitude);
+            endpoint_block += "' placeholder='e.g. 37.6173' required></div>";
             break;
 
         case BackendType::kCustomUpload:
@@ -1210,6 +1232,12 @@ BackendsPageViewModel buildBackendsPageViewModel(
                 boundedCString(record->sensor_community_device_id, kBackendIdentifierCapacity);
             if (card.device_id_override.empty()) {
                 card.device_id_override = build_info.short_chip_id;
+            }
+            if (record->backend_type == BackendType::kAir360Api) {
+                if (record->latitude != 0.0F || record->longitude != 0.0F) {
+                    card.latitude = std::to_string(record->latitude);
+                    card.longitude = std::to_string(record->longitude);
+                }
             }
         } else {
             card.use_https = descriptor.defaults.protocol == BackendProtocol::kHttps;

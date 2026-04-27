@@ -47,8 +47,9 @@ struct BackendRecord {
     // ── InfluxDB-specific ────────────────────────────────
     char influxdb_measurement[kBackendMeasurementCapacity]{};
 
-    // ── reserved ─────────────────────────────────────────
-    std::uint8_t reserved2[8]{};
+    // ── Air360 API-specific ──────────────────────────────
+    float latitude  = 0.0F;
+    float longitude = 0.0F;
 };
 
 struct BackendConfigList {

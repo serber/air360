@@ -250,6 +250,7 @@ A single form containing upload settings and one card per backend type.
 - `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
+- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required). These are persisted in the `BackendRecord` and sent to the backend on first-boot device registration. Upload cycles are blocked until both values are non-zero.
 - Sensor.Community only: `device_id_override` field (overrides the short chip ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).
 
