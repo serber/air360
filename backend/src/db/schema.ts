@@ -3,6 +3,7 @@ import type { ColumnType, Generated } from "kysely";
 export interface DeviceTable {
   device_id: number;
   public_id: Generated<string>;
+  registered_from_ip: ColumnType<string | null, string | null, never>;
   name: string;
   latitude: number;
   longitude: number;
@@ -36,6 +37,7 @@ export interface Database {
 export type Device = {
   device_id: number;
   public_id: string;
+  registered_from_ip: string | null;
   name: string;
   latitude: number;
   longitude: number;

@@ -12,9 +12,8 @@ declare module "fastify" {
 
 export function buildApp(config: AppConfig): FastifyInstance {
   const app = Fastify({
-    logger: {
-      level: config.logLevel,
-    },
+    logger: { level: config.logLevel },
+    trustProxy: true,
   });
 
   app.decorate("config", config);

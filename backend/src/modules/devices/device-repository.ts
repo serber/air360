@@ -4,6 +4,7 @@ import type { Database, Device } from "../../db/schema";
 
 interface UpsertDeviceData {
   device_id: number;
+  registered_from_ip: string | null;
   name: string;
   latitude: number;
   longitude: number;

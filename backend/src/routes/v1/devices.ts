@@ -93,6 +93,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
 
       const device = await upsertDevice(db, {
         device_id,
+        registered_from_ip: request.ip ?? null,
         name: name.trim(),
         latitude,
         longitude,
