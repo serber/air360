@@ -263,21 +263,49 @@ curl -i https://api.air360.ru/health
 ss -ltnp
 ```
 
-## Database Notes For Later
+## Database
 
-The current backend scaffold does not require a database yet.
+The backend requires PostgreSQL 18 with the TimescaleDB extension.
 
-When implementation reaches persistence:
+### Installation
 
-- install `PostgreSQL` from the official PostgreSQL Ubuntu repository if a newer server version is needed
-- install `TimescaleDB` as a PostgreSQL extension using the self-hosted Timescale documentation
-- keep both services private to the host or private network
-- start with one PostgreSQL instance plus the TimescaleDB extension unless real scale or isolation requirements justify splitting them
+```bash
+# Add TimescaleDB repository
+sudo apt install -y gnupg apt-transport-https lsb-release wget
+echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main" \
+  | sudo tee /etc/apt/sources.list.d/timescaledb.list
+wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo apt-key add -
+sudo apt update
 
-That keeps the first deployment operationally simple while preserving the logical split between:
+# Install TimescaleDB for PostgreSQL 18
+sudo apt install -y postgresql-18-timescaledb
 
-- user and device control-plane data
-- time-series telemetry storage
+# Enable shared_preload_libraries in postgresql.conf
+sudo nano /etc/postgresql/18/main/postgresql.conf
+# Add or update: shared_preload_libraries = 'timescaledb'
+
+sudo systemctl restart postgresql
+```
+
+### First-time setup
+
+Create the database and user, then run migrations:
+
+```bash
+sudo -u postgres psql -c "CREATE USER air360 WITH PASSWORD 'yourpassword';"
+sudo -u postgres psql -c "CREATE DATABASE air360_db OWNER air360;"
+DATABASE_URL="postgres://air360:yourpassword@localhost/air360_db" npm run migrate
+```
+
+Migrations enable the TimescaleDB extension and convert the `measurements` table to a hypertable partitioned by `sampled_at` (7-day chunks).
+
+### Data retention
+
+To drop chunks older than 30 days (run via cron or manually):
+
+```bash
+psql "$DATABASE_URL" -c "SELECT drop_chunks('measurements', INTERVAL '30 days');"
+```
 
 ## Operational Notes
 

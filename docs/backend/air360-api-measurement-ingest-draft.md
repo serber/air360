@@ -11,12 +11,12 @@ Current implementation status should be verified against the `/backend` source t
 
 Based on the current backend scaffold:
 
-- the route exists at `PUT /v1/devices/{chip_id}/batches/{client_batch_id}`
+- the route exists at `PUT /v1/devices/{device_id}/batches/{client_batch_id}`
 - the route currently returns `201 Created` for accepted mock requests
 - the current success response is intentionally minimal
 - auth and persistence are not implemented yet
 - the mock implementation currently checks:
-  - `device.chip_id` matches the path `chip_id` when provided
+  - `device.device_id` matches the path `device_id` when provided
   - `batch.sample_count == batch.samples.length`
   - every sample contains `sample_time_unix_ms`
   - every `sample.sensor_type` is one of the supported Air360 sensor types
@@ -36,7 +36,7 @@ Provide one native ingest endpoint that:
 ## Endpoint
 
 - Method: `PUT`
-- Path: `/v1/devices/{chip_id}/batches/{client_batch_id}`
+- Path: `/v1/devices/{device_id}/batches/{client_batch_id}`
 - Content-Type: `application/json`
 
 Example:
@@ -50,13 +50,13 @@ Recommended first version:
 - `Authorization: Bearer <user_api_key>`
 
 The backend uses the bearer token to identify the user account.
-The backend uses `chip_id` in the request path to identify the device.
+The backend uses `device_id` in the request path to identify the device.
 
 This keeps the first version simple:
 
-- the user adds a device on the portal by entering its `chip_id`
+- the user adds a device on the portal by entering its `device_id`
 - the firmware only needs the user's API key
-- there is no separate Air360 `device_id` in v1
+- the backend assigns a `public_id` (UUID) on registration, used for external API calls
 
 ## Core Model
 
@@ -71,9 +71,7 @@ There is no `sensor_id` field in the contract.
 
 For the current Air360 device model, `sensor_type` is sufficient as the stream identifier inside one device.
 
-There is also no separate `device_id` field in v1.
-
-The device identifier is the `chip_id` from the request path.
+The device identifier in the ingest path is the numeric `device_id` (chip ID). The backend also assigns a `public_id` (UUID) used on public-facing endpoints.
 
 ## Request Headers
 
@@ -172,12 +170,12 @@ The device identifier is the `chip_id` from the request path.
   - string
   - optional but recommended
 
-- `chip_id`
+- `device_id`
   - string
   - optional echo field
-  - if present, it must match `{chip_id}` from the request path
+  - if present, it must match `{device_id}` from the request path
 
-- `short_chip_id`
+- `short_device_id`
   - string
   - optional
 
@@ -280,14 +278,14 @@ Implementation should be verified against `/backend/src/contracts/measurement-ki
 - a batch may contain multiple samples for the same `sensor_type`
 - samples are ordered by device collection order
 - the backend must not assume one sample per sensor type per request
-- the backend should treat `(chip_id, sensor_type)` as the logical measurement stream
+- the backend should treat `(device_id, sensor_type)` as the logical measurement stream
 - the backend should preserve `sample_time_unix_ms` from the payload
 
 ## Idempotency
 
 The endpoint is idempotent by resource path:
 
-- `PUT /v1/devices/{chip_id}/batches/{client_batch_id}`
+- `PUT /v1/devices/{device_id}/batches/{client_batch_id}`
 
 Recommended backend behavior:
 
@@ -324,21 +322,21 @@ For the first implementation, keep backend behavior simple:
 - do not implement partial per-sample acceptance yet
 - do not require per-sample IDs
 - do not require units in the payload
-- require that the authenticated user has access to the device identified by `chip_id`
+- require that the authenticated user has access to the device identified by `device_id`
 
 ## Portal Model
 
 The first Air360 portal flow is intentionally simple:
 
 1. The user opens the portal.
-2. The user adds a device by entering its `chip_id`.
-3. The portal links that `chip_id` to the user's account.
+2. The user adds a device by entering its `device_id`.
+3. The portal links that `device_id` to the user's account.
 4. The firmware uses the user's API key for authenticated upload.
 
 This means:
 
 - one user may own many devices
-- each device is identified by its `chip_id`
+- each device is identified by its `device_id`
 - device ownership is enforced server-side
 
 ## Notes For Firmware Implementation

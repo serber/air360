@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
 import {
-  findDeviceByChipId,
+  findDeviceByDeviceId,
   updateDeviceLastSeen,
 } from "../../modules/devices/device-repository";
 import {
@@ -16,7 +16,7 @@ import {
 import { isSensorType, type SensorType } from "../../contracts/sensor-type";
 
 interface IngestParams {
-  chip_id: number;
+  device_id: number;
   batch_id: number;
 }
 
@@ -46,21 +46,21 @@ interface IngestBody {
 
 export const ingestRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: IngestParams; Body: IngestBody }>(
-    "/devices/:chip_id/batches/:batch_id",
+    "/devices/:device_id/batches/:batch_id",
     {
       schema: {
         params: {
           type: "object",
           properties: {
-            chip_id: { type: "integer" },
+            device_id: { type: "integer" },
             batch_id: { type: "integer" },
           },
-          required: ["chip_id", "batch_id"],
+          required: ["device_id", "batch_id"],
         },
       },
     },
     async (request, reply) => {
-      const { chip_id: device_id, batch_id } = request.params;
+      const { device_id, batch_id } = request.params;
       const body = request.body;
       const samples = body?.batch?.samples;
 
@@ -124,7 +124,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
 
       const db = getDb(app.config);
 
-      const device = await findDeviceByChipId(db, device_id);
+      const device = await findDeviceByDeviceId(db, device_id);
       if (!device) {
         return reply.code(404).send({
           error: {

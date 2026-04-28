@@ -7,7 +7,7 @@ Fastify-based API backend for Air360 device ingest and data storage.
 - **Runtime**: Node.js ≥ 20
 - **Framework**: Fastify 5
 - **Language**: TypeScript
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL 18 + TimescaleDB 2
 - **Query builder**: Kysely
 - **Driver**: pg (node-postgres)
 
@@ -80,6 +80,7 @@ Safe to run repeatedly — already applied migrations are skipped.
 ```
 devices
   device_id        BIGINT PK         — chip ID from firmware (48-bit MAC as decimal)
+  public_id        UUID  UNIQUE       — public identifier exposed on external APIs (generated server-side)
   name             TEXT              — device name from firmware config
   latitude         NUMERIC(9,6)      — set by user when enabling Air360 API
   longitude        NUMERIC(9,6)
@@ -92,7 +93,7 @@ batches
   batch_id         BIGINT  PK        — assigned by firmware, used for idempotency
   received_at      TIMESTAMPTZ       — server time
 
-measurements                    — append-only log, no primary key
+measurements                    — TimescaleDB hypertable, partitioned by sampled_at (7-day chunks)
   device_id        BIGINT  → batches(device_id, batch_id)
   batch_id         BIGINT  → batches(device_id, batch_id)
   sensor_type      TEXT
@@ -103,6 +104,8 @@ measurements                    — append-only log, no primary key
 ```
 
 `BIGINT` columns are parsed as JavaScript `number` by the pg driver (configured globally in `db/client.ts`). Device IDs are 48-bit values (max 2^48 − 1), safely within `Number.MAX_SAFE_INTEGER`.
+
+`public_id` is a UUID generated on device registration. External-facing APIs use `public_id` to identify devices; `device_id` (chip ID) is internal only.
 
 ## API
 
@@ -132,15 +135,15 @@ Health check.
 
 ---
 
-### `PUT /v1/devices/:chip_id/register`
+### `PUT /v1/devices/:device_id/register`
 
 Registers a device or updates its metadata. Called by firmware on every boot. Idempotent — safe to call multiple times.
 
 **Path parameters**
 
-| Parameter | Type    | Description                                     |
-|-----------|---------|-------------------------------------------------|
-| `chip_id` | integer | Hardware identifier — 48-bit MAC as decimal     |
+| Parameter   | Type    | Description                                     |
+|-------------|---------|-------------------------------------------------|
+| `device_id` | integer | Hardware identifier — 48-bit MAC as decimal     |
 
 **Request body**
 
@@ -165,6 +168,7 @@ Registers a device or updates its metadata. Called by firmware on every boot. Id
 ```json
 {
   "device_id": 281474976710655,
+  "public_id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "Air360-AB12",
   "latitude": 55.751244,
   "longitude": 37.618423,
@@ -186,16 +190,16 @@ On subsequent calls: `name`, `latitude`, `longitude`, `firmware_version`, and `l
 
 ---
 
-### `PUT /v1/devices/:chip_id/batches/:batch_id`
+### `PUT /v1/devices/:device_id/batches/:batch_id`
 
 Ingests a batch of sensor samples from a device and persists them to the database. Idempotent — repeated calls with the same `batch_id` are accepted but not stored twice.
 
 **Path parameters**
 
-| Parameter  | Type    | Description                              |
-|------------|---------|------------------------------------------|
-| `chip_id`  | integer | Device hardware identifier               |
-| `batch_id` | integer | Batch identifier assigned by firmware    |
+| Parameter   | Type    | Description                              |
+|-------------|---------|------------------------------------------|
+| `device_id` | integer | Device hardware identifier               |
+| `batch_id`  | integer | Batch identifier assigned by firmware    |
 
 **Request body**
 
@@ -246,21 +250,21 @@ Empty body.
 
 ---
 
-### `GET /v1/devices/:chip_id/latest`
+### `GET /v1/devices/:public_id/latest`
 
 Returns the latest reading for each `(sensor_type, kind)` pair recorded by the device.
 
 **Path parameters**
 
-| Parameter | Type    | Description                |
-|-----------|---------|----------------------------|
-| `chip_id` | integer | Device hardware identifier |
+| Parameter   | Type | Description                           |
+|-------------|------|---------------------------------------|
+| `public_id` | UUID | Public device identifier (from register response) |
 
 **Response `200`**
 
 ```json
 {
-  "device_id": 281474976710655,
+  "public_id": "550e8400-e29b-41d4-a716-446655440000",
   "last_seen_at": "2026-04-27T09:30:00.000Z",
   "sensors": [
     {

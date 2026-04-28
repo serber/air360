@@ -30,7 +30,7 @@ export async function upsertDevice(
     .executeTakeFirstOrThrow() as Promise<Device>;
 }
 
-export async function findDeviceByChipId(
+export async function findDeviceByDeviceId(
   db: Kysely<Database>,
   device_id: number,
 ): Promise<Device | undefined> {
@@ -38,6 +38,17 @@ export async function findDeviceByChipId(
     .selectFrom("devices")
     .selectAll()
     .where("device_id", "=", device_id)
+    .executeTakeFirst() as Promise<Device | undefined>;
+}
+
+export async function findDeviceByPublicId(
+  db: Kysely<Database>,
+  public_id: string,
+): Promise<Device | undefined> {
+  return db
+    .selectFrom("devices")
+    .selectAll()
+    .where("public_id", "=", public_id)
     .executeTakeFirst() as Promise<Device | undefined>;
 }
 

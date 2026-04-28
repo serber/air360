@@ -2,13 +2,18 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
 import {
-  findDeviceByChipId,
+  findDeviceByDeviceId,
+  findDeviceByPublicId,
   upsertDevice,
 } from "../../modules/devices/device-repository";
 import { findLatestMeasurements } from "../../modules/measurements/measurement-repository";
 
 interface DeviceParams {
-  chip_id: number;
+  device_id: number;
+}
+
+interface DeviceIdParams {
+  public_id: string;
 }
 
 interface RegisterBody {
@@ -22,18 +27,28 @@ const chipIdParam = {
   schema: {
     params: {
       type: "object",
-      properties: { chip_id: { type: "integer" } },
-      required: ["chip_id"],
+      properties: { device_id: { type: "integer" } },
+      required: ["device_id"],
+    },
+  },
+} as const;
+
+const deviceIdParam = {
+  schema: {
+    params: {
+      type: "object",
+      properties: { public_id: { type: "string", format: "uuid" } },
+      required: ["public_id"],
     },
   },
 } as const;
 
 export const deviceRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: DeviceParams; Body: RegisterBody }>(
-    "/devices/:chip_id/register",
+    "/devices/:device_id/register",
     chipIdParam,
     async (request, reply) => {
-      const { chip_id } = request.params;
+      const { device_id } = request.params;
       const { name, latitude, longitude, firmware_version } =
         request.body ?? {};
 
@@ -77,7 +92,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
       const db = getDb(app.config);
 
       const device = await upsertDevice(db, {
-        device_id: chip_id,
+        device_id,
         name: name.trim(),
         latitude,
         longitude,
@@ -88,14 +103,14 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.get<{ Params: DeviceParams }>(
-    "/devices/:chip_id/latest",
-    chipIdParam,
+  app.get<{ Params: DeviceIdParams }>(
+    "/devices/:public_id/latest",
+    deviceIdParam,
     async (request, reply) => {
-      const { chip_id } = request.params;
+      const { public_id } = request.params;
       const db = getDb(app.config);
 
-      const device = await findDeviceByChipId(db, chip_id);
+      const device = await findDeviceByPublicId(db, public_id);
       if (!device) {
         return reply.code(404).send({
           error: { code: "device_not_found", message: "Device is not registered" },
@@ -112,7 +127,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return reply.code(200).send({
-        device_id: device.device_id,
+        public_id: device.public_id,
         last_seen_at: device.last_seen_at,
         sensors: Array.from(sensorMap.entries()).map(([sensor_type, readings]) => ({
           sensor_type,
