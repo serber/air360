@@ -865,6 +865,23 @@ std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
     return "never";
 }
 
+std::string formatCoordinate(float value) {
+    char buffer[24];
+    const int written = std::snprintf(buffer, sizeof(buffer), "%.6f", static_cast<double>(value));
+    if (written <= 0) {
+        return "";
+    }
+
+    std::string formatted(buffer);
+    while (!formatted.empty() && formatted.back() == '0') {
+        formatted.pop_back();
+    }
+    if (!formatted.empty() && formatted.back() == '.') {
+        formatted.push_back('0');
+    }
+    return formatted;
+}
+
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
     const CellularConfig& cellular_config,
@@ -1118,6 +1135,14 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += "' type='number' step='any' min='-180' max='180' value='";
             endpoint_block += htmlEscape(card.longitude);
             endpoint_block += "' placeholder='e.g. 37.6173' required></div>";
+            endpoint_block += "<div class='location-map-wrap'>";
+            endpoint_block += "<div class='location-map' data-air360-location-map data-lat-input='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' data-lon-input='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'></div>";
+            endpoint_block += "<div class='location-map-status' data-air360-location-map-status></div>";
+            endpoint_block += "</div>";
             break;
 
         case BackendType::kCustomUpload:
@@ -1235,8 +1260,8 @@ BackendsPageViewModel buildBackendsPageViewModel(
             }
             if (record->backend_type == BackendType::kAir360Api) {
                 if (record->latitude != 0.0F || record->longitude != 0.0F) {
-                    card.latitude = std::to_string(record->latitude);
-                    card.longitude = std::to_string(record->longitude);
+                    card.latitude = formatCoordinate(record->latitude);
+                    card.longitude = formatCoordinate(record->longitude);
                 }
             }
         } else {

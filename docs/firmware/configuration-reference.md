@@ -291,6 +291,8 @@ Four backends are pre-configured by default — all **disabled**:
 
 HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` and `InfluxDB` use the same common HTTP fields; `InfluxDB` also stores `measurement_name`. On save, an omitted port becomes the selected protocol default (`443` for HTTPS, `80` for HTTP). Generated request URLs omit the port when it is the selected protocol default.
 
+The Air360 API latitude and longitude fields can be entered manually or selected on the Backends page map. The map only updates the same numeric fields that are submitted to `/backends`; no additional location state is persisted.
+
 ### Validation rules
 
 **Common (all backends):**

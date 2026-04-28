@@ -27,7 +27,7 @@ Key files and directories:
 - `main/Kconfig.projbuild`
   Declares project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`.
 - `main/webui/`
-  Hand-authored frontend assets and HTML templates embedded into the firmware image and used by the local web server.
+  Hand-authored frontend assets, vendored Leaflet map assets, and HTML templates embedded into the firmware image and used by the local web server.
 - `sdkconfig.defaults`
   Repository defaults for important project settings.
 - `sdkconfig`

@@ -828,6 +828,43 @@ ul.list li + li { margin-top: 4px; }
 .backend-status { display: flex; flex-direction: column; gap: 4px; }
 .backend-status p { margin: 0; font-size: 12px; color: var(--ink-3); }
 
+.location-map-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.location-map {
+  width: 100%;
+  height: 280px;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+}
+.location-map .leaflet-container,
+.location-map.leaflet-container {
+  font-family: var(--font-sans);
+  color: #1f2933;
+}
+.location-map .leaflet-control-attribution {
+  font-size: 10px;
+}
+.location-map-status {
+  min-height: 16px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.location-map-marker {
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 40%, transparent), 0 2px 6px rgba(0,0,0,.25);
+}
+
 /* .eyebrow → small uppercase label */
 .eyebrow {
   font-size: 10.5px;
@@ -972,4 +1009,5 @@ ul.list li + li { margin-top: 4px; }
   .row-2, .row-3 { grid-template-columns: 1fr; }
   .readings-grid { grid-template-columns: 1fr 1fr; }
   .input-action-row { flex-direction: column; }
+  .location-map { height: 240px; }
 }

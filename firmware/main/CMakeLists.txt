@@ -103,6 +103,8 @@ idf_component_register(
     EMBED_TXTFILES
         "webui/air360.css"
         "webui/air360.js"
+        "webui/vendor/leaflet/leaflet.css"
+        "webui/vendor/leaflet/leaflet.js"
         "webui/page_root.html"
         "webui/page_config.html"
         "webui/page_sensors.html"

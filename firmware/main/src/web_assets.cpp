@@ -13,6 +13,10 @@ extern const std::uint8_t air360_css_start[] asm("_binary_air360_css_start");
 extern const std::uint8_t air360_css_end[] asm("_binary_air360_css_end");
 extern const std::uint8_t air360_js_start[] asm("_binary_air360_js_start");
 extern const std::uint8_t air360_js_end[] asm("_binary_air360_js_end");
+extern const std::uint8_t leaflet_css_start[] asm("_binary_leaflet_css_start");
+extern const std::uint8_t leaflet_css_end[] asm("_binary_leaflet_css_end");
+extern const std::uint8_t leaflet_js_start[] asm("_binary_leaflet_js_start");
+extern const std::uint8_t leaflet_js_end[] asm("_binary_leaflet_js_end");
 extern const std::uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
 extern const std::uint8_t favicon_ico_end[] asm("_binary_favicon_ico_end");
 
@@ -37,6 +41,18 @@ const WebAssetView kStylesAsset{
 const WebAssetView kScriptAsset{
     reinterpret_cast<const char*>(air360_js_start),
     embeddedTextSize(air360_js_start, air360_js_end),
+    "application/javascript; charset=utf-8",
+};
+
+const WebAssetView kLeafletStylesAsset{
+    reinterpret_cast<const char*>(leaflet_css_start),
+    embeddedTextSize(leaflet_css_start, leaflet_css_end),
+    "text/css; charset=utf-8",
+};
+
+const WebAssetView kLeafletScriptAsset{
+    reinterpret_cast<const char*>(leaflet_js_start),
+    embeddedTextSize(leaflet_js_start, leaflet_js_end),
     "application/javascript; charset=utf-8",
 };
 
@@ -84,6 +100,12 @@ const WebAssetView* findEmbeddedWebAsset(std::string_view asset_path) {
     if (asset_path == "air360.js") {
         return &kScriptAsset;
     }
+    if (asset_path == "leaflet.css") {
+        return &kLeafletStylesAsset;
+    }
+    if (asset_path == "leaflet.js") {
+        return &kLeafletScriptAsset;
+    }
     if (asset_path == "favicon.ico") {
         return &kFaviconAsset;
     }
@@ -96,6 +118,14 @@ std::string webUiStylesHref() {
 
 std::string webUiScriptHref() {
     return versionedAssetHref("air360.js");
+}
+
+std::string webUiLeafletStylesHref() {
+    return versionedAssetHref("leaflet.css");
+}
+
+std::string webUiLeafletScriptHref() {
+    return versionedAssetHref("leaflet.js");
 }
 
 }  // namespace air360

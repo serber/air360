@@ -15,5 +15,7 @@ struct WebAssetView {
 const WebAssetView* findEmbeddedWebAsset(std::string_view asset_path);
 std::string webUiStylesHref();
 std::string webUiScriptHref();
+std::string webUiLeafletStylesHref();
+std::string webUiLeafletScriptHref();
 
 }  // namespace air360

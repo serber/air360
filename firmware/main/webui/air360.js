@@ -496,6 +496,111 @@
     }
 
     // ── Backend card sync ────────────────────────────────────────────────────
+    const MAP_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const MAP_TILE_ATTRIBUTION = '&copy; OpenStreetMap contributors';
+
+    function parseCoordinatePair(latInput, lonInput) {
+      const lat = Number.parseFloat(latInput.value.trim());
+      const lon = Number.parseFloat(lonInput.value.trim());
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+      return { lat, lon };
+    }
+
+    function formatCoordinate(value) {
+      return value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '.0');
+    }
+
+    function dispatchCoordinateInput(input) {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function initAir360LocationMap(container) {
+      if (!(container instanceof HTMLElement)) return;
+      if (container.dataset.mapReady === 'true') return;
+      container.dataset.mapReady = 'true';
+
+      const latInput = document.getElementById(container.dataset.latInput || '');
+      const lonInput = document.getElementById(container.dataset.lonInput || '');
+      const statusNode = container.parentElement?.querySelector('[data-air360-location-map-status]');
+      if (!(latInput instanceof HTMLInputElement) || !(lonInput instanceof HTMLInputElement)) return;
+
+      if (!window.L) {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map unavailable. Manual coordinates remain editable.';
+        return;
+      }
+
+      const initial = parseCoordinatePair(latInput, lonInput);
+      const map = L.map(container, {
+        zoomControl: true,
+        attributionControl: true,
+      });
+      L.tileLayer(MAP_TILE_URL, {
+        maxZoom: 19,
+        attribution: MAP_TILE_ATTRIBUTION,
+      }).on('tileerror', () => {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map tiles unavailable. Manual coordinates remain editable.';
+      }).addTo(map);
+
+      const markerIcon = L.divIcon({
+        className: 'location-map-marker',
+        iconSize: [16, 16],
+      });
+      let marker = null;
+
+      function setMarker(point, centerMap) {
+        if (!marker) {
+          marker = L.marker([point.lat, point.lon], {
+            icon: markerIcon,
+            keyboard: false,
+          }).addTo(map);
+        } else {
+          marker.setLatLng([point.lat, point.lon]);
+        }
+        if (centerMap) map.setView([point.lat, point.lon], Math.max(map.getZoom(), 10));
+      }
+
+      if (initial) {
+        map.setView([initial.lat, initial.lon], 11);
+        setMarker(initial, false);
+      } else {
+        map.setView([20, 0], 2);
+      }
+
+      map.on('click', event => {
+        const point = {
+          lat: event.latlng.lat,
+          lon: event.latlng.lng,
+        };
+        latInput.value = formatCoordinate(point.lat);
+        lonInput.value = formatCoordinate(point.lon);
+        setMarker(point, false);
+        dispatchCoordinateInput(latInput);
+        dispatchCoordinateInput(lonInput);
+        if (statusNode instanceof HTMLElement) statusNode.textContent = '';
+      });
+
+      function syncFromInputs() {
+        const point = parseCoordinatePair(latInput, lonInput);
+        if (!point) return;
+        setMarker(point, true);
+        if (statusNode instanceof HTMLElement) statusNode.textContent = '';
+      }
+
+      latInput.addEventListener('change', syncFromInputs);
+      lonInput.addEventListener('change', syncFromInputs);
+
+      const card = container.closest('[data-backend-card]');
+      const enabled = card?.querySelector('[data-backend-enabled-toggle]');
+      if (enabled instanceof HTMLInputElement) {
+        enabled.addEventListener('change', () => {
+          window.setTimeout(() => map.invalidateSize(), 80);
+        });
+      }
+      window.setTimeout(() => map.invalidateSize(), 80);
+    }
+
     function syncBackendCard(panel) {
       syncBackendProtocolPort(panel);
     }
@@ -514,6 +619,10 @@
       syncBackendCard(panel);
       const httpsTog = panel.querySelector('[data-backend-https-toggle]');
       if (httpsTog instanceof HTMLInputElement) httpsTog.addEventListener('change', () => syncBackendProtocolPort(panel));
+    }
+
+    for (const container of document.querySelectorAll('[data-air360-location-map]')) {
+      initAir360LocationMap(container);
     }
 
     // ── Logs console ─────────────────────────────────────────────────────────

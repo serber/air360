@@ -238,10 +238,17 @@ std::string renderPageDocument(
     std::string_view body_html,
     bool /*wide_layout*/,
     bool device_only_navigation) {
+    const bool needs_map_assets = active_page == WebPageKey::kBackends;
+    const std::string extra_styles =
+        needs_map_assets ? "<link rel='stylesheet' href='" + webUiLeafletStylesHref() + "'>" : "";
+    const std::string extra_scripts =
+        needs_map_assets ? "<script defer src='" + webUiLeafletScriptHref() + "'></script>" : "";
     return renderTemplate(WebTemplateKey::kShell, {
         {"TITLE",            htmlEscape(title)},
         {"STYLES_HREF",      webUiStylesHref()},
         {"SCRIPT_HREF",      webUiScriptHref()},
+        {"EXTRA_STYLES",     extra_styles},
+        {"EXTRA_SCRIPTS",    extra_scripts},
         {"DATA_PAGE",        pageDataKey(active_page)},
         {"DEVICE_NAV_ATTR",  device_only_navigation ? " data-nav='device-only'" : ""},
         {"FW_VERSION",       htmlEscape(firmwareVersionLabel())},
