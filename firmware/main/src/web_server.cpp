@@ -1084,10 +1084,16 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     endpoint_block.reserve(1024U);
     std::string device_id_override_block;
     device_id_override_block.reserve(512U);
+    std::string project_links_block;
+    project_links_block.reserve(256U);
 
     switch (card.backend_type) {
         case BackendType::kSensorCommunity:
             https_block = renderHttpsCheckbox(card);
+            project_links_block =
+                "<div class='backend-project-links'><span>Project</span>"
+                "<a href='https://sensor.community/' target='_blank' rel='noopener noreferrer'>"
+                "sensor.community</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
@@ -1110,6 +1116,10 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
 
         case BackendType::kAir360Api:
             https_block = renderHttpsCheckbox(card);
+            project_links_block =
+                "<div class='backend-project-links'><span>Project</span>"
+                "<a href='https://github.com/serber/air360' target='_blank' rel='noopener noreferrer'>"
+                "github.com/serber/air360</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
@@ -1208,6 +1218,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             {"HTTPS_BLOCK", https_block},
             {"ENDPOINT_BLOCK", endpoint_block},
             {"DEVICE_ID_OVERRIDE_BLOCK", device_id_override_block},
+            {"PROJECT_LINKS_BLOCK", project_links_block},
             {"STATUS_BLOCK", status_block},
         });
 }

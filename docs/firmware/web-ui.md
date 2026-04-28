@@ -246,6 +246,7 @@ A single form containing upload settings and one card per backend type.
 
 **Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
 - Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.
+- Project links — Sensor.Community links to `https://sensor.community/`; Air360 API links to `https://github.com/serber/air360`.
 - `Use HTTPS` checkbox — enabled by default for new configs; saving updates the stored protocol.
 - `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.

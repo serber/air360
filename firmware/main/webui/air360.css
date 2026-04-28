@@ -827,6 +827,23 @@ ul.list li + li { margin-top: 4px; }
 /* backend status block inside .card-body */
 .backend-status { display: flex; flex-direction: column; gap: 4px; }
 .backend-status p { margin: 0; font-size: 12px; color: var(--ink-3); }
+.backend-project-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.backend-project-links span {
+  font-weight: 600;
+  color: var(--ink-4);
+}
+.backend-project-links a {
+  color: var(--accent-hi);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.backend-project-links a:hover { text-decoration: underline; }
 
 .location-map-wrap {
   display: flex;
