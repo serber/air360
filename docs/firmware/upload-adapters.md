@@ -224,10 +224,10 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 PUT {scheme}://{host}{:port}{path}
 ```
 
-- `{chip_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
+- `{device_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
 - `{batch_id}` — unique `uint64_t` batch identifier from `MeasurementBatch`
-- Default value: `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`
-- Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{chip_id}/batches/{batch_id}` for backward compatibility.
+- Default value: `https://api.air360.ru/v1/devices/{device_id}/batches/{batch_id}`
+- Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{device_id}/batches/{batch_id}` for backward compatibility.
 - The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
 
 ### Device registration
@@ -237,7 +237,7 @@ Before the first upload cycle, the Air360 API adapter runs an internal registrat
 **Registration request:**
 
 ```
-PUT {scheme}://{host}{:port}/v1/devices/{chip_id}/register
+PUT {scheme}://{host}{:port}/v1/devices/{device_id}/register
 ```
 
 ```json
@@ -475,7 +475,7 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Method | POST | PUT | POST | POST |
 | Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
-| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
+| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
 | Authentication | None | None | None | Optional Basic Auth |
 | Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT4X, DS18B20, SCD30, GPS, SPS30 | All sensor types | All sensor types | All sensor types |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |

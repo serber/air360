@@ -497,7 +497,7 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 | Type | Default endpoint |
 |------|-----------------|
 | Sensor.Community | `api.sensor.community` + `/v1/push-sensor-data/` |
-| Air360 API | `api.air360.ru` + `/v1/devices/{chip_id}/batches/{batch_id}` |
+| Air360 API | `api.air360.ru` + `/v1/devices/{device_id}/batches/{batch_id}` |
 | Custom Upload | user-supplied protocol, host, path, and port |
 | InfluxDB | user-supplied protocol, host, path, and port plus measurement name |
 
@@ -571,7 +571,7 @@ Returns per-request: transport status, HTTP status code, response body size, tot
 Uploads batches to the Air360 backend.
 
 - Method: `PUT`
-- Path: `/v1/devices/{chip_id}/batches/{batch_id}`
+- Path: `/v1/devices/{device_id}/batches/{batch_id}`
 - Content-Type: `application/json`
 - Auth: none (bearer token reserved but not sent)
 - Success HTTP codes: 200–208, 409
