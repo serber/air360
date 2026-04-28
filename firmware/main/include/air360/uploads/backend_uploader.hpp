@@ -15,6 +15,13 @@ namespace air360 {
 
 class UploadTransport;
 
+enum class UploadAttemptPhase : std::uint8_t {
+    kUnknown = 0U,
+    kPreflight = 1U,
+    kRegistration = 2U,
+    kDataUpload = 3U,
+};
+
 enum class UploadMethod : std::uint8_t {
     kPost = 1U,
     kPut = 2U,
@@ -46,26 +53,51 @@ struct UploadTransportResponse {
     std::string body_snippet;
 };
 
+using BackendStopRequestedFn = bool (*)(void* arg);
+using BackendWatchdogResetFn = void (*)(void* arg, const char* checkpoint);
+
+struct BackendDeliveryContext {
+    const UploadTransport* http_transport = nullptr;
+    BackendStopRequestedFn stop_requested = nullptr;
+    BackendWatchdogResetFn reset_watchdog = nullptr;
+    void* callback_arg = nullptr;
+
+    bool stopRequested() const {
+        return stop_requested != nullptr && stop_requested(callback_arg);
+    }
+
+    void resetWatchdog(const char* checkpoint) const {
+        if (reset_watchdog != nullptr) {
+            reset_watchdog(callback_arg, checkpoint);
+        }
+    }
+};
+
+struct UploadAttemptResult {
+    UploadResultClass result = UploadResultClass::kUnknown;
+    UploadAttemptPhase phase = UploadAttemptPhase::kUnknown;
+    esp_err_t transport_err = ESP_OK;
+    int status_code = 0;
+    std::uint32_t response_time_ms = 0U;
+    std::uint32_t retry_after_seconds = 0U;
+    std::string message;
+
+    bool acknowledgesWindow() const {
+        return result == UploadResultClass::kSuccess ||
+               result == UploadResultClass::kNoData;
+    }
+};
+
 class IBackendUploader {
   public:
     virtual ~IBackendUploader() = default;
 
     virtual BackendType type() const = 0;
     virtual bool validateConfig(const BackendRecord& record, std::string& error) const = 0;
-    virtual bool prepareSync(
+    virtual UploadAttemptResult deliver(
         const BackendRecord& record,
         const MeasurementBatch& batch,
-        const UploadTransport& transport,
-        std::string& error) {
-        return true;
-    }
-    virtual bool buildRequests(
-        const BackendRecord& record,
-        const MeasurementBatch& batch,
-        std::vector<UploadRequestSpec>& out_requests,
-        std::string& error) const = 0;
-    virtual UploadResultClass classifyResponse(
-        const UploadTransportResponse& response) const = 0;
+        const BackendDeliveryContext& context) = 0;
 };
 
 }  // namespace air360

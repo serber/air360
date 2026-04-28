@@ -110,6 +110,8 @@ class UploadManager {
     esp_err_t startLocked();
     bool stopRequested() const;
     static void taskEntry(void* arg);
+    static bool deliveryStopRequested(void* arg);
+    static void deliveryWatchdogReset(void* arg, const char* checkpoint);
     void taskMain();
 
     static constexpr EventBits_t kTaskStoppedBit = BIT0;

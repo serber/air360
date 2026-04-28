@@ -59,7 +59,7 @@ firmware/
 - `main/CMakeLists.txt` — registers the `main` component: sources, embedded frontend assets, required ESP-IDF components
 - `main/Kconfig.projbuild` — project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
-- `partitions.csv` — custom partition table (nvs, otadata, phy_init, factory, storage)
+- `partitions.csv` — custom 16 MB partition table (nvs, otadata, phy_init, ota_0, ota_1, storage)
 - `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
 - `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
 

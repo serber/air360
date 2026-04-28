@@ -11,20 +11,23 @@ class Air360ApiUploader : public IBackendUploader {
   public:
     BackendType type() const override;
     bool validateConfig(const BackendRecord& record, std::string& error) const override;
-    bool prepareSync(
+    UploadAttemptResult deliver(
         const BackendRecord& record,
         const MeasurementBatch& batch,
-        const UploadTransport& transport,
-        std::string& error) override;
+        const BackendDeliveryContext& context) override;
+
+  private:
+    UploadAttemptResult prepareSync(
+        const BackendRecord& record,
+        const MeasurementBatch& batch,
+        const BackendDeliveryContext& context);
     bool buildRequests(
         const BackendRecord& record,
         const MeasurementBatch& batch,
         std::vector<UploadRequestSpec>& out_requests,
-        std::string& error) const override;
+        std::string& error) const;
     UploadResultClass classifyResponse(
-        const UploadTransportResponse& response) const override;
-
-  private:
+        const UploadTransportResponse& response) const;
     std::atomic<bool> registered_{false};
 };
 

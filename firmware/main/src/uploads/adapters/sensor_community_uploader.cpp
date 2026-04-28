@@ -9,6 +9,7 @@
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/uploads/backend_config.hpp"
+#include "air360/uploads/upload_transport.hpp"
 
 namespace air360 {
 
@@ -195,6 +196,19 @@ std::string buildBody(
     return body;
 }
 
+std::string errorMessageFromResponse(const UploadTransportResponse& response) {
+    if (response.transport_err != ESP_OK) {
+        return esp_err_to_name(response.transport_err);
+    }
+    if (!response.body_snippet.empty()) {
+        return response.body_snippet;
+    }
+    if (response.http_status != 0) {
+        return std::string("HTTP ") + std::to_string(response.http_status);
+    }
+    return "Upload failed.";
+}
+
 }  // namespace
 
 BackendType SensorCommunityUploader::type() const {
@@ -214,6 +228,60 @@ bool SensorCommunityUploader::validateConfig(
     }
     error.clear();
     return true;
+}
+
+UploadAttemptResult SensorCommunityUploader::deliver(
+    const BackendRecord& record,
+    const MeasurementBatch& batch,
+    const BackendDeliveryContext& context) {
+    UploadAttemptResult result;
+    result.phase = UploadAttemptPhase::kPreflight;
+
+    std::string error;
+    std::vector<UploadRequestSpec> requests;
+    if (!buildRequests(record, batch, requests, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (requests.empty()) {
+        result.result = UploadResultClass::kNoData;
+        return result;
+    }
+
+    if (context.http_transport == nullptr) {
+        result.result = UploadResultClass::kUnsupported;
+        result.phase = UploadAttemptPhase::kDataUpload;
+        result.message = "HTTP transport is not available.";
+        return result;
+    }
+
+    result.result = UploadResultClass::kSuccess;
+    result.phase = UploadAttemptPhase::kDataUpload;
+    for (const auto& request : requests) {
+        if (context.stopRequested()) {
+            result.result = UploadResultClass::kUnknown;
+            result.message = "Upload stopped before request completed.";
+            return result;
+        }
+
+        context.resetWatchdog("before sensor.community upload request");
+        const UploadTransportResponse response = context.http_transport->execute(request);
+        context.resetWatchdog("after sensor.community upload request");
+
+        result.status_code = response.http_status;
+        result.response_time_ms = response.response_time_ms;
+        result.retry_after_seconds = response.retry_after_seconds;
+        result.transport_err = response.transport_err;
+        result.result = classifyResponse(response);
+        if (result.result != UploadResultClass::kSuccess) {
+            result.message = errorMessageFromResponse(response);
+            return result;
+        }
+    }
+
+    return result;
 }
 
 bool SensorCommunityUploader::buildRequests(

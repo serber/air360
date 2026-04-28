@@ -23,26 +23,40 @@ This document covers the adapter-specific layer that turns Air360 measurements i
 - [measurement-pipeline.md](measurement-pipeline.md)
 - [configuration-reference.md](configuration-reference.md)
 
-This document describes the four backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
+This document describes the four backend upload adapters — how each backend delivers a measurement batch, how HTTP-backed adapters map payloads, and how protocol responses are interpreted.
 
 ---
 
 ## Adapter interface
 
-Both adapters implement `IBackendUploader`:
+Backend adapters implement `IBackendUploader`:
 
 ```cpp
 class IBackendUploader {
     bool validateConfig(const BackendRecord& record, string& error);
-    bool buildRequests(const BackendRecord& record,
-                       const MeasurementBatch& batch,
-                       vector<UploadRequestSpec>& out_requests,
-                       string& error);
-    UploadResultClass classifyResponse(const UploadTransportResponse& response);
+    UploadAttemptResult deliver(const BackendRecord& record,
+                                const MeasurementBatch& batch,
+                                const BackendDeliveryContext& context);
 };
 ```
 
-`buildRequests()` converts one `MeasurementBatch` into one or more `UploadRequestSpec` objects. Each spec is then executed by `UploadTransport` as an independent HTTP request.
+`deliver()` owns protocol-specific delivery for one backend window. `UploadManager` still owns queue windows, acknowledgement cursors, retry scheduling, best-effort demotion, and pruning; the adapter returns one `UploadAttemptResult` describing whether the window was accepted, skipped, or should be retried.
+
+`BackendDeliveryContext` currently provides the shared HTTP executor plus stop/watchdog callbacks. HTTP is therefore an implementation detail of the current adapters, not a required shape for future backends. A future MQTT, TCP, filesystem, or modem-specific backend can use a different service through the context while preserving the same queue and acknowledgement policy.
+
+```cpp
+struct UploadAttemptResult {
+    UploadResultClass result;
+    UploadAttemptPhase phase;          // preflight, registration, data upload
+    esp_err_t          transport_err;
+    int                status_code;    // HTTP status or protocol-specific code
+    uint32_t           response_time_ms;
+    uint32_t           retry_after_seconds;
+    string             message;
+};
+```
+
+HTTP-backed adapters still build one or more internal `UploadRequestSpec` objects and execute them with `UploadTransport`:
 
 ```cpp
 struct UploadRequestSpec {
@@ -55,7 +69,7 @@ struct UploadRequestSpec {
 };
 ```
 
-`classifyResponse()` maps the transport result to `UploadResultClass`. `UploadManager` applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry. Backend-specific failures also feed the best-effort demotion policy documented in [measurement-pipeline.md](measurement-pipeline.md); shared `kNoNetwork` failures do not.
+Adapters map transport/protocol responses to `UploadResultClass`. `UploadManager` applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry. Backend-specific failures also feed the best-effort demotion policy documented in [measurement-pipeline.md](measurement-pipeline.md); shared `kNoNetwork` failures do not.
 
 ---
 
@@ -92,7 +106,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
 | ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
 
-Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `buildRequests()` returns `true` with an empty request list — the upload manager treats this as `kNoData`.
+Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `deliver()` returns `kNoData`.
 
 ### Value type mapping
 
@@ -218,7 +232,7 @@ PUT {scheme}://{host}{:port}{path}
 
 ### Device registration
 
-Before the first upload cycle, the Air360 API adapter calls `prepareSync()` to register the device with the backend. This step runs once per firmware boot and sets a `registered_` atomic flag on success; subsequent cycles skip it.
+Before the first upload cycle, the Air360 API adapter runs an internal registration step from `deliver()` to register the device with the backend. This step runs once per firmware boot and sets a `registered_` atomic flag on success; subsequent cycles skip it.
 
 **Registration request:**
 
@@ -235,7 +249,7 @@ PUT {scheme}://{host}{:port}/v1/devices/{chip_id}/register
 }
 ```
 
-- If `latitude` and `longitude` are both `0.0`, `prepareSync()` returns an error and the upload cycle is skipped. Set coordinates on the Backends page before enabling Air360 API.
+- If `latitude` and `longitude` are both `0.0`, `deliver()` returns `kConfigError` during the registration phase and the upload cycle is skipped. Set coordinates on the Backends page before enabling Air360 API.
 - HTTP 2xx → device registered, `registered_` set to `true`.
 - Transport error or non-2xx HTTP → error is logged, the cycle is counted as a transport error, and registration retries on the next upload cycle.
 
@@ -245,7 +259,7 @@ Unlike Sensor.Community, the Air360 adapter emits exactly **one PUT request** pe
 
 ### Extra preconditions
 
-`buildRequests()` fails early with an error string (returns `false`) if:
+`deliver()` fails early with `kConfigError` if:
 - `batch.created_unix_ms <= 0` — unix time is not valid
 - `batch.chip_id` and `batch.short_chip_id` are both empty
 
@@ -427,11 +441,12 @@ Any other HTTP status → `kHttpError`.
 
 ## Transport layer
 
-All adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
+The current adapters are HTTP-backed and execute internal `UploadRequestSpec` objects with `UploadTransport::execute()`. This is no longer part of the cross-backend interface; it is the shared helper used by HTTP backends. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
 
 - HTTP client: `esp_http_client` with CRT bundle (TLS capable)
 - Timeout: 15 000 ms per request
-- Request/response buffer: 512 bytes
+- RX buffer: 2 048 bytes
+- TX buffer: 1 024 bytes
 - Keep-alive: disabled
 
 The transport returns `UploadTransportResponse`:
@@ -449,7 +464,7 @@ struct UploadTransportResponse {
 };
 ```
 
-If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classifyResponse()` returns `kTransportError` in all adapters — regardless of what the HTTP status might say.
+If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-backed adapters return `kTransportError` in their `UploadAttemptResult` — regardless of what the HTTP status might say.
 
 ---
 

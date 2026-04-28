@@ -43,7 +43,8 @@ air360_sensor task (250 ms loop)
                  │
                  ├─ per backend: select window after acknowledged_sample_id
                  ├─ buildMeasurementBatch()
-                 ├─ uploader->buildRequests() + transport_.execute()
+                 ├─ uploader->deliver(batch, context)
+                 │    └─ backend owns protocol-specific delivery
                  │
                  ├─ success/no_data → advance only that backend cursor
                  └─ failure         → keep only that backend window for retry
@@ -284,7 +285,7 @@ If a backend fails, the **same samples for that backend** are retried on the nex
 
 After a backend is demoted to best-effort, it no longer blocks queue retirement. Backend-specific upload failures for a best-effort backend skip that backend's current window, increment `missed_sample_count`, and move its local cursor forward so the next attempt can try newer retained samples. A later `kSuccess` or `kNoData` clears best-effort status and returns the backend to the quorum.
 
-How each backend converts a `MeasurementBatch` into HTTP requests and classifies the response is covered in [upload-adapters.md](upload-adapters.md).
+How each backend delivers a `MeasurementBatch` and maps protocol responses into upload results is covered in [upload-adapters.md](upload-adapters.md).
 
 ---
 
@@ -318,9 +319,9 @@ Sensor and backend configuration can be applied at runtime from the web UI. Both
 The stop request wakes idle task waits immediately. It does not forcibly kill a task that is currently inside a driver call or HTTP request:
 
 - sensor shutdown is bounded by the current driver's `init()` / `poll()` behavior; normal bus transfers use the transport timeouts documented in [transport-binding.md](transport-binding.md)
-- upload shutdown is bounded by the current `UploadTransport::execute()` call; the HTTP client timeout is 15 000 ms per request, and stop handling prevents starting another request after a stop request is observed
+- upload shutdown is bounded by the current backend delivery call; HTTP-backed adapters are bounded by the current `UploadTransport::execute()` call and its 15 000 ms per-request timeout, and stop handling prevents starting another request after a stop request is observed
 
-`air360_upload` feeds the task watchdog before and after each blocking HTTP request and between drained upload windows. Multi-request batches therefore keep the TWDT fed between requests, but one in-flight request still runs synchronously until `esp_http_client_perform()` returns or the request timeout expires.
+`air360_upload` passes watchdog callbacks through `BackendDeliveryContext`, and HTTP-backed adapters feed the TWDT before and after each blocking HTTP request. Multi-request batches therefore keep the TWDT fed between requests, but one in-flight HTTP request still runs synchronously until `esp_http_client_perform()` returns or the request timeout expires.
 
 If runtime apply fails after the config has been saved, the web UI reports that the saved config will apply on reboot.
 

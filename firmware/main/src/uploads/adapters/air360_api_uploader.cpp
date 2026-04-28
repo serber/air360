@@ -63,6 +63,19 @@ std::string buildUrl(const BackendRecord& record, const MeasurementBatch& batch)
     return base + "/v1/devices/" + chip_id + "/batches/" + std::to_string(batch.batch_id);
 }
 
+std::string errorMessageFromResponse(const UploadTransportResponse& response) {
+    if (response.transport_err != ESP_OK) {
+        return esp_err_to_name(response.transport_err);
+    }
+    if (!response.body_snippet.empty()) {
+        return response.body_snippet;
+    }
+    if (response.http_status != 0) {
+        return std::string("HTTP ") + std::to_string(response.http_status);
+    }
+    return "Upload failed.";
+}
+
 }  // namespace
 
 BackendType Air360ApiUploader::type() const {
@@ -84,18 +97,98 @@ bool Air360ApiUploader::validateConfig(
     return true;
 }
 
-bool Air360ApiUploader::prepareSync(
+UploadAttemptResult Air360ApiUploader::deliver(
     const BackendRecord& record,
     const MeasurementBatch& batch,
-    const UploadTransport& transport,
-    std::string& error) {
+    const BackendDeliveryContext& context) {
+    UploadAttemptResult result;
+    result.phase = UploadAttemptPhase::kPreflight;
+
+    std::string error;
+    if (!validateConfig(record, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (!validateAir360JsonBatch(batch, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (batch.points.empty()) {
+        result.result = UploadResultClass::kNoData;
+        return result;
+    }
+
+    if (context.http_transport == nullptr) {
+        result.result = UploadResultClass::kUnsupported;
+        result.phase = UploadAttemptPhase::kDataUpload;
+        result.message = "HTTP transport is not available.";
+        return result;
+    }
+
+    UploadAttemptResult registration_result = prepareSync(record, batch, context);
+    if (registration_result.result != UploadResultClass::kSuccess) {
+        return registration_result;
+    }
+
+    std::vector<UploadRequestSpec> requests;
+    if (!buildRequests(record, batch, requests, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (requests.empty()) {
+        result.result = UploadResultClass::kNoData;
+        return result;
+    }
+
+    result.result = UploadResultClass::kSuccess;
+    result.phase = UploadAttemptPhase::kDataUpload;
+    for (const auto& request : requests) {
+        if (context.stopRequested()) {
+            result.result = UploadResultClass::kUnknown;
+            result.message = "Upload stopped before request completed.";
+            return result;
+        }
+
+        context.resetWatchdog("before air360 upload request");
+        const UploadTransportResponse response = context.http_transport->execute(request);
+        context.resetWatchdog("after air360 upload request");
+
+        result.status_code = response.http_status;
+        result.response_time_ms = response.response_time_ms;
+        result.retry_after_seconds = response.retry_after_seconds;
+        result.transport_err = response.transport_err;
+        result.result = classifyResponse(response);
+        if (result.result != UploadResultClass::kSuccess) {
+            result.message = errorMessageFromResponse(response);
+            return result;
+        }
+    }
+
+    return result;
+}
+
+UploadAttemptResult Air360ApiUploader::prepareSync(
+    const BackendRecord& record,
+    const MeasurementBatch& batch,
+    const BackendDeliveryContext& context) {
+    UploadAttemptResult result;
+    result.phase = UploadAttemptPhase::kRegistration;
+
     if (registered_.load(std::memory_order_acquire)) {
-        return true;
+        result.result = UploadResultClass::kSuccess;
+        return result;
     }
 
     if (record.latitude == 0.0F && record.longitude == 0.0F) {
-        error = "Air360 location is not set. Configure latitude and longitude in Backends.";
-        return false;
+        result.result = UploadResultClass::kConfigError;
+        result.message = "Air360 location is not set. Configure latitude and longitude in Backends.";
+        return result;
     }
 
     const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
@@ -119,28 +212,43 @@ bool Air360ApiUploader::prepareSync(
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
     request.body = std::move(body);
 
-    const UploadTransportResponse response = transport.execute(request);
+    if (context.stopRequested()) {
+        result.result = UploadResultClass::kUnknown;
+        result.message = "Upload stopped before registration completed.";
+        return result;
+    }
+
+    context.resetWatchdog("before air360 registration");
+    const UploadTransportResponse response = context.http_transport->execute(request);
+    context.resetWatchdog("after air360 registration");
+    result.status_code = response.http_status;
+    result.response_time_ms = response.response_time_ms;
+    result.retry_after_seconds = response.retry_after_seconds;
+    result.transport_err = response.transport_err;
 
     if (response.transport_err != ESP_OK) {
-        error = std::string("Registration transport error: ") + esp_err_to_name(response.transport_err);
-        ESP_LOGW(kTag, "Air360 registration failed (transport): %s", error.c_str());
-        return false;
+        result.result = UploadResultClass::kTransportError;
+        result.message =
+            std::string("Registration transport error: ") + esp_err_to_name(response.transport_err);
+        ESP_LOGW(kTag, "Air360 registration failed (transport): %s", result.message.c_str());
+        return result;
     }
 
     if (response.http_status >= 200 && response.http_status <= 299) {
         registered_.store(true, std::memory_order_release);
         ESP_LOGI(kTag, "Air360 device registered: %s", chip_id.c_str());
-        error.clear();
-        return true;
+        result.result = UploadResultClass::kSuccess;
+        return result;
     }
 
-    error = std::string("Registration failed: HTTP ") + std::to_string(response.http_status);
+    result.result = UploadResultClass::kHttpError;
+    result.message = std::string("Registration failed: HTTP ") + std::to_string(response.http_status);
     if (!response.body_snippet.empty()) {
-        error += " — ";
-        error += response.body_snippet;
+        result.message += " — ";
+        result.message += response.body_snippet;
     }
-    ESP_LOGW(kTag, "Air360 registration failed: %s", error.c_str());
-    return false;
+    ESP_LOGW(kTag, "Air360 registration failed: %s", result.message.c_str());
+    return result;
 }
 
 bool Air360ApiUploader::buildRequests(

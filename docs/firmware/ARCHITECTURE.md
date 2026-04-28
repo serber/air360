@@ -102,9 +102,8 @@ NVS
  └─ BackendConfigRepository   (backend_cfg)
      └─ UploadManager         → starts air360_upload task
          └─ MeasurementStore  (pending/inflight queues)
-         └─ UploadTransport   (HTTP client)
-             └─ Air360ApiUploader
-             └─ SensorCommunityUploader
+         └─ IBackendUploader adapters
+             └─ UploadTransport   (HTTP helper for HTTP-backed adapters)
 NetworkManager                (station join or Lab AP)
  └─ SNTP synchronization      (pool.ntp.org or configured server)
 CellularManager               (PPP modem; spawned only when enabled)
@@ -523,14 +522,14 @@ Manages the upload cycle and per-backend runtime state.
 1. For each backend whose `next_action_time_ms` is due, check preconditions
 2. Reuse that backend's retry window or call `MeasurementStore::uploadWindowAfter(acknowledged_sample_id, 32)`
 3. Assemble `MeasurementBatch`
-4. Call the backend adapter
+4. Call the backend adapter's `deliver()` method
 5. On `kSuccess` or `kNoData`, advance only that backend cursor
 6. On failure, keep only that backend window for retry
 7. Retire shared queue entries once every quorum backend has acknowledged them
 
 Quorum membership excludes disabled, unconfigured, missing-uploader, and best-effort backends. A backend is demoted to best-effort after 5 consecutive backend-specific failures over at least 10 minutes. Best-effort backends no longer block pruning; their missed windows are counted in `missed_sample_count` and exposed in raw status JSON.
 
-Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If an HTTP request is already in flight, the task finishes that request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
+Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If a backend delivery operation is already in flight, the task finishes the current protocol request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
 
 **Backend runtime states:**
 
@@ -551,12 +550,13 @@ Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requ
 
 ### `UploadTransport` — `uploads/upload_transport.cpp`
 
-Low-level HTTP client wrapper around `esp_http_client`.
+Low-level HTTP client wrapper around `esp_http_client`, used by HTTP-backed backend adapters through `BackendDeliveryContext`. It is not the generic backend interface; backend adapters own delivery and return `UploadAttemptResult` to `UploadManager`.
 
 **Configuration:**
 - CRT bundle enabled (TLS support)
 - Per-request timeout: 15 000 ms
-- Request/response buffer: 512 bytes
+- RX buffer: 2 048 bytes
+- TX buffer: 1 024 bytes
 - Keep-alive: disabled
 - Methods: POST, PUT
 
@@ -713,10 +713,11 @@ Partition table defined in `partitions.csv`:
 | `nvs` | data/nvs | 0x9000 | 24 KB | DeviceConfig, SensorConfig, BackendConfig, boot counter |
 | `otadata` | data/ota | 0xf000 | 8 KB | OTA metadata (present, OTA logic not yet implemented) |
 | `phy_init` | data/phy | 0x11000 | 4 KB | PHY calibration (managed by IDF) |
-| `factory` | app/factory | 0x20000 | 1536 KB | Application image |
-| `storage` | data/spiffs | 0x1a0000 | 384 KB | Reserved, not mounted or used |
+| `ota_0` | app/ota_0 | 0x20000 | 6 MB | Primary application image slot |
+| `ota_1` | app/ota_1 | 0x620000 | 6 MB | Secondary application image slot reserved for OTA |
+| `storage` | data/spiffs | 0xc20000 | 3 MB | Reserved, not mounted or used |
 
-The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved for future use.
+The current runtime depends only on NVS. SPIFFS is reserved for future use; OTA image slots are present so future OTA support does not require another partition-table change.
 
 ---
 
