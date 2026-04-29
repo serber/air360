@@ -15,7 +15,6 @@ namespace {
 
 constexpr char kNamespace[] = "air360_cred";
 constexpr char kSecretKey[] = "air360_us";
-constexpr char kHashContext[] = "air360-upload-secret-v1:";
 
 bool isBase64UrlChar(char ch) {
     return (ch >= 'A' && ch <= 'Z') ||
@@ -59,9 +58,8 @@ std::string generateAir360UploadSecret() {
 }
 
 std::string hashAir360UploadSecret(const std::string& secret) {
-    const std::string input = std::string(kHashContext) + secret;
     std::array<std::uint8_t, kSha256DigestBytes> digest{};
-    if (!sha256Digest(input, digest)) {
+    if (!sha256Digest(secret, digest)) {
         return "";
     }
 

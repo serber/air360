@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted. Implemented in `backend/`.
 
 ## Decision Summary
 
@@ -71,18 +71,18 @@ air360_us_v1_<base64url-encoded-32-random-bytes>
 Backend hash input:
 
 ```text
-air360-upload-secret-v1:<upload_secret>
+<upload_secret>
 ```
 
 Backend stored value:
 
 ```text
-sha256:<base64url(sha256(hash_input))>
+sha256:<base64url(sha256(upload_secret))>
 ```
 
-The secret is high entropy, so a single SHA-256 hash with a fixed context string
-is sufficient for lookup and comparison. If the secret format later changes, the
-prefix and hash context must change together.
+The secret format (`air360_us_v1_...`) already encodes type and version, so no
+additional context prefix is needed. If the secret format later changes, the
+`v1` component in the secret itself distinguishes old from new hashes.
 
 ### 2. Registration Contract
 

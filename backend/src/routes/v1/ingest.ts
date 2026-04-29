@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
+import { verifyUploadSecret } from "../../lib/upload-secret";
 import {
   findDeviceByDeviceId,
   updateDeviceLastSeen,
@@ -130,6 +131,26 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
           error: {
             code: "device_not_found",
             message: "Device is not registered",
+          },
+        });
+      }
+
+      const authHeader = request.headers["authorization"];
+      const bearerPrefix = "Bearer ";
+      const bearerSecret =
+        authHeader?.startsWith(bearerPrefix)
+          ? authHeader.slice(bearerPrefix.length)
+          : null;
+
+      if (
+        !bearerSecret ||
+        !device.upload_secret_hash ||
+        !verifyUploadSecret(bearerSecret, device.upload_secret_hash)
+      ) {
+        return reply.code(401).send({
+          error: {
+            code: "invalid_upload_secret",
+            message: "Upload secret does not match this device",
           },
         });
       }

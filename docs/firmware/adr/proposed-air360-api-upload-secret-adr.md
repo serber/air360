@@ -117,10 +117,12 @@ User-Agent: air360/{firmware_version}
 Hash input:
 
 ```text
-air360-upload-secret-v1:<upload_secret>
+<upload_secret>
 ```
 
-The firmware sends the hash, not the raw secret, in the registration body.
+The secret format (`air360_us_v1_...`) already carries type and version context,
+so no additional prefix is needed. The firmware sends the hash, not the raw
+secret, in the registration body.
 
 Registration behavior:
 

@@ -17,10 +17,14 @@ interface DeviceIdParams {
 }
 
 interface RegisterBody {
+  schema_version?: number;
   name: string;
-  latitude: number;
-  longitude: number;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
   firmware_version: string;
+  upload_secret_hash: string;
 }
 
 const deviceRouteParam = {
@@ -49,7 +53,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
     deviceRouteParam,
     async (request, reply) => {
       const { device_id } = request.params;
-      const { name, latitude, longitude, firmware_version } = request.body ?? {};
+      const { name, location, firmware_version, upload_secret_hash } = request.body ?? {};
 
       if (!name || typeof name !== "string" || name.trim() === "") {
         return reply.code(400).send({
@@ -57,11 +61,19 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
+      if (!location || typeof location !== "object") {
+        return reply.code(400).send({
+          error: { code: "validation_error", message: "location is required" },
+        });
+      }
+
+      const { latitude, longitude } = location;
+
       if (typeof latitude !== "number" || latitude < -90 || latitude > 90) {
         return reply.code(400).send({
           error: {
             code: "validation_error",
-            message: "latitude must be a number between -90 and 90",
+            message: "location.latitude must be a number between -90 and 90",
           },
         });
       }
@@ -70,7 +82,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({
           error: {
             code: "validation_error",
-            message: "longitude must be a number between -180 and 180",
+            message: "location.longitude must be a number between -180 and 180",
           },
         });
       }
@@ -88,7 +100,30 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
+      if (
+        !upload_secret_hash ||
+        typeof upload_secret_hash !== "string" ||
+        !upload_secret_hash.startsWith("sha256:")
+      ) {
+        return reply.code(400).send({
+          error: {
+            code: "validation_error",
+            message: "upload_secret_hash is required and must begin with 'sha256:'",
+          },
+        });
+      }
+
       const db = getDb(app.config);
+
+      const existing = await findDeviceByDeviceId(db, device_id);
+      if (existing?.upload_secret_hash && existing.upload_secret_hash !== upload_secret_hash) {
+        return reply.code(401).send({
+          error: {
+            code: "invalid_upload_secret",
+            message: "Upload secret does not match this device",
+          },
+        });
+      }
 
       const device = await upsertDevice(db, {
         device_id,
@@ -97,9 +132,16 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         latitude,
         longitude,
         firmware_version: firmware_version.trim(),
+        upload_secret_hash,
       });
 
-      return reply.code(200).send(device);
+      return reply.code(200).send({
+        schema_version: 1,
+        status: "registered",
+        public_id: device.public_id,
+        registered_at: device.registered_at,
+        last_seen_at: device.last_seen_at,
+      });
     },
   );
 
