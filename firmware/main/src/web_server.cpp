@@ -93,6 +93,7 @@ struct BackendCardViewModel {
     std::string device_id_override;
     std::string latitude;
     std::string longitude;
+    std::string air360_upload_secret_preview;
     // Status:
     bool has_status = false;
     std::string state_key;
@@ -218,6 +219,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice);
 std::string renderSensorCard(const SensorCardViewModel& card);
@@ -1114,7 +1116,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             device_id_override_block += "<span class='field-hint'>Prefilled from Short ID. Change it only for debugging.</span></div>";
             break;
 
-        case BackendType::kAir360Api:
+        case BackendType::kAir360Api: {
             https_block = renderHttpsCheckbox(card);
             project_links_block =
                 "<div class='backend-project-links'><span>Project</span>"
@@ -1153,7 +1155,61 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += "'></div>";
             endpoint_block += "<div class='location-map-status' data-air360-location-map-status></div>";
             endpoint_block += "</div>";
+            endpoint_block += "<div class='field air360-secret-field'>";
+            const std::string secret_input_id =
+                std::string("upload_secret_") + card.backend_key;
+            const std::string secret_panel_id =
+                std::string("upload_secret_panel_") + card.backend_key;
+            const bool secret_configured = !card.air360_upload_secret_preview.empty();
+            if (secret_configured) {
+                endpoint_block += "<label>Upload secret</label>";
+                endpoint_block += "<div class='secret-status'>";
+                endpoint_block += "<span class='secret-state'>Configured</span>";
+                endpoint_block += "<code class='secret-preview'>";
+                endpoint_block += htmlEscape(card.air360_upload_secret_preview);
+                endpoint_block += "</code>";
+                endpoint_block += "<button class='btn' type='button' data-change-air360-secret='";
+                endpoint_block += htmlEscape(secret_panel_id);
+                endpoint_block += "' data-secret-input='";
+                endpoint_block += htmlEscape(secret_input_id);
+                endpoint_block += "'>Change</button>";
+                endpoint_block += "</div>";
+                endpoint_block += "<span class='field-hint'>";
+                endpoint_block += "An upload secret is already stored. Keep it unless you need to replace it with a previously saved secret.";
+                endpoint_block += "</span>";
+                endpoint_block += "<div class='secret-edit-panel' id='";
+                endpoint_block += htmlEscape(secret_panel_id);
+                endpoint_block += "' hidden>";
+            } else {
+                endpoint_block += "<label for='";
+                endpoint_block += htmlEscape(secret_input_id);
+                endpoint_block += "'>Upload secret</label>";
+                endpoint_block += "<span class='field-hint'>";
+                endpoint_block += "This secret lets the device upload to the same Air360 record after reset. Generate it or paste a saved one, save it somewhere safe, then press Save.";
+                endpoint_block += "</span>";
+            }
+            endpoint_block += "<div class='secret-input-row'>";
+            endpoint_block += "<textarea class='input textarea' id='";
+            endpoint_block += htmlEscape(secret_input_id);
+            endpoint_block += "' name='";
+            endpoint_block += htmlEscape(secret_input_id);
+            endpoint_block += "' rows='3' maxlength='";
+            endpoint_block += std::to_string(kAir360UploadSecretLength);
+            endpoint_block += "' autocomplete='off' autocapitalize='off' spellcheck='false' ";
+            if (secret_configured) {
+                endpoint_block += "disabled ";
+            }
+            endpoint_block += "placeholder='air360_us_v1_...'></textarea>";
+            endpoint_block += "<button class='btn' type='button' data-generate-air360-secret='";
+            endpoint_block += htmlEscape(secret_input_id);
+            endpoint_block += "'>Generate</button>";
+            endpoint_block += "</div>";
+            if (secret_configured) {
+                endpoint_block += "<span class='field-hint'>Saving this form replaces the stored upload secret.</span></div>";
+            }
+            endpoint_block += "</div>";
             break;
+        }
 
         case BackendType::kCustomUpload:
             https_block = renderHttpsCheckbox(card);
@@ -1187,6 +1243,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     if (!card.enabled) {
         status_block.clear();
     } else if (card.has_status) {
+        status_block += "<hr/>";
         status_block += "<div class='backend-status'>";
         status_block += "<p>Last attempt: <code>";
         status_block += htmlEscape(card.last_attempt);
@@ -1206,7 +1263,8 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         }
         status_block += "</div>";
     } else {
-        status_block = "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
+        status_block = "<hr/>";
+        status_block += "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
     }
 
     return renderTemplate(
@@ -1227,6 +1285,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice) {
     BackendsPageViewModel model;
@@ -1253,6 +1312,9 @@ BackendsPageViewModel buildBackendsPageViewModel(
         card.backend_key = descriptor.backend_key;
         card.backend_type = descriptor.type;
         card.enabled = record != nullptr && record->enabled != 0U;
+        if (descriptor.type == BackendType::kAir360Api) {
+            card.air360_upload_secret_preview = air360_upload_secret_preview;
+        }
 
         if (record != nullptr) {
             card.use_https = record->protocol == BackendProtocol::kHttps;
@@ -1740,6 +1802,7 @@ std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice) {
     const BackendsPageViewModel model =
@@ -1747,6 +1810,7 @@ std::string renderBackendsPage(
             backend_config_list,
             upload_manager,
             build_info,
+            air360_upload_secret_preview,
             notice,
             error_notice);
 
@@ -2001,12 +2065,14 @@ std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice) {
     return ::air360::renderBackendsPage(
         backend_config_list,
         upload_manager,
         build_info,
+        air360_upload_secret_preview,
         notice,
         error_notice);
 }
@@ -2039,6 +2105,7 @@ esp_err_t WebServer::start(
     SensorManager& sensor_manager,
     MeasurementStore& measurement_store,
     BackendConfigRepository& backend_config_repository,
+    Air360ApiCredentialRepository& air360_api_credentials,
     BackendConfigList& backend_config_list,
     UploadManager& upload_manager,
     CellularConfigRepository& cellular_config_repository,
@@ -2057,6 +2124,7 @@ esp_err_t WebServer::start(
     sensor_manager_ = &sensor_manager;
     measurement_store_ = &measurement_store;
     backend_config_repository_ = &backend_config_repository;
+    air360_api_credentials_ = &air360_api_credentials;
     backend_config_list_ = &backend_config_list;
     upload_manager_ = &upload_manager;
     cellular_config_repository_ = &cellular_config_repository;
@@ -2215,6 +2283,17 @@ esp_err_t WebServer::start(
     backends_post_uri.handler = &WebServer::handleBackends;
     backends_post_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &backends_post_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t air360_secret_uri{};
+    air360_secret_uri.uri = "/backends/air360-upload-secret";
+    air360_secret_uri.method = HTTP_GET;
+    air360_secret_uri.handler = &WebServer::handleAir360UploadSecret;
+    air360_secret_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &air360_secret_uri);
     if (err != ESP_OK) {
         stop();
         return err;

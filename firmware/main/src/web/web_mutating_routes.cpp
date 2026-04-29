@@ -1,5 +1,6 @@
 #include "air360/web_server.hpp"
 
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -30,6 +31,47 @@ using web::parseFormBody;
 using web::parseI2cAddress;
 using web::parseSignedLong;
 using web::parseUnsignedLong;
+
+std::string trimAsciiWhitespace(const std::string& value) {
+    std::size_t start = 0U;
+    while (start < value.size() &&
+           std::isspace(static_cast<unsigned char>(value[start])) != 0) {
+        ++start;
+    }
+
+    std::size_t end = value.size();
+    while (end > start &&
+           std::isspace(static_cast<unsigned char>(value[end - 1U])) != 0) {
+        --end;
+    }
+
+    return value.substr(start, end - start);
+}
+
+std::string previewAir360UploadSecret(const std::string& secret) {
+    if (!isValidAir360UploadSecret(secret)) {
+        return "";
+    }
+
+    constexpr std::size_t kVisibleSuffixChars = 6U;
+    return std::string(kAir360UploadSecretPrefix) + "..." +
+           secret.substr(secret.size() - kVisibleSuffixChars);
+}
+
+std::string loadAir360UploadSecretPreview(
+    const Air360ApiCredentialRepository* repository) {
+    if (repository == nullptr) {
+        return "";
+    }
+
+    std::string secret;
+    bool found = false;
+    if (repository->loadUploadSecret(secret, found) != ESP_OK || !found) {
+        return "";
+    }
+
+    return previewAir360UploadSecret(secret);
+}
 
 bool parseFloat(const std::string& input, float& value) {
     if (input.empty()) {
@@ -436,11 +478,15 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
     logHttpHandlerWatermark();
 
+    const std::string air360_secret_preview =
+        loadAir360UploadSecretPreview(server->air360_api_credentials_);
+
     if (request->method == HTTP_GET) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
+            air360_secret_preview,
             "",
             false);
         return sendHtmlResponse(request, html);
@@ -456,6 +502,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
+            air360_secret_preview,
             requestBodyReadErrorMessage(body_err),
             true);
         return sendHtmlResponse(request, html);
@@ -464,6 +511,8 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     const FormFields fields = parseFormBody(body);
     BackendRegistry registry;
     BackendConfigList updated = *server->backend_config_list_;
+    bool air360_secret_submitted = false;
+    std::string submitted_air360_secret;
 
     const std::string upload_interval_value = findFormValue(fields, "upload_interval_ms");
     unsigned long upload_interval_ms = 0UL;
@@ -474,6 +523,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
+            air360_secret_preview,
             "Upload interval must be between 10000 ms and 300000 ms.",
             true);
         return sendHtmlResponse(request, html);
@@ -488,6 +538,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 *server->backend_config_list_,
                 *server->upload_manager_,
                 server->status_service_->buildInfo(),
+                air360_secret_preview,
                 "Backend configuration is incomplete.",
                 true);
             return sendHtmlResponse(request, html);
@@ -513,6 +564,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 *server->backend_config_list_,
                 *server->upload_manager_,
                 server->status_service_->buildInfo(),
+                air360_secret_preview,
                 "Port must be between 1 and 65535.",
                 true);
             return sendHtmlResponse(request, html);
@@ -539,6 +591,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                         *server->backend_config_list_,
                         *server->upload_manager_,
                         server->status_service_->buildInfo(),
+                        air360_secret_preview,
                         "Air360 latitude must be a number between -90 and 90.",
                         true);
                     return sendHtmlResponse(request, html);
@@ -548,12 +601,51 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                         *server->backend_config_list_,
                         *server->upload_manager_,
                         server->status_service_->buildInfo(),
+                        air360_secret_preview,
                         "Air360 longitude must be a number between -180 and 180.",
                         true);
                     return sendHtmlResponse(request, html);
                 }
                 record->latitude = lat;
                 record->longitude = lon;
+
+                const std::string upload_secret_field = std::string("upload_secret_") + key;
+                air360_secret_submitted = formHasKey(fields, upload_secret_field.c_str());
+                if (air360_secret_submitted) {
+                    submitted_air360_secret =
+                        trimAsciiWhitespace(findFormValue(fields, upload_secret_field.c_str()));
+                }
+                if (air360_secret_submitted && submitted_air360_secret.empty()) {
+                    const std::string html = renderBackendsPage(
+                        *server->backend_config_list_,
+                        *server->upload_manager_,
+                        server->status_service_->buildInfo(),
+                        air360_secret_preview,
+                        "Air360 upload secret is empty. Generate one or paste a saved secret.",
+                        true);
+                    return sendHtmlResponse(request, html);
+                }
+                if (air360_secret_submitted &&
+                    !isValidAir360UploadSecret(submitted_air360_secret)) {
+                    const std::string html = renderBackendsPage(
+                        *server->backend_config_list_,
+                        *server->upload_manager_,
+                        server->status_service_->buildInfo(),
+                        air360_secret_preview,
+                        "Air360 upload secret is invalid. Use Generate or paste a saved air360_us_v1 secret.",
+                        true);
+                    return sendHtmlResponse(request, html);
+                }
+                if (!air360_secret_submitted && air360_secret_preview.empty()) {
+                    const std::string html = renderBackendsPage(
+                        *server->backend_config_list_,
+                        *server->upload_manager_,
+                        server->status_service_->buildInfo(),
+                        air360_secret_preview,
+                        "Air360 API needs an upload secret. Generate one or paste a saved secret.",
+                        true);
+                    return sendHtmlResponse(request, html);
+                }
                 break;
             }
 
@@ -590,12 +682,30 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         }
     }
 
+    if (!submitted_air360_secret.empty()) {
+        const esp_err_t secret_err =
+            server->air360_api_credentials_ != nullptr
+                ? server->air360_api_credentials_->saveUploadSecret(submitted_air360_secret)
+                : ESP_ERR_INVALID_STATE;
+        if (secret_err != ESP_OK) {
+            const std::string html = renderBackendsPage(
+                *server->backend_config_list_,
+                *server->upload_manager_,
+                server->status_service_->buildInfo(),
+                air360_secret_preview,
+                std::string("Air360 upload secret save failed: ") + esp_err_to_name(secret_err),
+                true);
+            return sendHtmlResponse(request, html);
+        }
+    }
+
     const esp_err_t save_err = server->backend_config_repository_->save(updated);
     if (save_err != ESP_OK) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
+            loadAir360UploadSecretPreview(server->air360_api_credentials_),
             std::string("Failed to save backend configuration: ") + esp_err_to_name(save_err),
             true);
         return sendHtmlResponse(request, html);
@@ -604,12 +714,15 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     *server->backend_config_list_ = updated;
     const esp_err_t apply_err = server->upload_manager_->applyConfig(updated);
     server->status_service_->setUploads(*server->upload_manager_);
+    const std::string updated_air360_secret_preview =
+        loadAir360UploadSecretPreview(server->air360_api_credentials_);
 
     if (apply_err != ESP_OK) {
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
+            updated_air360_secret_preview,
             std::string("Backend configuration saved, but runtime apply failed: ") +
                 esp_err_to_name(apply_err) + ". Reboot to apply it.",
             true);
@@ -620,6 +733,7 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         *server->backend_config_list_,
         *server->upload_manager_,
         server->status_service_->buildInfo(),
+        updated_air360_secret_preview,
         "Backend selection saved.",
         false);
     return sendHtmlResponse(request, html);

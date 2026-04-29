@@ -65,6 +65,47 @@
       return;
     }
 
+    const air360SecretBtn = e.target.closest('[data-generate-air360-secret]');
+    if (air360SecretBtn) {
+      const target = document.getElementById(air360SecretBtn.getAttribute('data-generate-air360-secret'));
+      if (target instanceof HTMLTextAreaElement) {
+        target.disabled = false;
+        air360SecretBtn.disabled = true;
+        fetch('/backends/air360-upload-secret', { cache: 'no-store' })
+          .then(r => {
+            if (!r.ok) throw new Error('secret generation failed');
+            return r.json();
+          })
+          .then(data => {
+            if (typeof data.upload_secret !== 'string') throw new Error('invalid response');
+            target.value = data.upload_secret;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.focus();
+            target.select();
+          })
+          .catch(() => {
+            target.value = '';
+            target.placeholder = 'Could not generate secret. Reload the page and try again.';
+          })
+          .finally(() => {
+            air360SecretBtn.disabled = false;
+          });
+      }
+      return;
+    }
+
+    const air360SecretChangeBtn = e.target.closest('[data-change-air360-secret]');
+    if (air360SecretChangeBtn) {
+      const panel = document.getElementById(air360SecretChangeBtn.getAttribute('data-change-air360-secret'));
+      const target = document.getElementById(air360SecretChangeBtn.getAttribute('data-secret-input'));
+      if (panel instanceof HTMLElement && target instanceof HTMLTextAreaElement) {
+        panel.hidden = false;
+        target.disabled = false;
+        target.focus();
+      }
+      return;
+    }
+
     // Collapsible card headers
     const cardHead = e.target.closest('.card.collapsible > .card-header');
     if (cardHead) {

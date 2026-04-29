@@ -70,6 +70,7 @@ std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice);
 std::string renderSensorsPage(

@@ -20,10 +20,12 @@ class Air360ApiUploader : public IBackendUploader {
     UploadAttemptResult prepareSync(
         const BackendRecord& record,
         const MeasurementBatch& batch,
-        const BackendDeliveryContext& context);
+        const BackendDeliveryContext& context,
+        const std::string& upload_secret_hash);
     bool buildRequests(
         const BackendRecord& record,
         const MeasurementBatch& batch,
+        const std::string& upload_secret,
         std::vector<UploadRequestSpec>& out_requests,
         std::string& error) const;
     UploadResultClass classifyResponse(

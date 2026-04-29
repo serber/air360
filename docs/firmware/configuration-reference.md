@@ -280,6 +280,12 @@ Four backends are pre-configured by default — all **disabled**:
 | `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
 | `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
 
+Air360 API also stores its upload secret separately in the `air360_cred`
+namespace rather than inside `BackendRecord`. The secret is required when Air360
+API is enabled, can be generated from the Backends page, and is intentionally
+shown only as a masked preview after saving. Replacing it requires an explicit
+**Change** action on the Backends page.
+
 ### Default endpoint settings
 
 | Backend type | `host` | `path` | `port` | `use_https` |
@@ -307,6 +313,7 @@ The Air360 API latitude and longitude fields can be entered manually or selected
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
 - If `enabled == 1`: `host`, `path`, and `port` must be valid.
 - `latitude` and `longitude` must both be non-zero before the first upload cycle; the adapter enforces this at registration time (not at config-load time).
+- A valid upload secret must be stored separately before uploads can start.
 
 **Custom Upload:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.

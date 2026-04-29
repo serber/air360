@@ -6,9 +6,10 @@
 #include <utility>
 #include <vector>
 
+#include "air360/uploads/air360_api_credentials.hpp"
 #include "air360/uploads/backend_config.hpp"
-#include "air360/uploads/measurement_batch.hpp"
 #include "air360/uploads/backend_types.hpp"
+#include "air360/uploads/measurement_batch.hpp"
 #include "esp_err.h"
 
 namespace air360 {
@@ -58,6 +59,7 @@ using BackendWatchdogResetFn = void (*)(void* arg, const char* checkpoint);
 
 struct BackendDeliveryContext {
     const UploadTransport* http_transport = nullptr;
+    const Air360ApiCredentialRepository* air360_credentials = nullptr;
     BackendStopRequestedFn stop_requested = nullptr;
     BackendWatchdogResetFn reset_watchdog = nullptr;
     void* callback_arg = nullptr;

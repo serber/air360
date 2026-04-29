@@ -129,13 +129,47 @@ UploadAttemptResult Air360ApiUploader::deliver(
         return result;
     }
 
-    UploadAttemptResult registration_result = prepareSync(record, batch, context);
+    if (context.air360_credentials == nullptr) {
+        result.result = UploadResultClass::kUnsupported;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message = "Air360 credential storage is not available.";
+        return result;
+    }
+
+    std::string upload_secret;
+    bool upload_secret_found = false;
+    const esp_err_t secret_err =
+        context.air360_credentials->loadUploadSecret(upload_secret, upload_secret_found);
+    if (secret_err != ESP_OK) {
+        result.result = UploadResultClass::kConfigError;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message =
+            std::string("Air360 upload secret load failed: ") + esp_err_to_name(secret_err);
+        return result;
+    }
+    if (!upload_secret_found) {
+        result.result = UploadResultClass::kConfigError;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message = "Air360 upload secret is missing. Generate or enter it on Backends.";
+        return result;
+    }
+
+    const std::string upload_secret_hash = hashAir360UploadSecret(upload_secret);
+    if (upload_secret_hash.empty()) {
+        result.result = UploadResultClass::kConfigError;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message = "Air360 upload secret hash failed.";
+        return result;
+    }
+
+    UploadAttemptResult registration_result =
+        prepareSync(record, batch, context, upload_secret_hash);
     if (registration_result.result != UploadResultClass::kSuccess) {
         return registration_result;
     }
 
     std::vector<UploadRequestSpec> requests;
-    if (!buildRequests(record, batch, requests, error)) {
+    if (!buildRequests(record, batch, upload_secret, requests, error)) {
         result.result = UploadResultClass::kConfigError;
         result.message = std::move(error);
         return result;
@@ -176,7 +210,8 @@ UploadAttemptResult Air360ApiUploader::deliver(
 UploadAttemptResult Air360ApiUploader::prepareSync(
     const BackendRecord& record,
     const MeasurementBatch& batch,
-    const BackendDeliveryContext& context) {
+    const BackendDeliveryContext& context,
+    const std::string& upload_secret_hash) {
     UploadAttemptResult result;
     result.phase = UploadAttemptPhase::kRegistration;
 
@@ -193,14 +228,16 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
 
     const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
 
-    std::string body = "{\"name\":\"";
+    std::string body = "{\"schema_version\":1,\"name\":\"";
     body += jsonEscape(batch.device_name);
-    body += "\",\"latitude\":";
+    body += "\",\"firmware_version\":\"";
+    body += jsonEscape(batch.project_version);
+    body += "\",\"location\":{\"latitude\":";
     body += std::to_string(record.latitude);
     body += ",\"longitude\":";
     body += std::to_string(record.longitude);
-    body += ",\"firmware_version\":\"";
-    body += jsonEscape(batch.project_version);
+    body += "},\"upload_secret_hash\":\"";
+    body += jsonEscape(upload_secret_hash);
     body += "\"}";
 
     UploadRequestSpec request;
@@ -254,6 +291,7 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
 bool Air360ApiUploader::buildRequests(
     const BackendRecord& record,
     const MeasurementBatch& batch,
+    const std::string& upload_secret,
     std::vector<UploadRequestSpec>& out_requests,
     std::string& error) const {
     out_requests.clear();
@@ -279,6 +317,7 @@ bool Air360ApiUploader::buildRequests(
     request.timeout_ms = 15000;
     request.headers.push_back({"Content-Type", "application/json"});
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
+    request.headers.push_back({"Authorization", std::string("Bearer ") + upload_secret});
     request.body = buildAir360JsonBody(batch);
     out_requests.push_back(std::move(request));
 

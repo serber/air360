@@ -6,12 +6,12 @@
 #include <utility>
 #include <vector>
 
+#include "air360/crypto_utils.hpp"
 #include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/uploads/backend_config.hpp"
 #include "air360/uploads/upload_transport.hpp"
-#include "mbedtls/base64.h"
 
 namespace air360 {
 
@@ -126,20 +126,14 @@ bool appendBasicAuthHeader(
 
     const std::string raw = std::string(username) + ":" + std::string(password);
     std::string encoded;
-    encoded.resize(((raw.size() + 2U) / 3U) * 4U + 1U);
-    size_t encoded_length = 0U;
-    const int result = mbedtls_base64_encode(
-        reinterpret_cast<unsigned char*>(encoded.data()),
-        encoded.size(),
-        &encoded_length,
-        reinterpret_cast<const unsigned char*>(raw.data()),
-        raw.size());
-    if (result != 0) {
+    if (!encodeBase64(
+            reinterpret_cast<const std::uint8_t*>(raw.data()),
+            raw.size(),
+            encoded)) {
         error = "Failed to encode InfluxDB basic auth header.";
         return false;
     }
 
-    encoded.resize(encoded_length);
     request.headers.push_back({"Authorization", std::string("Basic ") + encoded});
     return true;
 }

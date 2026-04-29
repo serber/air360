@@ -438,6 +438,37 @@ html, body {
 }
 .input-group { display: flex; gap: 6px; align-items: stretch; }
 .input-group .input { flex: 1; }
+.textarea {
+  min-height: 72px;
+  height: auto;
+  padding: 9px 12px;
+  line-height: 1.35;
+  resize: vertical;
+}
+.secret-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+.secret-input-row .btn { height: 34px; }
+.secret-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.secret-state {
+  color: var(--ok);
+  font-weight: 650;
+}
+.secret-preview {
+  padding: 4px 8px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.secret-edit-panel { margin-top: 8px; }
 .input.mono-display {
   background: var(--bg-sunken);
   color: var(--ink-3);
@@ -1026,5 +1057,6 @@ ul.list li + li { margin-top: 4px; }
   .row-2, .row-3 { grid-template-columns: 1fr; }
   .readings-grid { grid-template-columns: 1fr 1fr; }
   .input-action-row { flex-direction: column; }
+  .secret-input-row { grid-template-columns: 1fr; }
   .location-map { height: 240px; }
 }

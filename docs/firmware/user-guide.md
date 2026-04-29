@@ -373,7 +373,14 @@ To use Sensor.Community:
 
 ### Air360 API
 
-Enable Air360 API and press **Save**. No additional credentials are required in the current firmware version.
+Enable Air360 API, set the location, then press **Generate** next to
+**Upload secret**. Save the generated secret somewhere safe before pressing
+**Save**. If the device is reset later, paste that saved secret into the same
+field instead of generating a new one.
+
+After saving, the Backends page shows that the upload secret is configured
+instead of showing an empty input. Use **Change** only when you intentionally
+need to replace the stored secret, for example to paste an older saved secret.
 
 ### Custom Upload
 

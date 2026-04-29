@@ -32,6 +32,7 @@ This document maps common firmware code changes to the other code, configuration
 | `config_repository.cpp` | `web_server.cpp`, `status_service.cpp` | `nvs.md`, `configuration-reference.md`, `startup-pipeline.md` |
 | `sensors/sensor_config_repository.cpp` | `sensor_registry.cpp`, `web_server.cpp` | `nvs.md`, `configuration-reference.md`, `sensors/README.md`, `sensors/adding-new-sensor.md` |
 | `uploads/backend_config_repository.cpp` | `backend_registry.cpp`, `upload_manager.cpp`, `web_server.cpp` | `nvs.md`, `configuration-reference.md`, `measurement-pipeline.md`, `upload-adapters.md` |
+| `uploads/air360_api_credentials.cpp` | `air360_api_uploader.cpp`, `upload_manager.cpp`, `web_server.cpp` | `nvs.md`, `configuration-reference.md`, `upload-adapters.md`, `web-ui.md` |
 | `web_server.cpp`, `web_ui.cpp`, `main/webui/*` | `status_service.cpp`, config repositories, sensor registry | `web-ui.md`, `configuration-reference.md`, sometimes `network-manager.md` |
 | `status_service.cpp` | `web_server.cpp`, network and upload state providers | `ARCHITECTURE.md`, `web-ui.md` |
 | `sensors/sensor_manager.cpp` | `sensor_registry.cpp`, drivers, transport binding | `measurement-pipeline.md`, `sensors/README.md`, `transport-binding.md` |

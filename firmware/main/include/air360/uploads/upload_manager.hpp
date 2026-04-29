@@ -11,6 +11,7 @@
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
 #include "air360/sensors/sensor_manager.hpp"
+#include "air360/uploads/air360_api_credentials.hpp"
 #include "air360/uploads/backend_config.hpp"
 #include "air360/uploads/backend_registry.hpp"
 #include "air360/uploads/measurement_batch.hpp"
@@ -71,7 +72,8 @@ class UploadManager {
         const DeviceConfig& device_config,
         const SensorManager& sensor_manager,
         MeasurementStore& measurement_store,
-        const NetworkManager& network_manager);
+        const NetworkManager& network_manager,
+        const Air360ApiCredentialRepository& air360_credentials);
     [[nodiscard]] esp_err_t applyConfig(const BackendConfigList& config);
     [[nodiscard]] esp_err_t stop();
 
@@ -121,6 +123,7 @@ class UploadManager {
     const SensorManager* sensor_manager_ = nullptr;
     MeasurementStore* measurement_store_ = nullptr;
     const NetworkManager* network_manager_ = nullptr;
+    const Air360ApiCredentialRepository* air360_credentials_ = nullptr;
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
     StaticEventGroup_t lifecycle_events_buffer_{};

@@ -231,7 +231,7 @@ Upload backend configuration. Holds up to `kMaxConfiguredBackends` (4) backend r
 ```cpp
 struct BackendConfigList {
     uint32_t magic;              // 0x41333632
-    uint16_t schema_version;     // 1
+    uint16_t schema_version;     // 2
     uint16_t record_size;        // sizeof(BackendRecord)
     uint16_t backend_count;
     uint16_t reserved0;
@@ -256,7 +256,8 @@ struct BackendRecord {
     BackendAuthConfig auth;             // auth type + Basic Auth credentials
     char        device_id_override[32]; // Sensor.Community: overrides Short ID
     char        measurement_name[32];   // InfluxDB only
-    uint8_t     reserved2[8];
+    float       latitude;               // Air360 API only
+    float       longitude;              // Air360 API only
 };
 ```
 
@@ -280,6 +281,31 @@ struct BackendRecord {
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 
 HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` uses the same common HTTP fields as the built-in backends. `InfluxDB` also stores `measurement_name`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
+
+---
+
+## `air360_cred` — Air360 API credentials
+
+Air360 API upload credentials are stored separately from `backend_cfg` and other
+editable configuration blobs.
+
+| Key | Type | Purpose |
+|-----|------|---------|
+| `air360_us` | NVS string | Firmware-generated or user-entered Air360 API upload secret |
+
+The secret format is `air360_us_v1_` followed by 43 base64url characters. It is
+used only for Air360 API registration and ingest. It is not rendered in status
+JSON, logs, or diagnostics. After saving, the Backends form shows only a
+masked preview and requires an explicit **Change** action before a replacement
+secret can be submitted.
+
+The credential repository loads this value from NVS into memory on first use.
+Subsequent web UI renders and upload attempts use the cached value; saving a
+replacement secret writes NVS and updates the in-memory copy.
+
+The firmware computes `upload_secret_hash` from this secret during registration
+and sends the raw secret only as `Authorization: Bearer ...` on Air360 API
+ingest requests.
 
 ---
 

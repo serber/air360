@@ -234,9 +234,12 @@ PUT {scheme}://{host}{:port}{path}
 
 Before the first upload cycle, the Air360 API adapter runs an internal registration step from `deliver()` to register the device with the backend. This step runs once per firmware boot and sets a `registered_` atomic flag on success; subsequent cycles skip it.
 
-Planned contract change: [adr/proposed-air360-api-upload-secret-adr.md](adr/proposed-air360-api-upload-secret-adr.md)
-changes registration to use nested `location` and an upload-secret hash, then
-uses `Authorization: Bearer <upload_secret>` for ingest.
+The adapter requires an Air360 upload secret stored in the separate
+`air360_cred` NVS namespace. The Backends page can generate a new secret or let
+the user paste a previously saved one. Once stored, the page shows a configured
+state with a masked preview and requires an explicit replacement action before
+submitting a new secret. Registration sends only `upload_secret_hash`; batch
+ingest sends the raw secret as a bearer token.
 
 **Registration request:**
 
@@ -246,14 +249,19 @@ PUT {scheme}://{host}{:port}/v1/devices/{device_id}/register
 
 ```json
 {
+  "schema_version": 1,
   "name": "<device_name>",
-  "latitude": 55.751244,
-  "longitude": 37.618423,
-  "firmware_version": "0.1.0"
+  "firmware_version": "0.1.0",
+  "location": {
+    "latitude": 55.751244,
+    "longitude": 37.618423
+  },
+  "upload_secret_hash": "sha256:base64url-sha256-value"
 }
 ```
 
 - If `latitude` and `longitude` are both `0.0`, `deliver()` returns `kConfigError` during the registration phase and the upload cycle is skipped. Set coordinates on the Backends page before enabling Air360 API.
+- If the upload secret is missing or invalid, `deliver()` returns `kConfigError`; generate or enter the secret on the Backends page.
 - HTTP 2xx → device registered, `registered_` set to `true`.
 - Transport error or non-2xx HTTP → error is logged, the cycle is counted as a transport error, and registration retries on the next upload cycle.
 
@@ -279,8 +287,7 @@ Batch points are grouped by `(sensor_type, sample_time_ms)`. Each unique combina
 |--------|-------|
 | `Content-Type` | `application/json` |
 | `User-Agent` | `air360/{project_version}` |
-
-No authentication header is sent in the current firmware version.
+| `Authorization` | `Bearer <upload_secret>` |
 
 ### Body format
 
