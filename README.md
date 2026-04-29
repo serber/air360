@@ -21,7 +21,7 @@ Based on the current tree, the repository now contains more than the original fi
 
 - an ESP-IDF firmware runtime for `esp32s3`
 - compatibility with the Sensor.Community upload endpoint and registration flow
-- a Fastify-based Air360 backend scaffold with a mock ingest route
+- a Fastify-based Air360 backend with device registration, persisted ingest, and latest-reading queries
 - a Next.js portal scaffold
 - design and deployment documentation that connects those pieces
 
@@ -102,13 +102,16 @@ Current firmware implementation includes:
 
 ### Backend
 
-The native API backend lives in [backend/README.md](backend/README.md).
+The native API backend source lives in `backend/`. Backend documentation lives in
+[docs/backend/README.md](docs/backend/README.md).
 
-Current backend implementation is still early:
+Current backend implementation includes:
 
-- Fastify scaffold in TypeScript
+- Fastify service in TypeScript
 - `GET /` and `GET /health`
-- `PUT /v1/devices/:device_id/batches/:batch_id` as a mock ingest endpoint with basic payload validation
+- device registration at `PUT /v1/devices/:device_id/register`
+- persisted batch ingest at `PUT /v1/devices/:device_id/batches/:batch_id`
+- latest readings by public device ID at `GET /v1/devices/:public_id/latest`
 
 ### Portal
 
@@ -151,8 +154,8 @@ If you need repository context first:
 
 If you need backend work:
 
-1. Read [backend/README.md](backend/README.md)
-2. Read [docs/backend/README.md](docs/backend/README.md)
+1. Read [docs/backend/README.md](docs/backend/README.md)
+2. Use [backend/README.md](backend/README.md) only as the source directory entry point
 
 If you need portal work:
 
@@ -164,7 +167,7 @@ If you need portal work:
 Current implementation status appears to be:
 
 - `firmware/` is the most substantial implemented part of the repository
-- `backend/` is a minimal but real API scaffold with a mock ingest path
+- `backend/` is a native API backend with registration, ingest persistence, and latest-reading endpoints
 - `portal/` is a minimal frontend scaffold
 - many documents in `docs/` still describe intended direction, rollout phases, and compatibility constraints rather than completed work
 
@@ -172,6 +175,7 @@ Current implementation status appears to be:
 
 - Keep repository-level docs focused on project navigation and boundaries between subsystems.
 - Keep firmware implementation details in `firmware/README.md` and `docs/firmware/`.
-- Keep backend and portal operational details in their own directories and docs.
+- Keep backend operational details in `docs/backend/`.
+- Keep portal operational details in the portal docs.
 - Do not treat generated files under `firmware/build/` as maintained source.
 - Preserve the distinction between planned behavior in `docs/` and implemented behavior in `firmware/`, `backend/`, and `portal/`.
