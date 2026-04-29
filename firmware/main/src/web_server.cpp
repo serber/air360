@@ -1267,7 +1267,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
             card.device_id_override =
                 boundedCString(record->sensor_community_device_id, kBackendIdentifierCapacity);
             if (card.device_id_override.empty()) {
-                card.device_id_override = build_info.short_chip_id;
+                card.device_id_override = build_info.short_device_id;
             }
             if (record->backend_type == BackendType::kAir360Api) {
                 if (record->latitude != 0.0F || record->longitude != 0.0F) {

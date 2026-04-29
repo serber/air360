@@ -79,7 +79,7 @@ Safe to run repeatedly — already applied migrations are skipped.
 
 ```
 devices
-  device_id        BIGINT PK         — chip ID from firmware (48-bit MAC as decimal)
+  device_id        BIGINT PK         — device ID from firmware (48-bit MAC as decimal)
   public_id        UUID  UNIQUE       — public identifier exposed on external APIs (generated server-side)
   name             TEXT              — device name from firmware config
   latitude         NUMERIC(9,6)      — set by user when enabling Air360 API
@@ -105,7 +105,7 @@ measurements                    — TimescaleDB hypertable, partitioned by sampl
 
 `BIGINT` columns are parsed as JavaScript `number` by the pg driver (configured globally in `db/client.ts`). Device IDs are 48-bit values (max 2^48 − 1), safely within `Number.MAX_SAFE_INTEGER`.
 
-`public_id` is a UUID generated on device registration. External-facing APIs use `public_id` to identify devices; `device_id` (chip ID) is internal only.
+`public_id` is a UUID generated on device registration. External-facing APIs use `public_id` to identify devices; `device_id` is internal only.
 
 ## API
 
@@ -208,7 +208,7 @@ Ingests a batch of sensor samples from a device and persists them to the databas
   "schema_version": 1,
   "sent_at_unix_ms": 1714220400000,
   "device": {
-    "chip_id": "281474976710655",
+    "device_id": "281474976710655",
     "firmware_version": "1.2.0"
   },
   "batch": {

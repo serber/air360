@@ -23,7 +23,7 @@ interface RegisterBody {
   firmware_version: string;
 }
 
-const chipIdParam = {
+const deviceRouteParam = {
   schema: {
     params: {
       type: "object",
@@ -33,7 +33,7 @@ const chipIdParam = {
   },
 } as const;
 
-const deviceIdParam = {
+const publicDeviceRouteParam = {
   schema: {
     params: {
       type: "object",
@@ -46,11 +46,10 @@ const deviceIdParam = {
 export const deviceRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: DeviceParams; Body: RegisterBody }>(
     "/devices/:device_id/register",
-    chipIdParam,
+    deviceRouteParam,
     async (request, reply) => {
       const { device_id } = request.params;
-      const { name, latitude, longitude, firmware_version } =
-        request.body ?? {};
+      const { name, latitude, longitude, firmware_version } = request.body ?? {};
 
       if (!name || typeof name !== "string" || name.trim() === "") {
         return reply.code(400).send({
@@ -106,7 +105,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
 
   app.get<{ Params: DeviceIdParams }>(
     "/devices/:public_id/latest",
-    deviceIdParam,
+    publicDeviceRouteParam,
     async (request, reply) => {
       const { public_id } = request.params;
       const db = getDb(app.config);

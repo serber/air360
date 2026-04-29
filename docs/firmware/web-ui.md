@@ -252,7 +252,7 @@ A single form containing upload settings and one card per backend type.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
 - `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an embedded OpenStreetMap/Leaflet picker. Clicking the map updates the numeric fields; editing the fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both values are non-zero.
-- Sensor.Community only: `device_id_override` field (overrides the short chip ID sent in `X-Sensor`).
+- Sensor.Community only: `device_id_override` field (overrides the short device ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`

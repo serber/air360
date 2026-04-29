@@ -78,7 +78,7 @@ std::string buildLineProtocolBody(
     }
 
     const std::string node =
-        !batch.short_chip_id.empty() ? batch.short_chip_id : batch.chip_id;
+        !batch.short_device_id.empty() ? batch.short_device_id : batch.device_id;
     const std::string escaped_measurement = escapeMeasurementPart(measurement);
     const std::string escaped_node = escapeMeasurementPart(node);
 

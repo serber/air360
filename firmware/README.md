@@ -350,7 +350,7 @@ Currently implemented backends are:
 - `Sensor.Community`
   Fixed default endpoint `https://api.sensor.community/v1/push-sensor-data/`
 - `Air360 API`
-  Fixed default base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
+  Fixed default base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{device_id}/batches/{batch_id}`
 - `Custom Upload`
   User-supplied protocol, host, path, and port
 - `InfluxDB`

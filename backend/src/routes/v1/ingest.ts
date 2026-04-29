@@ -35,7 +35,7 @@ interface IngestBody {
   schema_version?: number;
   sent_at_unix_ms?: number;
   device?: {
-    chip_id?: string;
+    device_id?: string;
     firmware_version?: string;
   };
   batch?: {
@@ -64,11 +64,11 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       const body = request.body;
       const samples = body?.batch?.samples;
 
-      if (body?.device?.chip_id && Number(body.device.chip_id) !== device_id) {
+      if (body?.device?.device_id && Number(body.device.device_id) !== device_id) {
         return reply.code(400).send({
           error: {
             code: "invalid_payload",
-            message: "device.chip_id must match the chip_id path parameter",
+            message: "device.device_id must match the device_id path parameter",
           },
         });
       }

@@ -231,8 +231,8 @@ struct MeasurementBatch {
     string      device_name;
     string      board_name;
     string      project_version;
-    string      chip_id;
-    string      short_chip_id;
+    string      device_id;
+    string      short_device_id;
     string      esp_mac_id;
     NetworkMode network_mode;
     bool        station_connected;

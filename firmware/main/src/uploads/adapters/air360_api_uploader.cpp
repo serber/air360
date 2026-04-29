@@ -45,22 +45,22 @@ std::string buildBackendOrigin(const BackendRecord& record) {
 }
 
 std::string buildRegistrationUrl(const BackendRecord& record, const MeasurementBatch& batch) {
-    const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
-    return buildBackendOrigin(record) + "/v1/devices/" + chip_id + "/register";
+    const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
+    return buildBackendOrigin(record) + "/v1/devices/" + device_id + "/register";
 }
 
 std::string buildUrl(const BackendRecord& record, const MeasurementBatch& batch) {
     std::string url = buildBackendUrl(record);
-    const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
+    const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
 
-    if (url.find("{chip_id}") != std::string::npos || url.find("{batch_id}") != std::string::npos) {
-        replaceAll(url, "{chip_id}", chip_id);
+    if (url.find("{device_id}") != std::string::npos || url.find("{batch_id}") != std::string::npos) {
+        replaceAll(url, "{device_id}", device_id);
         replaceAll(url, "{batch_id}", std::to_string(batch.batch_id));
         return url;
     }
 
     const std::string base = trimTrailingSlash(url.c_str());
-    return base + "/v1/devices/" + chip_id + "/batches/" + std::to_string(batch.batch_id);
+    return base + "/v1/devices/" + device_id + "/batches/" + std::to_string(batch.batch_id);
 }
 
 std::string errorMessageFromResponse(const UploadTransportResponse& response) {
@@ -191,7 +191,7 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
         return result;
     }
 
-    const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
+    const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
 
     std::string body = "{\"name\":\"";
     body += jsonEscape(batch.device_name);
@@ -204,7 +204,7 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
     body += "\"}";
 
     UploadRequestSpec request;
-    request.request_key = std::string("air360_api:register:") + chip_id;
+    request.request_key = std::string("air360_api:register:") + device_id;
     request.method = UploadMethod::kPut;
     request.url = buildRegistrationUrl(record, batch);
     request.timeout_ms = 15000;
@@ -236,7 +236,7 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
 
     if (response.http_status >= 200 && response.http_status <= 299) {
         registered_.store(true, std::memory_order_release);
-        ESP_LOGI(kTag, "Air360 device registered: %s", chip_id.c_str());
+        ESP_LOGI(kTag, "Air360 device registered: %s", device_id.c_str());
         result.result = UploadResultClass::kSuccess;
         return result;
     }

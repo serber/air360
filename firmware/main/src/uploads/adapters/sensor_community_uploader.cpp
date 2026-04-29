@@ -17,14 +17,14 @@ namespace {
 
 constexpr char kLegacyPrefix[] = "esp32-";
 
-std::string legacyChipId(const MeasurementBatch& batch) {
-    if (!batch.short_chip_id.empty()) {
-        return batch.short_chip_id;
+std::string legacyDeviceId(const MeasurementBatch& batch) {
+    if (!batch.short_device_id.empty()) {
+        return batch.short_device_id;
     }
-    return batch.chip_id;
+    return batch.device_id;
 }
 
-std::string overrideChipId(const BackendRecord& record) {
+std::string overrideDeviceId(const BackendRecord& record) {
     return boundedCString(record.sensor_community_device_id, kBackendIdentifierCapacity);
 }
 
@@ -312,12 +312,12 @@ bool SensorCommunityUploader::buildRequests(
         upsertLatestValue(*group, value_type, point.value_kind, point.value);
     }
 
-    const std::string chip_id_override = overrideChipId(record);
-    const std::string chip_id = chip_id_override.empty() ? legacyChipId(batch) : chip_id_override;
-    const std::string x_sensor = std::string(kLegacyPrefix) + chip_id;
+    const std::string device_id_override = overrideDeviceId(record);
+    const std::string device_id = device_id_override.empty() ? legacyDeviceId(batch) : device_id_override;
+    const std::string x_sensor = std::string(kLegacyPrefix) + device_id;
     const std::string x_mac = std::string(kLegacyPrefix) + batch.esp_mac_id;
     const std::string user_agent =
-        batch.project_version + "/" + chip_id + "/" + batch.esp_mac_id;
+        batch.project_version + "/" + device_id + "/" + batch.esp_mac_id;
     const std::string endpoint_url = buildBackendUrl(record);
 
     for (const auto& group : groups) {

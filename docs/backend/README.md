@@ -16,7 +16,7 @@ They do not describe the ESP-IDF firmware implementation in `firmware/`, and the
 
 - `air360-api-measurement-ingest-draft.md`
   - draft ingest API contract
-  - current route shape at `PUT /v1/devices/{chip_id}/batches/{client_batch_id}`
+  - current route shape at `PUT /v1/devices/{device_id}/batches/{batch_id}`
   - request rules and minimal success response
 
 - `backend-ubuntu-deployment-guide.md`

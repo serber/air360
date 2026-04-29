@@ -96,8 +96,8 @@ MeasurementBatch UploadManager::buildMeasurementBatch(
     batch.device_name = device_config_ != nullptr ? device_config_->device_name : "";
     batch.board_name = build_info_.board_name;
     batch.project_version = build_info_.project_version;
-    batch.chip_id = build_info_.chip_id;
-    batch.short_chip_id = build_info_.short_chip_id;
+    batch.device_id = build_info_.device_id;
+    batch.short_device_id = build_info_.short_device_id;
     batch.esp_mac_id = build_info_.esp_mac_id;
 
     if (network_manager_ != nullptr) {

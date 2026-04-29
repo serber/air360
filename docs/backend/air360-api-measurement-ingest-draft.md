@@ -11,7 +11,7 @@ Current implementation status should be verified against the `/backend` source t
 
 Based on the current backend scaffold:
 
-- the route exists at `PUT /v1/devices/{device_id}/batches/{client_batch_id}`
+- the route exists at `PUT /v1/devices/{device_id}/batches/{batch_id}`
 - the route currently returns `201 Created` for accepted mock requests
 - the current success response is intentionally minimal
 - auth and persistence are not implemented yet
@@ -36,7 +36,7 @@ Provide one native ingest endpoint that:
 ## Endpoint
 
 - Method: `PUT`
-- Path: `/v1/devices/{device_id}/batches/{client_batch_id}`
+- Path: `/v1/devices/{device_id}/batches/{batch_id}`
 - Content-Type: `application/json`
 
 Example:
@@ -71,7 +71,7 @@ There is no `sensor_id` field in the contract.
 
 For the current Air360 device model, `sensor_type` is sufficient as the stream identifier inside one device.
 
-The device identifier in the ingest path is the numeric `device_id` (chip ID). The backend also assigns a `public_id` (UUID) used on public-facing endpoints.
+The device identifier in the ingest path is the numeric `device_id`. The backend also assigns a `public_id` (UUID) used on public-facing endpoints.
 
 ## Request Headers
 
@@ -88,8 +88,8 @@ The device identifier in the ingest path is the numeric `device_id` (chip ID). T
   "device": {
     "device_name": "air360-lab",
     "board_name": "esp32-s3-devkitc-1",
-    "chip_id": "163455989411504",
-    "short_chip_id": "3108528",
+    "device_id": "163455989411504",
+    "short_device_id": "3108528",
     "esp_mac_id": "94a9902f6eb0",
     "firmware_version": "427df8c-dirty"
   },
@@ -148,7 +148,7 @@ The device identifier in the ingest path is the numeric `device_id` (chip ID). T
   - required
   - initial value: `1`
 
-- `client_batch_id`
+- `batch_id`
   - string
   - required
   - unique per batch from one device
@@ -285,11 +285,11 @@ Implementation should be verified against `/backend/src/contracts/measurement-ki
 
 The endpoint is idempotent by resource path:
 
-- `PUT /v1/devices/{device_id}/batches/{client_batch_id}`
+- `PUT /v1/devices/{device_id}/batches/{batch_id}`
 
 Recommended backend behavior:
 
-- if a batch with the same `client_batch_id` was already accepted, return success again
+- if a batch with the same `batch_id` was already accepted, return success again
 - do not duplicate stored samples
 
 ## Minimal Success Response
@@ -297,7 +297,7 @@ Recommended backend behavior:
 ```json
 {
   "accepted": true,
-  "client_batch_id": "1743465600000",
+  "batch_id": "1743465600000",
   "accepted_samples": 4
 }
 ```

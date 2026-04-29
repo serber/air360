@@ -180,17 +180,17 @@ Within a group, if the same `value_type` appears more than once (e.g., two tempe
 | Header | Value | Source |
 |--------|-------|--------|
 | `Content-Type` | `application/json` | fixed |
-| `X-Sensor` | `esp32-{chip_id}` | `short_chip_id` or `device_id_override` |
+| `X-Sensor` | `esp32-{device_id}` | `short_device_id` or `device_id_override` |
 | `X-MAC-ID` | `esp32-{esp_mac_id}` | station MAC in hex |
 | `X-PIN` | `{pin}` | sensor group pin number |
-| `User-Agent` | `{project_version}/{chip_id}/{esp_mac_id}` | build info + identity |
+| `User-Agent` | `{project_version}/{device_id}/{esp_mac_id}` | build info + identity |
 
-**`X-Sensor` chip ID resolution:**
+**`X-Sensor` device ID resolution:**
 1. If `device_id_override` is set in `BackendRecord` → use that value
-2. Otherwise use `short_chip_id` (24-bit legacy airrohr format)
-3. Fallback to `chip_id` if `short_chip_id` is empty
+2. Otherwise use `short_device_id` (24-bit legacy airrohr format)
+3. Fallback to `device_id` if `short_device_id` is empty
 
-The `short_chip_id` must match the device ID registered on `devices.sensor.community`.
+The `short_device_id` must match the device ID registered on `devices.sensor.community`.
 
 ### Body format
 
@@ -224,7 +224,7 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 PUT {scheme}://{host}{:port}{path}
 ```
 
-- `{device_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
+- `{device_id}` — full 48-bit decimal device ID (`device_id` field from `BuildInfo`)
 - `{batch_id}` — unique `uint64_t` batch identifier from `MeasurementBatch`
 - Default value: `https://api.air360.ru/v1/devices/{device_id}/batches/{batch_id}`
 - Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{device_id}/batches/{batch_id}` for backward compatibility.
@@ -261,7 +261,7 @@ Unlike Sensor.Community, the Air360 adapter emits exactly **one PUT request** pe
 
 `deliver()` fails early with `kConfigError` if:
 - `batch.created_unix_ms <= 0` — unix time is not valid
-- `batch.chip_id` and `batch.short_chip_id` are both empty
+- `batch.device_id` and `batch.short_device_id` are both empty
 
 These checks are in addition to the network/time guards already applied by the upload manager.
 
@@ -287,8 +287,8 @@ No authentication header is sent in the current firmware version.
   "device": {
     "device_name": "air360",
     "board_name": "esp32-s3-devkitc-1",
-    "chip_id": "123456789012",
-    "short_chip_id": "789012",
+    "device_id": "123456789012",
+    "short_device_id": "789012",
     "esp_mac_id": "aabbccddeeff",
     "firmware_version": "0.1.0"
   },
@@ -351,7 +351,7 @@ Like `Air360 API`, this adapter emits exactly **one request per upload cycle** a
 
 `Custom Upload` reuses the same shared Air360 JSON payload builder as `Air360 API`. That means it has the same behavior for:
 
-- preconditions: `batch.created_unix_ms > 0` and at least one of `batch.chip_id` / `batch.short_chip_id` must be present
+- preconditions: `batch.created_unix_ms > 0` and at least one of `batch.device_id` / `batch.short_device_id` must be present
 - grouping: points are grouped by `(sensor_type, sample_time_ms)`
 - value formatting: JSON numbers with per-kind precision from `sensorValueKindPrecision()`
 - sensor coverage: all sensor types are passed through without filtering
@@ -475,8 +475,8 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Method | POST | PUT | POST | POST |
 | Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
-| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
+| Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
 | Authentication | None | None | None | Optional Basic Auth |
 | Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT4X, DS18B20, SCD30, GPS, SPS30 | All sensor types | All sensor types | All sensor types |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
-| Extra preconditions | None | unix_ms > 0, chip_id non-empty | unix_ms > 0, chip_id non-empty | unix_ms > 0, valid Influx config |
+| Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config |

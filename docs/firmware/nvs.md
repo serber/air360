@@ -275,7 +275,7 @@ struct BackendRecord {
 | Backend | `host` | `path` | `port` | `use_https` |
 |---------|--------|--------|--------|-------------|
 | Sensor.Community | `api.sensor.community` | `/v1/push-sensor-data/` | `443` | `1` |
-| Air360 API | `api.air360.ru` | `/v1/devices/{chip_id}/batches/{batch_id}` | `443` | `1` |
+| Air360 API | `api.air360.ru` | `/v1/devices/{device_id}/batches/{batch_id}` | `443` | `1` |
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 

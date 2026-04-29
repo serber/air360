@@ -137,7 +137,7 @@ constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
         .display_name   = "Air360",
         .defaults       = {
             .host          = "api.air360.ru",
-            .path          = "/v1/devices/{chip_id}/batches/{batch_id}",
+            .path          = "/v1/devices/{device_id}/batches/{batch_id}",
             .port          = 443U,
             .protocol      = BackendProtocol::kHttps,
             .host_is_fixed = true,

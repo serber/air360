@@ -452,7 +452,7 @@ struct MeasurementBatch {
     uint64_t  batch_id;
     int64_t   created_unix_ms;
     string    device_name, board_name;
-    string    chip_id, short_chip_id, esp_mac_id;
+    string    device_id, short_device_id, esp_mac_id;
     string    project_version;
     NetworkMode  network_mode;
     bool      station_connected;
@@ -591,7 +591,7 @@ Uploads to [Sensor.Community](https://sensor.community/).
 
 Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
 
-`X-Sensor` uses the legacy `esp32-{chip_id}` format (or the configured device ID override).
+`X-Sensor` uses the legacy `esp32-{device_id}` format (or the configured device ID override).
 
 ---
 
@@ -654,8 +654,8 @@ Reads project metadata at runtime from ESP-IDF ROM/flash info.
 
 | Field | Description |
 |-------|-------------|
-| `chip_id` | 48-bit decimal (6 MAC bytes) |
-| `short_chip_id` | Legacy airrohr format (24-bit, lower 3 bytes) |
+| `device_id` | 48-bit decimal (6 MAC bytes) |
+| `short_device_id` | Legacy airrohr format (24-bit, lower 3 bytes) |
 | `esp_mac_id` | Station MAC in hex (12 chars) |
 
 Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), core count, crystal frequency, and package variant.
@@ -780,7 +780,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 - Endpoint: built at request time from `host`, `path`, `port`, and `use_https`
 - Protocol: `http` or `https`, selected per backend in the web UI and stored in NVS
 - Payload: `sensordatavalues` array
-- Identification: `X-Sensor: esp32-{chip_id}`, `X-MAC-ID`, `X-PIN`
+- Identification: `X-Sensor: esp32-{device_id}`, `X-MAC-ID`, `X-PIN`
 
 ### SNTP
 

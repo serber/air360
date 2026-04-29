@@ -108,7 +108,7 @@ Current backend implementation is still early:
 
 - Fastify scaffold in TypeScript
 - `GET /` and `GET /health`
-- `PUT /v1/devices/:chip_id/batches/:client_batch_id` as a mock ingest endpoint with basic payload validation
+- `PUT /v1/devices/:device_id/batches/:batch_id` as a mock ingest endpoint with basic payload validation
 
 ### Portal
 

@@ -32,8 +32,8 @@ struct MeasurementBatch {
     std::string device_name;
     std::string board_name;
     std::string project_version;
-    std::string chip_id;
-    std::string short_chip_id;
+    std::string device_id;
+    std::string short_device_id;
     std::string esp_mac_id;
     NetworkMode network_mode = NetworkMode::kOffline;
     bool station_connected = false;

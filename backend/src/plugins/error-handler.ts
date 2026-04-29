@@ -8,10 +8,13 @@ export function registerErrorHandler(app: FastifyInstance): void {
       return;
     }
 
-    reply.status(500).send({
+    const err = error as { statusCode?: number; message?: string };
+    const statusCode = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500;
+
+    reply.status(statusCode).send({
       error: {
-        code: "internal_error",
-        message: "Internal server error",
+        code: statusCode >= 500 ? "internal_error" : "validation_error",
+        message: statusCode >= 500 ? "Internal server error" : err.message,
       },
     });
   });

@@ -269,7 +269,7 @@ Four backends are pre-configured by default — all **disabled**:
 | `enabled` | `uint8_t` | `0` | 0 or 1 |
 | `backend_type` | `BackendType` (uint8_t) | — | Must be a recognised type |
 | `display_name` | `char[32]` | type name | 1–31 chars, non-empty |
-| `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short chip ID |
+| `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short device ID |
 | `host` | `char[96]` | backend default | HTTP backends; host name without protocol |
 | `path` | `char[96]` | backend default | HTTP backends; must start with `/` when set |
 | `username` | `char[48]` | `""` | Optional Basic Auth username |

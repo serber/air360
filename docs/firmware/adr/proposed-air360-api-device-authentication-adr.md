@@ -8,20 +8,20 @@ Proposed.
 
 Protect Air360 API measurement uploads with a device-specific shared secret and HMAC-SHA256 request signatures. The firmware stores an `upload_secret` received during provisioning, signs every Air360 API upload request, and includes timestamp/nonce headers to prevent replay. The backend accepts unsigned upload requests only during a migration window.
 
-The design does not require user accounts or a customer portal. First registration can use trust-on-first-use (TOFU). Recovery after a full device erase uses a short-lived local pairing code shown by the device web UI, so knowing a `chip_id` alone is not enough to rotate the upload secret.
+The design does not require user accounts or a customer portal. First registration can use trust-on-first-use (TOFU). Recovery after a full device erase uses a short-lived local pairing code shown by the device web UI, so knowing a `device_id` alone is not enough to rotate the upload secret.
 
 ## Context
 
-The current Air360 API integration identifies the device by `chip_id` in the URL:
+The current Air360 API integration identifies the device by `device_id` in the URL:
 
 ```http
-PUT /v1/devices/{chip_id}/batches/{batch_id}
+PUT /v1/devices/{device_id}/batches/{batch_id}
 ```
 
 The adapter also registers the device once per boot:
 
 ```http
-PUT /v1/devices/{chip_id}/register
+PUT /v1/devices/{device_id}/register
 ```
 
 This is enough for routing data to a device record, but it is not authentication. Anyone who learns a device ID can construct upload requests for that device unless the backend requires proof that the sender knows a device-specific secret.
@@ -30,7 +30,7 @@ The project does not currently plan a user account area or an operator admin pan
 
 ## Goals
 
-- Prevent measurement spoofing by clients that only know `chip_id`.
+- Prevent measurement spoofing by clients that only know `device_id`.
 - Keep the firmware/backend protocol simple enough for ESP-IDF C++ firmware.
 - Avoid requiring user accounts, a customer portal, or a manual backend admin flow.
 - Allow a device to recover after `erase-flash` or NVS loss.
@@ -49,9 +49,9 @@ The project does not currently plan a user account area or an operator admin pan
 
 ### Protected Against
 
-- A remote client that knows `chip_id` and fabricates sensor batches.
+- A remote client that knows `device_id` and fabricates sensor batches.
 - A remote client that replays an old valid upload request.
-- A remote client that tries to rotate an existing device's upload secret using only `chip_id`.
+- A remote client that tries to rotate an existing device's upload secret using only `device_id`.
 
 ### Not Protected Against
 
@@ -88,7 +88,7 @@ The backend supports three registration outcomes:
 2. Existing provisioned device: do not return `upload_secret`; report that the device is already registered.
 3. Existing device in pairing recovery: rotate secret and return the new `upload_secret`.
 
-This allows simple first boot while preventing a client that only knows `chip_id` from fetching the active secret.
+This allows simple first boot while preventing a client that only knows `device_id` from fetching the active secret.
 
 ### 3. First Registration: TOFU
 
@@ -97,7 +97,7 @@ For a new device ID that does not exist on the backend, the firmware calls regis
 Request:
 
 ```http
-PUT /v1/devices/{chip_id}/register
+PUT /v1/devices/{device_id}/register
 Content-Type: application/json
 User-Agent: air360/{firmware_version}
 ```
@@ -106,8 +106,8 @@ User-Agent: air360/{firmware_version}
 {
   "schema_version": 1,
   "device": {
-    "chip_id": "123456789012",
-    "short_chip_id": "789012",
+    "device_id": "123456789012",
+    "short_device_id": "789012",
     "esp_mac_id": "aabbccddeeff",
     "name": "air360",
     "board_name": "esp32-s3-devkitc-1",
@@ -174,7 +174,7 @@ Firmware behavior:
 
 Recovery is needed after full flash erase, NVS corruption, or device replacement. The backend has no user account flow, so recovery relies on a pairing code shown by the local device web UI.
 
-The pairing code proves local access to the device UI. It does not prove legal ownership, but it prevents remote secret rotation using only `chip_id`.
+The pairing code proves local access to the device UI. It does not prove legal ownership, but it prevents remote secret rotation using only `device_id`.
 
 Firmware pairing flow:
 
@@ -196,7 +196,7 @@ Firmware pairing flow:
 Request from firmware:
 
 ```http
-POST /v1/devices/{chip_id}/pairing/start
+POST /v1/devices/{device_id}/pairing/start
 Content-Type: application/json
 User-Agent: air360/{firmware_version}
 ```
@@ -204,7 +204,7 @@ User-Agent: air360/{firmware_version}
 ```json
 {
   "schema_version": 1,
-  "chip_id": "123456789012",
+  "device_id": "123456789012",
   "pairing_nonce": "base64url-random-16-bytes",
   "pairing_code_hash": "base64url(sha256(pairing_code + \":\" + pairing_nonce))",
   "expires_in_seconds": 600,
@@ -250,13 +250,13 @@ GET /v1/pair
 
 The page asks for:
 
-- `device_id` / `chip_id`
+- `device_id`
 - pairing code shown in the local device UI
 
 Confirmation API used by that page:
 
 ```http
-POST /v1/devices/{chip_id}/pairing/confirm
+POST /v1/devices/{device_id}/pairing/confirm
 Content-Type: application/json
 ```
 
@@ -270,7 +270,7 @@ Content-Type: application/json
 
 Backend behavior:
 
-- Look up the active pending session for `chip_id`.
+- Look up the active pending session for `device_id`.
 - Recompute `sha256(pairing_code + \":\" + pairing_nonce)`.
 - Compare with stored `pairing_code_hash` using constant-time comparison.
 - On success, mark the session confirmed and create a new 32-byte `upload_secret`.
@@ -297,7 +297,7 @@ Cache-Control: no-store
 Request from firmware:
 
 ```http
-POST /v1/devices/{chip_id}/pairing/status
+POST /v1/devices/{device_id}/pairing/status
 Content-Type: application/json
 User-Agent: air360/{firmware_version}
 ```
@@ -362,10 +362,10 @@ Every Air360 API data upload includes HMAC headers.
 Request:
 
 ```http
-PUT /v1/devices/{chip_id}/batches/{batch_id}
+PUT /v1/devices/{device_id}/batches/{batch_id}
 Content-Type: application/json
 User-Agent: air360/{firmware_version}
-X-Air360-Device: {chip_id}
+X-Air360-Device: {device_id}
 X-Air360-Key-Version: {secret_version}
 X-Air360-Timestamp: {unix_ms}
 X-Air360-Nonce: {base64url-random-16-bytes}
@@ -411,7 +411,7 @@ QZzQ1H8zM0aXQ2RZxEXAMPLEBODYHASH
 
 Backend verification:
 
-1. Find device by `X-Air360-Device` and path `{chip_id}`; both must match.
+1. Find device by `X-Air360-Device` and path `{device_id}`; both must match.
 2. Find active secret by `X-Air360-Key-Version`.
 3. Reject if timestamp is outside tolerance, default 300 seconds.
 4. Reject if nonce was already used for this device/key version inside `nonce_ttl_seconds`.
@@ -494,12 +494,12 @@ Phase 3: Backend disables unsigned uploads globally.
 
 | Endpoint | Method | Auth | Purpose |
 |----------|--------|------|---------|
-| `/v1/devices/{chip_id}/register` | `PUT` | none for TOFU | Create device and issue first secret, or report already registered |
-| `/v1/devices/{chip_id}/pairing/start` | `POST` | local pairing hash | Start secret recovery session |
+| `/v1/devices/{device_id}/register` | `PUT` | none for TOFU | Create device and issue first secret, or report already registered |
+| `/v1/devices/{device_id}/pairing/start` | `POST` | local pairing hash | Start secret recovery session |
 | `/v1/pair` | `GET` | none | Minimal human confirmation page |
-| `/v1/devices/{chip_id}/pairing/confirm` | `POST` | pairing code | Confirm local access and rotate secret |
-| `/v1/devices/{chip_id}/pairing/status` | `POST` | session id + nonce | Device polls for new secret |
-| `/v1/devices/{chip_id}/batches/{batch_id}` | `PUT` | HMAC headers | Upload signed measurement batch |
+| `/v1/devices/{device_id}/pairing/confirm` | `POST` | pairing code | Confirm local access and rotate secret |
+| `/v1/devices/{device_id}/pairing/status` | `POST` | session id + nonce | Device polls for new secret |
+| `/v1/devices/{device_id}/batches/{batch_id}` | `PUT` | HMAC headers | Upload signed measurement batch |
 
 ## Affected Firmware Files
 
@@ -521,4 +521,4 @@ Phase 3: Backend disables unsigned uploads globally.
 
 ## Practical Conclusion
 
-Implement HMAC-SHA256 signed Air360 API uploads with a backend-issued per-device secret. Use TOFU for first registration and local pairing code recovery for erased devices. This blocks data spoofing by clients that only know `chip_id` without introducing user accounts or an operator portal.
+Implement HMAC-SHA256 signed Air360 API uploads with a backend-issued per-device secret. Use TOFU for first registration and local pairing code recovery for erased devices. This blocks data spoofing by clients that only know `device_id` without introducing user accounts or an operator portal.

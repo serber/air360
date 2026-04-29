@@ -71,7 +71,7 @@ firmware/
 
 - `main/src/app_main.cpp` — `app_main()` entry, constructs and runs `air360::App`
 - `main/src/app.cpp` — 9-step boot sequence: LEDs, watchdog, NVS, network core, config, sensors, uploads, web server
-- `main/src/build_info.cpp` — build metadata and device identity (chip_id, short_chip_id, esp_mac_id)
+- `main/src/build_info.cpp` — build metadata and device identity (device_id, short_device_id, esp_mac_id)
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
 - `main/src/cellular_config_repository.cpp` — NVS-backed `CellularConfig` persistence (independent schema version)
