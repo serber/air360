@@ -73,6 +73,7 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `POST` | `/check-sntp` | SNTP server reachability check |
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
 | `GET` / `POST` | `/backends` | Backend configuration page |
+| `GET` | `/backends/air360-upload-secret` | Generate a new Air360 upload secret (JSON response) |
 
 All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set `Content-Type: application/json`.
 

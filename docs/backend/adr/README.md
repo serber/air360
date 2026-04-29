@@ -7,7 +7,7 @@ Air360 API.
 directory describe accepted or proposed backend decisions that may require
 follow-up implementation work.
 
-## Proposed
+## Implemented
 
-- [firmware-generated-upload-secret-adr.md](firmware-generated-upload-secret-adr.md)
+- [implemented-firmware-generated-upload-secret-adr.md](implemented-firmware-generated-upload-secret-adr.md)
   Firmware-generated upload secrets for Air360 API device writes.

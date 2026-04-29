@@ -487,7 +487,7 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
 | Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
-| Authentication | None | None | None | Optional Basic Auth |
+| Authentication | None | Bearer upload secret | None | Optional Basic Auth |
 | Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT4X, DS18B20, SCD30, GPS, SPS30 | All sensor types | All sensor types | All sensor types |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
 | Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config |

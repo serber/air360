@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted. Implemented in `firmware/`.
 
 ## Decision Summary
 
@@ -12,7 +12,7 @@ with the backend, and sends the secret as a bearer token on Air360 API ingest
 requests.
 
 This is the firmware-side companion to
-[`../../backend/adr/firmware-generated-upload-secret-adr.md`](../../backend/adr/firmware-generated-upload-secret-adr.md).
+[`../../backend/adr/implemented-firmware-generated-upload-secret-adr.md`](../../backend/adr/implemented-firmware-generated-upload-secret-adr.md).
 
 ## Context
 

@@ -5,7 +5,7 @@
 Deferred.
 
 Superseded for the first implementation by
-[`proposed-air360-api-upload-secret-adr.md`](proposed-air360-api-upload-secret-adr.md).
+[`implemented-air360-api-upload-secret-adr.md`](implemented-air360-api-upload-secret-adr.md).
 Keep this document as a production-hardening option if bearer upload secrets
 become insufficient.
 

@@ -373,14 +373,45 @@ To use Sensor.Community:
 
 ### Air360 API
 
-Enable Air360 API, set the location, then press **Generate** next to
-**Upload secret**. Save the generated secret somewhere safe before pressing
-**Save**. If the device is reset later, paste that saved secret into the same
-field instead of generating a new one.
+The Air360 API backend requires a device-specific **upload secret** before
+uploads can start. The secret is generated on the device and must be saved
+somewhere safe — it cannot be retrieved from the backend after the initial
+setup.
 
-After saving, the Backends page shows that the upload secret is configured
-instead of showing an empty input. Use **Change** only when you intentionally
-need to replace the stored secret, for example to paste an older saved secret.
+**To enable for the first time:**
+
+1. Open **Backends**.
+2. Enable **Air360 API**.
+3. Enter **Latitude** and **Longitude** for the device location. You can type
+   the coordinates or click the map to place a marker. Uploads are blocked
+   until coordinates are non-zero.
+4. Press **Generate** next to **Upload secret**. The field fills with a new
+   secret in the form `air360_us_v1_...`.
+5. **Copy and save the secret now** — paste it into a password manager or a
+   secure note. You will need it if the device is ever reset.
+6. Press **Save**.
+
+After saving, the Backends page shows **Configured** with a masked preview
+instead of the input field. The device registers with the backend on the next
+upload cycle and then starts sending measurements.
+
+**To recover after a device reset (erase-flash or NVS loss):**
+
+If the device NVS was erased and you saved the original secret:
+
+1. Open **Backends**.
+2. Enable **Air360 API**.
+3. Enter the same latitude and longitude as before.
+4. Press **I already have an upload secret** below the input field to switch
+   to paste mode.
+5. Paste the saved secret into the **Upload secret** field.
+6. Press **Save**.
+
+The device registers with the same secret hash and the backend accepts it,
+restoring the previous device record. If you lost the secret, a backend-side
+reset or a new device record is required.
+
+Use **Change** only when you intentionally need to replace the stored secret.
 
 ### Custom Upload
 
@@ -509,6 +540,15 @@ What this means in practice:
 4. Set the upload interval as needed.
 5. Monitor upload status on **Overview** or **Backends**.
 
+### Enabling Air360 API upload
+
+1. Open **Backends** → enable **Air360 API**.
+2. Enter latitude and longitude for your device location (or click the map).
+3. Press **Generate** → the Upload secret field fills with a new secret.
+4. **Copy and save the secret** in a password manager or secure note.
+5. Press **Save**.
+6. Monitor upload status on **Overview** or **Backends**.
+
 ### Enabling custom HTTP upload
 
 1. Open **Backends**.
@@ -569,6 +609,19 @@ If the queued sample count on a sensor card keeps increasing without going down:
 - Backend uploads are likely failing — check backend cards for errors.
 - The device may have lost station uplink.
 - UTC time may not be synchronized — check the date on **Overview**.
+
+### Air360 API uploads fail or secret is rejected
+
+The stored upload secret does not match the backend device record. This can
+happen if the device was erased and a different secret was generated instead
+of the original one being re-entered.
+
+- **If you saved the original secret:** open **Backends → Air360 API →
+  Change**, select **I already have an upload secret**, paste the original
+  secret, and press **Save**.
+- **If you lost the original secret:** the existing backend device record
+  cannot be recovered without a backend-side reset. Contact the backend
+  operator to reset the device record, then generate a new secret.
 
 ### Moving the device to a different Wi-Fi network
 
