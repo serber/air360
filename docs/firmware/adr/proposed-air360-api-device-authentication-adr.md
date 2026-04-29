@@ -2,11 +2,20 @@
 
 ## Status
 
-Proposed.
+Deferred.
+
+Superseded for the first implementation by
+[`proposed-air360-api-upload-secret-adr.md`](proposed-air360-api-upload-secret-adr.md).
+Keep this document as a production-hardening option if bearer upload secrets
+become insufficient.
 
 ## Decision Summary
 
 Protect Air360 API measurement uploads with a device-specific shared secret and HMAC-SHA256 request signatures. The firmware stores an `upload_secret` received during provisioning, signs every Air360 API upload request, and includes timestamp/nonce headers to prevent replay. The backend accepts unsigned upload requests only during a migration window.
+
+This is no longer the preferred first implementation. The current simpler
+direction is a firmware-generated upload secret sent as a bearer token over
+HTTPS, with only the secret hash registered on the backend.
 
 The design does not require user accounts or a customer portal. First registration can use trust-on-first-use (TOFU). Recovery after a full device erase uses a short-lived local pairing code shown by the device web UI, so knowing a `device_id` alone is not enough to rotate the upload secret.
 

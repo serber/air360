@@ -35,7 +35,7 @@ The user-facing frontend is expected to live as a separate application and is ou
 ## Intended Request Flow
 
 1. Device sends an ingest request to the backend.
-2. The ingest service validates the device and bearer token against data stored in `PostgreSQL`.
+2. The ingest service validates the device and bearer upload secret hash against data stored in `PostgreSQL`.
 3. If authorization succeeds, the service writes normalized measurements to `TimescaleDB`.
 4. Other services such as a frontend or public history API read historical telemetry from `TimescaleDB`.
 

@@ -22,6 +22,7 @@ behavior against `/backend`.
 
 | Document | Purpose |
 |----------|---------|
+| [adr/README.md](adr/README.md) | Backend architecture decision records |
 | [backend-stack-decision.md](backend-stack-decision.md) | Backend-only stack direction and scaffold boundaries |
 | [backend-ubuntu-deployment-guide.md](backend-ubuntu-deployment-guide.md) | Standalone Ubuntu deployment guide |
 | [air360-backend.service](air360-backend.service) | `systemd` unit example |
@@ -183,6 +184,9 @@ Response `200`:
 
 Registers a device or updates its metadata. Firmware calls this on boot.
 The endpoint is idempotent and safe to call multiple times.
+
+Planned contract change: [adr/firmware-generated-upload-secret-adr.md](adr/firmware-generated-upload-secret-adr.md)
+changes registration to use nested `location` and `upload_secret_hash`.
 
 Path parameters:
 

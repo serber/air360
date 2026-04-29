@@ -234,6 +234,10 @@ PUT {scheme}://{host}{:port}{path}
 
 Before the first upload cycle, the Air360 API adapter runs an internal registration step from `deliver()` to register the device with the backend. This step runs once per firmware boot and sets a `registered_` atomic flag on success; subsequent cycles skip it.
 
+Planned contract change: [adr/proposed-air360-api-upload-secret-adr.md](adr/proposed-air360-api-upload-secret-adr.md)
+changes registration to use nested `location` and an upload-secret hash, then
+uses `Authorization: Bearer <upload_secret>` for ingest.
+
 **Registration request:**
 
 ```
