@@ -2,11 +2,15 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
 import {
+  findAllDevices,
   findDeviceByDeviceId,
   findDeviceByPublicId,
   upsertDevice,
 } from "../../modules/devices/device-repository";
-import { findLatestMeasurements } from "../../modules/measurements/measurement-repository";
+import {
+  findAllLatestMeasurements,
+  findLatestMeasurements,
+} from "../../modules/measurements/measurement-repository";
 
 interface DeviceParams {
   device_id: number;
@@ -48,6 +52,44 @@ const publicDeviceRouteParam = {
 } as const;
 
 export const deviceRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/devices", async (_request, reply) => {
+    const db = getDb(app.config);
+
+    const [devices, allMeasurements] = await Promise.all([
+      findAllDevices(db),
+      findAllLatestMeasurements(db),
+    ]);
+
+    const measurementsByDevice = new Map<number, typeof allMeasurements>();
+    for (const m of allMeasurements) {
+      const list = measurementsByDevice.get(m.device_id) ?? [];
+      list.push(m);
+      measurementsByDevice.set(m.device_id, list);
+    }
+
+    return reply.code(200).send({
+      devices: devices.map((device) => {
+        const measurements = measurementsByDevice.get(device.device_id) ?? [];
+        const sensorMap = new Map<string, { kind: string; value: number; sampled_at: Date }[]>();
+        for (const m of measurements) {
+          const readings = sensorMap.get(m.sensor_type) ?? [];
+          readings.push({ kind: m.kind, value: m.value, sampled_at: m.sampled_at });
+          sensorMap.set(m.sensor_type, readings);
+        }
+        return {
+          public_id: device.public_id,
+          name: device.name,
+          location: { latitude: device.latitude, longitude: device.longitude },
+          last_seen_at: device.last_seen_at,
+          sensors: Array.from(sensorMap.entries()).map(([sensor_type, readings]) => ({
+            sensor_type,
+            readings,
+          })),
+        };
+      }),
+    });
+  });
+
   app.put<{ Params: DeviceParams; Body: RegisterBody }>(
     "/devices/:device_id/register",
     deviceRouteParam,

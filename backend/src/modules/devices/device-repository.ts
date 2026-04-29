@@ -34,6 +34,13 @@ export async function upsertDevice(
     .executeTakeFirstOrThrow() as Promise<Device>;
 }
 
+export async function findAllDevices(db: Kysely<Database>): Promise<Device[]> {
+  return db
+    .selectFrom("devices")
+    .selectAll()
+    .execute() as Promise<Device[]>;
+}
+
 export async function findDeviceByDeviceId(
   db: Kysely<Database>,
   device_id: number,
@@ -56,13 +63,14 @@ export async function findDeviceByPublicId(
     .executeTakeFirst() as Promise<Device | undefined>;
 }
 
-export async function updateDeviceLastSeen(
+export async function updateDeviceOnIngest(
   db: Kysely<Database>,
   device_id: number,
+  batch_id: number,
 ): Promise<void> {
   await db
     .updateTable("devices")
-    .set({ last_seen_at: new Date() })
+    .set({ last_seen_at: new Date(), last_batch_id: batch_id })
     .where("device_id", "=", device_id)
     .execute();
 }

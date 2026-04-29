@@ -9,6 +9,7 @@ export interface DeviceTable {
   longitude: number;
   firmware_version: string;
   upload_secret_hash: ColumnType<string | null, string | null, string | null>;
+  last_batch_id: ColumnType<number | null, number | null, number | null>;
   registered_at: ColumnType<Date, never, never>;
   last_seen_at: ColumnType<Date, never, Date>;
 }
@@ -44,6 +45,7 @@ export type Device = {
   longitude: number;
   firmware_version: string;
   upload_secret_hash: string | null;
+  last_batch_id: number | null;
   registered_at: Date;
   last_seen_at: Date;
 };

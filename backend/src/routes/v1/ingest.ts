@@ -4,7 +4,7 @@ import { getDb } from "../../db/client";
 import { verifyUploadSecret } from "../../lib/upload-secret";
 import {
   findDeviceByDeviceId,
-  updateDeviceLastSeen,
+  updateDeviceOnIngest,
 } from "../../modules/devices/device-repository";
 import {
   insertBatch,
@@ -174,7 +174,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       );
 
       await insertMeasurements(db, measurements);
-      await updateDeviceLastSeen(db, device_id);
+      await updateDeviceOnIngest(db, device_id, batch_id);
 
       return reply.code(200).send();
     },

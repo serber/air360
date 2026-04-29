@@ -124,10 +124,11 @@ devices
   public_id          UUID UNIQUE     - public identifier exposed on external APIs
   registered_from_ip TEXT NULL       - IP address seen during device registration
   name               TEXT            - device name from firmware config
-  latitude           NUMERIC(9,6)    - user-provided device latitude
-  longitude          NUMERIC(9,6)    - user-provided device longitude
+  latitude           FLOAT8          - user-provided device latitude
+  longitude          FLOAT8          - user-provided device longitude
   firmware_version   TEXT
   upload_secret_hash TEXT NULL       - sha256:<base64url(sha256(upload_secret))>
+  last_batch_id      BIGINT NULL     - batch_id of the most recent ingest, updated on each ingest
   registered_at      TIMESTAMPTZ     - set once on first registration
   last_seen_at       TIMESTAMPTZ     - updated on registration and ingest
 
@@ -180,6 +181,103 @@ Response `200`:
 ```json
 { "ok": true }
 ```
+
+### `GET /v1/devices`
+
+Returns all registered devices with their location and latest sensor readings.
+Intended for the portal map page.
+
+Response `200`:
+
+```json
+{
+  "devices": [
+    {
+      "public_id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Air360-AB12",
+      "location": { "latitude": 55.751244, "longitude": 37.618423 },
+      "last_seen_at": "2026-04-29T10:00:00.000Z",
+      "sensors": [
+        {
+          "sensor_type": "bme280",
+          "readings": [
+            { "kind": "temperature_c", "value": 22.5, "sampled_at": "2026-04-29T09:59:00.000Z" },
+            { "kind": "humidity_percent", "value": 48.0, "sampled_at": "2026-04-29T09:59:00.000Z" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Devices with no measurements appear with `sensors: []`.
+
+---
+
+### `GET /v1/devices/:public_id/measurements?period=<period>`
+
+Returns time-bucketed sensor measurements for charts. Intended for the portal
+device detail page.
+
+Path parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `public_id` | UUID | Public device identifier |
+
+Query parameters:
+
+| Parameter | Required | Values |
+|-----------|----------|--------|
+| `period` | yes | `1h` `24h` `7d` `30d` `90d` `180d` `365d` |
+
+Bucket sizes and approximate point counts per series:
+
+| `period` | Bucket | Points |
+|----------|--------|--------|
+| `1h` | 1 minute | ~60 |
+| `24h` | 5 minutes | ~288 |
+| `7d` | 1 hour | ~168 |
+| `30d` | 6 hours | ~120 |
+| `90d` | 1 day | ~90 |
+| `180d` | 1 day | ~180 |
+| `365d` | 1 day | ~365 |
+
+Each point's value is the average (`AVG`) of all readings in that bucket.
+Short keys `t` (timestamp) and `v` (value) reduce payload size.
+
+Response `200`:
+
+```json
+{
+  "public_id": "550e8400-e29b-41d4-a716-446655440000",
+  "period": "24h",
+  "sensors": [
+    {
+      "sensor_type": "bme280",
+      "series": [
+        {
+          "kind": "temperature_c",
+          "points": [
+            { "t": "2026-04-28T10:00:00.000Z", "v": 22.1 },
+            { "t": "2026-04-28T10:05:00.000Z", "v": 22.3 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Error responses:
+
+| Code | `error.code` | Reason |
+|------|--------------|--------|
+| 400 | `validation_error` | Missing or invalid `period` |
+| 404 | `device_not_found` | Device does not exist |
+
+---
 
 ### `PUT /v1/devices/:device_id/register`
 
@@ -371,3 +469,5 @@ Error responses:
 - Latest readings per device: implemented.
 - TimescaleDB hypertable and compression migrations: implemented.
 - Upload secret auth (bearer token on ingest, hash stored at registration): implemented.
+- Device list with latest measurements (`GET /v1/devices`): implemented.
+- Time-bucketed measurement history (`GET /v1/devices/:public_id/measurements`): implemented.
