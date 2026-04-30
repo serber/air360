@@ -37,10 +37,11 @@ for visualizing device data.
 
 | Route | Purpose |
 |-------|---------|
-| `/` | World map with all device pins |
+| `/` | Placeholder public portal home page |
+| `/map` | World map with all device pins |
 | `/devices/:public_id` | Device detail page with sensor charts |
 
-### Map (`/`)
+### Map (`/map`)
 
 **Library:** `react-leaflet` + OpenStreetMap tiles — consistent with the
 firmware embedded web UI.
@@ -91,7 +92,8 @@ browser APIs.
 
 | File | Purpose |
 |------|---------|
-| `src/app/page.tsx` | Map page (shell, imports `DeviceMap`) |
+| `src/app/page.tsx` | Placeholder home page |
+| `src/app/map/page.tsx` | Map page (shell, imports `DeviceMap`) |
 | `src/app/devices/[public_id]/page.tsx` | Device detail page shell |
 | `src/components/DeviceMap.tsx` | `react-leaflet` map with device markers |
 | `src/components/DevicePopup.tsx` | Popup card: name, last seen, readings, link |

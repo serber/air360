@@ -17,7 +17,9 @@ The portal is intended to cover two main areas:
 
 The first implemented public flows are:
 
-- map page with all registered devices from `GET /v1/devices`
+- placeholder home page at `/`
+- map page at `/map` with all registered devices from `GET /v1/devices`
+- placeholder device assembly guide at `/build`
 - device popup with latest readings grouped by sensor type
 - device detail page with sensor charts from
   `GET /v1/devices/:public_id/measurements?period=<period>`
@@ -81,7 +83,8 @@ Based on the current backend structure, versioned API routes under `/v1` are the
 
 - `backend/` already exists as a separate Fastify service
 - `firmware/` already exists as the device-side implementation
-- `portal/` now exists as a `Next.js` project with public map and device pages
+- `portal/` now exists as a `Next.js` project with a placeholder home page,
+  public map, placeholder device assembly guide, and device pages
 - Ubuntu run and deployment instructions live in `docs/portal/ubuntu-deployment.md`
 
 This document records the working scope and boundary for the portal as implementation begins.

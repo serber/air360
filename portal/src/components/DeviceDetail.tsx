@@ -55,7 +55,7 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
           <div>
             <Link
               className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-900"
-              href="/"
+              href="/map"
             >
               Back to map
             </Link>
