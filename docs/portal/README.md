@@ -15,14 +15,15 @@ The portal is intended to cover two main areas:
 - a public home page that explains the Air360 project and acts as a landing page
 - a private user area for account access and device management
 
-The first planned user-facing flows are:
+The first implemented public flows are:
 
-- landing page with project overview and navigation links
-- user registration
-- user authorization and sign-in
-- personal account area
-- device list for the signed-in user
-- device management actions inside the personal account
+- map page with all registered devices from `GET /v1/devices`
+- device popup with latest readings grouped by sensor type
+- device detail page with sensor charts from
+  `GET /v1/devices/:public_id/measurements?period=<period>`
+
+Potential future account flows remain out of scope for the current portal map
+implementation.
 
 ## Working Stack Direction
 
@@ -37,7 +38,10 @@ The current working direction for the portal is:
 - public marketing-style pages
 - authenticated application pages for the personal account
 
-Exact choices for UI component libraries, form libraries, and auth helpers are still open. They should be selected later to match the actual backend auth model.
+The map uses `react-leaflet` with OpenStreetMap tiles. The device detail page
+uses `recharts` for time-series charts. Exact choices for future form libraries
+and auth helpers are still open and should be selected later to match the actual
+backend auth model.
 
 ## Boundary Between Portal And Backend
 
@@ -64,13 +68,10 @@ The backend source tree in `/backend` remains the source of truth for implemente
 
 The portal is expected to communicate with the backend over HTTP API.
 
-Initial integration areas will likely include:
+Current public integration areas are:
 
-- registration API
-- sign-in API
-- current user or session API
-- user device list API
-- device management APIs
+- `GET /v1/devices`
+- `GET /v1/devices/:public_id/measurements?period=<period>`
 
 The portal should not communicate directly with firmware devices for account workflows. Those interactions should go through the backend API layer.
 
@@ -80,7 +81,7 @@ Based on the current backend structure, versioned API routes under `/v1` are the
 
 - `backend/` already exists as a separate Fastify service
 - `firmware/` already exists as the device-side implementation
-- `portal/` now exists as a generated `Next.js` project with one initial landing page
+- `portal/` now exists as a `Next.js` project with public map and device pages
 - Ubuntu run and deployment instructions live in `docs/portal/ubuntu-deployment.md`
 
 This document records the working scope and boundary for the portal as implementation begins.

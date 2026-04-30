@@ -1,14 +1,15 @@
 # Air360 Portal
 
-This directory contains the new Air360 portal application.
+This directory contains the Air360 public portal application.
 
-The project was generated with the official `create-next-app` scaffold and currently provides:
+The portal currently provides:
 
 - `Next.js` 16 with the `App Router`
 - `React` 19 and `TypeScript`
 - `Tailwind CSS` 4
 - `ESLint` 9
-- a single landing page in `src/app/page.tsx`
+- a public device map at `/`
+- public device measurement charts at `/devices/:public_id`
 
 ## Development
 
@@ -20,6 +21,13 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+By default the browser fetches the backend API from the same origin under
+`/v1`. For a separate backend host, set:
+
+```bash
+NEXT_PUBLIC_AIR360_API_BASE_URL=http://localhost:3000
+```
 
 ## Production
 

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f7f5;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -10,13 +10,6 @@
   --color-foreground: var(--foreground);
   --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -27,4 +20,34 @@ body {
 
 a {
   text-decoration: none;
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+.leaflet-popup-content {
+  margin: 14px;
+}
+
+.air360-device-marker {
+  align-items: center;
+  background: #ffffff;
+  border: 2px solid #0f766e;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 24%);
+  display: flex;
+  justify-content: center;
+}
+
+.air360-device-marker span {
+  background: #0f766e;
+  border-radius: 999px;
+  display: block;
+  height: 12px;
+  width: 12px;
 }

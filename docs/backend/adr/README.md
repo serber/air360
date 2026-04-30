@@ -12,5 +12,5 @@ follow-up implementation work.
 - [implemented-firmware-generated-upload-secret-adr.md](implemented-firmware-generated-upload-secret-adr.md)
   Firmware-generated upload secrets for Air360 API device writes.
 
-- [portal-api-extensions-adr.md](portal-api-extensions-adr.md)
+- [implemented-portal-api-extensions-adr.md](implemented-portal-api-extensions-adr.md)
   New read endpoints (`GET /v1/devices`, `GET /v1/devices/:public_id/measurements`) to support the portal map and device detail pages.
