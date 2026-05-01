@@ -201,6 +201,7 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Supply voltage | `4.7..5.3 V` |
 | Accuracy | Relative error `+/-15 %` and `+/-10 ug/m3` at `25 deg C`, `50 %RH` |
 | Maximum current | `70 mA +/-10 mA` during operation; sleep current below `4 mA` for laser and fan sleep |
+| Air360 mode | Wakes on init/poll, continuous work period, passive/query reporting |
 | Reference links | [Nova Fitness datasheet mirror](https://microcontrollerslab.com/wp-content/uploads/2020/12/NonA-PM-SDS011-Dust-sensor-datasheet.pdf), [Nettigo product page](https://nettigo.eu/products/1085) |
 
 ### GPS (NMEA)

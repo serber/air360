@@ -16,16 +16,45 @@ namespace air360 {
 namespace {
 constexpr char kTag[] = "air360.sensor.sds011";
 constexpr std::size_t kSds011FrameSize = 10U;
+constexpr std::size_t kSds011CommandSize = 19U;
 constexpr std::size_t kSds011ReadBufferSize = 64U;
 constexpr std::size_t kSds011EventQueueSize = 8U;
 constexpr std::uint32_t kSds011ReadTimeoutMs = 50U;
-constexpr std::array<std::uint8_t, 19U> kSds011QueryCommand{{
-    0xAA, 0xB4, 0x04,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
-    0xFF, 0xFF, 0x02, 0xAB,
-}};
+constexpr std::uint8_t kSds011Head = 0xAAU;
+constexpr std::uint8_t kSds011CommandId = 0xB4U;
+constexpr std::uint8_t kSds011MeasurementId = 0xC0U;
+constexpr std::uint8_t kSds011Tail = 0xABU;
+constexpr std::uint8_t kSds011ReportModeCommand = 0x02U;
+constexpr std::uint8_t kSds011QueryDataCommand = 0x04U;
+constexpr std::uint8_t kSds011SleepWorkCommand = 0x06U;
+constexpr std::uint8_t kSds011WorkPeriodCommand = 0x08U;
+constexpr std::uint8_t kSds011ReadOperation = 0x00U;
+constexpr std::uint8_t kSds011WriteOperation = 0x01U;
+constexpr std::uint8_t kSds011PassiveReportMode = 0x01U;
+constexpr std::uint8_t kSds011WorkMode = 0x01U;
+constexpr std::uint8_t kSds011ContinuousWorkPeriod = 0x00U;
+
+std::array<std::uint8_t, kSds011CommandSize> makeCommand(
+    std::uint8_t command,
+    std::uint8_t operation,
+    std::uint8_t value) {
+    std::array<std::uint8_t, kSds011CommandSize> frame{};
+    frame[0] = kSds011Head;
+    frame[1] = kSds011CommandId;
+    frame[2] = command;
+    frame[3] = operation;
+    frame[4] = value;
+    frame[15] = 0xFFU;
+    frame[16] = 0xFFU;
+
+    std::uint8_t checksum = 0U;
+    for (std::size_t index = 2U; index <= 16U; ++index) {
+        checksum = static_cast<std::uint8_t>(checksum + frame[index]);
+    }
+    frame[17] = checksum;
+    frame[18] = kSds011Tail;
+    return frame;
+}
 }  // namespace
 
 SensorType Sds011Sensor::type() const {
@@ -59,6 +88,12 @@ esp_err_t Sds011Sensor::init(const SensorRecord& record, const SensorDriverConte
         return open_err;
     }
 
+    const esp_err_t configure_err = configureSensor();
+    if (configure_err != ESP_OK) {
+        setError("Failed to configure SDS011 sensor.");
+        return configure_err;
+    }
+
     const esp_err_t flush_err = uart_port_manager_->flush(record_.uart_port_id);
     if (flush_err != ESP_OK) {
         setError("Failed to flush SDS011 UART input.");
@@ -80,7 +115,12 @@ esp_err_t Sds011Sensor::poll() {
         return handlePollError(err, "Failed to process SDS011 UART events.");
     }
 
-    err = sendQueryCommand();
+    err = wakeSensor();
+    if (err != ESP_OK) {
+        return handlePollError(err, "Failed to wake SDS011 sensor.");
+    }
+
+    err = sendCommand(kSds011QueryDataCommand, kSds011ReadOperation, 0U);
     if (err != ESP_OK) {
         return handlePollError(err, "Failed to send SDS011 query command.");
     }
@@ -136,18 +176,47 @@ esp_err_t Sds011Sensor::drainUartEvents() {
     return ESP_OK;
 }
 
-esp_err_t Sds011Sensor::sendQueryCommand() {
+esp_err_t Sds011Sensor::sendCommand(
+    std::uint8_t command,
+    std::uint8_t operation,
+    std::uint8_t value) {
     if (uart_port_manager_ == nullptr) {
         return ESP_ERR_INVALID_STATE;
     }
 
+    const std::array<std::uint8_t, kSds011CommandSize> frame =
+        makeCommand(command, operation, value);
     const int bytes_written = uart_port_manager_->write(
         record_.uart_port_id,
-        kSds011QueryCommand.data(),
-        kSds011QueryCommand.size());
-    return bytes_written == static_cast<int>(kSds011QueryCommand.size())
+        frame.data(),
+        frame.size());
+    return bytes_written == static_cast<int>(frame.size())
         ? ESP_OK
         : ESP_FAIL;
+}
+
+esp_err_t Sds011Sensor::wakeSensor() {
+    return sendCommand(kSds011SleepWorkCommand, kSds011WriteOperation, kSds011WorkMode);
+}
+
+esp_err_t Sds011Sensor::configureSensor() {
+    esp_err_t err = wakeSensor();
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = sendCommand(
+        kSds011WorkPeriodCommand,
+        kSds011WriteOperation,
+        kSds011ContinuousWorkPeriod);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    return sendCommand(
+        kSds011ReportModeCommand,
+        kSds011WriteOperation,
+        kSds011PassiveReportMode);
 }
 
 esp_err_t Sds011Sensor::readAvailableFrames(bool& out_found_frame) {
@@ -217,9 +286,9 @@ void Sds011Sensor::feedByte(
         return;
     }
 
-    if (frame_index_ == 1U && byte != 0xC0U) {
-        frame_index_ = byte == 0xAAU ? 1U : 0U;
-        frame_[0] = byte == 0xAAU ? byte : 0U;
+    if (frame_index_ == 1U && byte != kSds011MeasurementId) {
+        frame_index_ = byte == kSds011Head ? 1U : 0U;
+        frame_[0] = byte == kSds011Head ? byte : 0U;
         return;
     }
 
@@ -237,7 +306,9 @@ void Sds011Sensor::feedByte(
 }
 
 bool Sds011Sensor::decodeFrame(Reading& out_reading) const {
-    if (frame_[0] != 0xAAU || frame_[1] != 0xC0U || frame_[9] != 0xABU) {
+    if (frame_[0] != kSds011Head ||
+        frame_[1] != kSds011MeasurementId ||
+        frame_[9] != kSds011Tail) {
         return false;
     }
 

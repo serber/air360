@@ -31,7 +31,9 @@ class Sds011Sensor final : public SensorDriver {
     };
 
     esp_err_t drainUartEvents();
-    esp_err_t sendQueryCommand();
+    esp_err_t sendCommand(std::uint8_t command, std::uint8_t operation, std::uint8_t value);
+    esp_err_t wakeSensor();
+    esp_err_t configureSensor();
     esp_err_t readAvailableFrames(bool& out_found_frame);
     void feedByte(std::uint8_t byte, bool& out_frame_ready, Reading& out_reading);
     bool decodeFrame(Reading& out_reading) const;
