@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "migrate": "tsx scripts/migrate.ts"
+    "migrate": "tsx scripts/migrate.ts",
+    "seed:map-demo": "tsx scripts/seed-map-demo-devices.ts"
   },
   "dependencies": {
     "fastify": "^5.2.1",

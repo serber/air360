@@ -43,16 +43,60 @@ for visualizing device data.
 
 ### Map (`/map`)
 
-**Library:** `react-leaflet` + OpenStreetMap tiles — consistent with the
-firmware embedded web UI.
+**Library:** `maplibre-gl` + OpenStreetMap raster tiles.
 
-Each device is rendered as a map marker at its stored `latitude`/`longitude`.
-Clicking a marker opens a Leaflet popup containing:
+Each device is rendered as a GeoJSON point at its stored `latitude`/`longitude`.
+Clicking a point opens a MapLibre popup containing:
 
 - Device name
 - `last_seen_at` timestamp
 - Latest reading per `(sensor_type, kind)`, grouped by sensor type
 - Link to the device detail page
+
+The map exposes a metric selector for humidity, pressure, temperature, CO2,
+PM10, PM1.0, PM2.5, PM4.0, and illuminance. The selected
+metric controls marker fill color using simple threshold bands where the value
+has a meaningful quality interpretation. Temperature uses a separate cold-to-hot
+scale from blue through teal/green/yellow to red, with granular bands for below
+-20 C, -20..-10 C, -10..0 C, 0..10 C, 10..18 C, 18..24 C, 24..28 C,
+28..32 C, 32..40 C, and above 40 C. Pressure uses a separate low-to-high
+atmospheric pressure scale: below 980 hPa as very low, 980-1000 hPa as low,
+1000-1010 hPa as slightly low, 1010-1020 hPa as normal, 1020-1030 hPa as
+slightly high, 1030-1040 hPa as high, and above 1040 hPa as very high. Humidity
+uses a dry-to-humid relative humidity scale: below 20% as very dry, 20-30% as
+dry, 30-60% as normal, 60-75% as humid, 75-90% as very humid, and above 90% as
+saturated or fog-like. CO2 uses a baseline-to-high scale where values below
+380 ppm indicate a likely calibration/data issue, 380-450 ppm is treated as low
+or normal outdoor background, 450-600 ppm as slightly elevated, 600-800 ppm as
+elevated, 800-1000 ppm as high, and above 1000 ppm as very high. PM2.5 uses an
+excellent-to-hazardous particulate matter scale: 5 ug/m3 and below as excellent,
+5-9 ug/m3 as good, 9.1-15 ug/m3 as moderate, 15.1-35.4 ug/m3 as elevated,
+35.5-55.4 ug/m3 as unhealthy for sensitive groups, 55.5-125.4 ug/m3 as
+unhealthy, 125.5-225.4 ug/m3 as very unhealthy, and above 225.5 ug/m3 as
+hazardous. PM10 uses the same excellent-to-hazardous category model: 15 ug/m3
+and below as excellent, 15-45 ug/m3 as good, 45-54 ug/m3 as moderate,
+55-154 ug/m3 as elevated, 155-254 ug/m3 as unhealthy for sensitive groups,
+255-354 ug/m3 as unhealthy, 355-424 ug/m3 as very unhealthy, and above
+425 ug/m3 as hazardous. PM1.0 uses the same category direction with tighter
+bands: 3 ug/m3 and below as excellent, 3-6 ug/m3 as good, 6-10 ug/m3 as
+moderate, 10-20 ug/m3 as elevated, 20-35 ug/m3 as high, 35-55 ug/m3 as very
+high, and above 55 ug/m3 as hazardous. PM4.0 uses the same category direction:
+8 ug/m3 and below as excellent, 8-15 ug/m3 as good, 15-25 ug/m3 as moderate,
+25-50 ug/m3 as elevated, 50-100 ug/m3 as high, 100-200 ug/m3 as very high, and
+above 200 ug/m3 as hazardous. Typical particle size remains available in device
+readings, but is intentionally not exposed as a map layer because it is
+descriptive rather than a good/bad quality metric. Illuminance is also
+descriptive rather than good/bad: below 10 lux is dark, 10-200 lux is dim light,
+200-1000 lux is bright indoor light, 1000-10000 lux is daylight, and above
+10000 lux is bright sun.
+Data-only metrics use a neutral marker color. Device freshness from
+`last_seen_at` is encoded separately with marker opacity and border style so
+stale devices remain visible without consuming the selected metric color
+channel. Dense device areas use compact clusters with capped visual size;
+cluster labels show the average value for the selected metric, cluster fill
+color is based on that average value, and individual circular markers scale with
+map zoom. Map status, the selected metric legend, and the metric selector are
+placed in left-side overlays.
 
 Data is fetched client-side on mount from `GET /v1/devices`.
 
@@ -85,7 +129,7 @@ Selecting a period fetches
 
 Both pages use native `fetch` inside React client components. No additional
 data-fetching library is introduced. The map component and device charts are
-client components (`"use client"`) because `react-leaflet` and Recharts require
+client components (`"use client"`) because MapLibre GL JS and Recharts require
 browser APIs.
 
 ### Component layout
@@ -95,7 +139,7 @@ browser APIs.
 | `src/app/page.tsx` | Placeholder home page |
 | `src/app/map/page.tsx` | Map page (shell, imports `DeviceMap`) |
 | `src/app/devices/[public_id]/page.tsx` | Device detail page shell |
-| `src/components/DeviceMap.tsx` | `react-leaflet` map with device markers |
+| `src/components/DeviceMap.tsx` | MapLibre map with GeoJSON device layers |
 | `src/components/DevicePopup.tsx` | Popup card: name, last seen, readings, link |
 | `src/components/SensorChart.tsx` | Recharts `LineChart` wrapper per sensor type |
 | `src/components/PeriodSelector.tsx` | Period toggle buttons |
@@ -104,9 +148,7 @@ browser APIs.
 
 | Package | Purpose |
 |---------|---------|
-| `leaflet` | Map engine |
-| `react-leaflet` | React bindings for Leaflet |
-| `@types/leaflet` | TypeScript types |
+| `maplibre-gl` | WebGL map engine and GeoJSON device layers |
 | `recharts` | Time-series charts |
 
 ## Alternatives Considered
