@@ -13,6 +13,7 @@
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
+#include "air360/sensors/drivers/sds011_sensor.hpp"
 #include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/ina219_sensor.hpp"
@@ -339,6 +340,24 @@ bool validateMhz19bRecord(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateSds011Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "SDS011 currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_baud_rate != 9600U) {
+        error = "SDS011 requires UART baud rate of 9600.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -357,7 +376,7 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
 static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -682,6 +701,31 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateMhz19bRecord,
         .create_driver            = &createMhz19bSensor,
+    },
+    {
+        .type                     = SensorType::kSds011,
+        .type_key                 = "sds011",
+        .display_name             = "SDS011",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = true,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = 10000U,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
+        .default_uart_port_id     = 2U,
+        .allowed_uart_ports       = {1U, 2U},
+        .allowed_uart_port_count  = 2U,
+        .default_uart_rx_gpio_pin = 16,
+        .default_uart_tx_gpio_pin = 15,
+        .default_uart_baud_rate   = 9600U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateSds011Record,
+        .create_driver            = &createSds011Sensor,
     },
     {
         .type                     = SensorType::kMe3No2,

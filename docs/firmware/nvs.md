@@ -202,7 +202,7 @@ struct SensorRecord {
 | 4 | DHT22 |
 | 5 | BME680 |
 | 6 | SPS30 |
-| 7 | Reserved (removed SDS011 support) |
+| 7 | SDS011 |
 | 8 | ME3-NO2 |
 | 9 | VEML7700 |
 | 10 | DS18B20 |

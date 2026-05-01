@@ -15,7 +15,7 @@ enum class SensorType : std::uint8_t {
     kDht22 = 4U,
     kBme680 = 5U,
     kSps30 = 6U,
-    kSds011 = 7U,  // Reserved for removed SDS011 support.
+    kSds011 = 7U,
     kMe3No2 = 8U,
     kVeml7700 = 9U,
     kDs18b20 = 10U,
@@ -331,7 +331,7 @@ inline const char* sensorTypeKey(SensorType type) {
         case SensorType::kVeml7700: return "veml7700";
         case SensorType::kIna219:   return "ina219";
         case SensorType::kMhz19b:   return "mhz19b";
-        case SensorType::kSds011:
+        case SensorType::kSds011:   return "sds011";
         case SensorType::kUnknown:
         default:                    return "unknown";
     }

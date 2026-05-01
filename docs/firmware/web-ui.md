@@ -204,13 +204,13 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 
 **Page header actions** — **Apply** and **Discard** buttons are always visible in the page `title-row` (rendered via `lead_html` in `renderPageDocument`). The notice area below the title row shows a staging summary message when `has_pending_sensor_changes_` is true.
 
-**Sensor categories** — sensors are grouped into five fixed categories:
+**Sensor categories** — sensors are grouped into six fixed categories:
 
 | Category | Sensors | Multiple allowed |
 |----------|---------|-----------------|
 | Climate | BME280, BME680, DHT11, DHT22, DS18B20, HTU2X, SHT4X | No |
 | Light | VEML7700 | No |
-| Particulate Matter | SPS30 | No |
+| Particulate Matter | SPS30, SDS011 | No |
 | Location | GPS (NMEA) | No |
 | Gas | SCD30, ME3-NO2, MH-Z19B | Yes |
 | Power | INA219 | No |

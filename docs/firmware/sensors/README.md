@@ -32,6 +32,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [bme680.md](bme680.md) | BME680 | I2C | Bus 0, `0x77` (alt `0x76`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity, pressure, gas resistance |
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
 | [sps30.md](sps30.md) | SPS30 | I2C | Bus 0, `0x69`, SDA=`GPIO8`, SCL=`GPIO9` | PM1.0-PM10.0 mass and number concentrations, typical particle size |
+| [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
@@ -188,6 +189,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Accuracy | PM1 / PM2.5 mass concentration `+-[5 ug/m3 + 5 % m.v.]` from `0..100 ug/m3`, then `+-10 % m.v.` from `100..1000 ug/m3`; PM4 / PM10 are specified less tightly (`+-25 ug/m3` or `+-25 % m.v.` depending on range) |
 | Maximum current | `80 mA` max during the first `200 ms` fan start; `65 mA` max in measurement mode |
 | Reference links | [Sensirion SPS30 datasheet](https://sensirion.com/media/documents/8600FF88/64A3B8D6/Sensirion_PM_Sensors_Datasheet_SPS30.pdf) |
+
+### SDS011
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Nova Fitness Co., Ltd. |
+| Air360 measurements | PM2.5 and PM10 mass concentration |
+| Declared service life | `8000 hours` under continuous operation |
+| Operating temperature | `-10..50 deg C` |
+| Supply voltage | `4.7..5.3 V` |
+| Accuracy | Relative error `+/-15 %` and `+/-10 ug/m3` at `25 deg C`, `50 %RH` |
+| Maximum current | `70 mA +/-10 mA` during operation; sleep current below `4 mA` for laser and fan sleep |
+| Reference links | [Nova Fitness datasheet mirror](https://microcontrollerslab.com/wp-content/uploads/2020/12/NonA-PM-SDS011-Dust-sensor-datasheet.pdf), [Nettigo product page](https://nettigo.eu/products/1085) |
 
 ### GPS (NMEA)
 

@@ -12,8 +12,8 @@ namespace air360 {
 
 namespace {
 
-// Current UART sensors are RX-driven, so reserving no TX ring buffer avoids
-// wasting RAM in the shared ESP-IDF UART driver.
+// UART sensor traffic is RX-heavy. Short command writes can use the blocking
+// ESP-IDF TX path, so no TX ring buffer is reserved.
 constexpr int kUartTxBufferSize = 0;
 
 constexpr BusConfig kBuses[] = {

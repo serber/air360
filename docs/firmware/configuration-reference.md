@@ -225,6 +225,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | HTU2X | I2C | Bus 0, `0x40` | `0x40` | 5 000 ms | — |
 | SHT4X | I2C | Bus 0, `0x44` | `0x44` | 5 000 ms | — |
 | GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 5 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
+| SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 10 000 ms | Baud rate must be 9600 |
 | DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
 | DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
 | DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | One device per pin only |

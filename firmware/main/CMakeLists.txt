@@ -41,6 +41,7 @@ idf_component_register(
         "src/sensors/drivers/mhz19b_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/scd30_sensor.cpp"
+        "src/sensors/drivers/sds011_sensor.cpp"
         "src/sensors/drivers/sht4x_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
