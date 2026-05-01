@@ -889,12 +889,12 @@ ul.list li + li { margin-top: 4px; }
   border-radius: var(--r-sm);
   background: var(--bg-sunken);
 }
-.location-map .leaflet-container,
-.location-map.leaflet-container {
+.location-map .maplibregl-map,
+.location-map.maplibregl-map {
   font-family: var(--font-sans);
   color: #1f2933;
 }
-.location-map .leaflet-control-attribution {
+.location-map .maplibregl-ctrl-attrib {
   font-size: 10px;
 }
 .location-map-status {
@@ -905,8 +905,6 @@ ul.list li + li { margin-top: 4px; }
 .location-map-marker {
   width: 16px;
   height: 16px;
-  margin-left: -8px;
-  margin-top: -8px;
   border: 2px solid #fff;
   border-radius: 999px;
   background: var(--accent);

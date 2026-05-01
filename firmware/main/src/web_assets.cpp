@@ -13,10 +13,10 @@ extern const std::uint8_t air360_css_start[] asm("_binary_air360_css_start");
 extern const std::uint8_t air360_css_end[] asm("_binary_air360_css_end");
 extern const std::uint8_t air360_js_start[] asm("_binary_air360_js_start");
 extern const std::uint8_t air360_js_end[] asm("_binary_air360_js_end");
-extern const std::uint8_t leaflet_css_start[] asm("_binary_leaflet_css_start");
-extern const std::uint8_t leaflet_css_end[] asm("_binary_leaflet_css_end");
-extern const std::uint8_t leaflet_js_start[] asm("_binary_leaflet_js_start");
-extern const std::uint8_t leaflet_js_end[] asm("_binary_leaflet_js_end");
+extern const std::uint8_t maplibre_gl_css_start[] asm("_binary_maplibre_gl_css_start");
+extern const std::uint8_t maplibre_gl_css_end[] asm("_binary_maplibre_gl_css_end");
+extern const std::uint8_t maplibre_gl_js_start[] asm("_binary_maplibre_gl_js_start");
+extern const std::uint8_t maplibre_gl_js_end[] asm("_binary_maplibre_gl_js_end");
 extern const std::uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
 extern const std::uint8_t favicon_ico_end[] asm("_binary_favicon_ico_end");
 
@@ -44,15 +44,15 @@ const WebAssetView kScriptAsset{
     "application/javascript; charset=utf-8",
 };
 
-const WebAssetView kLeafletStylesAsset{
-    reinterpret_cast<const char*>(leaflet_css_start),
-    embeddedTextSize(leaflet_css_start, leaflet_css_end),
+const WebAssetView kMapLibreStylesAsset{
+    reinterpret_cast<const char*>(maplibre_gl_css_start),
+    embeddedTextSize(maplibre_gl_css_start, maplibre_gl_css_end),
     "text/css; charset=utf-8",
 };
 
-const WebAssetView kLeafletScriptAsset{
-    reinterpret_cast<const char*>(leaflet_js_start),
-    embeddedTextSize(leaflet_js_start, leaflet_js_end),
+const WebAssetView kMapLibreScriptAsset{
+    reinterpret_cast<const char*>(maplibre_gl_js_start),
+    embeddedTextSize(maplibre_gl_js_start, maplibre_gl_js_end),
     "application/javascript; charset=utf-8",
 };
 
@@ -100,11 +100,11 @@ const WebAssetView* findEmbeddedWebAsset(std::string_view asset_path) {
     if (asset_path == "air360.js") {
         return &kScriptAsset;
     }
-    if (asset_path == "leaflet.css") {
-        return &kLeafletStylesAsset;
+    if (asset_path == "maplibre-gl.css") {
+        return &kMapLibreStylesAsset;
     }
-    if (asset_path == "leaflet.js") {
-        return &kLeafletScriptAsset;
+    if (asset_path == "maplibre-gl.js") {
+        return &kMapLibreScriptAsset;
     }
     if (asset_path == "favicon.ico") {
         return &kFaviconAsset;
@@ -120,12 +120,12 @@ std::string webUiScriptHref() {
     return versionedAssetHref("air360.js");
 }
 
-std::string webUiLeafletStylesHref() {
-    return versionedAssetHref("leaflet.css");
+std::string webUiMapLibreStylesHref() {
+    return versionedAssetHref("maplibre-gl.css");
 }
 
-std::string webUiLeafletScriptHref() {
-    return versionedAssetHref("leaflet.js");
+std::string webUiMapLibreScriptHref() {
+    return versionedAssetHref("maplibre-gl.js");
 }
 
 }  // namespace air360

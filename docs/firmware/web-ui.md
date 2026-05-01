@@ -252,7 +252,7 @@ A single form containing upload settings and one card per backend type.
 - `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
-- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an embedded OpenStreetMap/Leaflet picker. Clicking the map updates the numeric fields; editing the fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both values are non-zero.
+- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the numeric fields; editing the fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both values are non-zero.
 - `Air360 API` only: upload secret UI. When no secret is stored, the page shows an empty `Upload secret` textarea plus **Generate** button; the button calls `/backends/air360-upload-secret` and fills the textarea with a locally generated secret. When a secret already exists, the page shows `Configured` with a masked preview and keeps the replacement textarea hidden/disabled until the user presses **Change**.
 - Sensor.Community only: `device_id_override` field (overrides the short device ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).
@@ -359,7 +359,7 @@ The CSS uses a token-based design system with full light/dark theme support (`[d
 | **Wi-Fi network selector** | On the config page, `loadWifiNetworks()` calls `GET /wifi-scan`, populates the SSID `<select>`, and — if a `.wifi-menu-list` element is present — also populates the custom picker. Selecting a `.wifi-option` updates the hidden `<select>` value. |
 | **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status span. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
-| **Air360 coordinate map** | The `/backends` page loads local Leaflet assets and OpenStreetMap tiles. The map is progressive enhancement for the Air360 API latitude/longitude fields; if tiles or JavaScript fail, manual coordinate entry still works. |
+| **Air360 coordinate map** | The `/backends` page loads local MapLibre assets and OpenStreetMap tiles. The map is progressive enhancement for the Air360 API latitude/longitude fields; if tiles or JavaScript fail, manual coordinate entry still works. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |
 | **Password visibility** | Buttons with `data-toggle-pw="id"` (new) or `data-secret-toggle="id"` (legacy) toggle `input.type` between `"password"` and `"text"`. |
 

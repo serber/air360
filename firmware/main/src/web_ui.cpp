@@ -240,9 +240,9 @@ std::string renderPageDocument(
     bool device_only_navigation) {
     const bool needs_map_assets = active_page == WebPageKey::kBackends;
     const std::string extra_styles =
-        needs_map_assets ? "<link rel='stylesheet' href='" + webUiLeafletStylesHref() + "'>" : "";
+        needs_map_assets ? "<link rel='stylesheet' href='" + webUiMapLibreStylesHref() + "'>" : "";
     const std::string extra_scripts =
-        needs_map_assets ? "<script defer src='" + webUiLeafletScriptHref() + "'></script>" : "";
+        needs_map_assets ? "<script defer src='" + webUiMapLibreScriptHref() + "'></script>" : "";
     return renderTemplate(WebTemplateKey::kShell, {
         {"TITLE",            htmlEscape(title)},
         {"STYLES_HREF",      webUiStylesHref()},

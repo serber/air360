@@ -567,52 +567,75 @@
       const statusNode = container.parentElement?.querySelector('[data-air360-location-map-status]');
       if (!(latInput instanceof HTMLInputElement) || !(lonInput instanceof HTMLInputElement)) return;
 
-      if (!window.L) {
+      if (!window.maplibregl) {
         if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map unavailable. Manual coordinates remain editable.';
         return;
       }
 
       const initial = parseCoordinatePair(latInput, lonInput);
-      const map = L.map(container, {
-        zoomControl: true,
-        attributionControl: true,
-      });
-      L.tileLayer(MAP_TILE_URL, {
-        maxZoom: 19,
-        attribution: MAP_TILE_ATTRIBUTION,
-      }).on('tileerror', () => {
+      let map = null;
+      try {
+        map = new maplibregl.Map({
+          container,
+          style: {
+            version: 8,
+            sources: {
+              osm: {
+                type: 'raster',
+                tiles: [MAP_TILE_URL],
+                tileSize: 256,
+                maxzoom: 19,
+                attribution: MAP_TILE_ATTRIBUTION,
+              },
+            },
+            layers: [
+              {
+                id: 'osm',
+                type: 'raster',
+                source: 'osm',
+              },
+            ],
+          },
+          center: initial ? [initial.lon, initial.lat] : [0, 20],
+          zoom: initial ? 11 : 2,
+          attributionControl: true,
+        });
+      } catch {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map unavailable. Manual coordinates remain editable.';
+        return;
+      }
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+      map.on('error', () => {
         if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map tiles unavailable. Manual coordinates remain editable.';
-      }).addTo(map);
-
-      const markerIcon = L.divIcon({
-        className: 'location-map-marker',
-        iconSize: [16, 16],
       });
+
+      const markerElement = document.createElement('div');
+      markerElement.className = 'location-map-marker';
       let marker = null;
 
       function setMarker(point, centerMap) {
         if (!marker) {
-          marker = L.marker([point.lat, point.lon], {
-            icon: markerIcon,
-            keyboard: false,
-          }).addTo(map);
+          marker = new maplibregl.Marker({
+            element: markerElement,
+            anchor: 'center',
+          }).setLngLat([point.lon, point.lat]).addTo(map);
         } else {
-          marker.setLatLng([point.lat, point.lon]);
+          marker.setLngLat([point.lon, point.lat]);
         }
-        if (centerMap) map.setView([point.lat, point.lon], Math.max(map.getZoom(), 10));
+        if (centerMap) {
+          map.easeTo({
+            center: [point.lon, point.lat],
+            zoom: Math.max(map.getZoom(), 10),
+          });
+        }
       }
 
-      if (initial) {
-        map.setView([initial.lat, initial.lon], 11);
-        setMarker(initial, false);
-      } else {
-        map.setView([20, 0], 2);
-      }
+      if (initial) setMarker(initial, false);
 
       map.on('click', event => {
         const point = {
-          lat: event.latlng.lat,
-          lon: event.latlng.lng,
+          lat: event.lngLat.lat,
+          lon: event.lngLat.lng,
         };
         latInput.value = formatCoordinate(point.lat);
         lonInput.value = formatCoordinate(point.lon);
@@ -636,10 +659,10 @@
       const enabled = card?.querySelector('[data-backend-enabled-toggle]');
       if (enabled instanceof HTMLInputElement) {
         enabled.addEventListener('change', () => {
-          window.setTimeout(() => map.invalidateSize(), 80);
+          window.setTimeout(() => map.resize(), 80);
         });
       }
-      window.setTimeout(() => map.invalidateSize(), 80);
+      window.setTimeout(() => map.resize(), 80);
     }
 
     function syncBackendCard(panel) {
