@@ -621,10 +621,10 @@ export function DeviceMap() {
 
       <div className="absolute bottom-6 left-4 z-[500] max-h-[42vh] w-[min(520px,calc(100vw-2rem))] overflow-y-auto rounded-md border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur md:left-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-          Air360 public portal
+          Map display
         </p>
         <h1 className="mt-1 text-xl font-semibold text-slate-950">
-          Device measurements map
+          Measurement layer
         </h1>
         <div className="mt-4 flex flex-wrap gap-2" aria-label="Map metric">
           {MAP_METRICS.map((option) => (

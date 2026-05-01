@@ -21,7 +21,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <section className="rounded-md border border-slate-200 bg-white p-8 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-            Air360 Portal
+            Air360
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
             Public Air360 portal
