@@ -1,6 +1,3 @@
-"use client";
-
-import Link from "next/link";
 import type { DeviceSummary } from "@/lib/api";
 import { formatDateTime, formatValue, kindLabel, sensorLabel } from "@/lib/api";
 
@@ -56,12 +53,12 @@ export function DevicePopup({ device }: DevicePopupProps) {
         )}
       </div>
 
-      <Link
+      <a
         href={`/devices/${device.public_id}`}
         className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
         Open device page
-      </Link>
+      </a>
     </div>
   );
 }

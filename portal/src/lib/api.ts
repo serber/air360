@@ -130,27 +130,38 @@ export function sensorLabel(sensorType: string): string {
 export function kindLabel(kind: string): string {
   const labels: Record<string, string> = {
     altitude_m: "Altitude",
+    adc_raw: "Raw ADC",
     bus_voltage_v: "Bus voltage",
     co2_ppm: "CO2",
+    course_deg: "Course",
     current_ma: "Current",
-    gas_resistance_ohm: "Gas resistance",
+    gas_resistance_ohms: "Gas resistance",
     hdop: "HDOP",
     humidity_percent: "Humidity",
     illuminance_lux: "Illuminance",
     latitude_deg: "Latitude",
     longitude_deg: "Longitude",
+    nc0_5_per_cm3: "NC0.5",
+    nc1_0_per_cm3: "NC1.0",
+    nc2_5_per_cm3: "NC2.5",
+    nc4_0_per_cm3: "NC4.0",
+    nc10_0_per_cm3: "NC10.0",
     no2_voltage_v: "NO2 voltage",
     particle_size_um: "Particle size",
     pm1_0_ug_m3: "PM1.0",
     pm2_5_ug_m3: "PM2.5",
     pm4_0_ug_m3: "PM4.0",
+    pm10_0_ug_m3: "PM10",
     pm10_ug_m3: "PM10",
     power_mw: "Power",
     pressure_hpa: "Pressure",
     raw_adc: "Raw ADC",
     satellites: "Satellites",
+    speed_knots: "Speed",
     speed_kmh: "Speed",
     temperature_c: "Temperature",
+    typical_particle_size_um: "Typical particle size",
+    voltage_mv: "Voltage",
   };
 
   return (
@@ -171,13 +182,17 @@ function valueUnit(kind: string): string {
   if (kind.endsWith("_ug_m3")) return "ug/m3";
   if (kind.endsWith("_lux")) return "lx";
   if (kind.endsWith("_m")) return "m";
+  if (kind.endsWith("_mv")) return "mV";
   if (kind.endsWith("_v")) return "V";
   if (kind.endsWith("_ma")) return "mA";
   if (kind.endsWith("_mw")) return "mW";
   if (kind.endsWith("_kmh")) return "km/h";
+  if (kind.endsWith("_knots")) return "kn";
   if (kind.endsWith("_deg")) return "deg";
   if (kind.endsWith("_um")) return "um";
+  if (kind.endsWith("_ohms")) return "ohm";
   if (kind.endsWith("_ohm")) return "ohm";
+  if (kind.endsWith("_per_cm3")) return "/cm3";
 
   return "";
 }

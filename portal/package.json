@@ -13,12 +13,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@types/leaflet": "^1.9.21",
-    "leaflet": "^1.9.4",
-    "next": "16.2.2",
+    "maplibre-gl": "^5.24.0",
+    "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-leaflet": "^5.0.0",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
@@ -27,8 +25,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.2",
+    "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
   }
 }
