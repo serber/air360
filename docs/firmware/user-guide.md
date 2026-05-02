@@ -396,6 +396,11 @@ After saving, the Backends page shows **Configured** with a masked preview
 instead of the input field. The device registers with the backend on the next
 upload cycle and then starts sending measurements.
 
+When Air360 API coordinates are saved, the Sensor.Community and Air360 API
+backend cards also show **Maps** links. They open the same device location in
+Air360 and Sensor.Community map views using the `#15/<latitude>/<longitude>`
+URL format.
+
 **To recover after a device reset (erase-flash or NVS loss):**
 
 If the device NVS was erased and you saved the original secret:

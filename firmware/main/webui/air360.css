@@ -875,6 +875,7 @@ ul.list li + li { margin-top: 4px; }
   overflow-wrap: anywhere;
 }
 .backend-project-links a:hover { text-decoration: underline; }
+.backend-map-links { margin-top: 6px; }
 
 .location-map-wrap {
   display: flex;

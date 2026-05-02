@@ -248,11 +248,12 @@ A single form containing upload settings and one card per backend type.
 **Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
 - Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.
 - Project links — Sensor.Community links to `https://sensor.community/`; Air360 API links to `https://github.com/serber/air360`.
+- Map links — when Air360 API coordinates are saved, the Sensor.Community and Air360 API cards show `Maps` links for the same `#15/<latitude>/<longitude>` view on `https://air360.ru/map` and `https://maps.sensor.community/`.
 - `Use HTTPS` checkbox — enabled by default for new configs; saving updates the stored protocol.
 - `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
-- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the numeric fields; editing the fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both values are non-zero.
+- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the numeric fields; editing the fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both values are non-zero. The saved coordinates also drive the Sensor.Community and Air360 map links shown on the backend cards.
 - `Air360 API` only: upload secret UI. When no secret is stored, the page shows an empty `Upload secret` textarea plus **Generate** button; the button calls `/backends/air360-upload-secret` and fills the textarea with a locally generated secret. When a secret already exists, the page shows `Configured` with a masked preview and keeps the replacement textarea hidden/disabled until the user presses **Change**.
 - Sensor.Community only: `device_id_override` field (overrides the short device ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).

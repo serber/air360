@@ -32,6 +32,8 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerMaxUriHandlers = 20U;
+constexpr char kAir360MapBaseUrl[] = "https://air360.ru/map";
+constexpr char kSensorCommunityMapBaseUrl[] = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
 // interval below what SensorManager supports at runtime.
 constexpr std::uint32_t kMinSensorPollIntervalMs = air360::kMinSensorPollIntervalMs;
@@ -94,6 +96,8 @@ struct BackendCardViewModel {
     std::string device_id_override;
     std::string latitude;
     std::string longitude;
+    std::string air360_map_url;
+    std::string sensor_community_map_url;
     std::string air360_upload_secret_preview;
     // Status:
     bool has_status = false;
@@ -893,6 +897,39 @@ std::string formatCoordinate(float value) {
     return formatted;
 }
 
+std::string formatMapCoordinate(float value) {
+    char buffer[24];
+    const int written = std::snprintf(buffer, sizeof(buffer), "%.4f", static_cast<double>(value));
+    return written > 0 ? std::string(buffer) : "";
+}
+
+std::string buildMapHash(float latitude, float longitude) {
+    const std::string lat = formatMapCoordinate(latitude);
+    const std::string lon = formatMapCoordinate(longitude);
+    if (lat.empty() || lon.empty()) {
+        return "";
+    }
+
+    return std::string("#15/") + lat + "/" + lon;
+}
+
+std::string renderMapLinksBlock(const BackendCardViewModel& card) {
+    if (card.air360_map_url.empty() || card.sensor_community_map_url.empty()) {
+        return "";
+    }
+
+    std::string html =
+        "<div class='backend-project-links backend-map-links'><span>Maps</span>";
+    html += "<a href='";
+    html += htmlEscape(card.air360_map_url);
+    html += "' target='_blank' rel='noopener noreferrer'>Air360</a>";
+    html += "<a href='";
+    html += htmlEscape(card.sensor_community_map_url);
+    html += "' target='_blank' rel='noopener noreferrer'>Sensor.Community</a>";
+    html += "</div>";
+    return html;
+}
+
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
     const CellularConfig& cellular_config,
@@ -1247,6 +1284,11 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             break;
     }
 
+    if (card.backend_type == BackendType::kSensorCommunity ||
+        card.backend_type == BackendType::kAir360Api) {
+        project_links_block += renderMapLinksBlock(card);
+    }
+
     std::string status_block;
     status_block.reserve(512U);
     if (!card.enabled) {
@@ -1307,6 +1349,20 @@ BackendsPageViewModel buildBackendsPageViewModel(
     model.notice_html = renderNotice(notice, error_notice);
     model.cards.reserve(registry.descriptorCount());
 
+    std::string air360_map_url;
+    std::string sensor_community_map_url;
+    const BackendRecord* air360_record =
+        findBackendRecordByType(backend_config_list, BackendType::kAir360Api);
+    if (air360_record != nullptr &&
+        (air360_record->latitude != 0.0F || air360_record->longitude != 0.0F)) {
+        const std::string map_hash =
+            buildMapHash(air360_record->latitude, air360_record->longitude);
+        if (!map_hash.empty()) {
+            air360_map_url = std::string(kAir360MapBaseUrl) + map_hash;
+            sensor_community_map_url = std::string(kSensorCommunityMapBaseUrl) + map_hash;
+        }
+    }
+
     for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
         const BackendDescriptor& descriptor = registry.descriptors()[index];
         const BackendRecord* record =
@@ -1321,6 +1377,11 @@ BackendsPageViewModel buildBackendsPageViewModel(
         card.backend_key = descriptor.backend_key;
         card.backend_type = descriptor.type;
         card.enabled = record != nullptr && record->enabled != 0U;
+        if (descriptor.type == BackendType::kSensorCommunity ||
+            descriptor.type == BackendType::kAir360Api) {
+            card.air360_map_url = air360_map_url;
+            card.sensor_community_map_url = sensor_community_map_url;
+        }
         if (descriptor.type == BackendType::kAir360Api) {
             card.air360_upload_secret_preview = air360_upload_secret_preview;
         }

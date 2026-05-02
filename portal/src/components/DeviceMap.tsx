@@ -17,6 +17,8 @@ const OFFLINE_CLUSTER_CIRCLE_LAYER_ID = "air360-offline-cluster-circles";
 const OFFLINE_CLUSTER_LABEL_LAYER_ID = "air360-offline-cluster-labels";
 const OFFLINE_DEVICE_CIRCLE_LAYER_ID = "air360-offline-device-circles";
 const OFFLINE_DEVICE_LABEL_LAYER_ID = "air360-offline-device-labels";
+const DEFAULT_MAP_CENTER: [number, number] = [0, 20];
+const DEFAULT_MAP_ZOOM = 2;
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -98,6 +100,11 @@ type DeviceFeatureCollection = {
 
 type FeatureCollectionOptions = {
   offline?: boolean;
+};
+
+type HashMapView = {
+  center: [number, number];
+  zoom: number;
 };
 
 const QUALITY_COLORS: Record<QualityLevel, { color: string; ring: string }> = {
@@ -251,6 +258,7 @@ export function DeviceMap() {
   const devicesByIdRef = useRef<Map<string, DeviceSummary>>(new Map());
   const popupRootRef = useRef<Root | null>(null);
   const offlineControllerRef = useRef<AbortController | null>(null);
+  const hashViewRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -352,15 +360,36 @@ export function DeviceMap() {
       return;
     }
 
+    const hashView = parseMapHash(window.location.hash);
+    hashViewRef.current = Boolean(hashView);
+
     const map = new maplibregl.Map({
-      center: [0, 20],
+      center: hashView?.center ?? DEFAULT_MAP_CENTER,
       container: mapContainerRef.current,
       style: MAP_STYLE,
-      zoom: 2,
+      zoom: hashView?.zoom ?? DEFAULT_MAP_ZOOM,
     });
 
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }));
+
+    const syncHash = () => updateMapHash(map);
+    const handleHashChange = () => {
+      const nextHashView = parseMapHash(window.location.hash);
+
+      if (!nextHashView) {
+        return;
+      }
+
+      hashViewRef.current = true;
+      map.easeTo({
+        center: nextHashView.center,
+        zoom: nextHashView.zoom,
+      });
+    };
+
+    map.on("moveend", syncHash);
+    window.addEventListener("hashchange", handleHashChange);
 
     map.on("load", () => {
       map.addSource(DEVICE_SOURCE_ID, {
@@ -792,6 +821,8 @@ export function DeviceMap() {
     return () => {
       popupRootRef.current?.unmount();
       popupRootRef.current = null;
+      window.removeEventListener("hashchange", handleHashChange);
+      map.off("moveend", syncHash);
       map.remove();
       mapRef.current = null;
     };
@@ -830,7 +861,7 @@ export function DeviceMap() {
   useEffect(() => {
     const map = mapRef.current;
 
-    if (!isMapReady || !map) {
+    if (!isMapReady || !map || hashViewRef.current) {
       return;
     }
 
@@ -1813,9 +1844,57 @@ function lightColors(value: number): { color: string; ring: string } {
   );
 }
 
+function parseMapHash(hash: string): HashMapView | null {
+  const normalized = hash.replace(/^#/, "");
+  const [zoomRaw, latRaw, lngRaw] = normalized.split("/");
+
+  if (!zoomRaw || !latRaw || !lngRaw) {
+    return null;
+  }
+
+  const zoom = Number(zoomRaw);
+  const latitude = Number(latRaw);
+  const longitude = Number(lngRaw);
+
+  if (
+    !Number.isFinite(zoom) ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    zoom < 0 ||
+    zoom > 22 ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  ) {
+    return null;
+  }
+
+  return {
+    center: [longitude, latitude],
+    zoom,
+  };
+}
+
+function updateMapHash(map: maplibregl.Map) {
+  const center = map.getCenter();
+  const zoom = map.getZoom().toFixed(2);
+  const latitude = center.lat.toFixed(5);
+  const longitude = center.lng.toFixed(5);
+  const nextHash = `#${zoom}/${latitude}/${longitude}`;
+
+  if (window.location.hash === nextHash) {
+    return;
+  }
+
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}${nextHash}`,
+  );
+}
+
 function fitDevices(map: maplibregl.Map, devices: DeviceSummary[]) {
   if (devices.length === 0) {
-    map.easeTo({ center: [0, 20], zoom: 2 });
+    map.easeTo({ center: DEFAULT_MAP_CENTER, zoom: DEFAULT_MAP_ZOOM });
     return;
   }
 
