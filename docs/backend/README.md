@@ -184,8 +184,8 @@ Response `200`:
 
 ### `GET /v1/devices`
 
-Returns all registered devices with their location and latest sensor readings.
-Intended for the portal map page.
+Returns devices seen within the last hour with their location and latest sensor
+readings. Intended for the portal map page active-device layer.
 
 Response `200`:
 
@@ -212,6 +212,30 @@ Response `200`:
 ```
 
 Devices with no measurements appear with `sensors: []`.
+
+---
+
+### `GET /v1/devices/offline`
+
+Returns devices that have not been seen for more than one hour. Intended for the
+portal map offline-device layer. The response keeps the same envelope as
+`GET /v1/devices`, but does not include stale readings.
+
+Response `200`:
+
+```json
+{
+  "devices": [
+    {
+      "public_id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Air360-AB12",
+      "location": { "latitude": 55.751244, "longitude": 37.618423 },
+      "last_seen_at": "2026-04-29T08:00:00.000Z",
+      "sensors": []
+    }
+  ]
+}
+```
 
 ---
 

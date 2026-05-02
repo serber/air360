@@ -35,7 +35,7 @@ endpoint currently exists.
 
 ### `GET /v1/devices`
 
-Returns all registered devices with their latest measurements.
+Returns devices seen within the last hour with their latest measurements.
 
 Response `200`:
 
@@ -59,6 +59,31 @@ Response `200`:
           ]
         }
       ]
+    }
+  ]
+}
+```
+
+### `GET /v1/devices/offline`
+
+Returns devices that have not been seen for more than one hour. The endpoint is
+used by the portal offline-device layer and returns `sensors: []` so stale
+readings are not displayed as current measurements.
+
+Response `200`:
+
+```json
+{
+  "devices": [
+    {
+      "public_id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Air360-AB12",
+      "location": {
+        "latitude": 55.751244,
+        "longitude": 37.618423
+      },
+      "last_seen_at": "2026-04-29T08:00:00.000Z",
+      "sensors": []
     }
   ]
 }
@@ -124,10 +149,10 @@ Error responses:
 
 ### Affected backend files
 
-- `backend/src/routes/v1/devices.ts` — add `GET /v1/devices` handler
+- `backend/src/routes/v1/devices.ts` — add `GET /v1/devices` and `GET /v1/devices/offline` handlers
 - `backend/src/routes/v1/measurements.ts` — new route file for `GET /v1/devices/:public_id/measurements`
 - `backend/src/routes/v1/index.ts` — register measurements routes
-- `backend/src/modules/devices/device-repository.ts` — add `findAllDevices()`
+- `backend/src/modules/devices/device-repository.ts` — add active and offline device list queries
 - `backend/src/modules/measurements/measurement-repository.ts` — add `findMeasurementSeries()`
 - `docs/backend/README.md` — update API reference after implementation
 

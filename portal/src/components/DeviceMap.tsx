@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createRoot, type Root } from "react-dom/client";
 import { DevicePopup } from "@/components/DevicePopup";
 import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
-import { fetchJson, isDeviceStale } from "@/lib/api";
+import { fetchJson } from "@/lib/api";
 
 const DEVICE_SOURCE_ID = "air360-devices";
 const CLUSTER_CIRCLE_LAYER_ID = "air360-cluster-circles";
@@ -94,6 +94,10 @@ type DeviceFeature = {
 type DeviceFeatureCollection = {
   type: "FeatureCollection";
   features: DeviceFeature[];
+};
+
+type FeatureCollectionOptions = {
+  offline?: boolean;
 };
 
 const QUALITY_COLORS: Record<QualityLevel, { color: string; ring: string }> = {
@@ -224,9 +228,19 @@ type LoadState =
   | { status: "ready"; devices: DeviceSummary[]; message?: never }
   | { status: "error"; devices: DeviceSummary[]; message: string };
 
+type OfflineLoadState =
+  | { status: "idle"; devices: DeviceSummary[]; message?: never }
+  | { status: "loading"; devices: DeviceSummary[]; message?: never }
+  | { status: "ready"; devices: DeviceSummary[]; message?: never }
+  | { status: "error"; devices: DeviceSummary[]; message: string };
+
 export function DeviceMap() {
   const [state, setState] = useState<LoadState>({
     status: "loading",
+    devices: [],
+  });
+  const [offlineState, setOfflineState] = useState<OfflineLoadState>({
+    status: "idle",
     devices: [],
   });
   const [metric, setMetric] = useState<MapMetric>("pm2_5_ug_m3");
@@ -236,6 +250,7 @@ export function DeviceMap() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const devicesByIdRef = useRef<Map<string, DeviceSummary>>(new Map());
   const popupRootRef = useRef<Root | null>(null);
+  const offlineControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -263,21 +278,53 @@ export function DeviceMap() {
     return () => controller.abort();
   }, []);
 
+  function loadOfflineDevices() {
+    if (offlineState.status === "loading" || offlineState.status === "ready") {
+      return;
+    }
+
+    offlineControllerRef.current?.abort();
+    const controller = new AbortController();
+    offlineControllerRef.current = controller;
+
+    setOfflineState({ status: "loading", devices: [] });
+
+    fetchJson<DevicesResponse>("/v1/devices/offline", controller.signal)
+      .then((data) => {
+        setOfflineState({
+          status: "ready",
+          devices: data.devices.filter(hasValidLocation),
+        });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+
+        setOfflineState({
+          status: "error",
+          devices: [],
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to load offline devices.",
+        });
+      });
+  }
+
+  useEffect(() => {
+    return () => offlineControllerRef.current?.abort();
+  }, []);
+
   useEffect(() => {
     devicesByIdRef.current = new Map(
-      state.devices.map((device) => [device.public_id, device]),
+      [...state.devices, ...offlineState.devices].map((device) => [
+        device.public_id,
+        device,
+      ]),
     );
-  }, [state.devices]);
+  }, [offlineState.devices, state.devices]);
 
-  const onlineDevices = useMemo(
-    () => state.devices.filter((device) => !isDeviceStale(device.last_seen_at)),
-    [state.devices],
-  );
-
-  const offlineDevices = useMemo(
-    () => state.devices.filter((device) => isDeviceStale(device.last_seen_at)),
-    [state.devices],
-  );
+  const onlineDevices = state.devices;
+  const offlineDevices = offlineState.devices;
 
   const visibleDevices = useMemo(
     () =>
@@ -294,7 +341,9 @@ export function DeviceMap() {
 
   const offlineFeatureCollection = useMemo(
     () =>
-      buildFeatureCollection(showOfflineDevices ? offlineDevices : [], metric),
+      buildFeatureCollection(showOfflineDevices ? offlineDevices : [], metric, {
+        offline: true,
+      }),
     [metric, offlineDevices, showOfflineDevices],
   );
 
@@ -496,7 +545,7 @@ export function DeviceMap() {
         filter: ["has", "point_count"],
         layout: {
           "text-allow-overlap": true,
-          "text-field": clusterLabelExpression() as never,
+          "text-field": ["to-string", ["get", "point_count"]],
           "text-font": ["Open Sans Bold"],
           "text-size": [
             "interpolate",
@@ -899,23 +948,34 @@ export function DeviceMap() {
           <input
             checked={showOfflineDevices}
             className="h-4 w-4 rounded border-slate-300 text-slate-950"
-            onChange={(event) => setShowOfflineDevices(event.target.checked)}
+            onChange={(event) => {
+              const checked = event.target.checked;
+
+              if (checked) {
+                loadOfflineDevices();
+              }
+
+              setShowOfflineDevices(checked);
+            }}
             type="checkbox"
           />
           Show offline devices
         </label>
+        {showOfflineDevices && offlineState.status === "loading" ? (
+          <p className="mt-2 text-xs text-slate-500">Loading offline devices...</p>
+        ) : null}
+        {showOfflineDevices && offlineState.status === "error" ? (
+          <p className="mt-2 text-xs text-rose-700">{offlineState.message}</p>
+        ) : null}
       </div>
 
       <div ref={mapContainerRef} className="h-screen min-h-[640px] w-full" />
 
-      {state.status === "ready" && state.devices.length === 0 ? (
+      {state.status === "ready" &&
+      visibleDevices.length === 0 &&
+      offlineState.status !== "loading" ? (
         <div className="absolute inset-x-4 bottom-6 z-[500] mx-auto max-w-md rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
-          No devices with valid coordinates were returned by the backend.
-        </div>
-      ) : state.status === "ready" && visibleDevices.length === 0 ? (
-        <div className="absolute inset-x-4 bottom-6 z-[500] mx-auto max-w-md rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
-          Only offline devices were returned. Enable offline devices to show
-          them on the map.
+          No active devices with valid coordinates were returned by the backend.
         </div>
       ) : null}
     </section>
@@ -1275,23 +1335,23 @@ function LightLegend() {
 function buildFeatureCollection(
   devices: DeviceSummary[],
   metric: MapMetric,
+  options: FeatureCollectionOptions = {},
 ): DeviceFeatureCollection {
   return {
     type: "FeatureCollection",
     features: devices.map((device) => {
-      const stale = isDeviceStale(device.last_seen_at);
-      const reading = stale ? undefined : findReading(device, metric);
+      const reading = options.offline ? undefined : findReading(device, metric);
       const quality = reading ? qualityLevel(metric, reading.value) : "no-data";
       const freshness = freshnessLevel(device.last_seen_at);
       const freshnessStyle = FRESHNESS_STYLES[freshness];
-      const colors = stale
+      const colors = options.offline
         ? STALE_DEVICE_COLORS
         : metricColors(metric, reading, quality);
       const metricValue = reading?.value ?? 0;
       const metricCount = reading ? 1 : 0;
       let label = "-";
 
-      if (stale) {
+      if (options.offline) {
         label = "";
       } else if (reading) {
         label = markerValue(metric, reading.value);

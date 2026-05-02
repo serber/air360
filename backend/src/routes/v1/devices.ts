@@ -5,6 +5,7 @@ import {
   findAllDevices,
   findDeviceByDeviceId,
   findDeviceByPublicId,
+  findOfflineDevices,
   upsertDevice,
 } from "../../modules/devices/device-repository";
 import {
@@ -87,6 +88,21 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
           })),
         };
       }),
+    });
+  });
+
+  app.get("/devices/offline", async (_request, reply) => {
+    const db = getDb(app.config);
+    const devices = await findOfflineDevices(db);
+
+    return reply.code(200).send({
+      devices: devices.map((device) => ({
+        public_id: device.public_id,
+        name: device.name,
+        location: { latitude: device.latitude, longitude: device.longitude },
+        last_seen_at: device.last_seen_at,
+        sensors: [],
+      })),
     });
   });
 

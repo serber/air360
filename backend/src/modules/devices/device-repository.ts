@@ -42,6 +42,14 @@ export async function findAllDevices(db: Kysely<Database>): Promise<Device[]> {
     .execute() as Promise<Device[]>;
 }
 
+export async function findOfflineDevices(db: Kysely<Database>): Promise<Device[]> {
+  return db
+    .selectFrom("devices")
+    .selectAll()
+    .where("last_seen_at", "<", sql<Date>`NOW() - INTERVAL '1 hour'`)
+    .execute() as Promise<Device[]>;
+}
+
 export async function findDeviceByDeviceId(
   db: Kysely<Database>,
   device_id: number,
