@@ -38,6 +38,7 @@ export async function findAllDevices(db: Kysely<Database>): Promise<Device[]> {
   return db
     .selectFrom("devices")
     .selectAll()
+    .where("last_seen_at", ">=", sql<Date>`NOW() - INTERVAL '1 hour'`)
     .execute() as Promise<Device[]>;
 }
 
