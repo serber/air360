@@ -310,7 +310,7 @@ Manages the `SensorConfigList` NVS blob (up to 8 sensors).
 | enabled | Active flag |
 | type | `SensorType` enum |
 | transport | `SensorTransport` enum (inferred from type) |
-| poll_interval_ms | 5000–3600000 ms |
+| poll_interval_ms | 30000–1800000 ms |
 | i2c.bus_id | Forced to 0 |
 | i2c.address | I2C 7-bit address |
 | uart.port_id | UART_NUM_1 or UART_NUM_2 |
@@ -861,7 +861,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | HTTP buffer size | 512 B | `upload_transport.cpp` |
 | Upload interval default | 145 000 ms | `backend_config.hpp` |
 | Upload interval range | 10 000–300 000 ms | `backend_config_repository.cpp` |
-| Sensor poll interval range | 5 000–3 600 000 ms | `sensor_registry.cpp` |
+| Sensor poll interval range | 30 000–1 800 000 ms | `sensor_registry.cpp` |
 | Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
 | Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |
 | SNTP poll period | 250 ms | `network_manager.cpp` |

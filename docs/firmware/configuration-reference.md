@@ -204,7 +204,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `enabled` | `uint8_t` | `1` | 0 or 1 |
 | `sensor_type` | `SensorType` (uint8_t) | — | Must be a recognised type |
 | `transport_kind` | `TransportKind` (uint8_t) | — | Must match the sensor's supported transport |
-| `poll_interval_ms` | `uint32_t` | `10000` | 5 000–3 600 000 ms |
+| `poll_interval_ms` | `uint32_t` | `30000` | 30 000–1 800 000 ms |
 | `i2c_bus_id` | `uint8_t` | `0` | Must be `0` (only one I2C bus) |
 | `i2c_address` | `uint8_t` | Sensor descriptor default | Must be one of the descriptor's allowed I2C addresses; see table below |
 | `uart_port_id` | `uint8_t` | Sensor descriptor default | UART sensors only: must be one of the descriptor's allowed UART ports |
@@ -217,23 +217,23 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 
 | Sensor | Transport | Default binding | Allowed addresses / pins | Min poll interval | Notes |
 |--------|-----------|-----------------|--------------------------|------------------|-------|
-| BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 5 000 ms | — |
-| BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 5 000 ms | — |
-| SPS30 | I2C | Bus 0, `0x69` | `0x69` | 5 000 ms | — |
-| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 5 000 ms | — |
-| VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 5 000 ms | — |
-| HTU2X | I2C | Bus 0, `0x40` | `0x40` | 5 000 ms | — |
-| SHT4X | I2C | Bus 0, `0x44` | `0x44` | 5 000 ms | — |
-| GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 5 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
-| SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 10 000 ms | Baud rate must be 9600 |
-| DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
-| DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
-| DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | One device per pin only |
-| ME3-NO2 | Analog | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
-| INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 5 000 ms | — |
-| MH-Z19B | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 10 000 ms | Baud rate must be 9600 |
+| BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 30 000 ms | — |
+| BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 30 000 ms | — |
+| SPS30 | I2C | Bus 0, `0x69` | `0x69` | 30 000 ms | — |
+| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | — |
+| VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 30 000 ms | — |
+| HTU2X | I2C | Bus 0, `0x40` | `0x40` | 30 000 ms | — |
+| SHT4X | I2C | Bus 0, `0x44` | `0x44` | 30 000 ms | — |
+| GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 30 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
+| SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
+| DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
+| DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
+| DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | One device per pin only |
+| ME3-NO2 | Analog | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
+| INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 30 000 ms | — |
+| MH-Z19B | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
 
-The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
+The common validation rule `poll_interval_ms ∈ [30000, 1800000]` applies to all sensors. Stored configs outside this range are invalid. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
 
 UART validation uses each sensor descriptor's `allowed_uart_ports`. UART0 is reserved for the console. UART1 maps to RX=GPIO18/TX=GPIO17, and UART2 maps to RX=GPIO16/TX=GPIO15; the web UI writes the matching RX/TX pins into the sensor record when a port is selected.
 
@@ -334,4 +334,4 @@ The Air360 API latitude and longitude fields can be entered manually or selected
 
 ### `upload_interval_ms` behaviour
 
-The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. When a backend becomes due, it drains the samples that were already queued at the start of that cycle in bounded upload windows, then schedules the next cycle after the configured interval. Failed attempts retry after the configured interval. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.
+The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. A newly enabled or reconfigured backend waits `min(upload_interval_ms, 15 s)` before its first attempt so sensors, time sync, and network state can settle without waiting for the full interval. When a backend becomes due, it drains the samples that were already queued at the start of that cycle in bounded upload windows, then schedules the next cycle after the configured interval. Failed attempts retry after the configured interval. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.

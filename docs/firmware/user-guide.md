@@ -327,7 +327,7 @@ The modem is not configured on the Sensors page — it is managed on the Device 
 1. Open **Sensors**.
 2. Find the category you want.
 3. Select the sensor model.
-4. Set the **Poll interval (ms)**. Minimum is 5000 ms for most sensors.
+4. Set the **Poll interval (ms)**. The allowed range is 30 000–1 800 000 ms (30 s to 30 min).
 5. For I2C sensors: adjust the **I2C address** only if needed.
 6. For GPIO or analog sensors: select the board pin from the dropdown.
 7. Make sure the sensor is enabled.
@@ -656,7 +656,7 @@ Check:
 - Sensor changes require explicitly pressing **Apply now** — staging alone does not persist.
 - Setup AP mode exposes only the Device page.
 - The upload interval is global — it applies to all enabled backends.
-- Sensor poll interval cannot be set below 5000 ms (2000 ms for DHT11/DHT22).
+- Sensor poll interval must be between 30 000 ms and 1 800 000 ms (30 s to 30 min).
 - When cellular is enabled, the web UI is only accessible during the Wi-Fi debug window after boot. Set the debug window to a non-zero value to retain web access for configuration.
 - The `storage` partition is reserved but not currently used.
 - OTA firmware update is not yet implemented.

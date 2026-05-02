@@ -10,6 +10,8 @@ namespace air360 {
 
 namespace {
 
+constexpr std::uint32_t kInitialUploadDelayMs = 15000U;
+
 std::string defaultDisplayName(
     const BackendDescriptor* descriptor,
     std::uint32_t id) {
@@ -36,6 +38,10 @@ std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
     const BackendConfigList& config) const {
     BackendRegistry registry;
     const std::uint64_t now_ms = uptimeMilliseconds();
+    const std::uint32_t initial_delay_ms =
+        config.upload_interval_ms < kInitialUploadDelayMs
+            ? config.upload_interval_ms
+            : kInitialUploadDelayMs;
     std::vector<ManagedBackend> backends;
     backends.reserve(config.backend_count);
 
@@ -75,7 +81,7 @@ std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
                 managed.snapshot.last_result = UploadResultClass::kConfigError;
                 managed.snapshot.last_error = "Failed to allocate backend uploader.";
             } else {
-                managed.next_action_time_ms = now_ms;
+                managed.next_action_time_ms = now_ms + initial_delay_ms;
             }
         }
 

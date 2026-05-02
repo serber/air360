@@ -9,13 +9,16 @@ namespace air360 {
 
 constexpr std::uint32_t kSensorConfigMagic = 0x41333631U;
 constexpr std::uint16_t kSensorConfigSchemaVersion = 1U;
+constexpr std::uint32_t kMinSensorPollIntervalMs = 30000U;
+constexpr std::uint32_t kMaxSensorPollIntervalMs = 1800000U;
+constexpr std::uint32_t kDefaultSensorPollIntervalMs = 30000U;
 
 struct SensorRecord {
     std::uint32_t id = 0U;
     std::uint8_t enabled = 1U;
     SensorType sensor_type = SensorType::kUnknown;
     TransportKind transport_kind = TransportKind::kUnknown;
-    std::uint32_t poll_interval_ms = 5000U;
+    std::uint32_t poll_interval_ms = kDefaultSensorPollIntervalMs;
     std::uint8_t i2c_bus_id = 0U;
     std::uint8_t i2c_address = 0x00U;
     std::uint8_t uart_port_id = 1U;

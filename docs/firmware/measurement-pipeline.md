@@ -295,6 +295,7 @@ The upload task loop runs every **1 second** (`kUploadLoopDelay`). Each backend 
 
 | Per-backend condition | Next attempt delay |
 |-----------------------|--------------------|
+| Backend enabled or reconfigured | `min(upload_interval_ms, 15 s)` initial delay, giving sensors/time/network a short settle window before the first real upload attempt |
 | No data after cursor | `upload_interval_ms` (default 145 s) |
 | Upload succeeded, queued samples from cycle start remain | immediate next upload window |
 | Upload succeeded, cycle-start queue drained | `upload_interval_ms` |

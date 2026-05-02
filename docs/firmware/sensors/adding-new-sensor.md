@@ -148,7 +148,7 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
     .supports_uart             = true,
     .supports_gpio             = false,
     .driver_implemented        = true,
-    .default_poll_interval_ms  = 10000U,
+    .default_poll_interval_ms  = kDefaultSensorPollIntervalMs,
     .default_i2c_bus_id        = 0U,
     .default_i2c_address       = 0x00U,
     .allowed_i2c_addresses     = {},

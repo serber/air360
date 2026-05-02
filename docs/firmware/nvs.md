@@ -176,7 +176,7 @@ struct SensorRecord {
     uint8_t      enabled;          // 0 or 1
     SensorType   sensor_type;      // uint8_t enum
     TransportKind transport_kind;  // uint8_t enum
-    uint32_t     poll_interval_ms; // 5000–3600000 ms
+    uint32_t     poll_interval_ms; // 30000–1800000 ms
     uint8_t      i2c_bus_id;       // always 0 in current hardware
     uint8_t      i2c_address;      // 7-bit I2C address
     uint8_t      uart_port_id;     // UART_NUM_1 or UART_NUM_2

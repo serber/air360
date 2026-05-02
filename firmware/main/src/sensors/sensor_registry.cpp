@@ -153,8 +153,9 @@ bool validateCommonRecord(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.poll_interval_ms < 5000U || record.poll_interval_ms > 3600000U) {
-        error = "Poll interval must be between 5000 ms and 3600000 ms.";
+    if (record.poll_interval_ms < kMinSensorPollIntervalMs ||
+        record.poll_interval_ms > kMaxSensorPollIntervalMs) {
+        error = "Poll interval must be between 30000 ms and 1800000 ms.";
         return false;
     }
 
@@ -289,11 +290,11 @@ bool validateDhtRecord(const SensorRecord& record, std::string& error, std::uint
 }
 
 bool validateDht11Record(const SensorRecord& record, std::string& error) {
-    return validateDhtRecord(record, error, 2000U);
+    return validateDhtRecord(record, error, kMinSensorPollIntervalMs);
 }
 
 bool validateDht22Record(const SensorRecord& record, std::string& error) {
-    return validateDhtRecord(record, error, 2000U);
+    return validateDhtRecord(record, error, kMinSensorPollIntervalMs);
 }
 
 bool validateDs18b20Record(const SensorRecord& record, std::string& error) {
@@ -386,7 +387,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x76U,
         .allowed_i2c_addresses    = {0x76U, 0x77U},
@@ -411,7 +412,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x77U,
         .allowed_i2c_addresses    = {0x76U, 0x77U},
@@ -436,7 +437,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x69U,
         .allowed_i2c_addresses    = {0x69U},
@@ -461,7 +462,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x61U,
         .allowed_i2c_addresses    = {0x61U},
@@ -486,7 +487,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x10U,
         .allowed_i2c_addresses    = {0x10U},
@@ -511,7 +512,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = true,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -536,7 +537,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = true,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -561,7 +562,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = true,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -586,7 +587,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = true,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -611,7 +612,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x40U,
         .allowed_i2c_addresses    = {0x40U},
@@ -636,7 +637,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x44U,
         .allowed_i2c_addresses    = {0x44U},
@@ -661,7 +662,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x40U,
         .allowed_i2c_addresses    = {0x40U, 0x41U, 0x44U, 0x45U},
@@ -686,7 +687,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = true,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 10000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -711,7 +712,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = true,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 10000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -736,7 +737,7 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},

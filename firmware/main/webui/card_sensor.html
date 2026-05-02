@@ -27,7 +27,7 @@
         {{GPIO_FIELD_BLOCK}}
         <label class='field'>
           <span class='field-label'>Poll interval (ms)</span>
-          <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='{{POLL_INTERVAL_MS}}'>
+          <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' min='30000' max='1800000' step='1000' value='{{POLL_INTERVAL_MS}}'>
         </label>
       </div>
     </form>

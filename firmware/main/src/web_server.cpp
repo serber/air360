@@ -34,7 +34,8 @@ constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerMaxUriHandlers = 20U;
 // Match the save-time validation floor so the web UI cannot submit a poll
 // interval below what SensorManager supports at runtime.
-constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
+constexpr std::uint32_t kMinSensorPollIntervalMs = air360::kMinSensorPollIntervalMs;
+constexpr std::uint32_t kMaxSensorPollIntervalMs = air360::kMaxSensorPollIntervalMs;
 
 const char* networkModeLabel(NetworkMode mode) {
     switch (mode) {
@@ -192,7 +193,7 @@ struct SensorCategorySectionViewModel {
     std::string add_uart_port_options_html;
     std::string add_uart_pin_hint;
     std::string add_gpio_options_html;
-    std::uint32_t add_poll_interval_ms = 10000U;
+    std::uint32_t add_poll_interval_ms = kDefaultSensorPollIntervalMs;
     bool add_show_gpio_pin_select = false;
     bool show_add_form = false;
     std::string add_button_label;
@@ -541,7 +542,13 @@ void appendGpioPinOptions(
 }
 
 std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
-    return std::max<std::uint32_t>(value, kMinSensorPollIntervalMs);
+    if (value < kMinSensorPollIntervalMs) {
+        return kMinSensorPollIntervalMs;
+    }
+    if (value > kMaxSensorPollIntervalMs) {
+        return kMaxSensorPollIntervalMs;
+    }
+    return value;
 }
 
 constexpr std::array<SensorType, 7U> kClimateSensorTypes{{
@@ -1487,7 +1494,7 @@ static std::string buildAddSensorFormFields(const SensorCategorySectionViewModel
     html += "<label class='field'><span class='field-label'>Poll interval (ms)</span>";
     html += "<input class='input' id='poll_interval_ms_add_";
     html += add_key;
-    html += "' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='";
+    html += "' name='poll_interval_ms' inputmode='numeric' min='30000' max='1800000' step='1000' value='";
     html += std::to_string(section.add_poll_interval_ms);
     html += "'></label></div>";
 

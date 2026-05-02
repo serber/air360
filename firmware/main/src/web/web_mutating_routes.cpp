@@ -266,13 +266,14 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
                 true);
             return sendHtmlResponse(request, html);
         }
-        if (poll_interval_ms < web::kMinSensorPollIntervalMs) {
+        if (poll_interval_ms < web::kMinSensorPollIntervalMs ||
+            poll_interval_ms > web::kMaxSensorPollIntervalMs) {
             const std::string html = renderSensorsPage(
                 server->staged_sensor_config_,
                 *server->sensor_manager_,
                 *server->measurement_store_,
                 server->has_pending_sensor_changes_,
-                "Poll interval must be at least 5000 ms.",
+                "Poll interval must be between 30000 ms and 1800000 ms.",
                 true);
             return sendHtmlResponse(request, html);
         }
