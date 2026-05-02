@@ -479,7 +479,7 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
-| upload_interval_ms | 10 000–300 000 ms (default 145 000 ms) |
+| upload_interval_ms | 30 000–3 600 000 ms (default 145 000 ms) |
 
 **Log tag:** `air360.backend_cfg`
 
@@ -523,7 +523,7 @@ Manages the upload cycle and per-backend runtime state.
 - Stack: 7168 bytes
 - Priority: 4
 - Normal loop delay: 1000 ms
-- Upload interval: 145 000 ms by default (global backend config value, 10 000–300 000 ms)
+- Upload interval: 145 000 ms by default (global backend config value, 30 000–3 600 000 ms)
 - Due backends drain the cycle-start backlog in bounded windows, then wait for the configured interval.
 
 **Upload preconditions (checked every cycle):**
@@ -860,7 +860,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | HTTP request timeout | 15 000 ms | upload adapters |
 | HTTP buffer size | 512 B | `upload_transport.cpp` |
 | Upload interval default | 145 000 ms | `backend_config.hpp` |
-| Upload interval range | 10 000–300 000 ms | `backend_config_repository.cpp` |
+| Upload interval range | 30 000–3 600 000 ms | `backend_config_repository.cpp` |
 | Sensor poll interval range | 30 000–1 800 000 ms | `sensor_registry.cpp` |
 | Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
 | Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |

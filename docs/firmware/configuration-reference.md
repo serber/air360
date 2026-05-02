@@ -251,7 +251,7 @@ Struct: `BackendConfigList` holding up to 4 `BackendRecord` entries.
 |-------|------|---------|-------------|
 | `backend_count` | `uint16_t` | `4` | 0–4 |
 | `next_backend_id` | `uint32_t` | `5` | Non-zero |
-| `upload_interval_ms` | `uint32_t` | `145 000` | 10 000–300 000 ms |
+| `upload_interval_ms` | `uint32_t` | `145 000` | 30 000–3 600 000 ms |
 
 Four backends are pre-configured by default — all **disabled**:
 
@@ -329,7 +329,7 @@ The Air360 API latitude and longitude fields can be entered manually or selected
 - The port must be in range 1–65535.
 
 **List-level:**
-- `upload_interval_ms` must be in range 10 000–300 000.
+- `upload_interval_ms` must be in range 30 000–3 600 000.
 - `next_backend_id` must not be 0.
 
 ### `upload_interval_ms` behaviour

@@ -91,8 +91,8 @@ bool BackendConfigRepository::isValid(const BackendConfigList& config) const {
         config.record_size != static_cast<std::uint16_t>(sizeof(BackendRecord)) ||
         config.backend_count > kMaxConfiguredBackends ||
         config.next_backend_id == 0U ||
-        config.upload_interval_ms < 10000U ||
-        config.upload_interval_ms > 300000U) {
+        config.upload_interval_ms < kMinUploadIntervalMs ||
+        config.upload_interval_ms > kMaxUploadIntervalMs) {
         return false;
     }
 

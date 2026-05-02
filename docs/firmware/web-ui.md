@@ -243,7 +243,7 @@ Category uniqueness is enforced at stage time — staging a second sensor in a s
 
 A single form containing upload settings and one card per backend type.
 
-**Upload settings panel** — `upload_interval_ms` numeric input (range 10 000–300 000 ms). Validated server-side.
+**Upload settings panel** — `upload_interval_ms` numeric input (range 30 000–3 600 000 ms). Validated server-side.
 
 **Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
 - Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.

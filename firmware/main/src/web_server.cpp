@@ -1899,6 +1899,8 @@ std::string renderBackendsPage(
             {"CONFIGURED_BACKENDS_COUNT", std::to_string(model.configured_backends_count)},
             {"NOTICE", model.notice_html},
             {"UPLOAD_INTERVAL_VALUE", std::to_string(model.upload_interval_ms)},
+            {"UPLOAD_INTERVAL_MIN", std::to_string(kMinUploadIntervalMs)},
+            {"UPLOAD_INTERVAL_MAX", std::to_string(kMaxUploadIntervalMs)},
             {"BACKEND_CARDS", backend_cards},
         });
     return renderPageDocument(

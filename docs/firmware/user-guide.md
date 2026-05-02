@@ -357,7 +357,7 @@ The Backends page configures where measurement data is uploaded.
 
 ### Upload interval
 
-The **Upload interval** field at the top of the page controls how often the device sends a data batch to all enabled backends. The allowed range is 10 000–300 000 ms (10 s to 5 min). The default is 145 000 ms.
+The **Upload interval** field at the top of the page controls how often the device sends a data batch to all enabled backends. The allowed range is 30 000–3 600 000 ms (30 s to 1 h). The default is 145 000 ms.
 
 ### Sensor.Community
 

@@ -236,7 +236,7 @@ struct BackendConfigList {
     uint16_t backend_count;
     uint16_t reserved0;
     uint32_t next_backend_id;    // auto-increment counter
-    uint32_t upload_interval_ms; // default: 145000 ms, range: 10000–300000
+    uint32_t upload_interval_ms; // default: 145000 ms, range: 30000–3600000
     BackendRecord backends[4];
 };
 ```

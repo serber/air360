@@ -518,14 +518,19 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
     const std::string upload_interval_value = findFormValue(fields, "upload_interval_ms");
     unsigned long upload_interval_ms = 0UL;
     if (!parseUnsignedLong(upload_interval_value, upload_interval_ms) ||
-        upload_interval_ms < 10000UL ||
-        upload_interval_ms > 300000UL) {
+        upload_interval_ms < kMinUploadIntervalMs ||
+        upload_interval_ms > kMaxUploadIntervalMs) {
+        std::string message = "Upload interval must be between ";
+        message += std::to_string(kMinUploadIntervalMs);
+        message += " ms and ";
+        message += std::to_string(kMaxUploadIntervalMs);
+        message += " ms.";
         const std::string html = renderBackendsPage(
             *server->backend_config_list_,
             *server->upload_manager_,
             server->status_service_->buildInfo(),
             air360_secret_preview,
-            "Upload interval must be between 10000 ms and 300000 ms.",
+            message,
             true);
         return sendHtmlResponse(request, html);
     }
