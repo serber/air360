@@ -1,15 +1,27 @@
 import type { DeviceSummary } from "@/lib/api";
-import { formatDateTime, formatValue, kindLabel, sensorLabel } from "@/lib/api";
+import {
+  formatDateTime,
+  formatValue,
+  isDeviceStale,
+  kindLabel,
+  sensorLabel,
+} from "@/lib/api";
 
 type DevicePopupProps = {
   device: DeviceSummary;
 };
 
 export function DevicePopup({ device }: DevicePopupProps) {
+  const isStale = isDeviceStale(device.last_seen_at);
+
   return (
     <div className="w-72 max-w-[72vw] text-slate-900">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+        <p
+          className={`text-xs font-semibold uppercase tracking-[0.14em] ${
+            isStale ? "text-slate-500" : "text-emerald-700"
+          }`}
+        >
           Air360 device
         </p>
         <h2 className="mt-1 text-base font-semibold text-slate-950">
@@ -21,7 +33,11 @@ export function DevicePopup({ device }: DevicePopupProps) {
       </div>
 
       <div className="mt-4 max-h-64 overflow-y-auto pr-1">
-        {device.sensors.length === 0 ? (
+        {isStale ? (
+          <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-600">
+            Device has not connected for more than 1 hour.
+          </p>
+        ) : device.sensors.length === 0 ? (
           <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-600">
             No measurements yet.
           </p>

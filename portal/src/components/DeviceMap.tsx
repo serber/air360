@@ -5,13 +5,18 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createRoot, type Root } from "react-dom/client";
 import { DevicePopup } from "@/components/DevicePopup";
 import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
-import { fetchJson } from "@/lib/api";
+import { fetchJson, isDeviceStale } from "@/lib/api";
 
 const DEVICE_SOURCE_ID = "air360-devices";
 const CLUSTER_CIRCLE_LAYER_ID = "air360-cluster-circles";
 const CLUSTER_LABEL_LAYER_ID = "air360-cluster-labels";
 const DEVICE_CIRCLE_LAYER_ID = "air360-device-circles";
 const DEVICE_LABEL_LAYER_ID = "air360-device-labels";
+const OFFLINE_DEVICE_SOURCE_ID = "air360-offline-devices";
+const OFFLINE_CLUSTER_CIRCLE_LAYER_ID = "air360-offline-cluster-circles";
+const OFFLINE_CLUSTER_LABEL_LAYER_ID = "air360-offline-cluster-labels";
+const OFFLINE_DEVICE_CIRCLE_LAYER_ID = "air360-offline-device-circles";
+const OFFLINE_DEVICE_LABEL_LAYER_ID = "air360-offline-device-labels";
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -99,6 +104,8 @@ const QUALITY_COLORS: Record<QualityLevel, { color: string; ring: string }> = {
   neutral: { color: "#2563eb", ring: "#bfdbfe" },
   "no-data": { color: "#64748b", ring: "#e2e8f0" },
 };
+
+const STALE_DEVICE_COLORS = { color: "#6b7280", ring: "#d1d5db" };
 
 const TEMPERATURE_COLOR_STOPS = [
   { label: "< -20", max: -20, color: "#312e81", ring: "#c7d2fe" },
@@ -223,6 +230,7 @@ export function DeviceMap() {
     devices: [],
   });
   const [metric, setMetric] = useState<MapMetric>("pm2_5_ug_m3");
+  const [showOfflineDevices, setShowOfflineDevices] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -261,9 +269,33 @@ export function DeviceMap() {
     );
   }, [state.devices]);
 
-  const featureCollection = useMemo(
-    () => buildFeatureCollection(state.devices, metric),
-    [metric, state.devices],
+  const onlineDevices = useMemo(
+    () => state.devices.filter((device) => !isDeviceStale(device.last_seen_at)),
+    [state.devices],
+  );
+
+  const offlineDevices = useMemo(
+    () => state.devices.filter((device) => isDeviceStale(device.last_seen_at)),
+    [state.devices],
+  );
+
+  const visibleDevices = useMemo(
+    () =>
+      showOfflineDevices
+        ? [...onlineDevices, ...offlineDevices]
+        : onlineDevices,
+    [offlineDevices, onlineDevices, showOfflineDevices],
+  );
+
+  const onlineFeatureCollection = useMemo(
+    () => buildFeatureCollection(onlineDevices, metric),
+    [metric, onlineDevices],
+  );
+
+  const offlineFeatureCollection = useMemo(
+    () =>
+      buildFeatureCollection(showOfflineDevices ? offlineDevices : [], metric),
+    [metric, offlineDevices, showOfflineDevices],
   );
 
   useEffect(() => {
@@ -283,6 +315,17 @@ export function DeviceMap() {
 
     map.on("load", () => {
       map.addSource(DEVICE_SOURCE_ID, {
+        type: "geojson",
+        cluster: true,
+        clusterMaxZoom: 11,
+        clusterProperties: {
+          metricCount: ["+", ["get", "metricCount"]],
+          metricSum: ["+", ["get", "metricSum"]],
+        },
+        clusterRadius: 40,
+        data: emptyFeatureCollection(),
+      });
+      map.addSource(OFFLINE_DEVICE_SOURCE_ID, {
         type: "geojson",
         cluster: true,
         clusterMaxZoom: 11,
@@ -421,6 +464,131 @@ export function DeviceMap() {
         },
       });
 
+      map.addLayer({
+        id: OFFLINE_CLUSTER_CIRCLE_LAYER_ID,
+        type: "circle",
+        source: OFFLINE_DEVICE_SOURCE_ID,
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": STALE_DEVICE_COLORS.color,
+          "circle-opacity": 0.56,
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            ["step", ["get", "point_count"], 10, 10, 12, 50, 14, 150, 16],
+            6,
+            ["step", ["get", "point_count"], 13, 10, 15, 50, 17, 150, 19],
+            11,
+            ["step", ["get", "point_count"], 16, 10, 18, 50, 21, 150, 24],
+          ],
+          "circle-stroke-color": STALE_DEVICE_COLORS.ring,
+          "circle-stroke-opacity": 0.76,
+          "circle-stroke-width": 2,
+        },
+      });
+
+      map.addLayer({
+        id: OFFLINE_CLUSTER_LABEL_LAYER_ID,
+        type: "symbol",
+        source: OFFLINE_DEVICE_SOURCE_ID,
+        filter: ["has", "point_count"],
+        layout: {
+          "text-allow-overlap": true,
+          "text-field": clusterLabelExpression() as never,
+          "text-font": ["Open Sans Bold"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            9,
+            6,
+            10,
+            11,
+            12,
+          ],
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(15, 23, 42, 0.35)",
+          "text-halo-width": 1,
+        },
+      });
+
+      map.addLayer({
+        id: OFFLINE_DEVICE_CIRCLE_LAYER_ID,
+        type: "circle",
+        source: OFFLINE_DEVICE_SOURCE_ID,
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": ["get", "color"],
+          "circle-opacity": ["get", "opacity"],
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            8,
+            5,
+            10,
+            8,
+            13,
+            12,
+            17,
+            16,
+            23,
+          ],
+          "circle-stroke-color": ["get", "ringColor"],
+          "circle-stroke-opacity": ["get", "opacity"],
+          "circle-stroke-width": ["get", "strokeWidth"],
+        },
+      });
+
+      map.addLayer({
+        id: OFFLINE_DEVICE_LABEL_LAYER_ID,
+        type: "symbol",
+        source: OFFLINE_DEVICE_SOURCE_ID,
+        filter: ["!", ["has", "point_count"]],
+        layout: {
+          "text-allow-overlap": true,
+          "text-field": ["get", "label"],
+          "text-font": ["Open Sans Bold"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            7,
+            5,
+            8,
+            8,
+            9,
+            13,
+            11,
+            16,
+            12,
+          ],
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(15, 23, 42, 0.35)",
+          "text-halo-width": 1,
+          "text-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            0,
+            4,
+            0,
+            6,
+            1,
+          ],
+        },
+      });
+
       map.on("mouseenter", CLUSTER_CIRCLE_LAYER_ID, () => {
         map.getCanvas().style.cursor = "pointer";
       });
@@ -438,6 +606,34 @@ export function DeviceMap() {
         }
 
         const source = map.getSource(DEVICE_SOURCE_ID) as maplibregl.GeoJSONSource;
+
+        source.getClusterExpansionZoom(clusterId).then((zoom) => {
+          map.easeTo({
+            center: event.lngLat,
+            zoom: Math.min(zoom + 0.5, 13),
+          });
+        });
+      });
+
+      map.on("mouseenter", OFFLINE_CLUSTER_CIRCLE_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+
+      map.on("mouseleave", OFFLINE_CLUSTER_CIRCLE_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "";
+      });
+
+      map.on("click", OFFLINE_CLUSTER_CIRCLE_LAYER_ID, (event) => {
+        const feature = event.features?.[0];
+        const clusterId = feature?.properties?.cluster_id;
+
+        if (typeof clusterId !== "number") {
+          return;
+        }
+
+        const source = map.getSource(
+          OFFLINE_DEVICE_SOURCE_ID,
+        ) as maplibregl.GeoJSONSource;
 
         source.getClusterExpansionZoom(clusterId).then((zoom) => {
           map.easeTo({
@@ -494,6 +690,53 @@ export function DeviceMap() {
         popup.addTo(map);
       });
 
+      map.on("mouseenter", OFFLINE_DEVICE_CIRCLE_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+
+      map.on("mouseleave", OFFLINE_DEVICE_CIRCLE_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "";
+      });
+
+      map.on("click", OFFLINE_DEVICE_CIRCLE_LAYER_ID, (event) => {
+        const feature = event.features?.[0];
+        const publicId = feature?.properties?.public_id;
+
+        if (typeof publicId !== "string") {
+          return;
+        }
+
+        const device = devicesByIdRef.current.get(publicId);
+
+        if (!device) {
+          return;
+        }
+
+        popupRootRef.current?.unmount();
+
+        const popupElement = document.createElement("div");
+        const popupRoot = createRoot(popupElement);
+        popupRoot.render(<DevicePopup device={device} />);
+        popupRootRef.current = popupRoot;
+
+        const popup = new maplibregl.Popup({
+          closeButton: true,
+          closeOnClick: true,
+          maxWidth: "340px",
+        })
+          .setLngLat([device.location.longitude, device.location.latitude])
+          .setDOMContent(popupElement);
+
+        popup.on("close", () => {
+          popupRoot.unmount();
+          if (popupRootRef.current === popupRoot) {
+            popupRootRef.current = null;
+          }
+        });
+
+        popup.addTo(map);
+      });
+
       setIsMapReady(true);
     });
 
@@ -508,19 +751,32 @@ export function DeviceMap() {
   useEffect(() => {
     const map = mapRef.current;
     const source = map?.getSource(DEVICE_SOURCE_ID);
+    const offlineSource = map?.getSource(OFFLINE_DEVICE_SOURCE_ID);
 
-    if (!isMapReady || !source || !("setData" in source)) {
+    if (
+      !isMapReady ||
+      !source ||
+      !offlineSource ||
+      !("setData" in source) ||
+      !("setData" in offlineSource)
+    ) {
       return;
     }
 
     const geoJsonSource = source as maplibregl.GeoJSONSource;
+    const offlineGeoJsonSource = offlineSource as maplibregl.GeoJSONSource;
 
     geoJsonSource.setData(
-      featureCollection as unknown as Parameters<
+      onlineFeatureCollection as unknown as Parameters<
         maplibregl.GeoJSONSource["setData"]
       >[0],
     );
-  }, [featureCollection, isMapReady]);
+    offlineGeoJsonSource.setData(
+      offlineFeatureCollection as unknown as Parameters<
+        maplibregl.GeoJSONSource["setData"]
+      >[0],
+    );
+  }, [isMapReady, offlineFeatureCollection, onlineFeatureCollection]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -529,8 +785,8 @@ export function DeviceMap() {
       return;
     }
 
-    fitDevices(map, state.devices);
-  }, [isMapReady, state.devices]);
+    fitDevices(map, visibleDevices);
+  }, [isMapReady, visibleDevices]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -562,7 +818,7 @@ export function DeviceMap() {
         <div className="rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
           {state.status === "loading" && "Loading devices..."}
           {state.status === "ready" &&
-            `${state.devices.length} device${state.devices.length === 1 ? "" : "s"}`}
+            `${visibleDevices.length} device${visibleDevices.length === 1 ? "" : "s"}`}
           {state.status === "error" && state.message}
         </div>
 
@@ -639,6 +895,15 @@ export function DeviceMap() {
             </button>
           ))}
         </div>
+        <label className="mt-4 flex items-center gap-2 border-t border-slate-200 pt-3 text-sm font-medium text-slate-700">
+          <input
+            checked={showOfflineDevices}
+            className="h-4 w-4 rounded border-slate-300 text-slate-950"
+            onChange={(event) => setShowOfflineDevices(event.target.checked)}
+            type="checkbox"
+          />
+          Show offline devices
+        </label>
       </div>
 
       <div ref={mapContainerRef} className="h-screen min-h-[640px] w-full" />
@@ -646,6 +911,11 @@ export function DeviceMap() {
       {state.status === "ready" && state.devices.length === 0 ? (
         <div className="absolute inset-x-4 bottom-6 z-[500] mx-auto max-w-md rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
           No devices with valid coordinates were returned by the backend.
+        </div>
+      ) : state.status === "ready" && visibleDevices.length === 0 ? (
+        <div className="absolute inset-x-4 bottom-6 z-[500] mx-auto max-w-md rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
+          Only offline devices were returned. Enable offline devices to show
+          them on the map.
         </div>
       ) : null}
     </section>
@@ -1009,13 +1279,23 @@ function buildFeatureCollection(
   return {
     type: "FeatureCollection",
     features: devices.map((device) => {
-      const reading = findReading(device, metric);
+      const stale = isDeviceStale(device.last_seen_at);
+      const reading = stale ? undefined : findReading(device, metric);
       const quality = reading ? qualityLevel(metric, reading.value) : "no-data";
       const freshness = freshnessLevel(device.last_seen_at);
       const freshnessStyle = FRESHNESS_STYLES[freshness];
-      const colors = metricColors(metric, reading, quality);
+      const colors = stale
+        ? STALE_DEVICE_COLORS
+        : metricColors(metric, reading, quality);
       const metricValue = reading?.value ?? 0;
       const metricCount = reading ? 1 : 0;
+      let label = "-";
+
+      if (stale) {
+        label = "";
+      } else if (reading) {
+        label = markerValue(metric, reading.value);
+      }
 
       return {
         type: "Feature",
@@ -1025,7 +1305,7 @@ function buildFeatureCollection(
         },
         properties: {
           public_id: device.public_id,
-          label: reading ? markerValue(metric, reading.value) : "-",
+          label,
           metricCount,
           metricSum: metricValue,
           metricValue,
@@ -1103,7 +1383,7 @@ function clusterLabelExpression() {
     "case",
     [">", ["get", "metricCount"], 0],
     ["to-string", ["round", avg]],
-    "-",
+    "",
   ];
 }
 

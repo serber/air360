@@ -57,6 +57,8 @@ export const PERIOD_OPTIONS: Array<{ label: string; value: Period }> = [
   { label: "1 year", value: "365d" },
 ];
 
+export const DEVICE_STALE_AFTER_MS = 60 * 60 * 1000;
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_AIR360_API_BASE_URL?.replace(
   /\/+$/,
   "",
@@ -94,6 +96,16 @@ export function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+export function isDeviceStale(lastSeenAt: string, nowMs = Date.now()): boolean {
+  const lastSeen = new Date(lastSeenAt).getTime();
+
+  if (Number.isNaN(lastSeen)) {
+    return true;
+  }
+
+  return nowMs - lastSeen >= DEVICE_STALE_AFTER_MS;
 }
 
 export function formatChartTime(value: string): string {
