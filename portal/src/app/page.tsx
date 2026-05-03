@@ -52,6 +52,12 @@ export default function Home() {
             </article>
           ))}
         </section>
+
+        <footer className="text-center text-xs text-slate-400">
+          <Link href="/privacy" className="hover:underline">
+            Privacy Policy
+          </Link>
+        </footer>
       </div>
     </main>
   );
