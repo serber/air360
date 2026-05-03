@@ -58,6 +58,7 @@ bool validateConfigForm(
     const std::string& cellular_sim_pin,
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
+    unsigned long cellular_modem_type,
     std::string& error);
 
 std::string renderConfigPage(

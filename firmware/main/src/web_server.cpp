@@ -75,6 +75,7 @@ struct ConfigPageViewModel {
     std::string cellular_sim_pin_value;
     std::string cellular_connectivity_check_host_value;
     std::string cellular_wifi_debug_window_s_value;
+    std::string cellular_modem_type_options_html;
     // BLE
     bool ble_advertise_enabled = false;
     std::uint8_t ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
@@ -240,6 +241,33 @@ const BackendRecord* findBackendRecordForDescriptor(
     const BackendConfigList& config,
     const BackendDescriptor& descriptor);
 
+std::string buildModemTypeOptions(std::uint8_t selected) {
+    struct ModemOption { std::uint8_t value; const char* label; };
+    constexpr ModemOption kOptions[] = {
+        {kModemTypeSim7600, "SIM7600"},
+        {kModemTypeSim7070, "SIM7070"},
+        {kModemTypeSim7000, "SIM7000"},
+        {kModemTypeBg96,    "BG96"},
+        {kModemTypeEc20,    "EC20"},
+        {kModemTypeSim800,  "SIM800"},
+        {kModemTypeGeneric, "Generic"},
+    };
+    std::string html;
+    html.reserve(256U);
+    for (const auto& opt : kOptions) {
+        html += "<option value='";
+        html += std::to_string(opt.value);
+        html += "'";
+        if (opt.value == selected) {
+            html += " selected";
+        }
+        html += ">";
+        html += opt.label;
+        html += "</option>";
+    }
+    return html;
+}
+
 std::string buildBleIntervalOptions(std::uint8_t selected_index) {
     constexpr const char* kLabels[kBleAdvIntervalCount] = {"100 ms", "300 ms", "1 s", "3 s"};
     std::string html;
@@ -298,6 +326,7 @@ std::string renderConfigPage(
             {"CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE",
              htmlEscape(model.cellular_connectivity_check_host_value)},
             {"CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE", model.cellular_wifi_debug_window_s_value},
+            {"CELLULAR_MODEM_TYPE_OPTIONS", model.cellular_modem_type_options_html},
             {"BLE_ADVERTISE_ENABLED_CHECKED", model.ble_advertise_enabled ? "checked" : ""},
             {"BLE_GROUP_DISABLED_CLASS", model.ble_advertise_enabled ? "" : "field--disabled"},
             {"BLE_ADV_INTERVAL_OPTIONS", buildBleIntervalOptions(model.ble_adv_interval_index)},
@@ -1039,6 +1068,8 @@ ConfigPageViewModel buildConfigPageViewModel(
     }
     model.cellular_wifi_debug_window_s_value =
         std::to_string(cellular_config.wifi_debug_window_s);
+    model.cellular_modem_type_options_html =
+        buildModemTypeOptions(cellular_config.modem_type);
 
     model.ble_advertise_enabled = config.ble_advertise_enabled != 0U;
     model.ble_adv_interval_index = config.ble_adv_interval_index < kBleAdvIntervalCount
@@ -1973,6 +2004,7 @@ bool validateConfigForm(
     const std::string& cellular_sim_pin,
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
+    unsigned long cellular_modem_type,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -2052,6 +2084,10 @@ bool validateConfigForm(
         error = "Wi-Fi debug window must be 0–3600 seconds.";
         return false;
     }
+    if (cellular_modem_type > static_cast<unsigned long>(kModemTypeMax)) {
+        error = "Unknown modem type.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -2100,6 +2136,7 @@ bool validateConfigForm(
     const std::string& cellular_sim_pin,
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
+    unsigned long cellular_modem_type,
     std::string& error) {
     return ::air360::validateConfigForm(
         device_name,
@@ -2118,6 +2155,7 @@ bool validateConfigForm(
         cellular_sim_pin,
         cellular_connectivity_check_host,
         cellular_wifi_debug_window_s,
+        cellular_modem_type,
         error);
 }
 

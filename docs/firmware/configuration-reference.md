@@ -166,6 +166,7 @@ Schema version: 1.
 | `pwrkey_gpio` | `uint8_t` | `0xFF` | PWRKEY GPIO; `0xFF` = not wired |
 | `sleep_gpio` | `uint8_t` | `0xFF` | DTR/sleep GPIO; `0xFF` = not wired |
 | `reset_gpio` | `uint8_t` | `0xFF` | Hardware reset GPIO; `0xFF` = not wired |
+| `modem_type` | `uint8_t` | `0` (SIM7600) | AT command dialect: `0`=SIM7600, `1`=SIM7070, `2`=SIM7000, `3`=BG96, `4`=EC20, `5`=SIM800, `6`=Generic |
 | `wifi_debug_window_s` | `uint16_t` | `600` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 | `apn` | `char[64]` | `""` | PDP context APN; required when `enabled = 1` |
 | `username` | `char[32]` | `""` | Optional PAP/CHAP username; empty if not required by carrier |
@@ -176,7 +177,7 @@ Schema version: 1.
 ### Notes
 
 - `CellularConfig` is versioned separately from `DeviceConfig` with its own magic (`0x43454C4C`) and schema version. An integrity failure resets only the cellular config to defaults.
-- When `enabled = 1`, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
+- When `enabled = 1`, the configured modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
 - `connectivity_check_host` defaults to `"8.8.8.8"` in the compiled-in `CellularConfig`. When the field is emptied in the UI, the form still pre-fills `"8.8.8.8"` for convenience before save.
 - `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
 - `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.

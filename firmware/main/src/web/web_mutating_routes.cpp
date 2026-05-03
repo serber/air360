@@ -811,6 +811,9 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     parseUnsignedLong(findFormValue(fields, "cellular_wifi_debug_window_s"),
                       cellular_wifi_debug_window_s);
 
+    unsigned long cellular_modem_type = server->cellular_config_->modem_type;
+    parseUnsignedLong(findFormValue(fields, "cellular_modem_type"), cellular_modem_type);
+
     std::string validation_error;
     if (!validateConfigForm(
             device_name,
@@ -829,6 +832,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             cellular_sim_pin,
             cellular_connectivity_check_host,
             cellular_wifi_debug_window_s,
+            cellular_modem_type,
             validation_error)) {
         DeviceConfig preview = *server->config_;
         copyString(preview.device_name, sizeof(preview.device_name), device_name);
@@ -855,6 +859,8 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
                    cellular_connectivity_check_host);
         preview_cellular.wifi_debug_window_s =
             static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
+        preview_cellular.modem_type =
+            static_cast<std::uint8_t>(cellular_modem_type);
 
         const std::string html = renderConfigPage(
             preview,
@@ -897,6 +903,8 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
                cellular_connectivity_check_host);
     updated_cellular.wifi_debug_window_s =
         static_cast<std::uint16_t>(cellular_wifi_debug_window_s);
+    updated_cellular.modem_type =
+        static_cast<std::uint8_t>(cellular_modem_type);
 
     const esp_err_t save_err = saveDeviceAndCellularConfig(
         *server->config_repository_,

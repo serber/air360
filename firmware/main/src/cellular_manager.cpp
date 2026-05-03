@@ -27,6 +27,22 @@ namespace air360 {
 
 namespace {
 
+esp_modem_dce_device_t modemDeviceType(std::uint8_t modem_type) {
+    switch (modem_type) {
+        case kModemTypeSim7070: return ESP_MODEM_DCE_SIM7070;
+        case kModemTypeSim7000: return ESP_MODEM_DCE_SIM7000;
+        case kModemTypeBg96:    return ESP_MODEM_DCE_BG96;
+        case kModemTypeEc20:    return ESP_MODEM_DCE_EC20;
+        case kModemTypeSim800:  return ESP_MODEM_DCE_SIM800;
+        case kModemTypeGeneric: return ESP_MODEM_DCE_GENERIC;
+        default:                return ESP_MODEM_DCE_SIM7600;
+    }
+}
+
+}  // namespace
+
+namespace {
+
 constexpr char kTag[] = "air360.cellular";
 // Connectivity checks should fail quickly during bring-up; 5 s is long enough
 // for one ICMP round-trip on cellular without stalling PPP state too long.
@@ -40,10 +56,11 @@ constexpr std::uint32_t kMutexTakeSliceMs = 1000U;
 // PPP attach can legitimately take tens of seconds after a modem reset; 25 s
 // covers the usual event window without blocking forever on a dead session.
 constexpr std::uint32_t kPppMonitorWaitMs = 25000U;
-// Probe failures should be detected quickly once PPP is nominally up.
-constexpr std::uint32_t kPppProbeTimeoutMs = 1000U;
-// One quick probe per cycle keeps the fallback logic decisive.
-constexpr std::uint32_t kPppProbeRetries = 1U;
+// Cellular ICMP can legitimately take 2–4 s under load or during handover;
+// 5 s gives enough headroom to avoid false positives.
+constexpr std::uint32_t kPppProbeTimeoutMs = 5000U;
+// Two packets per probe so a single dropped ICMP does not count as failure.
+constexpr std::uint32_t kPppProbeRetries = 2U;
 // Require two failed probe cycles before escalating so a single ICMP miss does
 // not trigger unnecessary modem recovery.
 constexpr std::uint8_t kPppProbeFailureThreshold = 2U;
@@ -331,7 +348,7 @@ bool CellularManager::attemptConnect() {
     esp_modem_dce_config_t dce_cfg = ESP_MODEM_DCE_DEFAULT_CONFIG(config_.apn);
 
     dce_ = esp_modem_new_dev(
-        ESP_MODEM_DCE_SIM7600, &dte_cfg, &dce_cfg,
+        modemDeviceType(config_.modem_type), &dte_cfg, &dce_cfg,
         static_cast<esp_netif_t*>(ppp_netif_));
     if (dce_ == nullptr) {
         lock();

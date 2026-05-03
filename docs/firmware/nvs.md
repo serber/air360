@@ -112,7 +112,7 @@ Compile-time defaults for AP channel and max connections are **not** stored in N
 
 ## `cellular_cfg` — `CellularConfig`
 
-SIM7600E modem configuration. Versioned independently of `DeviceConfig` — an integrity failure resets only this blob.
+Cellular modem configuration. Versioned independently of `DeviceConfig` — an integrity failure resets only this blob.
 
 ```cpp
 struct CellularConfig {
@@ -127,7 +127,7 @@ struct CellularConfig {
     uint8_t  pwrkey_gpio;        // 0xFF = not wired
     uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
     uint8_t  reset_gpio;         // 0xFF = not wired
-    uint8_t  reserved0;
+    uint8_t  modem_type;         // kModemType* constant; default: 0 (SIM7600)
     uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; default: 600
     uint16_t reserved1;
     char     apn[64];             // PDP context APN; required when enabled

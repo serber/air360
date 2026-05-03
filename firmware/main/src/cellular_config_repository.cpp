@@ -36,7 +36,7 @@ CellularConfig makeDefaultCellularConfig() {
     config.pwrkey_gpio = static_cast<std::uint8_t>(CONFIG_AIR360_CELLULAR_DEFAULT_PWRKEY_GPIO);
     config.sleep_gpio = static_cast<std::uint8_t>(CONFIG_AIR360_CELLULAR_DEFAULT_SLEEP_GPIO);
     config.reset_gpio = 0xFFU;
-    config.reserved0 = 0U;
+    config.modem_type = kModemTypeSim7600;
     config.wifi_debug_window_s =
         static_cast<std::uint16_t>(CONFIG_AIR360_CELLULAR_WIFI_DEBUG_WINDOW_S);
     config.reserved1 = 0U;
