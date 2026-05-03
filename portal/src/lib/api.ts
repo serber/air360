@@ -1,5 +1,26 @@
 export type Period = "1h" | "24h" | "7d" | "30d" | "90d" | "180d" | "365d";
 
+export const sensorTypes = [
+  "bme280",
+  "bme680",
+  "sps30",
+  "scd30",
+  "veml7700",
+  "gps_nmea",
+  "dht11",
+  "dht22",
+  "htu2x",
+  "sht3x",
+  "sht4x",
+  "ds18b20",
+  "me3_no2",
+  "ina219",
+  "mhz19b",
+  "sds011",
+] as const;
+
+export type SensorType = (typeof sensorTypes)[number];
+
 export type DeviceReading = {
   kind: string;
   value: number;
@@ -7,7 +28,7 @@ export type DeviceReading = {
 };
 
 export type DeviceSensor = {
-  sensor_type: string;
+  sensor_type: SensorType;
   readings: DeviceReading[];
 };
 
@@ -37,7 +58,7 @@ export type MeasurementSeries = {
 };
 
 export type SensorMeasurements = {
-  sensor_type: string;
+  sensor_type: SensorType;
   series: MeasurementSeries[];
 };
 
@@ -132,11 +153,38 @@ export function formatValue(kind: string, value: number): string {
 }
 
 export function sensorLabel(sensorType: string): string {
+  const labels: Record<SensorType, string> = {
+    bme280: "BME280",
+    bme680: "BME680",
+    dht11: "DHT11",
+    dht22: "DHT22",
+    ds18b20: "DS18B20",
+    gps_nmea: "GPS (NMEA)",
+    htu2x: "HTU2X",
+    ina219: "INA219",
+    me3_no2: "ME3-NO2",
+    mhz19b: "MH-Z19B",
+    scd30: "SCD30",
+    sds011: "SDS011",
+    sht3x: "SHT3X",
+    sht4x: "SHT4X",
+    sps30: "SPS30",
+    veml7700: "VEML7700",
+  };
+
+  if (isSensorType(sensorType)) {
+    return labels[sensorType];
+  }
+
   return sensorType
     .split(/[_-]+/)
     .filter(Boolean)
     .map((part) => part.toUpperCase())
     .join(" ");
+}
+
+function isSensorType(value: string): value is SensorType {
+  return (sensorTypes as readonly string[]).includes(value);
 }
 
 export function kindLabel(kind: string): string {

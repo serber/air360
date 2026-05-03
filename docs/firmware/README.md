@@ -101,6 +101,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | [sensors/scd30.md](sensors/scd30.md) | SCD30 | I2C `0x61` | CO₂, temperature, humidity |
 | [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | I2C `0x10` | Illuminance |
 | [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | I2C `0x40` | Temperature, humidity |
+| [sensors/sht3x.md](sensors/sht3x.md) | SHT3X | I2C `0x44` / `0x45` | Temperature, humidity |
 | [sensors/sht4x.md](sensors/sht4x.md) | SHT4X | I2C `0x44` | Temperature, humidity |
 | [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | UART1 default; UART2 selectable | Latitude, longitude, altitude, speed, satellites, HDOP |
 | [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | GPIO | Temperature, humidity |

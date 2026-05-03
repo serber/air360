@@ -42,6 +42,7 @@ idf_component_register(
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/scd30_sensor.cpp"
         "src/sensors/drivers/sds011_sensor.cpp"
+        "src/sensors/drivers/sht3x_sensor.cpp"
         "src/sensors/drivers/sht4x_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
@@ -75,6 +76,7 @@ idf_component_register(
         esp-idf-lib__bme680
         esp-idf-lib__dht
         esp-idf-lib__scd30
+        esp-idf-lib__sht3x
         esp-idf-lib__sht4x
         esp-idf-lib__ina219
         esp-idf-lib__mhz19b

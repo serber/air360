@@ -35,6 +35,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
+| [sht3x.md](sht3x.md) | SHT3X | I2C | Bus 0, `0x44` (alt `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | Default UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud; UART2 selectable | Latitude, longitude, altitude, satellites, speed, course, HDOP |
 | [dht.md](dht.md) | DHT11 / DHT22 | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
@@ -54,6 +55,7 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 - Accuracy is kept in the manufacturer's native form. Some vendors use `%RH`, `% m.v.`, or `% output value`; others specify absolute error in `deg C`, `ppm`, `hPa`, or `m`.
 - When a public manufacturer page or datasheet does not publish a clean service-life or maximum-current number, the table says `Not stated`.
 - `HTU2X` and `SHT4X` are sensor families in Air360. Where the firmware accepts a family rather than one exact part number, the notes use the closest family reference part and call that out explicitly.
+- `SHT3X` covers the digital I2C SHT30/SHT31/SHT35 family through the common `esp-idf-lib/sht3x` driver.
 
 ## Sensor Hardware Reference
 
@@ -96,6 +98,20 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Accuracy | TE surfaces this family as a high-accuracy RH/T sensor; the public product-page extract available here does not expose a single percentage figure for the bare sensor |
 | Maximum current | `0.014 mA` on the TE product page |
 | Reference links | [TE product family page](https://www.te.com/en/product-CAT-HSC0004.html), [TE part page](https://www.te.com/en/product-HPP845E031R5.html) |
+
+### SHT3X
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Sensirion |
+| Air360 measurements | Temperature, humidity |
+| Supported family | `SHT30` / `SHT31` / `SHT35` digital I2C family via the common `SHT3X` driver |
+| Declared service life | Not stated as a numeric lifetime in the public datasheet |
+| Operating temperature | `-40..125 deg C` |
+| Supply voltage | `2.15..5.5 V` |
+| Accuracy | Humidity typically up to `+-1.5 %RH`; temperature typically up to `+-0.1 deg C` for SHT35-class parts. Exact tolerance depends on the selected SHT30/SHT31/SHT35 variant and operating range. |
+| Maximum current | Public datasheet lists measurement-current behavior by mode rather than one Air360-wide max-current value; Air360 uses single-shot polling through the component. |
+| Reference links | [Sensirion SHT3x-DIS datasheet](https://sensirion.com/media/documents/213E6A3B/63A5A569/Datasheet_SHT3x_DIS.pdf), [ESP component documentation](https://esp-idf-lib.github.io/sht3x/) |
 
 ### SHT4X
 

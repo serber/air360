@@ -52,6 +52,7 @@ bool mapMeasurement(
         case SensorType::kDht11:
         case SensorType::kDht22:
         case SensorType::kHtu2x:
+        case SensorType::kSht3x:
         case SensorType::kSht4x:
         case SensorType::kDs18b20:
             out_pin = 7U;

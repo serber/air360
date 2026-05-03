@@ -192,7 +192,7 @@ async function seedDevice(apiBaseUrl: string, device: DemoDevice): Promise<void>
         firmware_version: "demo-map-seed",
       },
       batch: {
-        sample_count: 5,
+        sample_count: 6,
         samples: buildSamples(device, sentAt),
       },
     },
@@ -219,6 +219,14 @@ function buildSamples(device: DemoDevice, sampledAt: number) {
         { kind: "temperature_c", value: round(temperature, 1) },
         { kind: "humidity_percent", value: round(humidity, 1) },
         { kind: "pressure_hpa", value: round(1013 + randomRange(rng, -18, 18), 1) },
+      ],
+    },
+    {
+      sensor_type: "sht3x",
+      sample_time_unix_ms: sampledAt,
+      values: [
+        { kind: "temperature_c", value: round(temperature + randomRange(rng, -0.7, 0.7), 1) },
+        { kind: "humidity_percent", value: round(clamp(humidity + randomRange(rng, -4, 4), 18, 85), 1) },
       ],
     },
     {

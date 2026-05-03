@@ -555,13 +555,14 @@ std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
     return value;
 }
 
-constexpr std::array<SensorType, 7U> kClimateSensorTypes{{
+constexpr std::array<SensorType, 8U> kClimateSensorTypes{{
     SensorType::kBme280,
     SensorType::kBme680,
     SensorType::kDht11,
     SensorType::kDht22,
     SensorType::kDs18b20,
     SensorType::kHtu2x,
+    SensorType::kSht3x,
     SensorType::kSht4x,
 }};
 
@@ -653,6 +654,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kDht22:
         case SensorType::kDs18b20:
         case SensorType::kHtu2x:
+        case SensorType::kSht3x:
         case SensorType::kSht4x:
             return SensorCategory::kClimate;
         case SensorType::kScd30:

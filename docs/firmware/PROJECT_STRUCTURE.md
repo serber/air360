@@ -60,7 +60,7 @@ firmware/
 - `main/Kconfig.projbuild` — project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom 16 MB partition table (nvs, otadata, phy_init, ota_0, ota_1, storage)
-- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
+- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht3x, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
 - `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
 
 ---
@@ -124,6 +124,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` (managed component) |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` (managed component) |
 | `htu2x_sensor.cpp` | HTU2X / Si7021 | `esp-idf-lib__si7021` (managed component) |
+| `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` (managed component) |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` (managed component) |
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` (managed component) |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |

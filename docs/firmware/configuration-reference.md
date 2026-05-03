@@ -223,6 +223,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | — |
 | VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 30 000 ms | — |
 | HTU2X | I2C | Bus 0, `0x40` | `0x40` | 30 000 ms | — |
+| SHT3X | I2C | Bus 0, `0x44` | `0x44`, `0x45` | 30 000 ms | — |
 | SHT4X | I2C | Bus 0, `0x44` | `0x44` | 30 000 ms | — |
 | GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 30 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
 | SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |

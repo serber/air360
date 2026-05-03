@@ -14,6 +14,7 @@
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
 #include "air360/sensors/drivers/sds011_sensor.hpp"
+#include "air360/sensors/drivers/sht3x_sensor.hpp"
 #include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/ina219_sensor.hpp"
@@ -253,6 +254,19 @@ bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateSht3xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "SHT3X currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateGpsNmeaRecord(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -377,7 +391,7 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
 static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 16U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -652,6 +666,31 @@ constexpr std::array<SensorDescriptor, 15U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateSht4xRecord,
         .create_driver            = &createSht4xSensor,
+    },
+    {
+        .type                     = SensorType::kSht3x,
+        .type_key                 = "sht3x",
+        .display_name             = "SHT3X",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = SHT3X_I2C_ADDR_GND,
+        .allowed_i2c_addresses    = {SHT3X_I2C_ADDR_GND, SHT3X_I2C_ADDR_VDD},
+        .allowed_i2c_address_count = 2U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateSht3xRecord,
+        .create_driver            = &createSht3xSensor,
     },
     {
         .type                     = SensorType::kIna219,

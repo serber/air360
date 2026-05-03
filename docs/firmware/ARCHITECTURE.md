@@ -340,20 +340,21 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 
 | Type | Transport | Default Binding | Allowed Binding Values | Min Poll |
 |------|-----------|-----------------|------------------------|----------|
-| BME280 | I2C | 0x76 | 0x76, 0x77 | 5 s |
-| BME680 | I2C | 0x77 | 0x76, 0x77 | 5 s |
-| SPS30 | I2C | 0x69 | 0x69 | 5 s |
-| SCD30 | I2C | 0x61 | 0x61 | 5 s |
-| VEML7700 | I2C | 0x10 | 0x10 | 5 s |
-| HTU2X | I2C | 0x40 | 0x40 | 5 s |
-| SHT4X | I2C | 0x44 | 0x44 | 5 s |
-| INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 5 s |
-| GPS (NMEA) | UART | UART1 | UART1, UART2 | 5 s |
-| MH-Z19B | UART | UART2 | UART1, UART2 | 10 s |
-| DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 5 s |
-| DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 5 s |
-| DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 5 s |
-| ME3-NO2 | Analog (ADC) | — | GPIO4, GPIO5, GPIO6 | 5 s |
+| BME280 | I2C | 0x76 | 0x76, 0x77 | 30 s |
+| BME680 | I2C | 0x77 | 0x76, 0x77 | 30 s |
+| SPS30 | I2C | 0x69 | 0x69 | 30 s |
+| SCD30 | I2C | 0x61 | 0x61 | 30 s |
+| VEML7700 | I2C | 0x10 | 0x10 | 30 s |
+| HTU2X | I2C | 0x40 | 0x40 | 30 s |
+| SHT3X | I2C | 0x44 | 0x44, 0x45 | 30 s |
+| SHT4X | I2C | 0x44 | 0x44 | 30 s |
+| INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 30 s |
+| GPS (NMEA) | UART | UART1 | UART1, UART2 | 30 s |
+| MH-Z19B | UART | UART2 | UART1, UART2 | 30 s |
+| DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
+| DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
+| DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 30 s |
+| ME3-NO2 | Analog (ADC) | — | GPIO4, GPIO5, GPIO6 | 30 s |
 
 ---
 
@@ -421,6 +422,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` |
 | `htu2x_sensor.cpp` | HTU2X (Si7021) | `esp-idf-lib__si7021` |
+| `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` |
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` |
@@ -756,7 +758,7 @@ The current runtime depends only on NVS. SPIFFS is reserved for future use; OTA 
 - Bus 0: SDA=GPIO8, SCL=GPIO9
 - Clock: 100 kHz
 - Transfer timeout: 200 ms
-- Used by: BME280, BME680, SPS30, SCD30, VEML7700, HTU2X, SHT4X
+- Used by: BME280, BME680, SPS30, SCD30, VEML7700, HTU2X, SHT3X, SHT4X
 
 ### UART
 
