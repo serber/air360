@@ -31,6 +31,7 @@ idf_component_register(
         "src/uploads/upload_manager_status.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
+        "src/sensors/drivers/aht30_sensor.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
@@ -82,6 +83,7 @@ idf_component_register(
         esp-idf-lib__mhz19b
         esp-idf-lib__si7021
         esp-idf-lib__veml7700
+        espressif__aht30
         espressif__bme280
         espressif__i2c_bus
         espressif__ds18b20

@@ -105,6 +105,19 @@ esp_err_t I2cBusManager::getComponentBus(
     return out_handle != nullptr ? ESP_OK : ESP_FAIL;
 }
 
+esp_err_t I2cBusManager::getMasterBusHandle(
+    std::uint8_t bus_id,
+    i2c_master_bus_handle_t& out_handle) const {
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!resolvePins(bus_id, port, sda, scl)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    // i2cdev already owns this port; borrow its underlying master bus handle.
+    return i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+}
+
 // ── UartPortManager ──────────────────────────────────────────────────────────
 
 UartPortManager::~UartPortManager() {

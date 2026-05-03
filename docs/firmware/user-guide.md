@@ -280,7 +280,7 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | Category | Models |
 |----------|--------|
 | Climate | BME280, BME680 |
-| Temperature & Humidity | SHT3X, SHT4X, HTU2X, DHT11, DHT22 |
+| Temperature & Humidity | AHT30, SHT3X, SHT4X, HTU2X, DHT11, DHT22 |
 | Temperature | DS18B20 |
 | CO2 | SCD30 |
 | Light | VEML7700 |
@@ -295,6 +295,7 @@ All categories except **Gas** allow only one configured sensor at a time.
 
 | Sensor | Transport | Pins |
 |--------|-----------|------|
+| AHT30 | I2C at 0x38 | SDA=GPIO8, SCL=GPIO9 |
 | BME280 | I2C at 0x76 | SDA=GPIO8, SCL=GPIO9 |
 | BME680 | I2C at 0x77 | SDA=GPIO8, SCL=GPIO9 |
 | SHT3X | I2C at 0x44 | SDA=GPIO8, SCL=GPIO9 |

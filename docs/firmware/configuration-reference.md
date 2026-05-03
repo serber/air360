@@ -217,6 +217,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 
 | Sensor | Transport | Default binding | Allowed addresses / pins | Min poll interval | Notes |
 |--------|-----------|-----------------|--------------------------|------------------|-------|
+| AHT30 | I2C | Bus 0, `0x38` | `0x38` | 30 000 ms | Fixed address, no hardware selection |
 | BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 30 000 ms | — |
 | BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 30 000 ms | — |
 | SPS30 | I2C | Bus 0, `0x69` | `0x69` | 30 000 ms | — |

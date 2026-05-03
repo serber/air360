@@ -28,6 +28,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 
 | File | Sensor | Transport | Default binding | Measurements |
 |------|--------|-----------|-----------------|--------------|
+| [aht30.md](aht30.md) | AHT30 | I2C | Bus 0, `0x38`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [bme280.md](bme280.md) | BME280 | I2C | Bus 0, `0x76` (alt `0x77`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity, pressure |
 | [bme680.md](bme680.md) | BME680 | I2C | Bus 0, `0x77` (alt `0x76`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity, pressure, gas resistance |
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
@@ -58,6 +59,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 - `SHT3X` covers the digital I2C SHT30/SHT31/SHT35 family through the common `esp-idf-lib/sht3x` driver.
 
 ## Sensor Hardware Reference
+
+### AHT30
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | ASAIR (Aosong Electronics) |
+| Air360 measurements | Temperature, humidity |
+| Declared service life | Not stated |
+| Operating temperature | `-40..85 deg C` |
+| Supply voltage | `2.0..5.5 V` |
+| Accuracy | Humidity `+-2 %RH`; temperature `+-0.3 deg C` |
+| Maximum current | `~23 mA` peak during measurement |
+| Reference links | [ASAIR product page](http://www.aosong.com/en/products-40.html) |
 
 ### BME280
 
