@@ -56,6 +56,12 @@ class I2cBusManager {
         std::uint8_t bus_id,
         i2c_bus_handle_t& out_handle) const;
 
+    // Return the i2c_master_bus_handle_t for the bus already initialised by
+    // i2cdev. Used by components that require the new I2C master API (AHT30).
+    esp_err_t getMasterBusHandle(
+        std::uint8_t bus_id,
+        i2c_master_bus_handle_t& out_handle) const;
+
   private:
     std::span<const BusConfig> buses_{};
 };

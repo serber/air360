@@ -94,6 +94,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 
 | Document | Sensor | Transport | Measurements |
 |----------|--------|-----------|--------------|
+| [sensors/aht30.md](sensors/aht30.md) | AHT30 | I2C `0x38` | Temperature, humidity |
 | [sensors/bme280.md](sensors/bme280.md) | BME280 | I2C `0x76` | Temperature, humidity, pressure |
 | [sensors/bme680.md](sensors/bme680.md) | BME680 | I2C `0x77` | Temperature, humidity, pressure, gas resistance |
 | [sensors/sps30.md](sensors/sps30.md) | SPS30 | I2C `0x69` | PM1.0–PM10.0, particle number concentrations, typical particle size |

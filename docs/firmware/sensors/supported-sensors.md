@@ -24,6 +24,7 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 
 | Sensor type | Transport | Default binding | Allowed binding values | Detail doc |
 |-------------|-----------|-----------------|------------------------|------------|
+| `AHT30` | I2C | Bus 0, address `0x38` | I2C `0x38` | [aht30.md](aht30.md) |
 | `BME280` | I2C | Bus 0, address `0x76` | I2C `0x76`, `0x77` | [bme280.md](bme280.md) |
 | `BME680` | I2C | Bus 0, address `0x77` | I2C `0x76`, `0x77` | [bme680.md](bme680.md) |
 | `SCD30` | I2C | Bus 0, address `0x61` | I2C `0x61` | [scd30.md](scd30.md) |
