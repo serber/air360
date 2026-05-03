@@ -282,6 +282,20 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.7
+  espressif/aht30:
+    component_hash: 939149f0f4a3aad63b8f9bf04218fdeb01c34062f73847fee99e90a619461ad3
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.2'
+    - name: espressif/sensor_hub
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^0.1.4
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
   espressif/bme280:
     component_hash: 873d97d0bd30004f45d1653f078a4bafe39c1767e57d4bae0f0a13bc3a4d5e3d
     dependencies:
@@ -375,6 +389,24 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.1.0
+  espressif/sensor_hub:
+    component_hash: b3e72f3e2d10e165b972b17fff889f294b1a685769efacf73ec8f1e92152d1d5
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: espressif/i2c_bus
+      registry_url: https://components.espressif.com
+      require: public
+      version: 1.*
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.1.4
   idf:
     source:
       type: idf
@@ -407,12 +439,13 @@ direct_dependencies:
 - esp-idf-lib/sht4x
 - esp-idf-lib/si7021
 - esp-idf-lib/veml7700
+- espressif/aht30
 - espressif/bme280
 - espressif/ds18b20
 - espressif/esp_modem
 - espressif/led_strip
 - espressif/mdns
 - nordesems/esp-captive-portal
-manifest_hash: d04941fd50be60d85aa8b9c100895249beb10859b122ec466064005e107a8b67
+manifest_hash: 82cf6ffa206987d321981bf02b437d47c8ee3e0f542289a01dd39bf322099577
 target: esp32s3
 version: 3.0.0
