@@ -89,7 +89,7 @@ config AIR360_LAB_AP_MAX_CONNECTIONS
     range 1 8
     default 4
 
-menu "Cellular uplink (SIM7600E)"
+menu "Cellular uplink"
 
 config AIR360_CELLULAR_DEFAULT_UART
     int "Modem UART port"

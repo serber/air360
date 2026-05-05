@@ -252,7 +252,7 @@ Wi-Fi driver handles, ESP-IDF event registrations, reconnect/setup-AP retry time
 
 ### `CellularManager` — `cellular_manager.cpp`
 
-Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled = 1`.
+Manages the configured cellular modem lifecycle. Spawned only when `CellularConfig.enabled = 1`.
 
 **`cellular` FreeRTOS task:**
 - Stack: 8192 bytes
@@ -262,7 +262,7 @@ Manages the SIM7600E modem lifecycle. Spawned only when `CellularConfig.enabled 
 **Connect sequence (`attemptConnect`):**
 1. Allocate PPP netif
 2. Configure DTE (UART, buffers)
-3. Create SIM7600E DCE
+3. Create the configured modem DCE
 4. Set APN (PDP context)
 5. Unlock SIM PIN if configured
 6. Poll modem registration state and signal quality every 2 s; state `searching` keeps polling without failure escalation
@@ -751,7 +751,7 @@ The current runtime depends only on NVS. SPIFFS is reserved for future use; OTA 
 | 17 | UART1 TX / Modem TX (shared default) | Sensor UART map / Kconfig |
 | 18 | UART1 RX / Modem RX (shared default) | Sensor UART map / Kconfig |
 | 21 | Modem SLEEP/DTR (default) | Kconfig / CellularConfig |
-> **GPIO17/18 conflict:** GPS (NMEA) defaults to UART1 and the SIM7600E modem also defaults to UART1. They cannot be used simultaneously on GPIO17/18. Move the GPS sensor to UART2 in the Sensor Configuration page, or reconfigure the modem UART before enabling both.
+> **GPIO17/18 conflict:** GPS (NMEA) defaults to UART1 and the cellular modem also defaults to UART1. They cannot be used simultaneously on GPIO17/18. Move the GPS sensor to UART2 in the Sensor Configuration page, or reconfigure the modem UART before enabling both.
 
 ### I2C
 
@@ -765,7 +765,7 @@ The current runtime depends only on NVS. SPIFFS is reserved for future use; OTA 
 | Port | Default assignment | Baud | RX buffer |
 |------|--------------------|------|-----------|
 | UART0 | Console (reserved) | — | — |
-| UART1 | Sensor UART map RX=GPIO18, TX=GPIO17; also SIM7600E modem default | Sensor dependent / 115200 for modem | GPS: `max(4096 B, derived poll budget + 256 B)`; modem DTE has its own buffers |
+| UART1 | Sensor UART map RX=GPIO18, TX=GPIO17; also cellular modem default | Sensor dependent / 115200 for modem | GPS: `max(4096 B, derived poll budget + 256 B)`; modem DTE has its own buffers |
 | UART2 | Sensor UART map RX=GPIO16, TX=GPIO15 | Sensor dependent | 4096 B |
 
 The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.

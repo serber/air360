@@ -75,9 +75,9 @@ firmware/
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
 - `main/src/cellular_config_repository.cpp` — NVS-backed `CellularConfig` persistence (independent schema version)
-- `main/src/cellular_manager.cpp` — SIM7600E modem lifecycle: PPP session, reconnect task, exponential backoff, hardware reset
+- `main/src/cellular_manager.cpp` — configurable cellular modem lifecycle: PPP session, reconnect task, exponential backoff, hardware reset
 - `main/src/connectivity_checker.cpp` — post-PPP ICMP ping check via `esp_ping`
-- `main/src/modem_gpio.cpp` — PWRKEY / SLEEP / RESET GPIO helpers for the SIM7600E
+- `main/src/modem_gpio.cpp` — PWRKEY / SLEEP / RESET GPIO helpers for the configured cellular modem
 - `main/src/status_service.cpp` — HTML rendering for `/` and `/diagnostics`, plus raw status JSON generation for the diagnostics page
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping

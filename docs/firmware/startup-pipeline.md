@@ -180,7 +180,7 @@ Config load failure is **non-fatal** — in-memory defaults are used and the boo
 Then:
 
 1. `CellularManager::init(network_manager)` — wires the network manager reference into the cellular manager so it can update uplink state
-2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `cellular` FreeRTOS task** which manages the SIM7600E PPP session, reconnect backoff, and hardware reset cycles
+2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `cellular` FreeRTOS task** which manages the configured modem PPP session, reconnect backoff, and hardware reset cycles
 
 > **`cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point.
 
