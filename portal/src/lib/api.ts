@@ -70,6 +70,10 @@ export type DeviceInfo = {
   firmware_version: string;
   registered_at: string;
   last_seen_at: string;
+  geo_country: string | null;
+  geo_country_code: string | null;
+  geo_city: string | null;
+  geo_display: string | null;
 };
 
 export type LatestReading = {

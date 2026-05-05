@@ -98,6 +98,10 @@ export const measurementRoutes: FastifyPluginAsync = async (app) => {
           firmware_version: device.firmware_version,
           registered_at: device.registered_at,
           last_seen_at: device.last_seen_at,
+          geo_country: device.geo_country,
+          geo_country_code: device.geo_country_code,
+          geo_city: device.geo_city,
+          geo_display: device.geo_display,
         },
         by_kind: Array.from(kindMap.entries()).map(([kind, sensorMap]) => ({
           kind,

@@ -1,6 +1,7 @@
 import Fastify, { FastifyInstance } from "fastify";
 
 import { AppConfig } from "./config/env";
+import { startGeoWorker } from "./modules/geo/geo-worker";
 import { registerErrorHandler } from "./plugins/error-handler";
 import { routes } from "./routes";
 
@@ -19,6 +20,7 @@ export function buildApp(config: AppConfig): FastifyInstance {
   app.decorate("config", config);
   registerErrorHandler(app);
   app.register(routes);
+  startGeoWorker(app);
 
   return app;
 }

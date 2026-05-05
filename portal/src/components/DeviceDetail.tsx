@@ -88,9 +88,13 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Location
               </p>
-              <p className="mt-1 text-sm text-slate-950">
-                {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}
-              </p>
+              {device.geo_display ? (
+                <p className="mt-1 text-sm text-slate-950">{device.geo_display}</p>
+              ) : (
+                <p className="mt-1 text-sm text-slate-950">
+                  {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}
+                </p>
+              )}
             </div>
             <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">

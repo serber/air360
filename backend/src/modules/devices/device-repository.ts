@@ -74,6 +74,25 @@ export async function findDeviceByPublicId(
     .executeTakeFirst() as Promise<Device | undefined>;
 }
 
+export interface GeoFields {
+  geo_country: string | null;
+  geo_country_code: string | null;
+  geo_city: string | null;
+  geo_display: string | null;
+}
+
+export async function updateDeviceGeo(
+  db: Kysely<Database>,
+  device_id: number,
+  fields: GeoFields,
+): Promise<void> {
+  await db
+    .updateTable("devices")
+    .set(fields)
+    .where("device_id", "=", device_id)
+    .execute();
+}
+
 interface UpdateDeviceOnIngestData {
   batch_id: number;
   location?: {

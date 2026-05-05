@@ -1,11 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
+import { GEO_UPDATE_THRESHOLD_METERS, haversineDistanceMeters } from "../../lib/geo";
 import { verifyUploadSecret } from "../../lib/upload-secret";
 import {
   findDeviceByDeviceId,
   updateDeviceOnIngest,
 } from "../../modules/devices/device-repository";
+import { enqueueGeoUpdate } from "../../modules/geo/geo-queue-repository";
 import {
   insertBatch,
   insertMeasurements,
@@ -191,6 +193,16 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       }
 
       await updateDeviceOnIngest(db, device_id, { batch_id, ...(location ? { location } : {}) });
+
+      if (location !== undefined) {
+        const distance = haversineDistanceMeters(
+          device.latitude, device.longitude,
+          location.latitude, location.longitude,
+        );
+        if (distance > GEO_UPDATE_THRESHOLD_METERS || device.geo_display === null) {
+          await enqueueGeoUpdate(db, device_id);
+        }
+      }
 
       return reply.code(200).send();
     },
