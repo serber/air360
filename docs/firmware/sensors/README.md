@@ -288,10 +288,10 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 
 ## Peripheral Hardware
 
-The SIM7600E modem is not a sensor. It is managed by `CellularManager` independently of the sensor pipeline.
+The cellular modem is not a sensor. It is managed by `CellularManager` independently of the sensor pipeline. SIM7600E remains documented here as the default hardware reference because it shares UART wiring with sensor transports.
 
 | File | Device | Transport | Role |
 |------|--------|-----------|------|
-| [sim7600e.md](sim7600e.md) | SIM7600E | UART1 (RX=`GPIO18`, TX=`GPIO17`) | Cellular PPP uplink; built-in GNSS is not yet used by the firmware |
+| [sim7600e.md](sim7600e.md) | SIM7600E reference modem | UART1 (RX=`GPIO18`, TX=`GPIO17`) | Cellular PPP uplink; built-in GNSS is not yet used by the firmware |
 
 > The default modem UART conflicts with the default GPS UART. GPS and cellular cannot be used simultaneously on the stock `GPIO17` / `GPIO18` wiring unless the GPS sensor is moved to UART2 in the Sensor Configuration page or the modem UART is reconfigured.

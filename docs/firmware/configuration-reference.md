@@ -35,7 +35,7 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 | Domain | NVS key | Struct | What it controls |
 |--------|---------|--------|-----------------|
 | Device | `device_cfg` | `DeviceConfig` | Network credentials, device identity, static IP, web server port |
-| Cellular | `cellular_cfg` | `CellularConfig` | SIM7600E modem settings, carrier provisioning, cellular uplink |
+| Cellular | `cellular_cfg` | `CellularConfig` | Cellular modem settings, carrier provisioning, cellular uplink |
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
@@ -180,6 +180,7 @@ Schema version: 1.
 - When `enabled = 1`, the configured modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
 - `connectivity_check_host` defaults to `"8.8.8.8"` in the compiled-in `CellularConfig`. When the field is emptied in the UI, the form still pre-fills `"8.8.8.8"` for convenience before save.
 - `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
+- `modem_type` must be one of the known `kModemType*` constants. Invalid stored values fail cellular config validation and reset only `cellular_cfg` to defaults.
 - `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.
 
 ---

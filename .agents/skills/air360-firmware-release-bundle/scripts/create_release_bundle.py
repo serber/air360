@@ -131,24 +131,35 @@ def git_commit_range(previous_tag: str | None, release_tag: str) -> str:
     return release_tag
 
 
-def changed_files_for_commit(repo_root: Path, commit: str) -> tuple[str, ...]:
+def changed_files_for_commit(repo_root: Path, commit: str, pathspecs: list[str] | None = None) -> tuple[str, ...]:
+    args = ["diff-tree", "--no-commit-id", "--name-only", "-r", commit]
+    if pathspecs:
+        args.extend(["--", *pathspecs])
     output = run_git(
         repo_root,
-        ["diff-tree", "--no-commit-id", "--name-only", "-r", commit],
+        args,
     )
     return tuple(line.strip() for line in output.splitlines() if line.strip())
 
 
-def git_changes(repo_root: Path, previous_tag: str | None, release_tag: str) -> list[GitChange]:
+def git_changes(
+    repo_root: Path,
+    previous_tag: str | None,
+    release_tag: str,
+    pathspecs: list[str] | None = None,
+) -> list[GitChange]:
+    args = [
+        "log",
+        "--no-merges",
+        "--date=short",
+        "--pretty=format:%H%x1f%s%x1f%an%x1f%ad",
+        git_commit_range(previous_tag, release_tag),
+    ]
+    if pathspecs:
+        args.extend(["--", *pathspecs])
     output = run_git(
         repo_root,
-        [
-            "log",
-            "--no-merges",
-            "--date=short",
-            "--pretty=format:%H%x1f%s%x1f%an%x1f%ad",
-            git_commit_range(previous_tag, release_tag),
-        ],
+        args,
     )
     changes: list[GitChange] = []
     for line in output.splitlines():
@@ -164,7 +175,7 @@ def git_changes(repo_root: Path, previous_tag: str | None, release_tag: str) -> 
                 subject=subject,
                 author=author,
                 date=date,
-                files=changed_files_for_commit(repo_root, commit),
+                files=changed_files_for_commit(repo_root, commit, pathspecs),
             )
         )
     return changes
@@ -359,8 +370,8 @@ def write_release_notes(
     highlights = highlight_items(groups)
     range_label = f"{previous_tag}...{release_tag}" if previous_tag else release_tag
     intro = (
-        "This release is generated from the git changes in "
-        f"`{range_label}` and packages the current local firmware build for {target.upper()}."
+        "This release is generated from git changes in "
+        f"`{range_label}` that touch `firmware/` and packages the current local firmware build for {target.upper()}."
     )
 
     lines = [
@@ -430,7 +441,7 @@ def main() -> int:
     repo_root = repo_root_from_script()
     release_tag = latest_release_tag(repo_root, args.requested_version)
     previous_tag = previous_same_convention_tag(repo_root, release_tag)
-    changes = git_changes(repo_root, previous_tag, release_tag)
+    changes = git_changes(repo_root, previous_tag, release_tag, pathspecs=["firmware"])
 
     firmware_dir = (args.firmware_dir or (repo_root / "firmware")).resolve()
     build_dir = firmware_dir / "build"

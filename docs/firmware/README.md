@@ -44,7 +44,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Understand startup and long-lived tasks | [startup-pipeline.md](startup-pipeline.md) | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Work on NVS-backed config | [nvs.md](nvs.md) | [configuration-reference.md](configuration-reference.md) |
 | Change Wi-Fi, setup AP, or SNTP | [network-manager.md](network-manager.md) | [time.md](time.md) |
-| Change cellular modem behavior | [cellular-manager.md](cellular-manager.md) | [sensors/sim7600e.md](sensors/sim7600e.md) |
+| Change cellular modem behavior | [cellular-manager.md](cellular-manager.md) | [sensors/sim7600e.md](sensors/sim7600e.md) for SIM7600E wiring notes |
 | Add or change a sensor driver | [sensors/adding-new-sensor.md](sensors/adding-new-sensor.md) | [sensors/supported-sensors.md](sensors/supported-sensors.md) + [transport-binding.md](transport-binding.md) |
 | Change web routes or forms | [web-ui.md](web-ui.md) | [configuration-reference.md](configuration-reference.md) |
 | Change upload behavior | [measurement-pipeline.md](measurement-pipeline.md) | [upload-adapters.md](upload-adapters.md) + [upload-transport.md](upload-transport.md) |
@@ -76,7 +76,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Document | Description |
 |----------|-------------|
 | [network-manager.md](network-manager.md) | Wi-Fi station / setup AP modes, SNTP time sync, state transitions |
-| [cellular-manager.md](cellular-manager.md) | SIM7600E modem lifecycle, PPP session, reconnect logic, hardware GPIO control |
+| [cellular-manager.md](cellular-manager.md) | Configurable cellular modem lifecycle, PPP session, reconnect logic, hardware GPIO control |
 | [time.md](time.md) | Uptime vs Unix time, SNTP sync sequence, time validity threshold, where time gates the system |
 
 ---

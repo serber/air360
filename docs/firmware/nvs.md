@@ -127,7 +127,7 @@ struct CellularConfig {
     uint8_t  pwrkey_gpio;        // 0xFF = not wired
     uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
     uint8_t  reset_gpio;         // 0xFF = not wired
-    uint8_t  modem_type;         // kModemType* constant; default: 0 (SIM7600)
+    uint8_t  modem_type;         // kModemType* constant; default: 0 (SIM7600 dialect)
     uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; default: 600
     uint16_t reserved1;
     char     apn[64];             // PDP context APN; required when enabled
@@ -148,6 +148,7 @@ struct CellularConfig {
 | `pwrkey_gpio` | `0xFF` | `0xFF` = not wired; used for hardware power-cycle |
 | `sleep_gpio` | `0xFF` | `0xFF` = not wired; asserted during reconnect backoff |
 | `reset_gpio` | `0xFF` | `0xFF` = not wired; reserved, not actively used |
+| `modem_type` | `0` (SIM7600 dialect) | Must be one of the known `kModemType*` constants; invalid values reset only `cellular_cfg` to defaults |
 | `wifi_debug_window_s` | `600` | `0` = Wi-Fi station stops immediately when cellular is active |
 | `apn` | `""` | Must be non-empty when `enabled != 0` |
 | `connectivity_check_host` | `"8.8.8.8"` | Must be an IPv4 address (not a hostname); empty skips the check |

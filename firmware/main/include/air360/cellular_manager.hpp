@@ -34,7 +34,7 @@ struct CellularState {
     std::uint64_t next_reconnect_uptime_ms = 0U;
 };
 
-// Manages the SIM7600E modem lifecycle.
+// Manages the configured cellular modem lifecycle.
 //
 // Call order:
 //   1. init(network_manager)  — wire up the uplink bearer sink
@@ -133,7 +133,7 @@ class CellularManager {
     static constexpr std::uint32_t kMinPwrkeyIntervalMs = 3600000U;   // 1 h
     static constexpr std::uint32_t kMaxPwrkeyBeforeReboot = 2U;
 
-    // SIM7600E PWRKEY pulse durations (GPIO HIGH asserts the line).
+    // Default PWRKEY pulse durations (GPIO HIGH asserts the board control line).
     static constexpr std::uint32_t kPwrkeyPowerOffMs   = 3500U;
     static constexpr std::uint32_t kPwrkeyPowerOnMs    = 2000U;
     static constexpr std::uint32_t kModemShutdownWaitMs = 2000U;

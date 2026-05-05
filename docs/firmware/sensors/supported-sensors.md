@@ -44,4 +44,4 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 
 ## Peripheral note
 
-`SIM7600E` is documented alongside sensors because it shares hardware and configuration context, but it is not registered through the sensor pipeline. See [sim7600e.md](sim7600e.md) and [../cellular-manager.md](../cellular-manager.md).
+The cellular modem is documented alongside sensors because it shares hardware and configuration context, but it is not registered through the sensor pipeline. See [sim7600e.md](sim7600e.md) for the SIM7600E reference wiring and [../cellular-manager.md](../cellular-manager.md) for configurable modem runtime behavior.

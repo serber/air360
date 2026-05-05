@@ -19,7 +19,7 @@ This document covers cellular modem bring-up, PPP lifecycle, modem GPIO control,
 
 - [network-manager.md](network-manager.md)
 - [configuration-reference.md](configuration-reference.md)
-- [sensors/sim7600e.md](sensors/sim7600e.md)
+- [sensors/sim7600e.md](sensors/sim7600e.md) for the default SIM7600E wiring and hardware notes
 
 This document describes the `CellularManager` class — configurable modem lifecycle (SIM7600, SIM7070, SIM7000, BG96, EC20, SIM800, Generic), PPP session management, hardware GPIO control, runtime reconnect logic, and connectivity verification.
 
@@ -98,7 +98,7 @@ loop:
 |------|--------|-----------------|
 | 1 | Allocate PPP `esp_netif` | return false |
 | 2 | Configure UART DTE (port, baud, TX/RX pins, no flow control) | — |
-| 3 | Create DCE via `esp_modem_new_dev` using `modem_type` from config (`kModemTypeSim7600` = 0 by default) | return false |
+| 3 | Create DCE via `esp_modem_new_dev` using `modem_type` from config (`kModemTypeSim7600` = 0/default dialect) | return false |
 | 4 | Allocate PPP event group; register `IP_EVENT_PPP_GOT_IP` / `IP_EVENT_PPP_LOST_IP` handlers | return false |
 | 5 | SIM PIN unlock (if `sim_pin` non-empty; skipped if PIN not required) | return false |
 | 6 | Poll for network registration every 2 s with `AT+CEREG?` / registration-state API plus CSQ fallback | return false only on denied, unknown timeout, or no non-searching registration; "searching" keeps polling |

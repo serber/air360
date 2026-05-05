@@ -170,6 +170,7 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 | Username | `<input maxlength=31>` | Optional; leave empty if carrier does not require it |
 | Password | `<input type=password maxlength=63>` | Optional; Show/Hide toggle |
 | SIM PIN | `<input type=password maxlength=7>` | Optional; leave empty if SIM has no PIN lock |
+| Modem type | `<select name=cellular_modem_type>` | AT command dialect for the attached modem; SIM7600 is the default |
 | Connectivity check host | `<input maxlength=63>` | IPv4 address to ping after PPP connects; pre-filled with `8.8.8.8` when empty; leave empty to skip |
 | Wi-Fi debug window | `<input type=number min=0 max=3600>` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 

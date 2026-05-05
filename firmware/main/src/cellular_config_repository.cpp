@@ -55,6 +55,10 @@ bool CellularConfigRepository::isValid(const CellularConfig& config) const {
         return false;
     }
 
+    if (config.modem_type > kModemTypeMax) {
+        return false;
+    }
+
     if (config.apn[sizeof(config.apn) - 1U] != '\0' ||
         config.username[sizeof(config.username) - 1U] != '\0' ||
         config.password[sizeof(config.password) - 1U] != '\0' ||

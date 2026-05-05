@@ -78,7 +78,7 @@ Default poll interval: 10 seconds. The sensor updates its reading approximately 
 ## Notes
 
 - If `mhz19b_read_co2()` returns an error, `initialized_` is set to `false` and the next poll cycle re-initializes the device.
-- The descriptor assigns UART2 by default (`uart_port_id = 2`) to avoid conflict with GPS and SIM7600E on UART1. The web UI can move the sensor to UART1 when that port is free.
+- The descriptor assigns UART2 by default (`uart_port_id = 2`) to avoid conflict with GPS and the cellular modem on UART1. The web UI can move the sensor to UART1 when that port is free.
 - The MH-Z19B measuring range is `0–5000 ppm`. Indoor air is typically `400–1000 ppm`; values above `1000 ppm` indicate poor ventilation.
 
 ## Recommended poll interval

@@ -213,7 +213,8 @@ Available fields:
 | SNTP server | NTP hostname; leave empty to use `pool.ntp.org` |
 | Use static IP | When checked, the device uses the configured address instead of DHCP |
 | IP / Mask / Gateway / DNS | Static IP parameters; pre-filled from current DHCP lease when not yet configured |
-| Enable cellular uplink | Enables the SIM7600E modem as the primary uplink |
+| Enable cellular uplink | Enables the configured cellular modem as the primary uplink |
+| Modem type | AT command dialect used by the modem; SIM7600 is the default |
 | APN | Carrier APN; pre-filled with `internet` when empty |
 | Username / Password | Optional PAP credentials |
 | SIM PIN | Optional SIM PIN; leave empty if the SIM has no lock |
@@ -242,19 +243,20 @@ To return to DHCP, uncheck **Use static IP** and save.
 
 > Static IP applies to station mode only. The setup AP address (`192.168.4.1`) is fixed and unaffected.
 
-### Cellular Uplink (SIM7600E)
+### Cellular Uplink
 
 When cellular is enabled it becomes the primary uplink — the device connects to the mobile network via PPP and sends all uploads and SNTP traffic through the modem. Wi-Fi station remains available for web UI access during a configurable debug window after boot, then stops automatically.
 
 **To enable:**
 
-1. Check **Enable cellular uplink (SIM7600E)**.
+1. Check **Enable cellular uplink**.
 2. Enter the **APN** provided by your carrier (e.g. `internet`, `hologram`).
 3. Enter **Username** and **Password** if your carrier requires PAP authentication. Leave empty otherwise.
 4. Enter the **SIM PIN** if the SIM card has a PIN lock. Leave empty otherwise.
-5. Optionally enter a **Connectivity check host** (an IPv4 address to ping after PPP connects — useful for verifying the session is working end-to-end). Leave empty to skip the check.
-6. Set **Wi-Fi debug window** to the number of seconds Wi-Fi should stay up alongside cellular after boot. Set to `0` to disable Wi-Fi immediately when PPP is up.
-7. Press **Save and reboot**.
+5. Select the **Modem type** that matches the attached modem. SIM7600 is the default; SIM7070, SIM7000, BG96, EC20, SIM800, and Generic are also supported by the current AT-dialect selector.
+6. Optionally enter a **Connectivity check host** (an IPv4 address to ping after PPP connects — useful for verifying the session is working end-to-end). Leave empty to skip the check.
+7. Set **Wi-Fi debug window** to the number of seconds Wi-Fi should stay up alongside cellular after boot. Set to `0` to disable Wi-Fi immediately when PPP is up.
+8. Press **Save and reboot**.
 
 **After reboot:**
 
@@ -314,15 +316,15 @@ All categories except **Gas** allow only one configured sensor at a time.
 
 I2C sensors allow selecting one of the descriptor-supported addresses if your module uses a non-default address. UART sensors allow selecting one of the descriptor-supported UART ports; the UI shows the RX/TX pins for each port. GPIO and analog sensors require selecting one of the three available board pins.
 
-### Cellular modem (SIM7600E)
+### Cellular modem
 
 The modem is not configured on the Sensors page — it is managed on the Device page. Its default pin assignment is listed here for reference when planning your wiring.
 
 | Device | Transport | Pins |
 |--------|-----------|------|
-| SIM7600E | UART1 at 115200 baud | RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21 |
+| Configured cellular modem | UART1 at 115200 baud | RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21 |
 
-> **Note:** GPS (NMEA) and the SIM7600E share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on UART1. If you need both, move GPS to UART2 on the Sensor Configuration page or change the modem UART assignment.
+> **Note:** GPS (NMEA) and the cellular modem share the same default UART1 pins (GPIO17/18). They cannot be used at the same time on UART1. If you need both, move GPS to UART2 on the Sensor Configuration page or change the modem UART assignment.
 
 ### Adding a sensor
 
@@ -575,12 +577,13 @@ What this means in practice:
 
 ### Setting up cellular
 
-1. Insert a SIM card and connect the SIM7600E modem.
+1. Insert a SIM card and connect the cellular modem.
 2. Open **Device** → check **Enable cellular uplink**.
 3. Enter APN (and credentials if required by your carrier).
-4. Optionally enter a connectivity check host (e.g. `8.8.8.8`).
-5. Set **Wi-Fi debug window** to how long you want Wi-Fi to stay active after boot for web UI access.
-6. Press **Save and reboot**.
+4. Select the modem type for the attached hardware.
+5. Optionally enter a connectivity check host (e.g. `8.8.8.8`).
+6. Set **Wi-Fi debug window** to how long you want Wi-Fi to stay active after boot for web UI access.
+7. Press **Save and reboot**.
 7. Watch the **Uplink** stat on **Overview** — it will change from `cellular (connecting)` to `cellular` once the PPP session is up.
 
 ---

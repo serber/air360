@@ -12,7 +12,7 @@ void initModemGpios(const CellularConfig& config);
 
 // Assert the PWRKEY line HIGH for duration_ms, then release it LOW.
 // Polarity assumes the GPIO drives an NPN transistor that pulls PWRKEY LOW
-// on the module side (active-LOW on the SIM7600E pin).
+// on the module side for active-LOW modem PWRKEY inputs.
 // Recommended durations: power-on ≥2 s, power-off / reset ≥3.5 s.
 // No-op if gpio_pin is 0xFF.
 bool pulseModemPwrkey(std::uint8_t gpio_pin, std::uint32_t duration_ms);
