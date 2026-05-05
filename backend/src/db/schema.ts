@@ -7,6 +7,7 @@ export interface DeviceTable {
   name: string;
   latitude: number;
   longitude: number;
+  altitude_m: ColumnType<number | null, number | null, number | null>;
   firmware_version: string;
   upload_secret_hash: ColumnType<string | null, string | null, string | null>;
   last_batch_id: ColumnType<number | null, number | null, number | null>;
@@ -43,6 +44,7 @@ export type Device = {
   name: string;
   latitude: number;
   longitude: number;
+  altitude_m: number | null;
   firmware_version: string;
   upload_secret_hash: string | null;
   last_batch_id: number | null;

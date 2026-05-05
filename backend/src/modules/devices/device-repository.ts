@@ -8,6 +8,7 @@ interface UpsertDeviceData {
   name: string;
   latitude: number;
   longitude: number;
+  altitude_m: number | null;
   firmware_version: string;
   upload_secret_hash: string | null;
 }
@@ -24,6 +25,7 @@ export async function upsertDevice(
         name: data.name,
         latitude: data.latitude,
         longitude: data.longitude,
+        altitude_m: data.altitude_m,
         firmware_version: data.firmware_version,
         last_seen_at: new Date(),
         // TOFU: keep existing hash if already set, otherwise store the new one
@@ -72,14 +74,27 @@ export async function findDeviceByPublicId(
     .executeTakeFirst() as Promise<Device | undefined>;
 }
 
+interface UpdateDeviceOnIngestData {
+  batch_id: number;
+  location?: {
+    latitude: number;
+    longitude: number;
+    altitude_m: number | null;
+  };
+}
+
 export async function updateDeviceOnIngest(
   db: Kysely<Database>,
   device_id: number,
-  batch_id: number,
+  data: UpdateDeviceOnIngestData,
 ): Promise<void> {
   await db
     .updateTable("devices")
-    .set({ last_seen_at: new Date(), last_batch_id: batch_id })
+    .set({
+      last_seen_at: new Date(),
+      last_batch_id: data.batch_id,
+      ...(data.location ?? {}),
+    })
     .where("device_id", "=", device_id)
     .execute();
 }

@@ -174,7 +174,23 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       );
 
       await insertMeasurements(db, measurements);
-      await updateDeviceOnIngest(db, device_id, batch_id);
+
+      const latestGps = samples
+        .filter((s) => s.sensor_type === "gps_nmea")
+        .sort((a, b) => b.sample_time_unix_ms - a.sample_time_unix_ms)[0];
+
+      let location: { latitude: number; longitude: number; altitude_m: number | null } | undefined;
+      if (latestGps !== undefined) {
+        const valueOf = (kind: string) =>
+          latestGps.values.find((v) => v.kind === kind)?.value ?? null;
+        const latitude = valueOf("latitude_deg");
+        const longitude = valueOf("longitude_deg");
+        if (latitude !== null && longitude !== null) {
+          location = { latitude, longitude, altitude_m: valueOf("altitude_m") };
+        }
+      }
+
+      await updateDeviceOnIngest(db, device_id, { batch_id, ...(location ? { location } : {}) });
 
       return reply.code(200).send();
     },

@@ -20,6 +20,7 @@ interface RegisterBody {
   location: {
     latitude: number;
     longitude: number;
+    altitude_m?: number;
   };
   firmware_version: string;
   upload_secret_hash: string;
@@ -95,6 +96,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { device_id } = request.params;
       const { name, location, firmware_version, upload_secret_hash } = request.body ?? {};
+      const altitude_m = typeof location?.altitude_m === "number" ? location.altitude_m : null;
 
       if (!name || typeof name !== "string" || name.trim() === "") {
         return reply.code(400).send({
@@ -172,6 +174,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         name: name.trim(),
         latitude,
         longitude,
+        altitude_m,
         firmware_version: firmware_version.trim(),
         upload_secret_hash,
       });
