@@ -948,19 +948,28 @@ std::string buildMapHash(float latitude, float longitude) {
 }
 
 std::string renderMapLinksBlock(const BackendCardViewModel& card) {
-    if (card.air360_map_url.empty() || card.sensor_community_map_url.empty()) {
+    std::string map_url;
+    std::string map_label;
+
+    if (card.backend_type == BackendType::kAir360Api) {
+        map_url = card.air360_map_url;
+        map_label = "Air360";
+    } else if (card.backend_type == BackendType::kSensorCommunity) {
+        map_url = card.sensor_community_map_url;
+        map_label = "Sensor.Community";
+    }
+
+    if (map_url.empty()) {
         return "";
     }
 
     std::string html =
-        "<div class='backend-project-links backend-map-links'><span>Maps</span>";
+        "<div class='backend-project-links backend-map-links'><span>Map</span>";
     html += "<a href='";
-    html += htmlEscape(card.air360_map_url);
-    html += "' target='_blank' rel='noopener noreferrer'>Air360</a>";
-    html += "<a href='";
-    html += htmlEscape(card.sensor_community_map_url);
-    html += "' target='_blank' rel='noopener noreferrer'>Sensor.Community</a>";
-    html += "</div>";
+    html += htmlEscape(map_url);
+    html += "' target='_blank' rel='noopener noreferrer'>";
+    html += map_label;
+    html += "</a></div>";
     return html;
 }
 
