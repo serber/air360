@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f7f5;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -10,13 +10,6 @@
   --color-foreground: var(--foreground);
   --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -27,4 +20,134 @@ body {
 
 a {
   text-decoration: none;
+}
+
+.maplibregl-map {
+  font-family: var(--font-sans);
+}
+
+.maplibregl-popup-content {
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.maplibregl-popup-close-button {
+  font-size: 18px;
+  padding: 6px 8px;
+}
+
+.air360-device-marker {
+  align-items: center;
+  background: var(--marker-bg, #64748b);
+  border: 3px solid var(--marker-ring, #ffffff);
+  border-radius: 999px;
+  box-shadow:
+    0 12px 28px rgb(15 23 42 / 28%),
+    0 0 0 2px rgb(255 255 255 / 72%);
+  color: #ffffff;
+  display: flex;
+  font-size: 10px;
+  font-weight: 800;
+  justify-content: center;
+  line-height: 1;
+  transition:
+    opacity 160ms ease,
+    filter 160ms ease,
+    transform 160ms ease;
+}
+
+.air360-device-marker span {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.air360-device-marker:hover {
+  transform: scale(1.08);
+}
+
+.air360-quality-good,
+.air360-legend-dot.air360-quality-good {
+  --marker-bg: #15803d;
+  --marker-ring: #bbf7d0;
+}
+
+.air360-quality-moderate,
+.air360-legend-dot.air360-quality-moderate {
+  --marker-bg: #ca8a04;
+  --marker-ring: #fef08a;
+}
+
+.air360-quality-poor,
+.air360-legend-dot.air360-quality-poor {
+  --marker-bg: #ea580c;
+  --marker-ring: #fed7aa;
+}
+
+.air360-quality-bad,
+.air360-legend-dot.air360-quality-bad {
+  --marker-bg: #be123c;
+  --marker-ring: #fecdd3;
+}
+
+.air360-quality-neutral,
+.air360-legend-dot.air360-quality-neutral {
+  --marker-bg: #2563eb;
+  --marker-ring: #bfdbfe;
+}
+
+.air360-quality-no-data,
+.air360-legend-dot.air360-quality-no-data {
+  --marker-bg: #64748b;
+  --marker-ring: #e2e8f0;
+}
+
+.air360-fresh-fresh {
+  opacity: 1;
+}
+
+.air360-fresh-hour-day {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.air360-fresh-day-week {
+  border-style: dashed;
+  filter: saturate(0.75);
+  opacity: 0.64;
+}
+
+.air360-fresh-week-month {
+  border-style: dotted;
+  filter: grayscale(0.35) saturate(0.55);
+  opacity: 0.46;
+}
+
+.air360-fresh-month-plus,
+.air360-fresh-unknown {
+  border-style: dotted;
+  filter: grayscale(0.75) saturate(0.35);
+  opacity: 0.3;
+}
+
+.air360-legend-dot {
+  background: var(--marker-bg, #64748b);
+  border: 2px solid var(--marker-ring, #ffffff);
+  border-radius: 999px;
+  display: inline-block;
+  height: 12px;
+  width: 12px;
+}
+
+.air360-freshness-chip {
+  border: 2px solid #cbd5e1;
+  border-radius: 999px;
+  color: #334155;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 8px;
 }

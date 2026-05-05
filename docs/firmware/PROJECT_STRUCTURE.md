@@ -59,8 +59,8 @@ firmware/
 - `main/CMakeLists.txt` — registers the `main` component: sources, embedded frontend assets, required ESP-IDF components
 - `main/Kconfig.projbuild` — project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
-- `partitions.csv` — custom partition table (nvs, otadata, phy_init, factory, storage)
-- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
+- `partitions.csv` — custom 16 MB partition table (nvs, otadata, phy_init, ota_0, ota_1, storage)
+- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht3x, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
 - `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
 
 ---
@@ -71,7 +71,7 @@ firmware/
 
 - `main/src/app_main.cpp` — `app_main()` entry, constructs and runs `air360::App`
 - `main/src/app.cpp` — 9-step boot sequence: LEDs, watchdog, NVS, network core, config, sensors, uploads, web server
-- `main/src/build_info.cpp` — build metadata and device identity (chip_id, short_chip_id, esp_mac_id)
+- `main/src/build_info.cpp` — build metadata and device identity (device_id, short_device_id, esp_mac_id)
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
 - `main/src/cellular_config_repository.cpp` — NVS-backed `CellularConfig` persistence (independent schema version)
@@ -120,9 +120,11 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `bme280_sensor.cpp` | BME280 | `espressif__bme280` (managed component) |
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` (managed component) |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
+| `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` (managed component) |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` (managed component) |
 | `htu2x_sensor.cpp` | HTU2X / Si7021 | `esp-idf-lib__si7021` (managed component) |
+| `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` (managed component) |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` (managed component) |
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` (managed component) |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
@@ -139,18 +141,19 @@ Sources: `main/src/uploads/`
 
 - `measurement_store.cpp` — in-memory ring buffer (max `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH`, default 256 samples) with pending/inflight upload semantics
 - `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 4 backends)
+- `air360_api_credentials.cpp` — separate NVS-backed Air360 API upload secret storage and hash/generation helpers
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
 - `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle and per-backend cursors
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
 - `adapters/air360_json_payload.cpp` — shared Air360 JSON body builder used by multiple backend uploaders
-- `adapters/air360_api_uploader.cpp` — PUT Air360 JSON to the configured Air360 backend host/path
+- `adapters/air360_api_uploader.cpp` — register with Air360 API and PUT signed-by-secret Air360 JSON to the configured backend host/path
 - `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied protocol/host/path/port endpoint
 - `adapters/influxdb_uploader.cpp` — POST Influx line protocol to a user-supplied host/path/port with optional Basic Auth
 - `adapters/sensor_community_uploader.cpp` — POST to the configured Sensor.Community host/path
 
 ### Third-party sources
 
-`main/third_party/sps30/` — vendored Sensirion SPS30 C library. All other sensor integrations are consumed as ESP-IDF managed components under `managed_components/`.
+`main/third_party/sps30/` — vendored Sensirion SPS30 C library. Most other sensor integrations are consumed as ESP-IDF managed components under `managed_components/`; SDS011 is implemented directly as a small UART frame parser.
 
 ---
 

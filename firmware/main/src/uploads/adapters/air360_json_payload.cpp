@@ -55,8 +55,8 @@ bool validateAir360JsonBatch(const MeasurementBatch& batch, std::string& error) 
         return false;
     }
 
-    if (batch.chip_id.empty() && batch.short_chip_id.empty()) {
-        error = "Air360 JSON requires a valid chip id.";
+    if (batch.device_id.empty() && batch.short_device_id.empty()) {
+        error = "Air360 JSON requires a valid device id.";
         return false;
     }
 
@@ -77,10 +77,10 @@ std::string buildAir360JsonBody(const MeasurementBatch& batch) {
     body += jsonEscape(batch.device_name);
     body += "\",\"board_name\":\"";
     body += jsonEscape(batch.board_name);
-    body += "\",\"chip_id\":\"";
-    body += jsonEscape(batch.chip_id);
-    body += "\",\"short_chip_id\":\"";
-    body += jsonEscape(batch.short_chip_id);
+    body += "\",\"device_id\":\"";
+    body += jsonEscape(batch.device_id);
+    body += "\",\"short_device_id\":\"";
+    body += jsonEscape(batch.short_device_id);
     body += "\",\"esp_mac_id\":\"";
     body += jsonEscape(batch.esp_mac_id);
     body += "\",\"firmware_version\":\"";

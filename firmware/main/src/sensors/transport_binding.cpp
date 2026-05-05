@@ -12,8 +12,8 @@ namespace air360 {
 
 namespace {
 
-// Current UART sensors are RX-driven, so reserving no TX ring buffer avoids
-// wasting RAM in the shared ESP-IDF UART driver.
+// UART sensor traffic is RX-heavy. Short command writes can use the blocking
+// ESP-IDF TX path, so no TX ring buffer is reserved.
 constexpr int kUartTxBufferSize = 0;
 
 constexpr BusConfig kBuses[] = {
@@ -103,6 +103,19 @@ esp_err_t I2cBusManager::getComponentBus(
 
     out_handle = i2c_bus_create(port, &config);
     return out_handle != nullptr ? ESP_OK : ESP_FAIL;
+}
+
+esp_err_t I2cBusManager::getMasterBusHandle(
+    std::uint8_t bus_id,
+    i2c_master_bus_handle_t& out_handle) const {
+    i2c_port_t port = I2C_NUM_0;
+    gpio_num_t sda = GPIO_NUM_NC;
+    gpio_num_t scl = GPIO_NUM_NC;
+    if (!resolvePins(bus_id, port, sda, scl)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    // i2cdev already owns this port; borrow its underlying master bus handle.
+    return i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
 }
 
 // ── UartPortManager ──────────────────────────────────────────────────────────

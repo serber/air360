@@ -92,7 +92,7 @@ void wdtFeedingDelay(std::uint32_t total_ms) {
 
 Use these helpers (or a similar pattern) whenever a task must sleep or wait longer than `timeout / 2`. Do **not** raise the TWDT timeout to accommodate long waits — that defeats the purpose.
 
-The upload task cannot chunk `esp_http_client_perform()` internally because `UploadTransport::execute()` is synchronous. Instead, `UploadManager` feeds the TWDT immediately before and after each request. This keeps multi-request backend batches from starving the TWDT while preserving the existing per-request timeout and retry semantics.
+The upload task cannot chunk `esp_http_client_perform()` internally because `UploadTransport::execute()` is synchronous. Instead, HTTP-backed adapters feed the TWDT through `BackendDeliveryContext` immediately before and after each request. This keeps multi-request backend batches from starving the TWDT while preserving the existing per-request timeout and retry semantics.
 
 ## Adding a new task
 

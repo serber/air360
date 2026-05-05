@@ -6,7 +6,7 @@ Implemented. Keep this document aligned with the current modem runtime and cellu
 
 ## Scope
 
-This document covers SIM7600E modem bring-up, PPP lifecycle, modem GPIO control, reconnect behavior, and the cellular runtime state exposed by the firmware.
+This document covers cellular modem bring-up, PPP lifecycle, modem GPIO control, reconnect behavior, and the cellular runtime state exposed by the firmware. The modem type (AT command dialect) is configurable via `CellularConfig::modem_type`; SIM7600 is the default.
 
 ## Source of truth in code
 
@@ -21,7 +21,7 @@ This document covers SIM7600E modem bring-up, PPP lifecycle, modem GPIO control,
 - [configuration-reference.md](configuration-reference.md)
 - [sensors/sim7600e.md](sensors/sim7600e.md)
 
-This document describes the `CellularManager` class — SIM7600E modem lifecycle, PPP session management, hardware GPIO control, runtime reconnect logic, and connectivity verification.
+This document describes the `CellularManager` class — configurable modem lifecycle (SIM7600, SIM7070, SIM7000, BG96, EC20, SIM800, Generic), PPP session management, hardware GPIO control, runtime reconnect logic, and connectivity verification.
 
 ---
 
@@ -98,7 +98,7 @@ loop:
 |------|--------|-----------------|
 | 1 | Allocate PPP `esp_netif` | return false |
 | 2 | Configure UART DTE (port, baud, TX/RX pins, no flow control) | — |
-| 3 | Create SIM7600E DCE via `esp_modem_new_dev` | return false |
+| 3 | Create DCE via `esp_modem_new_dev` using `modem_type` from config (`kModemTypeSim7600` = 0 by default) | return false |
 | 4 | Allocate PPP event group; register `IP_EVENT_PPP_GOT_IP` / `IP_EVENT_PPP_LOST_IP` handlers | return false |
 | 5 | SIM PIN unlock (if `sim_pin` non-empty; skipped if PIN not required) | return false |
 | 6 | Poll for network registration every 2 s with `AT+CEREG?` / registration-state API plus CSQ fallback | return false only on denied, unknown timeout, or no non-searching registration; "searching" keeps polling |

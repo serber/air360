@@ -9,6 +9,17 @@ namespace air360 {
 constexpr std::uint32_t kCellularConfigMagic = 0x43454C4CU;  // "CELL"
 constexpr std::uint16_t kCellularConfigSchemaVersion = 1U;
 
+// Modem type constants for CellularConfig::modem_type.
+// Values map directly to esp_modem_dce_device_t entries; 0 is the safe default.
+constexpr std::uint8_t kModemTypeSim7600 = 0U;
+constexpr std::uint8_t kModemTypeSim7070 = 1U;
+constexpr std::uint8_t kModemTypeSim7000 = 2U;
+constexpr std::uint8_t kModemTypeBg96    = 3U;
+constexpr std::uint8_t kModemTypeEc20    = 4U;
+constexpr std::uint8_t kModemTypeSim800  = 5U;
+constexpr std::uint8_t kModemTypeGeneric = 6U;
+constexpr std::uint8_t kModemTypeMax     = kModemTypeGeneric;
+
 // Stored as NVS blob "cellular_cfg" in the "air360" namespace.
 // Independent of DeviceConfig — versioned separately.
 //
@@ -27,7 +38,7 @@ struct CellularConfig {
     std::uint8_t  pwrkey_gpio;       // 0xFF = not wired
     std::uint8_t  sleep_gpio;        // 0xFF = not wired; drives modem DTR/sleep
     std::uint8_t  reset_gpio;        // 0xFF = not wired
-    std::uint8_t  reserved0;         // padding
+    std::uint8_t  modem_type;        // one of kModemType* constants; default = kModemTypeSim7600
     std::uint16_t wifi_debug_window_s;  // seconds Wi-Fi stays up alongside cellular; 0 = disabled
     std::uint16_t reserved1;            // padding
     // --- carrier provisioning ---

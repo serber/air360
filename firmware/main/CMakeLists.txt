@@ -10,10 +10,12 @@ idf_component_register(
         "src/config_repository.cpp"
         "src/config_transaction.cpp"
         "src/connectivity_checker.cpp"
+        "src/crypto_utils.cpp"
         "src/network_manager.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
         "src/web/web_request_body.cpp"
+        "src/uploads/air360_api_credentials.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
         "src/uploads/adapters/air360_json_payload.cpp"
@@ -29,6 +31,7 @@ idf_component_register(
         "src/uploads/upload_manager_status.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
+        "src/sensors/drivers/aht30_sensor.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bme680_sensor.cpp"
         "src/sensors/drivers/dht_sensor.cpp"
@@ -39,6 +42,8 @@ idf_component_register(
         "src/sensors/drivers/mhz19b_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/scd30_sensor.cpp"
+        "src/sensors/drivers/sds011_sensor.cpp"
+        "src/sensors/drivers/sht3x_sensor.cpp"
         "src/sensors/drivers/sht4x_sensor.cpp"
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
@@ -72,11 +77,13 @@ idf_component_register(
         esp-idf-lib__bme680
         esp-idf-lib__dht
         esp-idf-lib__scd30
+        esp-idf-lib__sht3x
         esp-idf-lib__sht4x
         esp-idf-lib__ina219
         esp-idf-lib__mhz19b
         esp-idf-lib__si7021
         esp-idf-lib__veml7700
+        espressif__aht30
         espressif__bme280
         espressif__i2c_bus
         espressif__ds18b20
@@ -103,6 +110,8 @@ idf_component_register(
     EMBED_TXTFILES
         "webui/air360.css"
         "webui/air360.js"
+        "webui/vendor/maplibre/maplibre-gl.css"
+        "webui/vendor/maplibre/maplibre-gl.js"
         "webui/page_root.html"
         "webui/page_config.html"
         "webui/page_sensors.html"

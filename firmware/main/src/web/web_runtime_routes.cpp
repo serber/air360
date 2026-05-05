@@ -87,6 +87,30 @@ esp_err_t WebServer::handleLogsData(httpd_req_t* request) {
     return httpd_resp_send(request, contents.c_str(), contents.size());
 }
 
+esp_err_t WebServer::handleAir360UploadSecret(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "application/json");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+
+    if (server->status_service_->networkState().mode == NetworkMode::kSetupAp) {
+        httpd_resp_set_status(request, "403 Forbidden");
+        return httpd_resp_sendstr(request, "{\"error\":\"station_mode_required\"}");
+    }
+
+    const std::string secret = generateAir360UploadSecret();
+    if (secret.empty()) {
+        httpd_resp_set_status(request, "500 Internal Server Error");
+        return httpd_resp_sendstr(request, "{\"error\":\"secret_generation_failed\"}");
+    }
+
+    std::string response;
+    response.reserve(96U);
+    response += "{\"upload_secret\":\"";
+    response += jsonEscape(secret);
+    response += "\"}";
+    return httpd_resp_sendstr(request, response.c_str());
+}
+
 esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {
     auto* server = static_cast<WebServer*>(request->user_ctx);
 

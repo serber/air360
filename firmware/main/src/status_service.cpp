@@ -970,8 +970,8 @@ std::string buildStatusJsonDocument(
     json += "\"current_datetime\":\"" + jsonEscape(currentUtcDateTimeLabel()) + "\",";
     json += "\"compile_date\":\"" + jsonEscape(build_info.compile_date) + "\",";
     json += "\"compile_time\":\"" + jsonEscape(build_info.compile_time) + "\",";
-    json += "\"chip_id\":\"" + jsonEscape(build_info.chip_id) + "\",";
-    json += "\"short_chip_id\":\"" + jsonEscape(build_info.short_chip_id) + "\",";
+    json += "\"device_id\":\"" + jsonEscape(build_info.device_id) + "\",";
+    json += "\"short_device_id\":\"" + jsonEscape(build_info.short_device_id) + "\",";
     json += "\"esp_mac_id\":\"" + jsonEscape(build_info.esp_mac_id) + "\",";
     json += "\"device_name\":\"" + jsonEscape(render_snapshot.config.device_name) + "\",";
     json += "\"wifi_station_ssid\":\"" + jsonEscape(render_snapshot.config.wifi_sta_ssid) + "\",";

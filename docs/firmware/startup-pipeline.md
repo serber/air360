@@ -47,7 +47,7 @@ ROM bootloader
 This phase is handled entirely by ESP-IDF and the hardware bootloader. The application has no control over it.
 
 1. ROM bootloader runs from internal ROM, verifies and loads the second-stage bootloader from flash offset `0x0`.
-2. Second-stage bootloader loads the partition table from `0x8000`, selects the active OTA slot (factory at `0x20000` in the current config), and loads the application image.
+2. Second-stage bootloader loads the partition table from `0x8000`, selects the active OTA app slot (`ota_0` at `0x20000` on a fresh flash), and loads the application image.
 3. ESP-IDF C runtime initializes: sets up the heap, SPI flash driver, default log level, chip identification, and starts the FreeRTOS scheduler.
 4. FreeRTOS creates the **main task** with a stack size of `CONFIG_ESP_MAIN_TASK_STACK_SIZE` (8192 bytes, set in `sdkconfig.defaults`) and calls `app_main()`.
 

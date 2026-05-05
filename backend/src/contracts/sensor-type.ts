@@ -8,11 +8,14 @@ export const sensorTypes = [
   "dht11",
   "dht22",
   "htu2x",
+  "sht3x",
   "sht4x",
   "ds18b20",
   "me3_no2",
   "ina219",
   "mhz19b",
+  "sds011",
+  "aht30",
 ] as const;
 
 export type SensorType = (typeof sensorTypes)[number];

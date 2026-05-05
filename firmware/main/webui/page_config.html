@@ -119,6 +119,13 @@
         </div>
         <span class='field-hint'>Leave empty if the SIM has no PIN lock.</span>
       </label>
+      <label class='field'>
+        <span class='field-label'>Modem type</span>
+        <select class='input' id='cellular_modem_type' name='cellular_modem_type'>
+          {{CELLULAR_MODEM_TYPE_OPTIONS}}
+        </select>
+        <span class='field-hint'>AT command dialect used to control the modem.</span>
+      </label>
       <div class='row-2'>
         <label class='field'>
           <span class='field-label'>Connectivity check host</span>

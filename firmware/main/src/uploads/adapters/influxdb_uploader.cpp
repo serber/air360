@@ -6,11 +6,12 @@
 #include <utility>
 #include <vector>
 
+#include "air360/crypto_utils.hpp"
 #include "air360/sensor_format_utils.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/uploads/backend_config.hpp"
-#include "mbedtls/base64.h"
+#include "air360/uploads/upload_transport.hpp"
 
 namespace air360 {
 
@@ -77,7 +78,7 @@ std::string buildLineProtocolBody(
     }
 
     const std::string node =
-        !batch.short_chip_id.empty() ? batch.short_chip_id : batch.chip_id;
+        !batch.short_device_id.empty() ? batch.short_device_id : batch.device_id;
     const std::string escaped_measurement = escapeMeasurementPart(measurement);
     const std::string escaped_node = escapeMeasurementPart(node);
 
@@ -125,22 +126,29 @@ bool appendBasicAuthHeader(
 
     const std::string raw = std::string(username) + ":" + std::string(password);
     std::string encoded;
-    encoded.resize(((raw.size() + 2U) / 3U) * 4U + 1U);
-    size_t encoded_length = 0U;
-    const int result = mbedtls_base64_encode(
-        reinterpret_cast<unsigned char*>(encoded.data()),
-        encoded.size(),
-        &encoded_length,
-        reinterpret_cast<const unsigned char*>(raw.data()),
-        raw.size());
-    if (result != 0) {
+    if (!encodeBase64(
+            reinterpret_cast<const std::uint8_t*>(raw.data()),
+            raw.size(),
+            encoded)) {
         error = "Failed to encode InfluxDB basic auth header.";
         return false;
     }
 
-    encoded.resize(encoded_length);
     request.headers.push_back({"Authorization", std::string("Basic ") + encoded});
     return true;
+}
+
+std::string errorMessageFromResponse(const UploadTransportResponse& response) {
+    if (response.transport_err != ESP_OK) {
+        return esp_err_to_name(response.transport_err);
+    }
+    if (!response.body_snippet.empty()) {
+        return response.body_snippet;
+    }
+    if (response.http_status != 0) {
+        return std::string("HTTP ") + std::to_string(response.http_status);
+    }
+    return "Upload failed.";
 }
 
 }  // namespace
@@ -166,6 +174,60 @@ bool InfluxDbUploader::validateConfig(
     }
     error.clear();
     return true;
+}
+
+UploadAttemptResult InfluxDbUploader::deliver(
+    const BackendRecord& record,
+    const MeasurementBatch& batch,
+    const BackendDeliveryContext& context) {
+    UploadAttemptResult result;
+    result.phase = UploadAttemptPhase::kPreflight;
+
+    std::string error;
+    std::vector<UploadRequestSpec> requests;
+    if (!buildRequests(record, batch, requests, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (requests.empty()) {
+        result.result = UploadResultClass::kNoData;
+        return result;
+    }
+
+    if (context.http_transport == nullptr) {
+        result.result = UploadResultClass::kUnsupported;
+        result.phase = UploadAttemptPhase::kDataUpload;
+        result.message = "HTTP transport is not available.";
+        return result;
+    }
+
+    result.result = UploadResultClass::kSuccess;
+    result.phase = UploadAttemptPhase::kDataUpload;
+    for (const auto& request : requests) {
+        if (context.stopRequested()) {
+            result.result = UploadResultClass::kUnknown;
+            result.message = "Upload stopped before request completed.";
+            return result;
+        }
+
+        context.resetWatchdog("before influxdb upload request");
+        const UploadTransportResponse response = context.http_transport->execute(request);
+        context.resetWatchdog("after influxdb upload request");
+
+        result.status_code = response.http_status;
+        result.response_time_ms = response.response_time_ms;
+        result.retry_after_seconds = response.retry_after_seconds;
+        result.transport_err = response.transport_err;
+        result.result = classifyResponse(response);
+        if (result.result != UploadResultClass::kSuccess) {
+            result.message = errorMessageFromResponse(response);
+            return result;
+        }
+    }
+
+    return result;
 }
 
 bool InfluxDbUploader::buildRequests(

@@ -65,6 +65,47 @@
       return;
     }
 
+    const air360SecretBtn = e.target.closest('[data-generate-air360-secret]');
+    if (air360SecretBtn) {
+      const target = document.getElementById(air360SecretBtn.getAttribute('data-generate-air360-secret'));
+      if (target instanceof HTMLTextAreaElement) {
+        target.disabled = false;
+        air360SecretBtn.disabled = true;
+        fetch('/backends/air360-upload-secret', { cache: 'no-store' })
+          .then(r => {
+            if (!r.ok) throw new Error('secret generation failed');
+            return r.json();
+          })
+          .then(data => {
+            if (typeof data.upload_secret !== 'string') throw new Error('invalid response');
+            target.value = data.upload_secret;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.focus();
+            target.select();
+          })
+          .catch(() => {
+            target.value = '';
+            target.placeholder = 'Could not generate secret. Reload the page and try again.';
+          })
+          .finally(() => {
+            air360SecretBtn.disabled = false;
+          });
+      }
+      return;
+    }
+
+    const air360SecretChangeBtn = e.target.closest('[data-change-air360-secret]');
+    if (air360SecretChangeBtn) {
+      const panel = document.getElementById(air360SecretChangeBtn.getAttribute('data-change-air360-secret'));
+      const target = document.getElementById(air360SecretChangeBtn.getAttribute('data-secret-input'));
+      if (panel instanceof HTMLElement && target instanceof HTMLTextAreaElement) {
+        panel.hidden = false;
+        target.disabled = false;
+        target.focus();
+      }
+      return;
+    }
+
     // Collapsible card headers
     const cardHead = e.target.closest('.card.collapsible > .card-header');
     if (cardHead) {
@@ -496,6 +537,134 @@
     }
 
     // ── Backend card sync ────────────────────────────────────────────────────
+    const MAP_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const MAP_TILE_ATTRIBUTION = '&copy; OpenStreetMap contributors';
+
+    function parseCoordinatePair(latInput, lonInput) {
+      const lat = Number.parseFloat(latInput.value.trim());
+      const lon = Number.parseFloat(lonInput.value.trim());
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+      return { lat, lon };
+    }
+
+    function formatCoordinate(value) {
+      return value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '.0');
+    }
+
+    function dispatchCoordinateInput(input) {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function initAir360LocationMap(container) {
+      if (!(container instanceof HTMLElement)) return;
+      if (container.dataset.mapReady === 'true') return;
+      container.dataset.mapReady = 'true';
+
+      const latInput = document.getElementById(container.dataset.latInput || '');
+      const lonInput = document.getElementById(container.dataset.lonInput || '');
+      const statusNode = container.parentElement?.querySelector('[data-air360-location-map-status]');
+      if (!(latInput instanceof HTMLInputElement) || !(lonInput instanceof HTMLInputElement)) return;
+
+      if (!window.maplibregl) {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map unavailable. Manual coordinates remain editable.';
+        return;
+      }
+
+      const initial = parseCoordinatePair(latInput, lonInput);
+      let map = null;
+      try {
+        map = new maplibregl.Map({
+          container,
+          style: {
+            version: 8,
+            sources: {
+              osm: {
+                type: 'raster',
+                tiles: [MAP_TILE_URL],
+                tileSize: 256,
+                maxzoom: 19,
+                attribution: MAP_TILE_ATTRIBUTION,
+              },
+            },
+            layers: [
+              {
+                id: 'osm',
+                type: 'raster',
+                source: 'osm',
+              },
+            ],
+          },
+          center: initial ? [initial.lon, initial.lat] : [0, 20],
+          zoom: initial ? 11 : 2,
+          attributionControl: true,
+        });
+      } catch {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map unavailable. Manual coordinates remain editable.';
+        return;
+      }
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+      map.on('error', () => {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map tiles unavailable. Manual coordinates remain editable.';
+      });
+
+      const markerElement = document.createElement('div');
+      markerElement.className = 'location-map-marker';
+      let marker = null;
+
+      function setMarker(point, centerMap) {
+        if (!marker) {
+          marker = new maplibregl.Marker({
+            element: markerElement,
+            anchor: 'center',
+          }).setLngLat([point.lon, point.lat]).addTo(map);
+        } else {
+          marker.setLngLat([point.lon, point.lat]);
+        }
+        if (centerMap) {
+          map.easeTo({
+            center: [point.lon, point.lat],
+            zoom: Math.max(map.getZoom(), 10),
+          });
+        }
+      }
+
+      if (initial) setMarker(initial, false);
+
+      map.on('click', event => {
+        const point = {
+          lat: event.lngLat.lat,
+          lon: event.lngLat.lng,
+        };
+        latInput.value = formatCoordinate(point.lat);
+        lonInput.value = formatCoordinate(point.lon);
+        setMarker(point, false);
+        dispatchCoordinateInput(latInput);
+        dispatchCoordinateInput(lonInput);
+        if (statusNode instanceof HTMLElement) statusNode.textContent = '';
+      });
+
+      function syncFromInputs() {
+        const point = parseCoordinatePair(latInput, lonInput);
+        if (!point) return;
+        setMarker(point, true);
+        if (statusNode instanceof HTMLElement) statusNode.textContent = '';
+      }
+
+      latInput.addEventListener('change', syncFromInputs);
+      lonInput.addEventListener('change', syncFromInputs);
+
+      const card = container.closest('[data-backend-card]');
+      const enabled = card?.querySelector('[data-backend-enabled-toggle]');
+      if (enabled instanceof HTMLInputElement) {
+        enabled.addEventListener('change', () => {
+          window.setTimeout(() => map.resize(), 80);
+        });
+      }
+      window.setTimeout(() => map.resize(), 80);
+    }
+
     function syncBackendCard(panel) {
       syncBackendProtocolPort(panel);
     }
@@ -514,6 +683,10 @@
       syncBackendCard(panel);
       const httpsTog = panel.querySelector('[data-backend-https-toggle]');
       if (httpsTog instanceof HTMLInputElement) httpsTog.addEventListener('change', () => syncBackendProtocolPort(panel));
+    }
+
+    for (const container of document.querySelectorAll('[data-air360-location-map]')) {
+      initAir360LocationMap(container);
     }
 
     // ── Logs console ─────────────────────────────────────────────────────────

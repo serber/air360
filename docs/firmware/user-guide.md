@@ -280,11 +280,11 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | Category | Models |
 |----------|--------|
 | Climate | BME280, BME680 |
-| Temperature & Humidity | SHT4X, HTU2X, DHT11, DHT22 |
+| Temperature & Humidity | AHT30, SHT3X, SHT4X, HTU2X, DHT11, DHT22 |
 | Temperature | DS18B20 |
 | CO2 | SCD30 |
 | Light | VEML7700 |
-| Particulate Matter | SPS30 |
+| Particulate Matter | SPS30, SDS011 |
 | Location | GPS (NMEA) |
 | Gas | ME3-NO2, MH-Z19B |
 | Power Monitoring | INA219 |
@@ -295,13 +295,16 @@ All categories except **Gas** allow only one configured sensor at a time.
 
 | Sensor | Transport | Pins |
 |--------|-----------|------|
+| AHT30 | I2C at 0x38 | SDA=GPIO8, SCL=GPIO9 |
 | BME280 | I2C at 0x76 | SDA=GPIO8, SCL=GPIO9 |
 | BME680 | I2C at 0x77 | SDA=GPIO8, SCL=GPIO9 |
+| SHT3X | I2C at 0x44 | SDA=GPIO8, SCL=GPIO9 |
 | SHT4X | I2C at 0x44 | SDA=GPIO8, SCL=GPIO9 |
 | HTU2X | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
 | SCD30 | I2C at 0x61 | SDA=GPIO8, SCL=GPIO9 |
 | VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
 | SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
+| SDS011 | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |
 | GPS (NMEA) | UART1 at 9600 baud (UART2 selectable) | UART1 RX=GPIO18/TX=GPIO17; UART2 RX=GPIO16/TX=GPIO15 |
 | DHT11, DHT22 | GPIO | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
 | DS18B20 | GPIO (1-Wire) | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
@@ -326,7 +329,7 @@ The modem is not configured on the Sensors page — it is managed on the Device 
 1. Open **Sensors**.
 2. Find the category you want.
 3. Select the sensor model.
-4. Set the **Poll interval (ms)**. Minimum is 5000 ms for most sensors.
+4. Set the **Poll interval (ms)**. The allowed range is 30 000–1 800 000 ms (30 s to 30 min).
 5. For I2C sensors: adjust the **I2C address** only if needed.
 6. For GPIO or analog sensors: select the board pin from the dropdown.
 7. Make sure the sensor is enabled.
@@ -356,24 +359,67 @@ The Backends page configures where measurement data is uploaded.
 
 ### Upload interval
 
-The **Upload interval** field at the top of the page controls how often the device sends a data batch to all enabled backends. The allowed range is 10 000–300 000 ms (10 s to 5 min). The default is 145 000 ms.
+The **Upload interval** field at the top of the page controls how often the device sends a data batch to all enabled backends. The allowed range is 30 000–3 600 000 ms (30 s to 1 h). The default is 145 000 ms.
 
 ### Sensor.Community
 
 To use Sensor.Community:
 
-1. Open **Diagnostics** and find `short_chip_id` in the raw status dump — this is the ID you register on the Sensor.Community portal.
+1. Open **Diagnostics** and find `short_device_id` in the raw status dump — this is the ID you register on the Sensor.Community portal.
 2. Register your device at `https://devices.sensor.community/` using that Short ID.
 3. Return to the firmware **Backends** page.
 4. Enable Sensor.Community.
 5. Leave **Device ID override** at its default value unless you need a different ID for debugging.
 6. Press **Save**.
 
-> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the `short_chip_id` from the Diagnostics page raw status dump. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
+> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the `short_device_id` from the Diagnostics page raw status dump. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
 
 ### Air360 API
 
-Enable Air360 API and press **Save**. No additional credentials are required in the current firmware version.
+The Air360 API backend requires a device-specific **upload secret** before
+uploads can start. The secret is generated on the device and must be saved
+somewhere safe — it cannot be retrieved from the backend after the initial
+setup.
+
+**To enable for the first time:**
+
+1. Open **Backends**.
+2. Enable **Air360 API**.
+3. Enter **Latitude** and **Longitude** for the device location. You can type
+   the coordinates or click the map to place a marker. Uploads are blocked
+   until coordinates are non-zero.
+4. Press **Generate** next to **Upload secret**. The field fills with a new
+   secret in the form `air360_us_v1_...`.
+5. **Copy and save the secret now** — paste it into a password manager or a
+   secure note. You will need it if the device is ever reset.
+6. Press **Save**.
+
+After saving, the Backends page shows **Configured** with a masked preview
+instead of the input field. The device registers with the backend on the next
+upload cycle and then starts sending measurements.
+
+When Air360 API coordinates are saved, the Sensor.Community and Air360 API
+backend cards also show **Maps** links. They open the same device location in
+Air360 and Sensor.Community map views using the `#15/<latitude>/<longitude>`
+URL format.
+
+**To recover after a device reset (erase-flash or NVS loss):**
+
+If the device NVS was erased and you saved the original secret:
+
+1. Open **Backends**.
+2. Enable **Air360 API**.
+3. Enter the same latitude and longitude as before.
+4. Press **I already have an upload secret** below the input field to switch
+   to paste mode.
+5. Paste the saved secret into the **Upload secret** field.
+6. Press **Save**.
+
+The device registers with the same secret hash and the backend accepts it,
+restoring the previous device record. If you lost the secret, a backend-side
+reset or a new device record is required.
+
+Use **Change** only when you intentionally need to replace the stored secret.
 
 ### Custom Upload
 
@@ -496,11 +542,20 @@ What this means in practice:
 
 ### Enabling Sensor.Community upload
 
-1. Open **Diagnostics** → find `short_chip_id` in the raw status dump.
+1. Open **Diagnostics** → find `short_device_id` in the raw status dump.
 2. Register the device at `https://devices.sensor.community/`.
 3. Open **Backends** → enable Sensor.Community → press **Save**.
 4. Set the upload interval as needed.
 5. Monitor upload status on **Overview** or **Backends**.
+
+### Enabling Air360 API upload
+
+1. Open **Backends** → enable **Air360 API**.
+2. Enter latitude and longitude for your device location (or click the map).
+3. Press **Generate** → the Upload secret field fills with a new secret.
+4. **Copy and save the secret** in a password manager or secure note.
+5. Press **Save**.
+6. Monitor upload status on **Overview** or **Backends**.
 
 ### Enabling custom HTTP upload
 
@@ -563,6 +618,19 @@ If the queued sample count on a sensor card keeps increasing without going down:
 - The device may have lost station uplink.
 - UTC time may not be synchronized — check the date on **Overview**.
 
+### Air360 API uploads fail or secret is rejected
+
+The stored upload secret does not match the backend device record. This can
+happen if the device was erased and a different secret was generated instead
+of the original one being re-entered.
+
+- **If you saved the original secret:** open **Backends → Air360 API →
+  Change**, select **I already have an upload secret**, paste the original
+  secret, and press **Save**.
+- **If you lost the original secret:** the existing backend device record
+  cannot be recovered without a backend-side reset. Contact the backend
+  operator to reset the device record, then generate a new secret.
+
 ### Moving the device to a different Wi-Fi network
 
 Open **Device**, update the SSID and password, and press **Save and reboot**. The device will attempt to join the new network.
@@ -595,7 +663,7 @@ Check:
 - Sensor changes require explicitly pressing **Apply now** — staging alone does not persist.
 - Setup AP mode exposes only the Device page.
 - The upload interval is global — it applies to all enabled backends.
-- Sensor poll interval cannot be set below 5000 ms (2000 ms for DHT11/DHT22).
+- Sensor poll interval must be between 30 000 ms and 1 800 000 ms (30 s to 30 min).
 - When cellular is enabled, the web UI is only accessible during the Wi-Fi debug window after boot. Set the debug window to a non-zero value to retain web access for configuration.
 - The `storage` partition is reserved but not currently used.
 - OTA firmware update is not yet implemented.

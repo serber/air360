@@ -35,19 +35,21 @@ The user-facing frontend is expected to live as a separate application and is ou
 ## Intended Request Flow
 
 1. Device sends an ingest request to the backend.
-2. The ingest service validates the device and bearer token against data stored in `PostgreSQL`.
+2. The ingest service validates the device and bearer upload secret hash against data stored in `PostgreSQL`.
 3. If authorization succeeds, the service writes normalized measurements to `TimescaleDB`.
 4. Other services such as a frontend or public history API read historical telemetry from `TimescaleDB`.
 
-## Current Backend Skeleton
+## Current Backend State
 
 Based on the current `/backend` implementation:
 
-- the backend is scaffolded as a standalone Fastify application
-- the current versioned route prefix is `/v1`
-- `GET /` and `GET /health` exist for basic service checks
-- `PUT /v1/devices/{chip_id}/batches/{client_batch_id}` exists as a mock ingest endpoint
-- persistence and auth are not implemented yet
+- standalone Fastify application, versioned route prefix `/v1`
+- `GET /` and `GET /health` for basic service checks
+- `PUT /v1/devices/{device_id}/register` — device registration and upsert
+- `PUT /v1/devices/{device_id}/batches/{batch_id}` — sensor batch ingest with persistence
+- `GET /v1/devices/{public_id}/latest` — latest readings per device (identified by UUID `public_id`)
+- persistence implemented: PostgreSQL 18 + TimescaleDB 2 (`measurements` is a hypertable with compression)
+- auth not implemented yet
 
 Implementation details should be verified against the `/backend` source tree rather than this design note.
 

@@ -6,7 +6,7 @@ Proposed.
 
 ## Decision Summary
 
-Add over-the-air firmware update support via the device web UI, using ESP-IDF's native OTA API and the `otadata` partition already present in the flash layout.
+Add over-the-air firmware update support via the device web UI, using ESP-IDF's native OTA API and the `otadata`, `ota_0`, and `ota_1` partitions already present in the flash layout.
 
 ## Context
 
@@ -15,9 +15,11 @@ The current firmware has no remote update mechanism. Every firmware change requi
 | Partition | Offset | Size | Purpose |
 |-----------|--------|------|---------|
 | otadata | 0xf000 | 8 KB | OTA state (boot slot selection) |
-| factory | 0x20000 | 1 536 KB | Current single application slot |
+| ota_0 | 0x20000 | 6 MB | Primary application slot |
+| ota_1 | 0x620000 | 6 MB | Secondary application slot |
+| storage | 0xc20000 | 3 MB | Reserved SPIFFS storage |
 
-The `factory` partition is the only application slot currently. To enable OTA, the partition table must be extended to include a second OTA slot (`ota_0` and `ota_1`), replacing the single `factory` slot.
+The partition table is already OTA-ready, but the runtime does not yet implement firmware upload, boot partition switching, or rollback marking.
 
 For beta deployments and field installations, requiring physical access for firmware updates is a significant operational burden.
 
@@ -37,20 +39,21 @@ For beta deployments and field installations, requiring physical access for firm
 
 ## Architectural Decision
 
-### 1. Repartition flash
+### 1. Partition precondition
 
-Replace the single `factory` slot with two OTA application slots. Update `partitions.csv`:
+The project uses a 16 MB flash layout with two OTA application slots and a reserved SPIFFS partition:
 
 ```
 # Name,   Type, SubType,  Offset,  Size
 nvs,      data, nvs,      0x9000,  24K
 otadata,  data, ota,      0xf000,  8K
 phy_init, data, phy,      0x11000, 4K
-ota_0,    app,  ota_0,    0x20000, 1536K
-ota_1,    app,  ota_1,    0x1A0000, 1536K
+ota_0,    app,  ota_0,    0x20000,  0x600000
+ota_1,    app,  ota_1,    0x620000, 0x600000
+storage,  data, spiffs,   0xc20000, 0x300000
 ```
 
-Note: the `storage` (SPIFFS) partition is lost in this layout unless flash size allows three slots + SPIFFS. With 16 MB flash, both OTA slots + SPIFFS fit comfortably. Verify sizes before committing.
+Each OTA slot is 6 MB, leaving enough space for current firmware growth while preserving a 3 MB reserved SPIFFS partition.
 
 ### 2. New HTTP endpoint: `POST /ota`
 
@@ -87,7 +90,6 @@ Add an "Update Firmware" section to the `/config` or a new `/ota` page with:
 
 ## Affected Files
 
-- `firmware/partitions.csv` — add `ota_0`, `ota_1`, remove `factory`
 - `firmware/main/src/app.cpp` — add `esp_ota_mark_app_valid_cancel_rollback()` after step 3
 - `firmware/main/src/web_server.cpp` — register `/ota` POST handler and `/ota/status` GET handler
 - `firmware/main/src/web/web_handler_ota.cpp` — new file: OTA handler implementation
@@ -110,4 +112,4 @@ Self-contained, no backend dependency, uses native ESP-IDF OTA API. The simplest
 
 ## Practical Conclusion
 
-Repartition flash to dual OTA slots, add `POST /ota` endpoint with streaming write and rollback support. Mark the app valid early in `App::run()` to enable automatic rollback on crash. The partition change is the highest-risk part and must be verified against the 16 MB flash size before implementation.
+The partition table is already dual-slot and verified against 16 MB flash. Add `POST /ota` endpoint with streaming write and rollback support. Mark the app valid early in `App::run()` to enable automatic rollback on crash.

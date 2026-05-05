@@ -28,7 +28,7 @@ Complete step-by-step guide for adding a new sensor driver. Follow every section
 
 File: `firmware/main/include/air360/sensors/sensor_types.hpp`
 
-Append a new entry to `SensorType`. Values are assigned sequentially; never reuse a retired value (value `7` is permanently reserved for the removed SDS011).
+Append a new entry to `SensorType`. Values are assigned sequentially; never reuse a retired value for a different sensor. SDS011 intentionally uses its legacy value `7` because support for the same sensor type was restored.
 
 ```cpp
 kMyNewSensor = 16U,
@@ -148,7 +148,7 @@ File: `firmware/main/src/sensors/sensor_registry.cpp`
     .supports_uart             = true,
     .supports_gpio             = false,
     .driver_implemented        = true,
-    .default_poll_interval_ms  = 10000U,
+    .default_poll_interval_ms  = kDefaultSensorPollIntervalMs,
     .default_i2c_bus_id        = 0U,
     .default_i2c_address       = 0x00U,
     .allowed_i2c_addresses     = {},
@@ -251,7 +251,7 @@ Use [ina219.md](ina219.md) (I2C) or [mhz19b.md](mhz19b.md) (UART) as a template.
 
 ## Step 13 — Update documentation
 
-All six locations are required:
+All seven locations are required:
 
 | File | What to add |
 |------|-------------|

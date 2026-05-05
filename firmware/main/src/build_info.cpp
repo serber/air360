@@ -210,7 +210,7 @@ std::string crystalFrequencyLabel() {
     return std::to_string(xtal_mhz) + "MHz";
 }
 
-std::string formatDecimalChipId(const std::uint8_t* bytes, std::size_t size) {
+std::string formatDecimalDeviceId(const std::uint8_t* bytes, std::size_t size) {
     std::uint64_t value = 0;
     for (std::size_t index = 0; index < size; ++index) {
         value = (value << 8U) | bytes[index];
@@ -221,13 +221,13 @@ std::string formatDecimalChipId(const std::uint8_t* bytes, std::size_t size) {
     return buffer;
 }
 
-std::string formatShortChipId(const std::uint8_t* bytes, std::size_t size) {
+std::string formatShortDeviceId(const std::uint8_t* bytes, std::size_t size) {
     std::uint64_t value = 0;
     for (std::size_t index = 0; index < size; ++index) {
         value = (value << 8U) | bytes[index];
     }
 
-    // Legacy airrohr-style chip id uses a shorter numeric identifier.
+    // Legacy airrohr-style device id uses a shorter numeric identifier.
     value &= 0xFFFFFFULL;
 
     char buffer[32];
@@ -235,22 +235,22 @@ std::string formatShortChipId(const std::uint8_t* bytes, std::size_t size) {
     return buffer;
 }
 
-std::string readChipId() {
+std::string readDeviceId() {
     std::uint8_t mac[6] = {};
     if (esp_efuse_mac_get_default(mac) != ESP_OK) {
         return "";
     }
 
-    return formatDecimalChipId(mac, sizeof(mac));
+    return formatDecimalDeviceId(mac, sizeof(mac));
 }
 
-std::string readShortChipId() {
+std::string readShortDeviceId() {
     std::uint8_t mac[6] = {};
     if (esp_efuse_mac_get_default(mac) != ESP_OK) {
         return "";
     }
 
-    return formatShortChipId(mac, sizeof(mac));
+    return formatShortDeviceId(mac, sizeof(mac));
 }
 
 std::string readStationMacId() {
@@ -281,8 +281,8 @@ BuildInfo getBuildInfo() {
     build_info.chip_type = chipTypeLabel(chip_info);
     build_info.chip_features = chipFeaturesLabel(chip_info);
     build_info.crystal_frequency = crystalFrequencyLabel();
-    build_info.chip_id = readChipId();
-    build_info.short_chip_id = readShortChipId();
+    build_info.device_id = readDeviceId();
+    build_info.short_device_id = readShortDeviceId();
     build_info.esp_mac_id = readStationMacId();
     return build_info;
 }

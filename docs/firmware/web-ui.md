@@ -73,6 +73,7 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `POST` | `/check-sntp` | SNTP server reachability check |
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
 | `GET` / `POST` | `/backends` | Backend configuration page |
+| `GET` | `/backends/air360-upload-secret` | Generate a new Air360 upload secret (JSON response) |
 
 All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set `Content-Type: application/json`.
 
@@ -203,13 +204,13 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 
 **Page header actions** — **Apply** and **Discard** buttons are always visible in the page `title-row` (rendered via `lead_html` in `renderPageDocument`). The notice area below the title row shows a staging summary message when `has_pending_sensor_changes_` is true.
 
-**Sensor categories** — sensors are grouped into five fixed categories:
+**Sensor categories** — sensors are grouped into six fixed categories:
 
 | Category | Sensors | Multiple allowed |
 |----------|---------|-----------------|
-| Climate | BME280, BME680, DHT11, DHT22, DS18B20, HTU2X, SHT4X | No |
+| Climate | BME280, BME680, DHT11, DHT22, DS18B20, HTU2X, SHT3X, SHT4X | No |
 | Light | VEML7700 | No |
-| Particulate Matter | SPS30 | No |
+| Particulate Matter | SPS30, SDS011 | No |
 | Location | GPS (NMEA) | No |
 | Gas | SCD30, ME3-NO2, MH-Z19B | Yes |
 | Power | INA219 | No |
@@ -242,15 +243,19 @@ Category uniqueness is enforced at stage time — staging a second sensor in a s
 
 A single form containing upload settings and one card per backend type.
 
-**Upload settings panel** — `upload_interval_ms` numeric input (range 10 000–300 000 ms). Validated server-side.
+**Upload settings panel** — `upload_interval_ms` numeric input (range 30 000–3 600 000 ms). Validated server-side.
 
 **Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
 - Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.
+- Project links — Sensor.Community links to `https://sensor.community/`; Air360 API links to `https://github.com/serber/air360`.
+- Map links — when coordinates are saved, each card shows its own `Maps` link: the Air360 API card links to `https://air360.ru/map#15/<latitude>/<longitude>`; the Sensor.Community card links to `https://maps.sensor.community/#15/<latitude>/<longitude>`. Cards without saved coordinates show no map link.
 - `Use HTTPS` checkbox — enabled by default for new configs; saving updates the stored protocol.
 - `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
-- Sensor.Community only: `device_id_override` field (overrides the short chip ID sent in `X-Sensor`).
+- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an `Altitude (m above sea level)` numeric input (`step="any"`, optional; empty or `0` means not set), followed by an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the latitude/longitude fields; editing those fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both latitude and longitude are non-zero.
+- `Air360 API` only: upload secret UI. When no secret is stored, the page shows an empty `Upload secret` textarea plus **Generate** button; the button calls `/backends/air360-upload-secret` and fills the textarea with a locally generated secret. When a secret already exists, the page shows `Configured` with a masked preview and keeps the replacement textarea hidden/disabled until the user presses **Change**.
+- Sensor.Community only: `device_id_override` field (overrides the short device ID sent in `X-Sensor`).
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`
@@ -355,6 +360,7 @@ The CSS uses a token-based design system with full light/dark theme support (`[d
 | **Wi-Fi network selector** | On the config page, `loadWifiNetworks()` calls `GET /wifi-scan`, populates the SSID `<select>`, and — if a `.wifi-menu-list` element is present — also populates the custom picker. Selecting a `.wifi-option` updates the hidden `<select>` value. |
 | **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status span. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
+| **Air360 coordinate map** | The `/backends` page loads local MapLibre assets and OpenStreetMap tiles. The map is progressive enhancement for the Air360 API latitude/longitude fields; if tiles or JavaScript fail, manual coordinate entry still works. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |
 | **Password visibility** | Buttons with `data-toggle-pw="id"` (new) or `data-secret-toggle="id"` (legacy) toggle `input.type` between `"password"` and `"text"`. |
 

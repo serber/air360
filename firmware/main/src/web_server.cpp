@@ -32,9 +32,12 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerMaxUriHandlers = 20U;
+constexpr char kAir360MapBaseUrl[] = "https://air360.ru/map";
+constexpr char kSensorCommunityMapBaseUrl[] = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
 // interval below what SensorManager supports at runtime.
-constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
+constexpr std::uint32_t kMinSensorPollIntervalMs = air360::kMinSensorPollIntervalMs;
+constexpr std::uint32_t kMaxSensorPollIntervalMs = air360::kMaxSensorPollIntervalMs;
 
 const char* networkModeLabel(NetworkMode mode) {
     switch (mode) {
@@ -72,6 +75,7 @@ struct ConfigPageViewModel {
     std::string cellular_sim_pin_value;
     std::string cellular_connectivity_check_host_value;
     std::string cellular_wifi_debug_window_s_value;
+    std::string cellular_modem_type_options_html;
     // BLE
     bool ble_advertise_enabled = false;
     std::uint8_t ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
@@ -91,6 +95,12 @@ struct BackendCardViewModel {
     std::string password;
     std::string measurement_name;
     std::string device_id_override;
+    std::string latitude;
+    std::string longitude;
+    std::string altitude_m;
+    std::string air360_map_url;
+    std::string sensor_community_map_url;
+    std::string air360_upload_secret_preview;
     // Status:
     bool has_status = false;
     std::string state_key;
@@ -189,7 +199,7 @@ struct SensorCategorySectionViewModel {
     std::string add_uart_port_options_html;
     std::string add_uart_pin_hint;
     std::string add_gpio_options_html;
-    std::uint32_t add_poll_interval_ms = 10000U;
+    std::uint32_t add_poll_interval_ms = kDefaultSensorPollIntervalMs;
     bool add_show_gpio_pin_select = false;
     bool show_add_form = false;
     std::string add_button_label;
@@ -216,6 +226,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice);
 std::string renderSensorCard(const SensorCardViewModel& card);
@@ -230,6 +241,33 @@ SensorsPageViewModel buildSensorsPageViewModel(
 const BackendRecord* findBackendRecordForDescriptor(
     const BackendConfigList& config,
     const BackendDescriptor& descriptor);
+
+std::string buildModemTypeOptions(std::uint8_t selected) {
+    struct ModemOption { std::uint8_t value; const char* label; };
+    constexpr ModemOption kOptions[] = {
+        {kModemTypeSim7600, "SIM7600"},
+        {kModemTypeSim7070, "SIM7070"},
+        {kModemTypeSim7000, "SIM7000"},
+        {kModemTypeBg96,    "BG96"},
+        {kModemTypeEc20,    "EC20"},
+        {kModemTypeSim800,  "SIM800"},
+        {kModemTypeGeneric, "Generic"},
+    };
+    std::string html;
+    html.reserve(256U);
+    for (const auto& opt : kOptions) {
+        html += "<option value='";
+        html += std::to_string(opt.value);
+        html += "'";
+        if (opt.value == selected) {
+            html += " selected";
+        }
+        html += ">";
+        html += opt.label;
+        html += "</option>";
+    }
+    return html;
+}
 
 std::string buildBleIntervalOptions(std::uint8_t selected_index) {
     constexpr const char* kLabels[kBleAdvIntervalCount] = {"100 ms", "300 ms", "1 s", "3 s"};
@@ -289,6 +327,7 @@ std::string renderConfigPage(
             {"CELLULAR_CONNECTIVITY_CHECK_HOST_VALUE",
              htmlEscape(model.cellular_connectivity_check_host_value)},
             {"CELLULAR_WIFI_DEBUG_WINDOW_S_VALUE", model.cellular_wifi_debug_window_s_value},
+            {"CELLULAR_MODEM_TYPE_OPTIONS", model.cellular_modem_type_options_html},
             {"BLE_ADVERTISE_ENABLED_CHECKED", model.ble_advertise_enabled ? "checked" : ""},
             {"BLE_GROUP_DISABLED_CLASS", model.ble_advertise_enabled ? "" : "field--disabled"},
             {"BLE_ADV_INTERVAL_OPTIONS", buildBleIntervalOptions(model.ble_adv_interval_index)},
@@ -537,16 +576,24 @@ void appendGpioPinOptions(
 }
 
 std::uint32_t normalizeSensorPollInterval(std::uint32_t value) {
-    return std::max<std::uint32_t>(value, kMinSensorPollIntervalMs);
+    if (value < kMinSensorPollIntervalMs) {
+        return kMinSensorPollIntervalMs;
+    }
+    if (value > kMaxSensorPollIntervalMs) {
+        return kMaxSensorPollIntervalMs;
+    }
+    return value;
 }
 
-constexpr std::array<SensorType, 7U> kClimateSensorTypes{{
+constexpr std::array<SensorType, 9U> kClimateSensorTypes{{
+    SensorType::kAht30,
     SensorType::kBme280,
     SensorType::kBme680,
     SensorType::kDht11,
     SensorType::kDht22,
     SensorType::kDs18b20,
     SensorType::kHtu2x,
+    SensorType::kSht3x,
     SensorType::kSht4x,
 }};
 
@@ -554,8 +601,9 @@ constexpr std::array<SensorType, 1U> kLightSensorTypes{{
     SensorType::kVeml7700,
 }};
 
-constexpr std::array<SensorType, 1U> kParticulateMatterSensorTypes{{
+constexpr std::array<SensorType, 2U> kParticulateMatterSensorTypes{{
     SensorType::kSps30,
+    SensorType::kSds011,
 }};
 
 constexpr std::array<SensorType, 1U> kLocationSensorTypes{{
@@ -631,12 +679,14 @@ constexpr std::array<SensorCategoryDescriptor, 6U> kSensorCategoryDescriptors{{
 
 SensorCategory sensorCategoryForType(SensorType type) {
     switch (type) {
+        case SensorType::kAht30:
         case SensorType::kBme280:
         case SensorType::kBme680:
         case SensorType::kDht11:
         case SensorType::kDht22:
         case SensorType::kDs18b20:
         case SensorType::kHtu2x:
+        case SensorType::kSht3x:
         case SensorType::kSht4x:
             return SensorCategory::kClimate;
         case SensorType::kScd30:
@@ -644,6 +694,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kVeml7700:
             return SensorCategory::kLight;
         case SensorType::kSps30:
+        case SensorType::kSds011:
             return SensorCategory::kParticulateMatter;
         case SensorType::kGpsNmea:
             return SensorCategory::kLocation;
@@ -863,6 +914,65 @@ std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
     return "never";
 }
 
+std::string formatCoordinate(float value) {
+    char buffer[24];
+    const int written = std::snprintf(buffer, sizeof(buffer), "%.6f", static_cast<double>(value));
+    if (written <= 0) {
+        return "";
+    }
+
+    std::string formatted(buffer);
+    while (!formatted.empty() && formatted.back() == '0') {
+        formatted.pop_back();
+    }
+    if (!formatted.empty() && formatted.back() == '.') {
+        formatted.push_back('0');
+    }
+    return formatted;
+}
+
+std::string formatMapCoordinate(float value) {
+    char buffer[24];
+    const int written = std::snprintf(buffer, sizeof(buffer), "%.4f", static_cast<double>(value));
+    return written > 0 ? std::string(buffer) : "";
+}
+
+std::string buildMapHash(float latitude, float longitude) {
+    const std::string lat = formatMapCoordinate(latitude);
+    const std::string lon = formatMapCoordinate(longitude);
+    if (lat.empty() || lon.empty()) {
+        return "";
+    }
+
+    return std::string("#15/") + lat + "/" + lon;
+}
+
+std::string renderMapLinksBlock(const BackendCardViewModel& card) {
+    std::string map_url;
+    std::string map_label;
+
+    if (card.backend_type == BackendType::kAir360Api) {
+        map_url = card.air360_map_url;
+        map_label = "Air360";
+    } else if (card.backend_type == BackendType::kSensorCommunity) {
+        map_url = card.sensor_community_map_url;
+        map_label = "Sensor.Community";
+    }
+
+    if (map_url.empty()) {
+        return "";
+    }
+
+    std::string html =
+        "<div class='backend-project-links backend-map-links'><span>Map</span>";
+    html += "<a href='";
+    html += htmlEscape(map_url);
+    html += "' target='_blank' rel='noopener noreferrer'>";
+    html += map_label;
+    html += "</a></div>";
+    return html;
+}
+
 ConfigPageViewModel buildConfigPageViewModel(
     const DeviceConfig& config,
     const CellularConfig& cellular_config,
@@ -968,6 +1078,8 @@ ConfigPageViewModel buildConfigPageViewModel(
     }
     model.cellular_wifi_debug_window_s_value =
         std::to_string(cellular_config.wifi_debug_window_s);
+    model.cellular_modem_type_options_html =
+        buildModemTypeOptions(cellular_config.modem_type);
 
     model.ble_advertise_enabled = config.ble_advertise_enabled != 0U;
     model.ble_adv_interval_index = config.ble_adv_interval_index < kBleAdvIntervalCount
@@ -1065,10 +1177,16 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     endpoint_block.reserve(1024U);
     std::string device_id_override_block;
     device_id_override_block.reserve(512U);
+    std::string project_links_block;
+    project_links_block.reserve(256U);
 
     switch (card.backend_type) {
         case BackendType::kSensorCommunity:
             https_block = renderHttpsCheckbox(card);
+            project_links_block =
+                "<div class='backend-project-links'><span>Project</span>"
+                "<a href='https://sensor.community/' target='_blank' rel='noopener noreferrer'>"
+                "sensor.community</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
@@ -1089,14 +1207,110 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             device_id_override_block += "<span class='field-hint'>Prefilled from Short ID. Change it only for debugging.</span></div>";
             break;
 
-        case BackendType::kAir360Api:
+        case BackendType::kAir360Api: {
             https_block = renderHttpsCheckbox(card);
+            project_links_block =
+                "<div class='backend-project-links'><span>Project</span>"
+                "<a href='https://github.com/serber/air360' target='_blank' rel='noopener noreferrer'>"
+                "github.com/serber/air360</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
                 endpoint_block += "</code></span>";
             }
+            endpoint_block += "<div class='field'><label for='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Latitude</label>";
+            endpoint_block += "<input class='input' id='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' type='number' step='any' min='-90' max='90' value='";
+            endpoint_block += htmlEscape(card.latitude);
+            endpoint_block += "' placeholder='e.g. 55.7512' required></div>";
+            endpoint_block += "<div class='field'><label for='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Longitude</label>";
+            endpoint_block += "<input class='input' id='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' type='number' step='any' min='-180' max='180' value='";
+            endpoint_block += htmlEscape(card.longitude);
+            endpoint_block += "' placeholder='e.g. 37.6173' required></div>";
+            endpoint_block += "<div class='field'><label for='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Altitude (m above sea level)</label>";
+            endpoint_block += "<input class='input' id='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' type='number' step='any' value='";
+            endpoint_block += htmlEscape(card.altitude_m);
+            endpoint_block += "' placeholder='e.g. 200'></div>";
+            endpoint_block += "<div class='location-map-wrap'>";
+            endpoint_block += "<div class='location-map' data-air360-location-map data-lat-input='lat_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' data-lon-input='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'></div>";
+            endpoint_block += "<div class='location-map-status' data-air360-location-map-status></div>";
+            endpoint_block += "</div>";
+            endpoint_block += "<div class='field air360-secret-field'>";
+            const std::string secret_input_id =
+                std::string("upload_secret_") + card.backend_key;
+            const std::string secret_panel_id =
+                std::string("upload_secret_panel_") + card.backend_key;
+            const bool secret_configured = !card.air360_upload_secret_preview.empty();
+            if (secret_configured) {
+                endpoint_block += "<label>Upload secret</label>";
+                endpoint_block += "<div class='secret-status'>";
+                endpoint_block += "<span class='secret-state'>Configured</span>";
+                endpoint_block += "<code class='secret-preview'>";
+                endpoint_block += htmlEscape(card.air360_upload_secret_preview);
+                endpoint_block += "</code>";
+                endpoint_block += "<button class='btn' type='button' data-change-air360-secret='";
+                endpoint_block += htmlEscape(secret_panel_id);
+                endpoint_block += "' data-secret-input='";
+                endpoint_block += htmlEscape(secret_input_id);
+                endpoint_block += "'>Change</button>";
+                endpoint_block += "</div>";
+                endpoint_block += "<span class='field-hint'>";
+                endpoint_block += "An upload secret is already stored. Keep it unless you need to replace it with a previously saved secret.";
+                endpoint_block += "</span>";
+                endpoint_block += "<div class='secret-edit-panel' id='";
+                endpoint_block += htmlEscape(secret_panel_id);
+                endpoint_block += "' hidden>";
+            } else {
+                endpoint_block += "<label for='";
+                endpoint_block += htmlEscape(secret_input_id);
+                endpoint_block += "'>Upload secret</label>";
+                endpoint_block += "<span class='field-hint'>";
+                endpoint_block += "This secret lets the device upload to the same Air360 record after reset. Generate it or paste a saved one, save it somewhere safe, then press Save.";
+                endpoint_block += "</span>";
+            }
+            endpoint_block += "<div class='secret-input-row'>";
+            endpoint_block += "<textarea class='input textarea' id='";
+            endpoint_block += htmlEscape(secret_input_id);
+            endpoint_block += "' name='";
+            endpoint_block += htmlEscape(secret_input_id);
+            endpoint_block += "' rows='3' maxlength='";
+            endpoint_block += std::to_string(kAir360UploadSecretLength);
+            endpoint_block += "' autocomplete='off' autocapitalize='off' spellcheck='false' ";
+            if (secret_configured) {
+                endpoint_block += "disabled ";
+            }
+            endpoint_block += "placeholder='air360_us_v1_...'></textarea>";
+            endpoint_block += "<button class='btn' type='button' data-generate-air360-secret='";
+            endpoint_block += htmlEscape(secret_input_id);
+            endpoint_block += "'>Generate</button>";
+            endpoint_block += "</div>";
+            if (secret_configured) {
+                endpoint_block += "<span class='field-hint'>Saving this form replaces the stored upload secret.</span></div>";
+            }
+            endpoint_block += "</div>";
             break;
+        }
 
         case BackendType::kCustomUpload:
             https_block = renderHttpsCheckbox(card);
@@ -1125,11 +1339,17 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             break;
     }
 
+    if (card.backend_type == BackendType::kSensorCommunity ||
+        card.backend_type == BackendType::kAir360Api) {
+        project_links_block += renderMapLinksBlock(card);
+    }
+
     std::string status_block;
     status_block.reserve(512U);
     if (!card.enabled) {
         status_block.clear();
     } else if (card.has_status) {
+        status_block += "<hr/>";
         status_block += "<div class='backend-status'>";
         status_block += "<p>Last attempt: <code>";
         status_block += htmlEscape(card.last_attempt);
@@ -1149,7 +1369,8 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         }
         status_block += "</div>";
     } else {
-        status_block = "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
+        status_block = "<hr/>";
+        status_block += "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
     }
 
     return renderTemplate(
@@ -1161,6 +1382,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             {"HTTPS_BLOCK", https_block},
             {"ENDPOINT_BLOCK", endpoint_block},
             {"DEVICE_ID_OVERRIDE_BLOCK", device_id_override_block},
+            {"PROJECT_LINKS_BLOCK", project_links_block},
             {"STATUS_BLOCK", status_block},
         });
 }
@@ -1169,6 +1391,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice) {
     BackendsPageViewModel model;
@@ -1180,6 +1403,20 @@ BackendsPageViewModel buildBackendsPageViewModel(
     model.configured_backends_count = registry.descriptorCount();
     model.notice_html = renderNotice(notice, error_notice);
     model.cards.reserve(registry.descriptorCount());
+
+    std::string air360_map_url;
+    std::string sensor_community_map_url;
+    const BackendRecord* air360_record =
+        findBackendRecordByType(backend_config_list, BackendType::kAir360Api);
+    if (air360_record != nullptr &&
+        (air360_record->latitude != 0.0F || air360_record->longitude != 0.0F)) {
+        const std::string map_hash =
+            buildMapHash(air360_record->latitude, air360_record->longitude);
+        if (!map_hash.empty()) {
+            air360_map_url = std::string(kAir360MapBaseUrl) + map_hash;
+            sensor_community_map_url = std::string(kSensorCommunityMapBaseUrl) + map_hash;
+        }
+    }
 
     for (std::size_t index = 0; index < registry.descriptorCount(); ++index) {
         const BackendDescriptor& descriptor = registry.descriptors()[index];
@@ -1195,6 +1432,14 @@ BackendsPageViewModel buildBackendsPageViewModel(
         card.backend_key = descriptor.backend_key;
         card.backend_type = descriptor.type;
         card.enabled = record != nullptr && record->enabled != 0U;
+        if (descriptor.type == BackendType::kSensorCommunity ||
+            descriptor.type == BackendType::kAir360Api) {
+            card.air360_map_url = air360_map_url;
+            card.sensor_community_map_url = sensor_community_map_url;
+        }
+        if (descriptor.type == BackendType::kAir360Api) {
+            card.air360_upload_secret_preview = air360_upload_secret_preview;
+        }
 
         if (record != nullptr) {
             card.use_https = record->protocol == BackendProtocol::kHttps;
@@ -1209,7 +1454,16 @@ BackendsPageViewModel buildBackendsPageViewModel(
             card.device_id_override =
                 boundedCString(record->sensor_community_device_id, kBackendIdentifierCapacity);
             if (card.device_id_override.empty()) {
-                card.device_id_override = build_info.short_chip_id;
+                card.device_id_override = build_info.short_device_id;
+            }
+            if (record->backend_type == BackendType::kAir360Api) {
+                if (record->latitude != 0.0F || record->longitude != 0.0F) {
+                    card.latitude = formatCoordinate(record->latitude);
+                    card.longitude = formatCoordinate(record->longitude);
+                }
+                if (record->altitude_m != 0.0F) {
+                    card.altitude_m = formatCoordinate(record->altitude_m);
+                }
             }
         } else {
             card.use_https = descriptor.defaults.protocol == BackendProtocol::kHttps;
@@ -1359,7 +1613,7 @@ static std::string buildAddSensorFormFields(const SensorCategorySectionViewModel
     html += "<label class='field'><span class='field-label'>Poll interval (ms)</span>";
     html += "<input class='input' id='poll_interval_ms_add_";
     html += add_key;
-    html += "' name='poll_interval_ms' inputmode='numeric' min='5000' step='1000' value='";
+    html += "' name='poll_interval_ms' inputmode='numeric' min='30000' max='1800000' step='1000' value='";
     html += std::to_string(section.add_poll_interval_ms);
     html += "'></label></div>";
 
@@ -1676,6 +1930,7 @@ std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice) {
     const BackendsPageViewModel model =
@@ -1683,6 +1938,7 @@ std::string renderBackendsPage(
             backend_config_list,
             upload_manager,
             build_info,
+            air360_upload_secret_preview,
             notice,
             error_notice);
 
@@ -1701,6 +1957,8 @@ std::string renderBackendsPage(
             {"CONFIGURED_BACKENDS_COUNT", std::to_string(model.configured_backends_count)},
             {"NOTICE", model.notice_html},
             {"UPLOAD_INTERVAL_VALUE", std::to_string(model.upload_interval_ms)},
+            {"UPLOAD_INTERVAL_MIN", std::to_string(kMinUploadIntervalMs)},
+            {"UPLOAD_INTERVAL_MAX", std::to_string(kMaxUploadIntervalMs)},
             {"BACKEND_CARDS", backend_cards},
         });
     return renderPageDocument(
@@ -1769,6 +2027,7 @@ bool validateConfigForm(
     const std::string& cellular_sim_pin,
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
+    unsigned long cellular_modem_type,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -1848,6 +2107,10 @@ bool validateConfigForm(
         error = "Wi-Fi debug window must be 0–3600 seconds.";
         return false;
     }
+    if (cellular_modem_type > static_cast<unsigned long>(kModemTypeMax)) {
+        error = "Unknown modem type.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -1896,6 +2159,7 @@ bool validateConfigForm(
     const std::string& cellular_sim_pin,
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
+    unsigned long cellular_modem_type,
     std::string& error) {
     return ::air360::validateConfigForm(
         device_name,
@@ -1914,6 +2178,7 @@ bool validateConfigForm(
         cellular_sim_pin,
         cellular_connectivity_check_host,
         cellular_wifi_debug_window_s,
+        cellular_modem_type,
         error);
 }
 
@@ -1937,12 +2202,14 @@ std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice) {
     return ::air360::renderBackendsPage(
         backend_config_list,
         upload_manager,
         build_info,
+        air360_upload_secret_preview,
         notice,
         error_notice);
 }
@@ -1975,6 +2242,7 @@ esp_err_t WebServer::start(
     SensorManager& sensor_manager,
     MeasurementStore& measurement_store,
     BackendConfigRepository& backend_config_repository,
+    Air360ApiCredentialRepository& air360_api_credentials,
     BackendConfigList& backend_config_list,
     UploadManager& upload_manager,
     CellularConfigRepository& cellular_config_repository,
@@ -1993,6 +2261,7 @@ esp_err_t WebServer::start(
     sensor_manager_ = &sensor_manager;
     measurement_store_ = &measurement_store;
     backend_config_repository_ = &backend_config_repository;
+    air360_api_credentials_ = &air360_api_credentials;
     backend_config_list_ = &backend_config_list;
     upload_manager_ = &upload_manager;
     cellular_config_repository_ = &cellular_config_repository;
@@ -2151,6 +2420,17 @@ esp_err_t WebServer::start(
     backends_post_uri.handler = &WebServer::handleBackends;
     backends_post_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &backends_post_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t air360_secret_uri{};
+    air360_secret_uri.uri = "/backends/air360-upload-secret";
+    air360_secret_uri.method = HTTP_GET;
+    air360_secret_uri.handler = &WebServer::handleAir360UploadSecret;
+    air360_secret_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &air360_secret_uri);
     if (err != ESP_OK) {
         stop();
         return err;

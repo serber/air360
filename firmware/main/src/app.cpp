@@ -409,7 +409,8 @@ void App::run() {
         config_,
         sensor_manager_,
         measurement_store_,
-        network_manager_);
+        network_manager_,
+        air360_api_credentials_);
     const esp_err_t upload_apply_err = upload_manager_.applyConfig(backend_config_list_);
     if (upload_apply_err != ESP_OK) {
         ESP_LOGW(
@@ -431,6 +432,7 @@ void App::run() {
             sensor_manager_,
             measurement_store_,
             backend_config_repository_,
+            air360_api_credentials_,
             backend_config_list_,
             upload_manager_,
             cellular_config_repository_,

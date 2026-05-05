@@ -5,6 +5,7 @@
 #include <string>
 
 #include "air360/sensors/bus_config.hpp"
+#include "air360/sensors/drivers/aht30_sensor.hpp"
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 #include "air360/sensors/drivers/bme680_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
@@ -13,6 +14,8 @@
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
+#include "air360/sensors/drivers/sds011_sensor.hpp"
+#include "air360/sensors/drivers/sht3x_sensor.hpp"
 #include "air360/sensors/drivers/sht4x_sensor.hpp"
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/ina219_sensor.hpp"
@@ -152,8 +155,9 @@ bool validateCommonRecord(const SensorRecord& record, std::string& error) {
         return false;
     }
 
-    if (record.poll_interval_ms < 5000U || record.poll_interval_ms > 3600000U) {
-        error = "Poll interval must be between 5000 ms and 3600000 ms.";
+    if (record.poll_interval_ms < kMinSensorPollIntervalMs ||
+        record.poll_interval_ms > kMaxSensorPollIntervalMs) {
+        error = "Poll interval must be between 30000 ms and 1800000 ms.";
         return false;
     }
 
@@ -251,6 +255,19 @@ bool validateSht4xRecord(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateSht3xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "SHT3X currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateGpsNmeaRecord(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -288,11 +305,11 @@ bool validateDhtRecord(const SensorRecord& record, std::string& error, std::uint
 }
 
 bool validateDht11Record(const SensorRecord& record, std::string& error) {
-    return validateDhtRecord(record, error, 2000U);
+    return validateDhtRecord(record, error, kMinSensorPollIntervalMs);
 }
 
 bool validateDht22Record(const SensorRecord& record, std::string& error) {
-    return validateDhtRecord(record, error, 2000U);
+    return validateDhtRecord(record, error, kMinSensorPollIntervalMs);
 }
 
 bool validateDs18b20Record(const SensorRecord& record, std::string& error) {
@@ -339,6 +356,37 @@ bool validateMhz19bRecord(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateSds011Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "SDS011 currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_baud_rate != 9600U) {
+        error = "SDS011 requires UART baud rate of 9600.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateAht30Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "AHT30 currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -357,7 +405,7 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
 static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -367,7 +415,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x76U,
         .allowed_i2c_addresses    = {0x76U, 0x77U},
@@ -392,7 +440,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x77U,
         .allowed_i2c_addresses    = {0x76U, 0x77U},
@@ -417,7 +465,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x69U,
         .allowed_i2c_addresses    = {0x69U},
@@ -442,7 +490,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x61U,
         .allowed_i2c_addresses    = {0x61U},
@@ -467,7 +515,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x10U,
         .allowed_i2c_addresses    = {0x10U},
@@ -492,7 +540,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = true,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -517,7 +565,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = true,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -542,7 +590,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = true,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -567,7 +615,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = true,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -592,7 +640,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x40U,
         .allowed_i2c_addresses    = {0x40U},
@@ -617,7 +665,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x44U,
         .allowed_i2c_addresses    = {0x44U},
@@ -634,6 +682,31 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .create_driver            = &createSht4xSensor,
     },
     {
+        .type                     = SensorType::kSht3x,
+        .type_key                 = "sht3x",
+        .display_name             = "SHT3X",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = SHT3X_I2C_ADDR_GND,
+        .allowed_i2c_addresses    = {SHT3X_I2C_ADDR_GND, SHT3X_I2C_ADDR_VDD},
+        .allowed_i2c_address_count = 2U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateSht3xRecord,
+        .create_driver            = &createSht3xSensor,
+    },
+    {
         .type                     = SensorType::kIna219,
         .type_key                 = "ina219",
         .display_name             = "INA219",
@@ -642,7 +715,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x40U,
         .allowed_i2c_addresses    = {0x40U, 0x41U, 0x44U, 0x45U},
@@ -667,7 +740,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = true,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 10000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},
@@ -684,6 +757,56 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .create_driver            = &createMhz19bSensor,
     },
     {
+        .type                     = SensorType::kSds011,
+        .type_key                 = "sds011",
+        .display_name             = "SDS011",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = true,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
+        .default_uart_port_id     = 2U,
+        .allowed_uart_ports       = {1U, 2U},
+        .allowed_uart_port_count  = 2U,
+        .default_uart_rx_gpio_pin = 16,
+        .default_uart_tx_gpio_pin = 15,
+        .default_uart_baud_rate   = 9600U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateSds011Record,
+        .create_driver            = &createSds011Sensor,
+    },
+    {
+        .type                     = SensorType::kAht30,
+        .type_key                 = "aht30",
+        .display_name             = "AHT30",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x38U,
+        .allowed_i2c_addresses    = {0x38U},
+        .allowed_i2c_address_count = 1U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateAht30Record,
+        .create_driver            = &createAht30Sensor,
+    },
+    {
         .type                     = SensorType::kMe3No2,
         .type_key                 = "me3_no2",
         .display_name             = "ME3-NO2",
@@ -692,7 +815,7 @@ constexpr std::array<SensorDescriptor, 14U> kDescriptors{{
         .supports_uart            = false,
         .supports_gpio            = false,
         .driver_implemented       = true,
-        .default_poll_interval_ms = 5000U,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
         .default_i2c_bus_id       = kPrimaryI2cBus,
         .default_i2c_address      = 0x00U,
         .allowed_i2c_addresses    = {},

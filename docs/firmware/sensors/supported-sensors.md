@@ -24,12 +24,15 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 
 | Sensor type | Transport | Default binding | Allowed binding values | Detail doc |
 |-------------|-----------|-----------------|------------------------|------------|
+| `AHT30` | I2C | Bus 0, address `0x38` | I2C `0x38` | [aht30.md](aht30.md) |
 | `BME280` | I2C | Bus 0, address `0x76` | I2C `0x76`, `0x77` | [bme280.md](bme280.md) |
 | `BME680` | I2C | Bus 0, address `0x77` | I2C `0x76`, `0x77` | [bme680.md](bme680.md) |
 | `SCD30` | I2C | Bus 0, address `0x61` | I2C `0x61` | [scd30.md](scd30.md) |
 | `SPS30` | I2C | Bus 0, address `0x69` | I2C `0x69` | [sps30.md](sps30.md) |
+| `SDS011` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [sds011.md](sds011.md) |
 | `VEML7700` | I2C | Bus 0, address `0x10` | I2C `0x10` | [veml7700.md](veml7700.md) |
 | `HTU2X` | I2C | Bus 0, address `0x40` | I2C `0x40` | [htu2x.md](htu2x.md) |
+| `SHT3X` | I2C | Bus 0, address `0x44` | I2C `0x44`, `0x45` | [sht3x.md](sht3x.md) |
 | `SHT4X` | I2C | Bus 0, address `0x44` | I2C `0x44` | [sht4x.md](sht4x.md) |
 | `GPS NMEA` | UART | UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud | UART1 or UART2 | [gps_nmea.md](gps_nmea.md) |
 | `DHT11` | GPIO | First allowed pin, currently GPIO4 | GPIO4/5/6 | [dht.md](dht.md) |

@@ -104,9 +104,9 @@ Manages UART ports for sensors that use serial communication. UART0 is reserved 
 | Port | RX | TX | Default sensors |
 |------|----|----|-----------------|
 | UART1 | GPIO18 | GPIO17 | GPS (NMEA) default |
-| UART2 | GPIO16 | GPIO15 | MH-Z19B default |
+| UART2 | GPIO16 | GPIO15 | MH-Z19B and SDS011 default |
 
-GPS (NMEA) and MH-Z19B both allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
+GPS (NMEA), MH-Z19B, and SDS011 allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
 
 ### Port mapping
 
@@ -140,6 +140,7 @@ Baud rate and pin assignment are taken from the `SensorRecord` fields (`uart_bau
 |--------|-------------|
 | `open(port_id, rx_pin, tx_pin, baud_rate, rx_buffer_size, event_queue_size)` | Installs the UART driver and sets pins. Idempotent if called again with identical parameters. Callers may request a larger RX ring buffer and a UART event queue. |
 | `read(port_id, buffer, size, timeout_ticks)` | Reads up to `size` bytes from the RX ring buffer. Blocks up to `timeout_ticks`. Returns byte count or `-1` on error. |
+| `write(port_id, data, size)` | Writes a short command buffer through the configured UART. Used by SDS011 for query commands. Returns byte count or `-1` on error. |
 | `bufferedDataLength(port_id, out_length)` | Wraps `uart_get_buffered_data_len()` so a driver can keep draining RX until the UART ring buffer is empty. |
 | `drainEvents(port_id, out_summary)` | Drains the port's UART event queue without blocking. Counts `UART_FIFO_OVF` and `UART_BUFFER_FULL` as overruns and flushes RX so the next poll restarts from a clean buffer. |
 | `flush(port_id)` | Clears the RX ring buffer (`uart_flush_input`). Called by the GPS driver before starting a new parse cycle. |

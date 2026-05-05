@@ -9,6 +9,7 @@
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/measurement_store.hpp"
+#include "air360/uploads/air360_api_credentials.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "esp_err.h"
@@ -34,6 +35,7 @@ class WebServer {
         SensorManager& sensor_manager,
         MeasurementStore& measurement_store,
         BackendConfigRepository& backend_config_repository,
+        Air360ApiCredentialRepository& air360_api_credentials,
         BackendConfigList& backend_config_list,
         UploadManager& upload_manager,
         CellularConfigRepository& cellular_config_repository,
@@ -53,6 +55,7 @@ class WebServer {
     static esp_err_t handleCheckSntp(httpd_req_t* request);
     static esp_err_t handleSensors(httpd_req_t* request);
     static esp_err_t handleBackends(httpd_req_t* request);
+    static esp_err_t handleAir360UploadSecret(httpd_req_t* request);
 
     httpd_handle_t handle_ = nullptr;
     StatusService* status_service_ = nullptr;
@@ -64,6 +67,7 @@ class WebServer {
     SensorManager* sensor_manager_ = nullptr;
     MeasurementStore* measurement_store_ = nullptr;
     BackendConfigRepository* backend_config_repository_ = nullptr;
+    Air360ApiCredentialRepository* air360_api_credentials_ = nullptr;
     BackendConfigList* backend_config_list_ = nullptr;
     UploadManager* upload_manager_ = nullptr;
     CellularConfigRepository* cellular_config_repository_ = nullptr;

@@ -2,11 +2,11 @@
 
 ## Status
 
-Implemented. Keep this document aligned with the current HTTP execution layer shared by upload adapters.
+Implemented. Keep this document aligned with the current HTTP execution helper shared by HTTP-backed upload adapters.
 
 ## Scope
 
-This document covers the low-level HTTP transport used by the firmware upload adapters: request execution, TLS setup, response capture, and transport-level error handling.
+This document covers the low-level HTTP transport used by the firmware's HTTP-backed upload adapters: request execution, TLS setup, response capture, and transport-level error handling.
 
 ## Source of truth in code
 
@@ -18,7 +18,9 @@ This document covers the low-level HTTP transport used by the firmware upload ad
 - [upload-adapters.md](upload-adapters.md)
 - [measurement-pipeline.md](measurement-pipeline.md)
 
-`UploadTransport` is the HTTP execution layer used by both upload adapters. It takes a fully-constructed `UploadRequestSpec` and returns an `UploadTransportResponse`. It has no state — the class is a stateless executor with a single `execute()` method.
+`UploadTransport` is the HTTP execution helper used by current HTTP-backed adapters. It takes a fully-constructed `UploadRequestSpec` and returns an `UploadTransportResponse`. It has no state — the class is a stateless executor with a single `execute()` method.
+
+`UploadTransport` is not the backend integration interface. `UploadManager` calls each backend adapter's `deliver()` method, and HTTP adapters use `UploadTransport` internally through `BackendDeliveryContext`. Future non-HTTP backends can use a different delivery service while preserving the same queue and acknowledgement flow.
 
 ---
 
@@ -37,7 +39,7 @@ This document covers the low-level HTTP transport used by the firmware upload ad
 
 The client handle is created and destroyed within a single `execute()` call — there is no connection reuse.
 
-`execute()` does not feed the task watchdog itself. The upload task feeds the TWDT immediately before and after each call so multi-request batches do not starve the watchdog between blocking HTTP operations.
+`execute()` does not feed the task watchdog itself. HTTP-backed adapters feed the TWDT through `BackendDeliveryContext` immediately before and after each call so multi-request batches do not starve the watchdog between blocking HTTP operations.
 
 ---
 
@@ -92,7 +94,7 @@ If `esp_http_client_perform` fails (network error, DNS failure, timeout), `trans
 
 ## Response classification
 
-`UploadTransport` does not interpret the HTTP status itself. The adapter's `classifyResponse()` method reads `transport_err` and `http_status` to determine `UploadResultClass` for the current backend delivery window:
+`UploadTransport` does not interpret the HTTP status itself. HTTP-backed adapters read `transport_err` and `http_status` to determine `UploadResultClass` for the current backend delivery window:
 
 - `transport_err != ESP_OK` → `kTransportError` (regardless of `http_status`)
 - `http_status` in success range → `kSuccess`

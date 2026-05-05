@@ -19,7 +19,8 @@
 
 namespace air360::web {
 
-inline constexpr std::uint32_t kMinSensorPollIntervalMs = 5000U;
+inline constexpr std::uint32_t kMinSensorPollIntervalMs = air360::kMinSensorPollIntervalMs;
+inline constexpr std::uint32_t kMaxSensorPollIntervalMs = air360::kMaxSensorPollIntervalMs;
 // Shared with web_server.cpp so that logHttpHandlerWatermark() can compare
 // the FreeRTOS high-water mark against the configured httpd task stack.
 inline constexpr std::size_t kHttpdStackBytes = 16384U;
@@ -57,6 +58,7 @@ bool validateConfigForm(
     const std::string& cellular_sim_pin,
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
+    unsigned long cellular_modem_type,
     std::string& error);
 
 std::string renderConfigPage(
@@ -70,6 +72,7 @@ std::string renderBackendsPage(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
+    const std::string& air360_upload_secret_preview,
     const std::string& notice,
     bool error_notice);
 std::string renderSensorsPage(

@@ -58,6 +58,7 @@ firmware/
 │   │       ├── upload_manager.cpp
 │   │       ├── upload_transport.cpp
 │   │       ├── measurement_store.cpp
+│   │       ├── air360_api_credentials.cpp
 │   │       ├── backend_config_repository.cpp
 │   │       └── backend_registry.cpp
 │   ├── webui/                      Hand-authored HTML/CSS/JS assets embedded via EMBED_TXTFILES
@@ -102,9 +103,8 @@ NVS
  └─ BackendConfigRepository   (backend_cfg)
      └─ UploadManager         → starts air360_upload task
          └─ MeasurementStore  (pending/inflight queues)
-         └─ UploadTransport   (HTTP client)
-             └─ Air360ApiUploader
-             └─ SensorCommunityUploader
+         └─ IBackendUploader adapters
+             └─ UploadTransport   (HTTP helper for HTTP-backed adapters)
 NetworkManager                (station join or Lab AP)
  └─ SNTP synchronization      (pool.ntp.org or configured server)
 CellularManager               (PPP modem; spawned only when enabled)
@@ -310,7 +310,7 @@ Manages the `SensorConfigList` NVS blob (up to 8 sensors).
 | enabled | Active flag |
 | type | `SensorType` enum |
 | transport | `SensorTransport` enum (inferred from type) |
-| poll_interval_ms | 5000–3600000 ms |
+| poll_interval_ms | 30000–1800000 ms |
 | i2c.bus_id | Forced to 0 |
 | i2c.address | I2C 7-bit address |
 | uart.port_id | UART_NUM_1 or UART_NUM_2 |
@@ -340,20 +340,21 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 
 | Type | Transport | Default Binding | Allowed Binding Values | Min Poll |
 |------|-----------|-----------------|------------------------|----------|
-| BME280 | I2C | 0x76 | 0x76, 0x77 | 5 s |
-| BME680 | I2C | 0x77 | 0x76, 0x77 | 5 s |
-| SPS30 | I2C | 0x69 | 0x69 | 5 s |
-| SCD30 | I2C | 0x61 | 0x61 | 5 s |
-| VEML7700 | I2C | 0x10 | 0x10 | 5 s |
-| HTU2X | I2C | 0x40 | 0x40 | 5 s |
-| SHT4X | I2C | 0x44 | 0x44 | 5 s |
-| INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 5 s |
-| GPS (NMEA) | UART | UART1 | UART1, UART2 | 5 s |
-| MH-Z19B | UART | UART2 | UART1, UART2 | 10 s |
-| DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 5 s |
-| DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 5 s |
-| DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 5 s |
-| ME3-NO2 | Analog (ADC) | — | GPIO4, GPIO5, GPIO6 | 5 s |
+| BME280 | I2C | 0x76 | 0x76, 0x77 | 30 s |
+| BME680 | I2C | 0x77 | 0x76, 0x77 | 30 s |
+| SPS30 | I2C | 0x69 | 0x69 | 30 s |
+| SCD30 | I2C | 0x61 | 0x61 | 30 s |
+| VEML7700 | I2C | 0x10 | 0x10 | 30 s |
+| HTU2X | I2C | 0x40 | 0x40 | 30 s |
+| SHT3X | I2C | 0x44 | 0x44, 0x45 | 30 s |
+| SHT4X | I2C | 0x44 | 0x44 | 30 s |
+| INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 30 s |
+| GPS (NMEA) | UART | UART1 | UART1, UART2 | 30 s |
+| MH-Z19B | UART | UART2 | UART1, UART2 | 30 s |
+| DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
+| DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
+| DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 30 s |
+| ME3-NO2 | Analog (ADC) | — | GPIO4, GPIO5, GPIO6 | 30 s |
 
 ---
 
@@ -417,9 +418,11 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `bme280_sensor.cpp` | BME280 | `espressif__bme280` |
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
+| `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` |
 | `htu2x_sensor.cpp` | HTU2X (Si7021) | `esp-idf-lib__si7021` |
+| `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` |
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` |
@@ -453,7 +456,7 @@ struct MeasurementBatch {
     uint64_t  batch_id;
     int64_t   created_unix_ms;
     string    device_name, board_name;
-    string    chip_id, short_chip_id, esp_mac_id;
+    string    device_id, short_device_id, esp_mac_id;
     string    project_version;
     NetworkMode  network_mode;
     bool      station_connected;
@@ -478,7 +481,7 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
-| upload_interval_ms | 10 000–300 000 ms (default 145 000 ms) |
+| upload_interval_ms | 30 000–3 600 000 ms (default 145 000 ms) |
 
 **Log tag:** `air360.backend_cfg`
 
@@ -498,9 +501,19 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 | Type | Default endpoint |
 |------|-----------------|
 | Sensor.Community | `api.sensor.community` + `/v1/push-sensor-data/` |
-| Air360 API | `api.air360.ru` + `/v1/devices/{chip_id}/batches/{batch_id}` |
+| Air360 API | `api.air360.ru` + `/v1/devices/{device_id}/batches/{batch_id}` |
 | Custom Upload | user-supplied protocol, host, path, and port |
 | InfluxDB | user-supplied protocol, host, path, and port plus measurement name |
+
+---
+
+### `Air360ApiCredentialRepository` — `uploads/air360_api_credentials.cpp`
+
+Stores the Air360 API upload secret separately from the editable backend
+configuration. The secret lives in the `air360_cred` NVS namespace under
+`air360_us`, is generated by the local web UI endpoint, and is never exposed in
+status JSON or diagnostics. The Air360 API uploader hashes it for registration
+and sends it as a bearer token on ingest.
 
 ---
 
@@ -512,7 +525,7 @@ Manages the upload cycle and per-backend runtime state.
 - Stack: 7168 bytes
 - Priority: 4
 - Normal loop delay: 1000 ms
-- Upload interval: 145 000 ms by default (global backend config value, 10 000–300 000 ms)
+- Upload interval: 145 000 ms by default (global backend config value, 30 000–3 600 000 ms)
 - Due backends drain the cycle-start backlog in bounded windows, then wait for the configured interval.
 
 **Upload preconditions (checked every cycle):**
@@ -523,14 +536,14 @@ Manages the upload cycle and per-backend runtime state.
 1. For each backend whose `next_action_time_ms` is due, check preconditions
 2. Reuse that backend's retry window or call `MeasurementStore::uploadWindowAfter(acknowledged_sample_id, 32)`
 3. Assemble `MeasurementBatch`
-4. Call the backend adapter
+4. Call the backend adapter's `deliver()` method
 5. On `kSuccess` or `kNoData`, advance only that backend cursor
 6. On failure, keep only that backend window for retry
 7. Retire shared queue entries once every quorum backend has acknowledged them
 
 Quorum membership excludes disabled, unconfigured, missing-uploader, and best-effort backends. A backend is demoted to best-effort after 5 consecutive backend-specific failures over at least 10 minutes. Best-effort backends no longer block pruning; their missed windows are counted in `missed_sample_count` and exposed in raw status JSON.
 
-Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If an HTTP request is already in flight, the task finishes that request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
+Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requests the upload task to stop, wakes its idle wait, and waits up to 30 s for an acknowledgement event bit. If a backend delivery operation is already in flight, the task finishes the current protocol request before stopping; it will not start another request after observing the stop request. On timeout, runtime apply is aborted and existing backend runtime objects remain active.
 
 **Backend runtime states:**
 
@@ -551,12 +564,13 @@ Runtime backend reconfiguration calls `UploadManager::applyConfig()`, which requ
 
 ### `UploadTransport` — `uploads/upload_transport.cpp`
 
-Low-level HTTP client wrapper around `esp_http_client`.
+Low-level HTTP client wrapper around `esp_http_client`, used by HTTP-backed backend adapters through `BackendDeliveryContext`. It is not the generic backend interface; backend adapters own delivery and return `UploadAttemptResult` to `UploadManager`.
 
 **Configuration:**
 - CRT bundle enabled (TLS support)
 - Per-request timeout: 15 000 ms
-- Request/response buffer: 512 bytes
+- RX buffer: 2 048 bytes
+- TX buffer: 1 024 bytes
 - Keep-alive: disabled
 - Methods: POST, PUT
 
@@ -571,9 +585,9 @@ Returns per-request: transport status, HTTP status code, response body size, tot
 Uploads batches to the Air360 backend.
 
 - Method: `PUT`
-- Path: `/v1/devices/{chip_id}/batches/{batch_id}`
+- Path: `/v1/devices/{device_id}/batches/{batch_id}`
 - Content-Type: `application/json`
-- Auth: none (bearer token reserved but not sent)
+- Auth: `Authorization: Bearer <upload_secret>` loaded from `air360_cred`
 - Success HTTP codes: 200–208, 409
 
 Payload is the full `MeasurementBatch` serialized as JSON with `schema_version`.
@@ -591,7 +605,7 @@ Uploads to [Sensor.Community](https://sensor.community/).
 
 Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
 
-`X-Sensor` uses the legacy `esp32-{chip_id}` format (or the configured device ID override).
+`X-Sensor` uses the legacy `esp32-{device_id}` format (or the configured device ID override).
 
 ---
 
@@ -654,8 +668,8 @@ Reads project metadata at runtime from ESP-IDF ROM/flash info.
 
 | Field | Description |
 |-------|-------------|
-| `chip_id` | 48-bit decimal (6 MAC bytes) |
-| `short_chip_id` | Legacy airrohr format (24-bit, lower 3 bytes) |
+| `device_id` | 48-bit decimal (6 MAC bytes) |
+| `short_device_id` | Legacy airrohr format (24-bit, lower 3 bytes) |
 | `esp_mac_id` | Station MAC in hex (12 chars) |
 
 Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), core count, crystal frequency, and package variant.
@@ -713,10 +727,11 @@ Partition table defined in `partitions.csv`:
 | `nvs` | data/nvs | 0x9000 | 24 KB | DeviceConfig, SensorConfig, BackendConfig, boot counter |
 | `otadata` | data/ota | 0xf000 | 8 KB | OTA metadata (present, OTA logic not yet implemented) |
 | `phy_init` | data/phy | 0x11000 | 4 KB | PHY calibration (managed by IDF) |
-| `factory` | app/factory | 0x20000 | 1536 KB | Application image |
-| `storage` | data/spiffs | 0x1a0000 | 384 KB | Reserved, not mounted or used |
+| `ota_0` | app/ota_0 | 0x20000 | 6 MB | Primary application image slot |
+| `ota_1` | app/ota_1 | 0x620000 | 6 MB | Secondary application image slot reserved for OTA |
+| `storage` | data/spiffs | 0xc20000 | 3 MB | Reserved, not mounted or used |
 
-The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved for future use.
+The current runtime depends only on NVS. SPIFFS is reserved for future use; OTA image slots are present so future OTA support does not require another partition-table change.
 
 ---
 
@@ -743,7 +758,7 @@ The current runtime depends only on NVS. SPIFFS and OTA partitions are reserved 
 - Bus 0: SDA=GPIO8, SCL=GPIO9
 - Clock: 100 kHz
 - Transfer timeout: 200 ms
-- Used by: BME280, BME680, SPS30, SCD30, VEML7700, HTU2X, SHT4X
+- Used by: BME280, BME680, SPS30, SCD30, VEML7700, HTU2X, SHT3X, SHT4X
 
 ### UART
 
@@ -779,7 +794,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 - Endpoint: built at request time from `host`, `path`, `port`, and `use_https`
 - Protocol: `http` or `https`, selected per backend in the web UI and stored in NVS
 - Payload: `sensordatavalues` array
-- Identification: `X-Sensor: esp32-{chip_id}`, `X-MAC-ID`, `X-PIN`
+- Identification: `X-Sensor: esp32-{device_id}`, `X-MAC-ID`, `X-PIN`
 
 ### SNTP
 
@@ -847,8 +862,8 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | HTTP request timeout | 15 000 ms | upload adapters |
 | HTTP buffer size | 512 B | `upload_transport.cpp` |
 | Upload interval default | 145 000 ms | `backend_config.hpp` |
-| Upload interval range | 10 000–300 000 ms | `backend_config_repository.cpp` |
-| Sensor poll interval range | 5 000–3 600 000 ms | `sensor_registry.cpp` |
+| Upload interval range | 30 000–3 600 000 ms | `backend_config_repository.cpp` |
+| Sensor poll interval range | 30 000–1 800 000 ms | `sensor_registry.cpp` |
 | Sensor reconfigure stop timeout | 5 s | `sensor_manager.cpp` |
 | Upload reconfigure stop timeout | 30 s | `upload_manager.cpp` |
 | SNTP poll period | 250 ms | `network_manager.cpp` |

@@ -27,7 +27,7 @@ Key files and directories:
 - `main/Kconfig.projbuild`
   Declares project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`.
 - `main/webui/`
-  Hand-authored frontend assets and HTML templates embedded into the firmware image and used by the local web server.
+  Hand-authored frontend assets, vendored Leaflet map assets, and HTML templates embedded into the firmware image and used by the local web server.
 - `sdkconfig.defaults`
   Repository defaults for important project settings.
 - `sdkconfig`
@@ -258,7 +258,8 @@ The current build artifacts target a 16 MB flash chip with the current partition
 - bootloader at `0x0`
 - partition table at `0x8000`
 - OTA data init at `0xf000`
-- app image at `0x20000`
+- primary app slot `ota_0` at `0x20000`
+- secondary app slot `ota_1` at `0x620000`
 
 Typical flash command:
 
@@ -341,7 +342,7 @@ The firmware also has a separate upload pipeline:
 - `UploadManager` only attempts upload when station uplink and valid Unix time are available
 - `UploadManager` drains a bounded measurement window on each cycle rather than sending the whole queue at once
 - when backlog remains after a successful upload, `UploadManager` temporarily shortens the next cycle to drain the queue faster
-- `UploadTransport` executes HTTP requests and returns transport status, HTTP status, response size, and total request duration
+- backend adapters own delivery for each backend window; HTTP-backed adapters use `UploadTransport` internally for request execution
 - backend-specific adapters translate the generic measurement batch into backend payloads
 
 Currently implemented backends are:
@@ -349,7 +350,7 @@ Currently implemented backends are:
 - `Sensor.Community`
   Fixed default endpoint `https://api.sensor.community/v1/push-sensor-data/`
 - `Air360 API`
-  Fixed default base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{chip_id}/batches/{batch_id}`
+  Fixed default base endpoint `https://api.air360.ru` with dynamic route `/v1/devices/{device_id}/batches/{batch_id}`
 - `Custom Upload`
   User-supplied protocol, host, path, and port
 - `InfluxDB`
@@ -429,12 +430,14 @@ The project uses a custom partition table in `partitions.csv`:
   Present for OTA metadata, but the current firmware does not implement OTA update logic yet.
 - `phy_init`
   Standard ESP-IDF PHY calibration data partition.
-- `factory`
-  The current application image slot.
+- `ota_0`
+  Primary 6 MB application image slot.
+- `ota_1`
+  Secondary 6 MB application image slot reserved for future OTA update support.
 - `storage`
-  A `spiffs` data partition reserved for future file-backed storage. The current runtime does not mount or use it yet.
+  A 3 MB `spiffs` data partition reserved for future file-backed storage. The current runtime does not mount or use it yet.
 
-The current runtime depends on NVS, not on SPIFFS.
+The current runtime depends on NVS, not on SPIFFS. Repartitioning from the older single-slot layout moves the app and `storage` partitions; reflashing may erase or orphan previous app/storage contents.
 
 ## Debugging Notes
 

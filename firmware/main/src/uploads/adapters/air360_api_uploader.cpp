@@ -5,10 +5,14 @@
 
 #include "air360/uploads/adapters/air360_json_payload.hpp"
 #include "air360/uploads/backend_config.hpp"
+#include "air360/uploads/upload_transport.hpp"
+#include "esp_log.h"
 
 namespace air360 {
 
 namespace {
+
+constexpr char kTag[] = "air360.upload";
 
 std::string trimTrailingSlash(const char* url) {
     std::string trimmed = url != nullptr ? url : "";
@@ -30,18 +34,46 @@ void replaceAll(std::string& value, const std::string& from, const std::string& 
     }
 }
 
+std::string buildBackendOrigin(const BackendRecord& record) {
+    std::string origin = backendProtocolScheme(record.protocol);
+    origin += boundedCString(record.host, kBackendHostCapacity);
+    if (record.port != 0U && !isDefaultBackendPort(record.protocol, record.port)) {
+        origin += ':';
+        origin += std::to_string(record.port);
+    }
+    return origin;
+}
+
+std::string buildRegistrationUrl(const BackendRecord& record, const MeasurementBatch& batch) {
+    const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
+    return buildBackendOrigin(record) + "/v1/devices/" + device_id + "/register";
+}
+
 std::string buildUrl(const BackendRecord& record, const MeasurementBatch& batch) {
     std::string url = buildBackendUrl(record);
-    const std::string chip_id = !batch.chip_id.empty() ? batch.chip_id : batch.short_chip_id;
+    const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
 
-    if (url.find("{chip_id}") != std::string::npos || url.find("{batch_id}") != std::string::npos) {
-        replaceAll(url, "{chip_id}", chip_id);
+    if (url.find("{device_id}") != std::string::npos || url.find("{batch_id}") != std::string::npos) {
+        replaceAll(url, "{device_id}", device_id);
         replaceAll(url, "{batch_id}", std::to_string(batch.batch_id));
         return url;
     }
 
     const std::string base = trimTrailingSlash(url.c_str());
-    return base + "/v1/devices/" + chip_id + "/batches/" + std::to_string(batch.batch_id);
+    return base + "/v1/devices/" + device_id + "/batches/" + std::to_string(batch.batch_id);
+}
+
+std::string errorMessageFromResponse(const UploadTransportResponse& response) {
+    if (response.transport_err != ESP_OK) {
+        return esp_err_to_name(response.transport_err);
+    }
+    if (!response.body_snippet.empty()) {
+        return response.body_snippet;
+    }
+    if (response.http_status != 0) {
+        return std::string("HTTP ") + std::to_string(response.http_status);
+    }
+    return "Upload failed.";
 }
 
 }  // namespace
@@ -65,9 +97,203 @@ bool Air360ApiUploader::validateConfig(
     return true;
 }
 
+UploadAttemptResult Air360ApiUploader::deliver(
+    const BackendRecord& record,
+    const MeasurementBatch& batch,
+    const BackendDeliveryContext& context) {
+    UploadAttemptResult result;
+    result.phase = UploadAttemptPhase::kPreflight;
+
+    std::string error;
+    if (!validateConfig(record, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (!validateAir360JsonBatch(batch, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (batch.points.empty()) {
+        result.result = UploadResultClass::kNoData;
+        return result;
+    }
+
+    if (context.http_transport == nullptr) {
+        result.result = UploadResultClass::kUnsupported;
+        result.phase = UploadAttemptPhase::kDataUpload;
+        result.message = "HTTP transport is not available.";
+        return result;
+    }
+
+    if (context.air360_credentials == nullptr) {
+        result.result = UploadResultClass::kUnsupported;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message = "Air360 credential storage is not available.";
+        return result;
+    }
+
+    std::string upload_secret;
+    bool upload_secret_found = false;
+    const esp_err_t secret_err =
+        context.air360_credentials->loadUploadSecret(upload_secret, upload_secret_found);
+    if (secret_err != ESP_OK) {
+        result.result = UploadResultClass::kConfigError;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message =
+            std::string("Air360 upload secret load failed: ") + esp_err_to_name(secret_err);
+        return result;
+    }
+    if (!upload_secret_found) {
+        result.result = UploadResultClass::kConfigError;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message = "Air360 upload secret is missing. Generate or enter it on Backends.";
+        return result;
+    }
+
+    const std::string upload_secret_hash = hashAir360UploadSecret(upload_secret);
+    if (upload_secret_hash.empty()) {
+        result.result = UploadResultClass::kConfigError;
+        result.phase = UploadAttemptPhase::kRegistration;
+        result.message = "Air360 upload secret hash failed.";
+        return result;
+    }
+
+    UploadAttemptResult registration_result =
+        prepareSync(record, batch, context, upload_secret_hash);
+    if (registration_result.result != UploadResultClass::kSuccess) {
+        return registration_result;
+    }
+
+    std::vector<UploadRequestSpec> requests;
+    if (!buildRequests(record, batch, upload_secret, requests, error)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = std::move(error);
+        return result;
+    }
+
+    if (requests.empty()) {
+        result.result = UploadResultClass::kNoData;
+        return result;
+    }
+
+    result.result = UploadResultClass::kSuccess;
+    result.phase = UploadAttemptPhase::kDataUpload;
+    for (const auto& request : requests) {
+        if (context.stopRequested()) {
+            result.result = UploadResultClass::kUnknown;
+            result.message = "Upload stopped before request completed.";
+            return result;
+        }
+
+        context.resetWatchdog("before air360 upload request");
+        const UploadTransportResponse response = context.http_transport->execute(request);
+        context.resetWatchdog("after air360 upload request");
+
+        result.status_code = response.http_status;
+        result.response_time_ms = response.response_time_ms;
+        result.retry_after_seconds = response.retry_after_seconds;
+        result.transport_err = response.transport_err;
+        result.result = classifyResponse(response);
+        if (result.result != UploadResultClass::kSuccess) {
+            result.message = errorMessageFromResponse(response);
+            return result;
+        }
+    }
+
+    return result;
+}
+
+UploadAttemptResult Air360ApiUploader::prepareSync(
+    const BackendRecord& record,
+    const MeasurementBatch& batch,
+    const BackendDeliveryContext& context,
+    const std::string& upload_secret_hash) {
+    UploadAttemptResult result;
+    result.phase = UploadAttemptPhase::kRegistration;
+
+    if (registered_.load(std::memory_order_acquire)) {
+        result.result = UploadResultClass::kSuccess;
+        return result;
+    }
+
+    if (record.latitude == 0.0F && record.longitude == 0.0F) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = "Air360 location is not set. Configure latitude and longitude in Backends.";
+        return result;
+    }
+
+    const std::string device_id = !batch.device_id.empty() ? batch.device_id : batch.short_device_id;
+
+    std::string body = "{\"schema_version\":1,\"name\":\"";
+    body += jsonEscape(batch.device_name);
+    body += "\",\"firmware_version\":\"";
+    body += jsonEscape(batch.project_version);
+    body += "\",\"location\":{\"latitude\":";
+    body += std::to_string(record.latitude);
+    body += ",\"longitude\":";
+    body += std::to_string(record.longitude);
+    body += ",\"altitude_m\":";
+    body += std::to_string(record.altitude_m);
+    body += "},\"upload_secret_hash\":\"";
+    body += jsonEscape(upload_secret_hash);
+    body += "\"}";
+
+    UploadRequestSpec request;
+    request.request_key = std::string("air360_api:register:") + device_id;
+    request.method = UploadMethod::kPut;
+    request.url = buildRegistrationUrl(record, batch);
+    request.timeout_ms = 15000;
+    request.headers.push_back({"Content-Type", "application/json"});
+    request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
+    request.body = std::move(body);
+
+    if (context.stopRequested()) {
+        result.result = UploadResultClass::kUnknown;
+        result.message = "Upload stopped before registration completed.";
+        return result;
+    }
+
+    context.resetWatchdog("before air360 registration");
+    const UploadTransportResponse response = context.http_transport->execute(request);
+    context.resetWatchdog("after air360 registration");
+    result.status_code = response.http_status;
+    result.response_time_ms = response.response_time_ms;
+    result.retry_after_seconds = response.retry_after_seconds;
+    result.transport_err = response.transport_err;
+
+    if (response.transport_err != ESP_OK) {
+        result.result = UploadResultClass::kTransportError;
+        result.message =
+            std::string("Registration transport error: ") + esp_err_to_name(response.transport_err);
+        ESP_LOGW(kTag, "Air360 registration failed (transport): %s", result.message.c_str());
+        return result;
+    }
+
+    if (response.http_status >= 200 && response.http_status <= 299) {
+        registered_.store(true, std::memory_order_release);
+        ESP_LOGI(kTag, "Air360 device registered: %s", device_id.c_str());
+        result.result = UploadResultClass::kSuccess;
+        return result;
+    }
+
+    result.result = UploadResultClass::kHttpError;
+    result.message = std::string("Registration failed: HTTP ") + std::to_string(response.http_status);
+    if (!response.body_snippet.empty()) {
+        result.message += " — ";
+        result.message += response.body_snippet;
+    }
+    ESP_LOGW(kTag, "Air360 registration failed: %s", result.message.c_str());
+    return result;
+}
+
 bool Air360ApiUploader::buildRequests(
     const BackendRecord& record,
     const MeasurementBatch& batch,
+    const std::string& upload_secret,
     std::vector<UploadRequestSpec>& out_requests,
     std::string& error) const {
     out_requests.clear();
@@ -93,6 +319,7 @@ bool Air360ApiUploader::buildRequests(
     request.timeout_ms = 15000;
     request.headers.push_back({"Content-Type", "application/json"});
     request.headers.push_back({"User-Agent", std::string("air360/") + batch.project_version});
+    request.headers.push_back({"Authorization", std::string("Bearer ") + upload_secret});
     request.body = buildAir360JsonBody(batch);
     out_requests.push_back(std::move(request));
 

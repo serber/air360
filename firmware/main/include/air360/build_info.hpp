@@ -16,8 +16,8 @@ struct BuildInfo {
     std::string chip_type;
     std::string chip_features;
     std::string crystal_frequency;
-    std::string chip_id;
-    std::string short_chip_id;
+    std::string device_id;
+    std::string short_device_id;
     std::string esp_mac_id;
 };
 

@@ -10,6 +10,8 @@ namespace air360 {
 
 namespace {
 
+constexpr std::uint32_t kInitialUploadDelayMs = 15000U;
+
 std::string defaultDisplayName(
     const BackendDescriptor* descriptor,
     std::uint32_t id) {
@@ -36,6 +38,10 @@ std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
     const BackendConfigList& config) const {
     BackendRegistry registry;
     const std::uint64_t now_ms = uptimeMilliseconds();
+    const std::uint32_t initial_delay_ms =
+        config.upload_interval_ms < kInitialUploadDelayMs
+            ? config.upload_interval_ms
+            : kInitialUploadDelayMs;
     std::vector<ManagedBackend> backends;
     backends.reserve(config.backend_count);
 
@@ -75,7 +81,7 @@ std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
                 managed.snapshot.last_result = UploadResultClass::kConfigError;
                 managed.snapshot.last_error = "Failed to allocate backend uploader.";
             } else {
-                managed.next_action_time_ms = now_ms;
+                managed.next_action_time_ms = now_ms + initial_delay_ms;
             }
         }
 
@@ -96,8 +102,8 @@ MeasurementBatch UploadManager::buildMeasurementBatch(
     batch.device_name = device_config_ != nullptr ? device_config_->device_name : "";
     batch.board_name = build_info_.board_name;
     batch.project_version = build_info_.project_version;
-    batch.chip_id = build_info_.chip_id;
-    batch.short_chip_id = build_info_.short_chip_id;
+    batch.device_id = build_info_.device_id;
+    batch.short_device_id = build_info_.short_device_id;
     batch.esp_mac_id = build_info_.esp_mac_id;
 
     if (network_manager_ != nullptr) {

@@ -23,26 +23,40 @@ This document covers the adapter-specific layer that turns Air360 measurements i
 - [measurement-pipeline.md](measurement-pipeline.md)
 - [configuration-reference.md](configuration-reference.md)
 
-This document describes the four backend upload adapters — what HTTP request each one sends, how measurement data is mapped to the payload format, and how responses are interpreted.
+This document describes the four backend upload adapters — how each backend delivers a measurement batch, how HTTP-backed adapters map payloads, and how protocol responses are interpreted.
 
 ---
 
 ## Adapter interface
 
-Both adapters implement `IBackendUploader`:
+Backend adapters implement `IBackendUploader`:
 
 ```cpp
 class IBackendUploader {
     bool validateConfig(const BackendRecord& record, string& error);
-    bool buildRequests(const BackendRecord& record,
-                       const MeasurementBatch& batch,
-                       vector<UploadRequestSpec>& out_requests,
-                       string& error);
-    UploadResultClass classifyResponse(const UploadTransportResponse& response);
+    UploadAttemptResult deliver(const BackendRecord& record,
+                                const MeasurementBatch& batch,
+                                const BackendDeliveryContext& context);
 };
 ```
 
-`buildRequests()` converts one `MeasurementBatch` into one or more `UploadRequestSpec` objects. Each spec is then executed by `UploadTransport` as an independent HTTP request.
+`deliver()` owns protocol-specific delivery for one backend window. `UploadManager` still owns queue windows, acknowledgement cursors, retry scheduling, best-effort demotion, and pruning; the adapter returns one `UploadAttemptResult` describing whether the window was accepted, skipped, or should be retried.
+
+`BackendDeliveryContext` currently provides the shared HTTP executor plus stop/watchdog callbacks. HTTP is therefore an implementation detail of the current adapters, not a required shape for future backends. A future MQTT, TCP, filesystem, or modem-specific backend can use a different service through the context while preserving the same queue and acknowledgement policy.
+
+```cpp
+struct UploadAttemptResult {
+    UploadResultClass result;
+    UploadAttemptPhase phase;          // preflight, registration, data upload
+    esp_err_t          transport_err;
+    int                status_code;    // HTTP status or protocol-specific code
+    uint32_t           response_time_ms;
+    uint32_t           retry_after_seconds;
+    string             message;
+};
+```
+
+HTTP-backed adapters still build one or more internal `UploadRequestSpec` objects and execute them with `UploadTransport`:
 
 ```cpp
 struct UploadRequestSpec {
@@ -55,7 +69,7 @@ struct UploadRequestSpec {
 };
 ```
 
-`classifyResponse()` maps the transport result to `UploadResultClass`. `UploadManager` applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry. Backend-specific failures also feed the best-effort demotion policy documented in [measurement-pipeline.md](measurement-pipeline.md); shared `kNoNetwork` failures do not.
+Adapters map transport/protocol responses to `UploadResultClass`. `UploadManager` applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry. Backend-specific failures also feed the best-effort demotion policy documented in [measurement-pipeline.md](measurement-pipeline.md); shared `kNoNetwork` failures do not.
 
 ---
 
@@ -81,6 +95,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 |-------------|-----------|-------|---------------------------|
 | BME280 | I2C | 11 | Sent as climate data |
 | BME680 | I2C | 11 | Sent as climate data; gas resistance is skipped |
+| SHT3X | I2C | 7 | Sent as temperature + humidity |
 | SHT4X | I2C | 7 | Sent as temperature + humidity |
 | HTU2X | I2C | 7 | Sent as temperature + humidity |
 | DHT11 | GPIO | 7 | Sent as temperature + humidity |
@@ -89,10 +104,11 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | SCD30 | I2C | 17 | Sent as temperature + humidity + CO2 |
 | VEML7700 | I2C | — | Not supported, skipped |
 | SPS30 | I2C | 1 | Sent as particulate matter data |
+| SDS011 | UART | 1 | Sent as PM2.5 and PM10 particulate matter data |
 | GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
 | ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
 
-Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `buildRequests()` returns `true` with an empty request list — the upload manager treats this as `kNoData`.
+Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `deliver()` returns `kNoData`.
 
 ### Value type mapping
 
@@ -114,7 +130,7 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 | `kTemperatureC` | `"temperature"` |
 | `kHumidityPercent` | `"humidity"` |
 
-**HTU2X / SHT4X (pin 7):**
+**HTU2X / SHT3X / SHT4X (pin 7):**
 
 | ValueKind | value_type |
 |-----------|-----------|
@@ -159,6 +175,13 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 | `kNc10_0PerCm3` | `"N10"` |
 | `kTypicalParticleSizeUm` | `"TS"` |
 
+**SDS011 (pin 1):**
+
+| ValueKind | value_type |
+|-----------|-----------|
+| `kPm2_5UgM3` | `"P2"` |
+| `kPm10_0UgM3` | `"P1"` |
+
 Within a group, if the same `value_type` appears more than once (e.g., two temperature points for the same sensor in the same batch window), the **latest value wins** — it overwrites the previous one.
 
 ### Headers
@@ -166,17 +189,17 @@ Within a group, if the same `value_type` appears more than once (e.g., two tempe
 | Header | Value | Source |
 |--------|-------|--------|
 | `Content-Type` | `application/json` | fixed |
-| `X-Sensor` | `esp32-{chip_id}` | `short_chip_id` or `device_id_override` |
+| `X-Sensor` | `esp32-{device_id}` | `short_device_id` or `device_id_override` |
 | `X-MAC-ID` | `esp32-{esp_mac_id}` | station MAC in hex |
 | `X-PIN` | `{pin}` | sensor group pin number |
-| `User-Agent` | `{project_version}/{chip_id}/{esp_mac_id}` | build info + identity |
+| `User-Agent` | `{project_version}/{device_id}/{esp_mac_id}` | build info + identity |
 
-**`X-Sensor` chip ID resolution:**
+**`X-Sensor` device ID resolution:**
 1. If `device_id_override` is set in `BackendRecord` → use that value
-2. Otherwise use `short_chip_id` (24-bit legacy airrohr format)
-3. Fallback to `chip_id` if `short_chip_id` is empty
+2. Otherwise use `short_device_id` (24-bit legacy airrohr format)
+3. Fallback to `device_id` if `short_device_id` is empty
 
-The `short_chip_id` must match the device ID registered on `devices.sensor.community`.
+The `short_device_id` must match the device ID registered on `devices.sensor.community`.
 
 ### Body format
 
@@ -210,11 +233,48 @@ HTTP 200–208 → `kSuccess`. Anything else → `kHttpError`.
 PUT {scheme}://{host}{:port}{path}
 ```
 
-- `{chip_id}` — full 48-bit decimal chip ID (`chip_id` field from `BuildInfo`)
+- `{device_id}` — full 48-bit decimal device ID (`device_id` field from `BuildInfo`)
 - `{batch_id}` — unique `uint64_t` batch identifier from `MeasurementBatch`
-- Default value: `https://api.air360.ru/v1/devices/{chip_id}/batches/{batch_id}`
-- Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{chip_id}/batches/{batch_id}` for backward compatibility.
+- Default value: `https://api.air360.ru/v1/devices/{device_id}/batches/{batch_id}`
+- Stored URLs may still contain the legacy base form `http(s)://api.air360.ru`; when that is loaded, the adapter appends `/v1/devices/{device_id}/batches/{batch_id}` for backward compatibility.
 - The `:port` segment is included only when the configured port is not the protocol default (`443` for HTTPS, `80` for HTTP).
+
+### Device registration
+
+Before the first upload cycle, the Air360 API adapter runs an internal registration step from `deliver()` to register the device with the backend. This step runs once per firmware boot and sets a `registered_` atomic flag on success; subsequent cycles skip it.
+
+The adapter requires an Air360 upload secret stored in the separate
+`air360_cred` NVS namespace. The Backends page can generate a new secret or let
+the user paste a previously saved one. Once stored, the page shows a configured
+state with a masked preview and requires an explicit replacement action before
+submitting a new secret. Registration sends only `upload_secret_hash`; batch
+ingest sends the raw secret as a bearer token.
+
+**Registration request:**
+
+```
+PUT {scheme}://{host}{:port}/v1/devices/{device_id}/register
+```
+
+```json
+{
+  "schema_version": 1,
+  "name": "<device_name>",
+  "firmware_version": "0.1.0",
+  "location": {
+    "latitude": 55.751244,
+    "longitude": 37.618423,
+    "altitude_m": 150.0
+  },
+  "upload_secret_hash": "sha256:base64url-sha256-value"
+}
+```
+
+- If `latitude` and `longitude` are both `0.0`, `deliver()` returns `kConfigError` during the registration phase and the upload cycle is skipped. Set coordinates on the Backends page before enabling Air360 API.
+- `altitude_m` is optional. If `0.0` or not entered, it is still sent as `0.0`; the backend uses it for sea-level pressure correction and treats `0` as "not configured".
+- If the upload secret is missing or invalid, `deliver()` returns `kConfigError`; generate or enter the secret on the Backends page.
+- HTTP 2xx → device registered, `registered_` set to `true`.
+- Transport error or non-2xx HTTP → error is logged, the cycle is counted as a transport error, and registration retries on the next upload cycle.
 
 ### One request per batch
 
@@ -222,9 +282,9 @@ Unlike Sensor.Community, the Air360 adapter emits exactly **one PUT request** pe
 
 ### Extra preconditions
 
-`buildRequests()` fails early with an error string (returns `false`) if:
+`deliver()` fails early with `kConfigError` if:
 - `batch.created_unix_ms <= 0` — unix time is not valid
-- `batch.chip_id` and `batch.short_chip_id` are both empty
+- `batch.device_id` and `batch.short_device_id` are both empty
 
 These checks are in addition to the network/time guards already applied by the upload manager.
 
@@ -238,8 +298,7 @@ Batch points are grouped by `(sensor_type, sample_time_ms)`. Each unique combina
 |--------|-------|
 | `Content-Type` | `application/json` |
 | `User-Agent` | `air360/{project_version}` |
-
-No authentication header is sent in the current firmware version.
+| `Authorization` | `Bearer <upload_secret>` |
 
 ### Body format
 
@@ -250,8 +309,8 @@ No authentication header is sent in the current firmware version.
   "device": {
     "device_name": "air360",
     "board_name": "esp32-s3-devkitc-1",
-    "chip_id": "123456789012",
-    "short_chip_id": "789012",
+    "device_id": "123456789012",
+    "short_device_id": "789012",
     "esp_mac_id": "aabbccddeeff",
     "firmware_version": "0.1.0"
   },
@@ -314,7 +373,7 @@ Like `Air360 API`, this adapter emits exactly **one request per upload cycle** a
 
 `Custom Upload` reuses the same shared Air360 JSON payload builder as `Air360 API`. That means it has the same behavior for:
 
-- preconditions: `batch.created_unix_ms > 0` and at least one of `batch.chip_id` / `batch.short_chip_id` must be present
+- preconditions: `batch.created_unix_ms > 0` and at least one of `batch.device_id` / `batch.short_device_id` must be present
 - grouping: points are grouped by `(sensor_type, sample_time_ms)`
 - value formatting: JSON numbers with per-kind precision from `sensorValueKindPrecision()`
 - sensor coverage: all sensor types are passed through without filtering
@@ -404,11 +463,12 @@ Any other HTTP status → `kHttpError`.
 
 ## Transport layer
 
-All adapters produce `UploadRequestSpec` objects that are executed by `UploadTransport::execute()`. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
+The current adapters are HTTP-backed and execute internal `UploadRequestSpec` objects with `UploadTransport::execute()`. This is no longer part of the cross-backend interface; it is the shared helper used by HTTP backends. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
 
 - HTTP client: `esp_http_client` with CRT bundle (TLS capable)
 - Timeout: 15 000 ms per request
-- Request/response buffer: 512 bytes
+- RX buffer: 2 048 bytes
+- TX buffer: 1 024 bytes
 - Keep-alive: disabled
 
 The transport returns `UploadTransportResponse`:
@@ -426,7 +486,7 @@ struct UploadTransportResponse {
 };
 ```
 
-If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classifyResponse()` returns `kTransportError` in all adapters — regardless of what the HTTP status might say.
+If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-backed adapters return `kTransportError` in their `UploadAttemptResult` — regardless of what the HTTP status might say.
 
 ---
 
@@ -437,8 +497,8 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), `classi
 | Method | POST | PUT | POST | POST |
 | Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
-| Device identification | `X-Sensor: esp32-{short_chip_id}` | URL path: `/devices/{chip_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
-| Authentication | None | None | None | Optional Basic Auth |
-| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT4X, DS18B20, SCD30, GPS, SPS30 | All sensor types | All sensor types | All sensor types |
+| Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
+| Authentication | None | Bearer upload secret | None | Optional Basic Auth |
+| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011 | All sensor types | All sensor types | All sensor types |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
-| Extra preconditions | None | unix_ms > 0, chip_id non-empty | unix_ms > 0, chip_id non-empty | unix_ms > 0, valid Influx config |
+| Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config |

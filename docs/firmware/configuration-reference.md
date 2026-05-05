@@ -166,6 +166,7 @@ Schema version: 1.
 | `pwrkey_gpio` | `uint8_t` | `0xFF` | PWRKEY GPIO; `0xFF` = not wired |
 | `sleep_gpio` | `uint8_t` | `0xFF` | DTR/sleep GPIO; `0xFF` = not wired |
 | `reset_gpio` | `uint8_t` | `0xFF` | Hardware reset GPIO; `0xFF` = not wired |
+| `modem_type` | `uint8_t` | `0` (SIM7600) | AT command dialect: `0`=SIM7600, `1`=SIM7070, `2`=SIM7000, `3`=BG96, `4`=EC20, `5`=SIM800, `6`=Generic |
 | `wifi_debug_window_s` | `uint16_t` | `600` | Seconds Wi-Fi station stays active alongside cellular after boot; `0` = disabled |
 | `apn` | `char[64]` | `""` | PDP context APN; required when `enabled = 1` |
 | `username` | `char[32]` | `""` | Optional PAP/CHAP username; empty if not required by carrier |
@@ -176,7 +177,7 @@ Schema version: 1.
 ### Notes
 
 - `CellularConfig` is versioned separately from `DeviceConfig` with its own magic (`0x43454C4C`) and schema version. An integrity failure resets only the cellular config to defaults.
-- When `enabled = 1`, the SIM7600E modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
+- When `enabled = 1`, the configured modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
 - `connectivity_check_host` defaults to `"8.8.8.8"` in the compiled-in `CellularConfig`. When the field is emptied in the UI, the form still pre-fills `"8.8.8.8"` for convenience before save.
 - `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
 - `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.
@@ -204,7 +205,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `enabled` | `uint8_t` | `1` | 0 or 1 |
 | `sensor_type` | `SensorType` (uint8_t) | — | Must be a recognised type |
 | `transport_kind` | `TransportKind` (uint8_t) | — | Must match the sensor's supported transport |
-| `poll_interval_ms` | `uint32_t` | `10000` | 5 000–3 600 000 ms |
+| `poll_interval_ms` | `uint32_t` | `30000` | 30 000–1 800 000 ms |
 | `i2c_bus_id` | `uint8_t` | `0` | Must be `0` (only one I2C bus) |
 | `i2c_address` | `uint8_t` | Sensor descriptor default | Must be one of the descriptor's allowed I2C addresses; see table below |
 | `uart_port_id` | `uint8_t` | Sensor descriptor default | UART sensors only: must be one of the descriptor's allowed UART ports |
@@ -217,22 +218,25 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 
 | Sensor | Transport | Default binding | Allowed addresses / pins | Min poll interval | Notes |
 |--------|-----------|-----------------|--------------------------|------------------|-------|
-| BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 5 000 ms | — |
-| BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 5 000 ms | — |
-| SPS30 | I2C | Bus 0, `0x69` | `0x69` | 5 000 ms | — |
-| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 5 000 ms | — |
-| VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 5 000 ms | — |
-| HTU2X | I2C | Bus 0, `0x40` | `0x40` | 5 000 ms | — |
-| SHT4X | I2C | Bus 0, `0x44` | `0x44` | 5 000 ms | — |
-| GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 5 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
-| DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
-| DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
-| DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | One device per pin only |
-| ME3-NO2 | Analog | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 5 000 ms | — |
-| INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 5 000 ms | — |
-| MH-Z19B | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 10 000 ms | Baud rate must be 9600 |
+| AHT30 | I2C | Bus 0, `0x38` | `0x38` | 30 000 ms | Fixed address, no hardware selection |
+| BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 30 000 ms | — |
+| BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 30 000 ms | — |
+| SPS30 | I2C | Bus 0, `0x69` | `0x69` | 30 000 ms | — |
+| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | — |
+| VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 30 000 ms | — |
+| HTU2X | I2C | Bus 0, `0x40` | `0x40` | 30 000 ms | — |
+| SHT3X | I2C | Bus 0, `0x44` | `0x44`, `0x45` | 30 000 ms | — |
+| SHT4X | I2C | Bus 0, `0x44` | `0x44` | 30 000 ms | — |
+| GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 30 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
+| SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
+| DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
+| DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
+| DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | One device per pin only |
+| ME3-NO2 | Analog | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
+| INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 30 000 ms | — |
+| MH-Z19B | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
 
-The common validation rule `poll_interval_ms ∈ [5000, 3600000]` applies to all sensors. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
+The common validation rule `poll_interval_ms ∈ [30000, 1800000]` applies to all sensors. Stored configs outside this range are invalid. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
 
 UART validation uses each sensor descriptor's `allowed_uart_ports`. UART0 is reserved for the console. UART1 maps to RX=GPIO18/TX=GPIO17, and UART2 maps to RX=GPIO16/TX=GPIO15; the web UI writes the matching RX/TX pins into the sensor record when a port is selected.
 
@@ -250,7 +254,7 @@ Struct: `BackendConfigList` holding up to 4 `BackendRecord` entries.
 |-------|------|---------|-------------|
 | `backend_count` | `uint16_t` | `4` | 0–4 |
 | `next_backend_id` | `uint32_t` | `5` | Non-zero |
-| `upload_interval_ms` | `uint32_t` | `145 000` | 10 000–300 000 ms |
+| `upload_interval_ms` | `uint32_t` | `145 000` | 30 000–3 600 000 ms |
 
 Four backends are pre-configured by default — all **disabled**:
 
@@ -269,7 +273,7 @@ Four backends are pre-configured by default — all **disabled**:
 | `enabled` | `uint8_t` | `0` | 0 or 1 |
 | `backend_type` | `BackendType` (uint8_t) | — | Must be a recognised type |
 | `display_name` | `char[32]` | type name | 1–31 chars, non-empty |
-| `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short chip ID |
+| `device_id_override` | `char[32]` | `""` | Sensor.Community only; overrides short device ID |
 | `host` | `char[96]` | backend default | HTTP backends; host name without protocol |
 | `path` | `char[96]` | backend default | HTTP backends; must start with `/` when set |
 | `username` | `char[48]` | `""` | Optional Basic Auth username |
@@ -277,17 +281,28 @@ Four backends are pre-configured by default — all **disabled**:
 | `measurement_name` | `char[32]` | `"air360"` for InfluxDB, else `""` | InfluxDB measurement name |
 | `port` | `uint16_t` | backend default | HTTP backends |
 | `use_https` | `uint8_t` | backend default | `1` = HTTPS, `0` = HTTP |
+| `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
+| `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
+| `altitude_m` | `float` | `0.0` | Air360 API only; metres above sea level; optional, `0.0` = not set |
+
+Air360 API also stores its upload secret separately in the `air360_cred`
+namespace rather than inside `BackendRecord`. The secret is required when Air360
+API is enabled, can be generated from the Backends page, and is intentionally
+shown only as a masked preview after saving. Replacing it requires an explicit
+**Change** action on the Backends page.
 
 ### Default endpoint settings
 
 | Backend type | `host` | `path` | `port` | `use_https` |
 |-------------|--------|--------|--------|-------------|
 | Sensor.Community | `api.sensor.community` | `/v1/push-sensor-data/` | `443` | `1` |
-| Air360 API | `api.air360.ru` | `/v1/devices/{chip_id}/batches/{batch_id}` | `443` | `1` |
+| Air360 API | `api.air360.ru` | `/v1/devices/{device_id}/batches/{batch_id}` | `443` | `1` |
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` |
 
 HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` and `InfluxDB` use the same common HTTP fields; `InfluxDB` also stores `measurement_name`. On save, an omitted port becomes the selected protocol default (`443` for HTTPS, `80` for HTTP). Generated request URLs omit the port when it is the selected protocol default.
+
+The Air360 API latitude and longitude fields can be entered manually or selected on the Backends page map. The map only updates the same numeric fields that are submitted to `/backends`; no additional location state is persisted.
 
 ### Validation rules
 
@@ -302,6 +317,8 @@ HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom
 **Air360 API:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
 - If `enabled == 1`: `host`, `path`, and `port` must be valid.
+- `latitude` and `longitude` must both be non-zero before the first upload cycle; the adapter enforces this at registration time (not at config-load time).
+- A valid upload secret must be stored separately before uploads can start.
 
 **Custom Upload:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
@@ -316,9 +333,9 @@ HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom
 - The port must be in range 1–65535.
 
 **List-level:**
-- `upload_interval_ms` must be in range 10 000–300 000.
+- `upload_interval_ms` must be in range 30 000–3 600 000.
 - `next_backend_id` must not be 0.
 
 ### `upload_interval_ms` behaviour
 
-The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. When a backend becomes due, it drains the samples that were already queued at the start of that cycle in bounded upload windows, then schedules the next cycle after the configured interval. Failed attempts retry after the configured interval. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.
+The upload interval applies to all backends simultaneously. Defaults to **145 seconds**. A newly enabled or reconfigured backend waits `min(upload_interval_ms, 15 s)` before its first attempt so sensors, time sync, and network state can settle without waiting for the full interval. When a backend becomes due, it drains the samples that were already queued at the start of that cycle in bounded upload windows, then schedules the next cycle after the configured interval. Failed attempts retry after the configured interval. See [measurement-pipeline.md](measurement-pipeline.md) for timing details.

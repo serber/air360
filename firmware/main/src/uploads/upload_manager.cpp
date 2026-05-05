@@ -61,12 +61,14 @@ void UploadManager::start(
     const DeviceConfig& device_config,
     const SensorManager& sensor_manager,
     MeasurementStore& measurement_store,
-    const NetworkManager& network_manager) {
+    const NetworkManager& network_manager,
+    const Air360ApiCredentialRepository& air360_credentials) {
     build_info_ = build_info;
     device_config_ = &device_config;
     sensor_manager_ = &sensor_manager;
     measurement_store_ = &measurement_store;
     network_manager_ = &network_manager;
+    air360_credentials_ = &air360_credentials;
 }
 
 esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
@@ -208,6 +210,14 @@ bool UploadManager::stopRequested() const {
 
 void UploadManager::taskEntry(void* arg) {
     static_cast<UploadManager*>(arg)->taskMain();
+}
+
+bool UploadManager::deliveryStopRequested(void* arg) {
+    return arg != nullptr && static_cast<UploadManager*>(arg)->stopRequested();
+}
+
+void UploadManager::deliveryWatchdogReset(void* /*arg*/, const char* checkpoint) {
+    resetUploadTaskWatchdog(checkpoint != nullptr ? checkpoint : "backend delivery");
 }
 
 void UploadManager::taskMain() {
@@ -352,66 +362,39 @@ void UploadManager::taskMain() {
                             acknowledge_window = true;
                             next_retry_count = 0U;
                         } else {
-                            std::vector<UploadRequestSpec> requests;
-                            if (!uploader->buildRequests(record, batch, requests, last_error)) {
-                                aggregate_result = UploadResultClass::kConfigError;
-                                next_state = BackendRuntimeState::kError;
-                                ++next_retry_count;
-                            } else if (requests.empty()) {
-                                aggregate_result = UploadResultClass::kNoData;
+                            BackendDeliveryContext delivery_context;
+                            delivery_context.http_transport = &transport_;
+                            delivery_context.air360_credentials = air360_credentials_;
+                            delivery_context.stop_requested = &UploadManager::deliveryStopRequested;
+                            delivery_context.reset_watchdog = &UploadManager::deliveryWatchdogReset;
+                            delivery_context.callback_arg = this;
+
+                            const UploadAttemptResult attempt =
+                                uploader->deliver(record, batch, delivery_context);
+                            aggregate_result = attempt.result;
+                            last_http_status = attempt.status_code;
+                            last_error = attempt.message;
+                            acknowledge_window = attempt.acknowledgesWindow();
+
+                            if (aggregate_result == UploadResultClass::kSuccess) {
+                                next_state = BackendRuntimeState::kOk;
+                                next_retry_count = 0U;
+                            } else if (aggregate_result == UploadResultClass::kNoData) {
                                 next_state = BackendRuntimeState::kIdle;
-                                acknowledge_window = true;
                                 next_retry_count = 0U;
                                 last_error.clear();
+                            } else if (aggregate_result == UploadResultClass::kUnknown) {
+                                next_state = BackendRuntimeState::kIdle;
+                                acknowledge_window = false;
                             } else {
-                                aggregate_result = UploadResultClass::kSuccess;
-                                next_state = BackendRuntimeState::kOk;
-                                acknowledge_window = true;
-                                next_retry_count = 0U;
-                                std::uint32_t retry_after_seconds = 0U;
+                                next_state = BackendRuntimeState::kError;
+                                ++next_retry_count;
+                            }
 
-                                for (const auto& request : requests) {
-                                    if (stopRequested()) {
-                                        aggregate_result = UploadResultClass::kUnknown;
-                                        next_state = BackendRuntimeState::kIdle;
-                                        acknowledge_window = false;
-                                        last_error = "Upload stopped before request completed.";
-                                        break;
-                                    }
-
-                                    resetUploadTaskWatchdog("before upload request");
-                                    const UploadTransportResponse response = transport_.execute(request);
-                                    resetUploadTaskWatchdog("after upload request");
-                                    const UploadResultClass request_result =
-                                        uploader->classifyResponse(response);
-                                    last_http_status = response.http_status;
-
-                                    if (request_result != UploadResultClass::kSuccess) {
-                                        aggregate_result = request_result;
-                                        next_state = BackendRuntimeState::kError;
-                                        acknowledge_window = false;
-                                        ++next_retry_count;
-                                        retry_after_seconds = response.retry_after_seconds;
-                                        if (response.transport_err != ESP_OK) {
-                                            last_error = esp_err_to_name(response.transport_err);
-                                        } else if (!response.body_snippet.empty()) {
-                                            last_error = response.body_snippet;
-                                        } else if (response.http_status != 0) {
-                                            last_error =
-                                                std::string("HTTP ") +
-                                                std::to_string(response.http_status);
-                                        } else {
-                                            last_error = "Upload failed.";
-                                        }
-                                        break;
-                                    }
-                                }
-
-                                if (retry_after_seconds > 0U) {
-                                    next_action_time_ms =
-                                        attempt_now_ms +
-                                        static_cast<std::uint64_t>(retry_after_seconds) * 1000U;
-                                }
+                            if (attempt.retry_after_seconds > 0U) {
+                                next_action_time_ms =
+                                    attempt_now_ms +
+                                    static_cast<std::uint64_t>(attempt.retry_after_seconds) * 1000U;
                             }
                         }
                     }

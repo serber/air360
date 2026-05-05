@@ -12,6 +12,7 @@
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/status_service.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
+#include "air360/uploads/air360_api_credentials.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "air360/web_server.hpp"
@@ -42,6 +43,7 @@ class App {
     CellularConfig cellular_config_;
     CellularManager cellular_manager_;
     BackendConfigRepository backend_config_repository_;
+    Air360ApiCredentialRepository air360_api_credentials_;
     BackendConfigList backend_config_list_;
     UploadManager upload_manager_;
     NetworkManager network_manager_;

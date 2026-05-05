@@ -112,7 +112,7 @@ Compile-time defaults for AP channel and max connections are **not** stored in N
 
 ## `cellular_cfg` — `CellularConfig`
 
-SIM7600E modem configuration. Versioned independently of `DeviceConfig` — an integrity failure resets only this blob.
+Cellular modem configuration. Versioned independently of `DeviceConfig` — an integrity failure resets only this blob.
 
 ```cpp
 struct CellularConfig {
@@ -127,7 +127,7 @@ struct CellularConfig {
     uint8_t  pwrkey_gpio;        // 0xFF = not wired
     uint8_t  sleep_gpio;         // 0xFF = not wired; drives modem DTR/sleep
     uint8_t  reset_gpio;         // 0xFF = not wired
-    uint8_t  reserved0;
+    uint8_t  modem_type;         // kModemType* constant; default: 0 (SIM7600)
     uint16_t wifi_debug_window_s; // seconds Wi-Fi stays up alongside cellular; default: 600
     uint16_t reserved1;
     char     apn[64];             // PDP context APN; required when enabled
@@ -176,7 +176,7 @@ struct SensorRecord {
     uint8_t      enabled;          // 0 or 1
     SensorType   sensor_type;      // uint8_t enum
     TransportKind transport_kind;  // uint8_t enum
-    uint32_t     poll_interval_ms; // 5000–3600000 ms
+    uint32_t     poll_interval_ms; // 30000–1800000 ms
     uint8_t      i2c_bus_id;       // always 0 in current hardware
     uint8_t      i2c_address;      // 7-bit I2C address
     uint8_t      uart_port_id;     // UART_NUM_1 or UART_NUM_2
@@ -202,7 +202,7 @@ struct SensorRecord {
 | 4 | DHT22 |
 | 5 | BME680 |
 | 6 | SPS30 |
-| 7 | Reserved (removed SDS011 support) |
+| 7 | SDS011 |
 | 8 | ME3-NO2 |
 | 9 | VEML7700 |
 | 10 | DS18B20 |
@@ -211,6 +211,8 @@ struct SensorRecord {
 | 13 | SHT4X |
 | 14 | INA219 |
 | 15 | MH-Z19B |
+| 16 | SHT3X |
+| 17 | AHT30 |
 
 ### `TransportKind` enum values
 
@@ -231,12 +233,12 @@ Upload backend configuration. Holds up to `kMaxConfiguredBackends` (4) backend r
 ```cpp
 struct BackendConfigList {
     uint32_t magic;              // 0x41333632
-    uint16_t schema_version;     // 1
+    uint16_t schema_version;     // 2
     uint16_t record_size;        // sizeof(BackendRecord)
     uint16_t backend_count;
     uint16_t reserved0;
     uint32_t next_backend_id;    // auto-increment counter
-    uint32_t upload_interval_ms; // default: 145000 ms, range: 10000–300000
+    uint32_t upload_interval_ms; // default: 145000 ms, range: 30000–3600000
     BackendRecord backends[4];
 };
 ```
@@ -256,7 +258,9 @@ struct BackendRecord {
     BackendAuthConfig auth;             // auth type + Basic Auth credentials
     char        device_id_override[32]; // Sensor.Community: overrides Short ID
     char        measurement_name[32];   // InfluxDB only
-    uint8_t     reserved2[8];
+    float       latitude;               // Air360 API only
+    float       longitude;             // Air360 API only
+    float       altitude_m;            // Air360 API only; 0.0 = not set
 };
 ```
 
@@ -275,11 +279,36 @@ struct BackendRecord {
 | Backend | `host` | `path` | `port` | `use_https` |
 |---------|--------|--------|--------|-------------|
 | Sensor.Community | `api.sensor.community` | `/v1/push-sensor-data/` | `443` | `1` |
-| Air360 API | `api.air360.ru` | `/v1/devices/{chip_id}/batches/{batch_id}` | `443` | `1` |
+| Air360 API | `api.air360.ru` | `/v1/devices/{device_id}/batches/{batch_id}` | `443` | `1` |
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 
 HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` uses the same common HTTP fields as the built-in backends. `InfluxDB` also stores `measurement_name`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
+
+---
+
+## `air360_cred` — Air360 API credentials
+
+Air360 API upload credentials are stored separately from `backend_cfg` and other
+editable configuration blobs.
+
+| Key | Type | Purpose |
+|-----|------|---------|
+| `air360_us` | NVS string | Firmware-generated or user-entered Air360 API upload secret |
+
+The secret format is `air360_us_v1_` followed by 43 base64url characters. It is
+used only for Air360 API registration and ingest. It is not rendered in status
+JSON, logs, or diagnostics. After saving, the Backends form shows only a
+masked preview and requires an explicit **Change** action before a replacement
+secret can be submitted.
+
+The credential repository loads this value from NVS into memory on first use.
+Subsequent web UI renders and upload attempts use the cached value; saving a
+replacement secret writes NVS and updates the in-memory copy.
+
+The firmware computes `upload_secret_hash` from this secret during registration
+and sends the raw secret only as `Authorization: Bearer ...` on Air360 API
+ingest requests.
 
 ---
 
