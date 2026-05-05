@@ -5,7 +5,13 @@ import { useEffect, useState } from "react";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { SensorChart } from "@/components/SensorChart";
 import type { MeasurementsResponse, Period } from "@/lib/api";
-import { fetchJson } from "@/lib/api";
+import {
+  fetchJson,
+  formatDateTime,
+  formatValue,
+  kindLabel,
+  sensorLabel,
+} from "@/lib/api";
 
 type DeviceDetailProps = {
   publicId: string;
@@ -44,6 +50,9 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
     return () => controller.abort();
   }, [period, publicId]);
 
+  const device = state.data?.device;
+  const byKind = state.data?.by_kind ?? [];
+  const latest = state.data?.latest ?? [];
   const sensors = state.data?.sensors ?? [];
   const isLoading =
     state.status === "idle" || state.data === undefined || state.data.period !== period;
@@ -63,24 +72,113 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
               Device
             </p>
             <h1 className="mt-2 break-all text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-              {publicId}
+              {device?.name ?? publicId}
             </h1>
+            {device && (
+              <p className="mt-1 font-mono text-sm text-slate-400">{publicId}</p>
+            )}
           </div>
 
           <PeriodSelector value={period} onChange={setPeriod} />
         </header>
+
+        {device && (
+          <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Location
+              </p>
+              <p className="mt-1 text-sm text-slate-950">
+                {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Firmware
+              </p>
+              <p className="mt-1 text-sm text-slate-950">
+                {device.firmware_version}
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Registered
+              </p>
+              <p className="mt-1 text-sm text-slate-950">
+                {formatDateTime(device.registered_at)}
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Last seen
+              </p>
+              <p className="mt-1 text-sm text-slate-950">
+                {formatDateTime(device.last_seen_at)}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {latest.length > 0 && (
+          <section className="mt-4">
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">
+              Latest readings
+            </h2>
+            <div className="flex flex-wrap gap-3">
+              {latest.map((r) => (
+                <div
+                  key={`${r.sensor_type}-${r.kind}`}
+                  className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                >
+                  <p className="text-xs font-semibold text-emerald-700">
+                    {sensorLabel(r.sensor_type)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {kindLabel(r.kind)}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-slate-950">
+                    {formatValue(r.kind, r.value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {sensors.length > 0 && (
+          <section className="mt-4">
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">
+              Sensors
+            </h2>
+            <div className="flex flex-wrap gap-3">
+              {sensors.map((s) => (
+                <div
+                  key={s.sensor_type}
+                  className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                >
+                  <p className="text-sm font-semibold text-slate-950">
+                    {sensorLabel(s.sensor_type)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {s.kinds.map(kindLabel).join(", ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-600">
             {isLoading && "Loading measurements..."}
             {!isLoading &&
               state.status === "ready" &&
-              `${sensors.length} sensor${sensors.length === 1 ? "" : "s"} for selected period`}
+              `${byKind.length} measurement type${byKind.length === 1 ? "" : "s"} for selected period`}
             {!isLoading && state.status === "error" && state.message}
           </p>
         </section>
 
-        {sensors.length === 0 && !isLoading ? (
+        {byKind.length === 0 && !isLoading ? (
           <section className="mt-8 rounded-md border border-slate-200 bg-white px-4 py-10 text-center shadow-sm">
             <h2 className="text-lg font-semibold text-slate-950">
               No chart data
@@ -93,8 +191,8 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
         ) : null}
 
         <div className="mt-6 grid gap-5">
-          {sensors.map((sensor) => (
-            <SensorChart key={sensor.sensor_type} sensor={sensor} />
+          {byKind.map((k) => (
+            <SensorChart key={k.kind} measurement={k} />
           ))}
         </div>
       </div>

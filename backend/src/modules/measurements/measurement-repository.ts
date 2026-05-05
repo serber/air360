@@ -12,12 +12,19 @@ export interface LatestReading {
 export async function findLatestMeasurements(
   db: Kysely<Database>,
   device_id: number,
+  excludeSensorTypes: string[] = [],
 ): Promise<LatestReading[]> {
-  return db
+  let q = db
     .selectFrom("measurements")
     .select(["sensor_type", "kind", "value", "sampled_at"])
     .distinctOn(["sensor_type", "kind"])
-    .where("device_id", "=", device_id)
+    .where("device_id", "=", device_id);
+
+  if (excludeSensorTypes.length > 0) {
+    q = q.where("sensor_type", "not in", excludeSensorTypes);
+  }
+
+  return q
     .orderBy("sensor_type")
     .orderBy("kind")
     .orderBy("sampled_at", "desc")
@@ -54,8 +61,14 @@ export async function findMeasurementSeries(
   device_id: number,
   bucketSize: string,
   intervalSize: string,
+  excludeSensorTypes: string[] = [],
 ): Promise<MeasurementPoint[]> {
   // bucketSize and intervalSize come from a server-side whitelist — sql.raw is safe here
+  const excludeClause =
+    excludeSensorTypes.length > 0
+      ? sql`AND sensor_type NOT IN (${sql.join(excludeSensorTypes.map((s) => sql.lit(s)))})`
+      : sql``;
+
   const result = await sql<MeasurementPoint>`
     SELECT
       sensor_type,
@@ -65,6 +78,7 @@ export async function findMeasurementSeries(
     FROM measurements
     WHERE device_id = ${device_id}
       AND sampled_at >= NOW() - ${sql.raw("'" + intervalSize + "'")}::interval
+      ${excludeClause}
     GROUP BY sensor_type, kind, bucket
     ORDER BY sensor_type, kind, bucket
   `.execute(db);

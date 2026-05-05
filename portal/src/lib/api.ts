@@ -53,20 +53,44 @@ export type MeasurementPoint = {
   v: number;
 };
 
-export type MeasurementSeries = {
-  kind: string;
+export type KindSeries = {
+  sensor_type: string;
   points: MeasurementPoint[];
 };
 
-export type SensorMeasurements = {
-  sensor_type: SensorType;
-  series: MeasurementSeries[];
+export type KindMeasurements = {
+  kind: string;
+  series: KindSeries[];
+};
+
+export type DeviceInfo = {
+  name: string;
+  latitude: number;
+  longitude: number;
+  firmware_version: string;
+  registered_at: string;
+  last_seen_at: string;
+};
+
+export type LatestReading = {
+  sensor_type: string;
+  kind: string;
+  value: number;
+  sampled_at: string;
+};
+
+export type SensorMeta = {
+  sensor_type: string;
+  kinds: string[];
 };
 
 export type MeasurementsResponse = {
   public_id: string;
   period: Period;
-  sensors: SensorMeasurements[];
+  device: DeviceInfo;
+  by_kind: KindMeasurements[];
+  latest: LatestReading[];
+  sensors: SensorMeta[];
 };
 
 export const PERIOD_OPTIONS: Array<{ label: string; value: Period }> = [

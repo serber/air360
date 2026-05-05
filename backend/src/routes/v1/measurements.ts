@@ -2,7 +2,10 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
 import { findDeviceByPublicId } from "../../modules/devices/device-repository";
-import { findMeasurementSeries } from "../../modules/measurements/measurement-repository";
+import {
+  findLatestMeasurements,
+  findMeasurementSeries,
+} from "../../modules/measurements/measurement-repository";
 
 const PERIOD_CONFIG = {
   "1h":   { bucket: "1 minute",  interval: "1 hour" },
@@ -63,22 +66,50 @@ export const measurementRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { bucket, interval } = PERIOD_CONFIG[period];
-      const points = await findMeasurementSeries(db, device.device_id, bucket, interval);
+      const EXCLUDE_SENSOR_TYPES = ["gps_nmea"];
+      const [points, latestReadings] = await Promise.all([
+        findMeasurementSeries(db, device.device_id, bucket, interval, EXCLUDE_SENSOR_TYPES),
+        findLatestMeasurements(db, device.device_id, EXCLUDE_SENSOR_TYPES),
+      ]);
 
-      const sensorMap = new Map<string, Map<string, { t: Date; v: number }[]>>();
+      // Group series by kind → sensor_type so each chart is one measurement type
+      const kindMap = new Map<string, Map<string, { t: Date; v: number }[]>>();
       for (const p of points) {
-        if (!sensorMap.has(p.sensor_type)) sensorMap.set(p.sensor_type, new Map());
-        const kindMap = sensorMap.get(p.sensor_type)!;
-        if (!kindMap.has(p.kind)) kindMap.set(p.kind, []);
-        kindMap.get(p.kind)!.push({ t: p.bucket, v: p.v });
+        if (!kindMap.has(p.kind)) kindMap.set(p.kind, new Map());
+        const sensorMap = kindMap.get(p.kind)!;
+        if (!sensorMap.has(p.sensor_type)) sensorMap.set(p.sensor_type, []);
+        sensorMap.get(p.sensor_type)!.push({ t: p.bucket, v: p.v });
+      }
+
+      // Build sensor metadata: distinct kinds per sensor_type from latest readings
+      const sensorKindsMap = new Map<string, Set<string>>();
+      for (const r of latestReadings) {
+        if (!sensorKindsMap.has(r.sensor_type)) sensorKindsMap.set(r.sensor_type, new Set());
+        sensorKindsMap.get(r.sensor_type)!.add(r.kind);
       }
 
       return reply.code(200).send({
         public_id,
         period,
-        sensors: Array.from(sensorMap.entries()).map(([sensor_type, kindMap]) => ({
+        device: {
+          name: device.name,
+          latitude: device.latitude,
+          longitude: device.longitude,
+          firmware_version: device.firmware_version,
+          registered_at: device.registered_at,
+          last_seen_at: device.last_seen_at,
+        },
+        by_kind: Array.from(kindMap.entries()).map(([kind, sensorMap]) => ({
+          kind,
+          series: Array.from(sensorMap.entries()).map(([sensor_type, pts]) => ({
+            sensor_type,
+            points: pts,
+          })),
+        })),
+        latest: latestReadings,
+        sensors: Array.from(sensorKindsMap.entries()).map(([sensor_type, kinds]) => ({
           sensor_type,
-          series: Array.from(kindMap.entries()).map(([kind, pts]) => ({ kind, points: pts })),
+          kinds: Array.from(kinds),
         })),
       });
     },
