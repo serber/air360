@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
 import { GEO_UPDATE_THRESHOLD_METERS, haversineDistanceMeters } from "../../lib/geo";
+import { toSeaLevelPressure } from "../../lib/pressure";
 import { verifyUploadSecret } from "../../lib/upload-secret";
 import {
   findDeviceByDeviceId,
@@ -164,15 +165,27 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(200).send();
       }
 
+      const altitude_m = device.altitude_m;
       const measurements = samples.flatMap((sample) =>
-        sample.values.map((v) => ({
-          device_id,
-          batch_id,
-          sensor_type: sample.sensor_type,
-          kind: v.kind,
-          value: v.value,
-          sampled_at: new Date(sample.sample_time_unix_ms),
-        })),
+        sample.values.flatMap((v) => {
+          const base = {
+            device_id,
+            batch_id,
+            sensor_type: sample.sensor_type,
+            kind: v.kind,
+            value: v.value,
+            sampled_at: new Date(sample.sample_time_unix_ms),
+          };
+
+          if (v.kind === "pressure_hpa" && altitude_m !== null && altitude_m !== 0) {
+            return [
+              { ...base, kind: "pressure_hpa_raw" },
+              { ...base, value: toSeaLevelPressure(v.value, altitude_m) },
+            ];
+          }
+
+          return [base];
+        }),
       );
 
       await insertMeasurements(db, measurements);

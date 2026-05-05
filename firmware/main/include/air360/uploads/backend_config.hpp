@@ -11,7 +11,7 @@
 namespace air360 {
 
 constexpr std::uint32_t kBackendConfigMagic = 0x41333632U;
-constexpr std::uint16_t kBackendConfigSchemaVersion = 3U;
+constexpr std::uint16_t kBackendConfigSchemaVersion = 1U;
 constexpr std::uint32_t kMinUploadIntervalMs = 30000U;
 constexpr std::uint32_t kMaxUploadIntervalMs = 3600000U;
 constexpr std::uint32_t kDefaultUploadIntervalMs = 145000U;
