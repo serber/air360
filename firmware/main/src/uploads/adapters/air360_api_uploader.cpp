@@ -236,6 +236,8 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
     body += std::to_string(record.latitude);
     body += ",\"longitude\":";
     body += std::to_string(record.longitude);
+    body += ",\"altitude_m\":";
+    body += std::to_string(record.altitude_m);
     body += "},\"upload_secret_hash\":\"";
     body += jsonEscape(upload_secret_hash);
     body += "\"}";

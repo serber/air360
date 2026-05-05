@@ -97,6 +97,7 @@ struct BackendCardViewModel {
     std::string device_id_override;
     std::string latitude;
     std::string longitude;
+    std::string altitude_m;
     std::string air360_map_url;
     std::string sensor_community_map_url;
     std::string air360_upload_secret_preview;
@@ -1228,6 +1229,16 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += "' type='number' step='any' min='-180' max='180' value='";
             endpoint_block += htmlEscape(card.longitude);
             endpoint_block += "' placeholder='e.g. 37.6173' required></div>";
+            endpoint_block += "<div class='field'><label for='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Altitude (m above sea level)</label>";
+            endpoint_block += "<input class='input' id='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' type='number' step='any' value='";
+            endpoint_block += htmlEscape(card.altitude_m);
+            endpoint_block += "' placeholder='e.g. 200'></div>";
             endpoint_block += "<div class='location-map-wrap'>";
             endpoint_block += "<div class='location-map' data-air360-location-map data-lat-input='lat_";
             endpoint_block += htmlEscape(card.backend_key);
@@ -1440,6 +1451,9 @@ BackendsPageViewModel buildBackendsPageViewModel(
                 if (record->latitude != 0.0F || record->longitude != 0.0F) {
                     card.latitude = formatCoordinate(record->latitude);
                     card.longitude = formatCoordinate(record->longitude);
+                }
+                if (record->altitude_m != 0.0F) {
+                    card.altitude_m = formatCoordinate(record->altitude_m);
                 }
             }
         } else {

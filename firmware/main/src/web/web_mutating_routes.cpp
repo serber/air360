@@ -615,6 +615,21 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 record->latitude = lat;
                 record->longitude = lon;
 
+                const std::string alt_str =
+                    findFormValue(fields, (std::string("alt_") + key).c_str());
+                float alt = 0.0F;
+                if (!alt_str.empty() && !parseFloat(alt_str, alt)) {
+                    const std::string html = renderBackendsPage(
+                        *server->backend_config_list_,
+                        *server->upload_manager_,
+                        server->status_service_->buildInfo(),
+                        air360_secret_preview,
+                        "Air360 altitude must be a number.",
+                        true);
+                    return sendHtmlResponse(request, html);
+                }
+                record->altitude_m = alt;
+
                 const std::string upload_secret_field = std::string("upload_secret_") + key;
                 air360_secret_submitted = formHasKey(fields, upload_secret_field.c_str());
                 if (air360_secret_submitted) {
