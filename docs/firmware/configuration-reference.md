@@ -283,6 +283,7 @@ Four backends are pre-configured by default — all **disabled**:
 | `use_https` | `uint8_t` | backend default | `1` = HTTPS, `0` = HTTP |
 | `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
 | `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
+| `altitude_m` | `float` | `0.0` | Air360 API only; metres above sea level; optional, `0.0` = not set |
 
 Air360 API also stores its upload secret separately in the `air360_cred`
 namespace rather than inside `BackendRecord`. The secret is required when Air360

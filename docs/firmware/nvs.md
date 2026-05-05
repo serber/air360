@@ -259,7 +259,8 @@ struct BackendRecord {
     char        device_id_override[32]; // Sensor.Community: overrides Short ID
     char        measurement_name[32];   // InfluxDB only
     float       latitude;               // Air360 API only
-    float       longitude;              // Air360 API only
+    float       longitude;             // Air360 API only
+    float       altitude_m;            // Air360 API only; 0.0 = not set
 };
 ```
 
