@@ -119,7 +119,7 @@ constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
     {
         .type           = BackendType::kSensorCommunity,
         .backend_key    = "sensor_community",
-        .display_name   = "Sensor.Community",
+        .display_name   = kSensorCommunityDisplayName,
         .defaults       = {
             .host          = "api.sensor.community",
             .path          = "/v1/push-sensor-data/",
@@ -134,7 +134,7 @@ constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
     {
         .type           = BackendType::kAir360Api,
         .backend_key    = "air360_api",
-        .display_name   = "Air360",
+        .display_name   = kAir360DisplayName,
         .defaults       = {
             .host          = "api.air360.ru",
             .path          = "/v1/devices/{device_id}/batches/{batch_id}",

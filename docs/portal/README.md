@@ -2,24 +2,34 @@
 
 ## Scope
 
-This directory captures the working direction for the future Air360 user portal.
+This directory captures the working direction and implemented behavior for the
+Air360 public portal.
 
-The portal is planned as a separate web application. It is not part of `firmware/`, and it is not the same application as `backend/`.
+The portal is a separate web application. It is not part of `firmware/`, and it
+is not the same application as `backend/`.
 
-The `portal/` source tree now exists as a standalone `Next.js` application scaffold. This document remains the high-level planning note, while implementation details should be verified against the actual `portal/` codebase.
+The `portal/` source tree is a standalone `Next.js` application. This document
+is the high-level map; implementation details should be verified against the
+actual `portal/` codebase.
 
-## Planned Portal Role
+## Related Documents
 
-The portal is intended to cover two main areas:
+| Document | Purpose |
+|----------|---------|
+| [../../portal/AGENTS.md](../../portal/AGENTS.md) | Portal-local working contract for AI agents |
+| [../../portal/README.md](../../portal/README.md) | Source directory entry point and commands |
+| [adr/README.md](adr/README.md) | Portal architecture decision records |
+| [ubuntu-deployment.md](ubuntu-deployment.md) | Ubuntu deployment guide |
 
-- a public home page that explains the Air360 project and acts as a landing page
-- a private user area for account access and device management
+## Portal Role
 
-The first implemented public flows are:
+The portal currently covers public read-only project and device pages:
 
-- placeholder home page at `/`
-- map page at `/map` with all registered devices from `GET /v1/devices`
+- public home page at `/`
+- map page at `/map` with active devices from `GET /v1/devices` and optional
+  offline devices from `GET /v1/devices/offline`
 - placeholder device assembly guide at `/build`
+- privacy page at `/privacy`
 - device popup with latest readings grouped by sensor type
 - map metric selector for humidity, pressure, temperature, CO2, PM10, PM1.0,
   PM2.5, PM4.0, and illuminance
@@ -52,10 +62,12 @@ The first implemented public flows are:
 - cluster labels show the average value for the currently selected metric
 - map status, metric legend, and metric selector are placed in left-side
   overlays
-- device detail page with sensor charts from
+- device detail page at `/devices/:public_id` with sensor charts from
   `GET /v1/devices/:public_id/measurements?period=<period>`
+- latest-reading cards, sensor metadata, device coordinates, and reverse-geocoded
+  display labels from the same measurement response
 
-Potential future account flows remain out of scope for the current portal map
+Potential future account flows remain out of scope for the current portal
 implementation.
 
 ## Working Stack Direction
@@ -66,15 +78,13 @@ The current working direction for the portal is:
 - `React` as the UI layer
 - `TypeScript` for application code
 
-`Next.js` is a good fit here because the portal needs both:
-
-- public marketing-style pages
-- authenticated application pages for the personal account
+`Next.js` is a good fit here because the portal needs public pages, client-side
+map rendering, and device detail pages with browser-only charting libraries.
 
 The map uses `maplibre-gl` with OpenStreetMap raster tiles and GeoJSON-backed
 device layers. The device detail page uses `recharts` for time-series charts.
-Exact choices for future form libraries and auth helpers are still open and
-should be selected later to match the actual backend auth model.
+Exact choices for future form libraries and auth helpers remain open and should
+be selected later to match the actual backend auth model.
 
 ## Boundary Between Portal And Backend
 
@@ -104,18 +114,24 @@ The portal is expected to communicate with the backend over HTTP API.
 Current public integration areas are:
 
 - `GET /v1/devices`
+- `GET /v1/devices/offline`
 - `GET /v1/devices/:public_id/measurements?period=<period>`
 
 The portal should not communicate directly with firmware devices for account workflows. Those interactions should go through the backend API layer.
 
 Based on the current backend structure, versioned API routes under `/v1` are the expected integration direction, but the exact contract should follow the implemented backend endpoints.
 
+In local and production Next.js runtime, `next.config.ts` rewrites `/v1/*` to
+`AIR360_API_BASE_URL` and defaults to `https://api.air360.ru`. Browser-side
+direct API calls can be forced with `NEXT_PUBLIC_AIR360_API_BASE_URL`, but the
+default portal flow uses same-origin `/v1/*` requests.
+
 ## Current Status
 
 - `backend/` already exists as a separate Fastify service
 - `firmware/` already exists as the device-side implementation
-- `portal/` now exists as a `Next.js` project with a placeholder home page,
-  public map, placeholder device assembly guide, and device pages
+- `portal/` exists as a `Next.js` project with a public home page, public map,
+  placeholder device assembly guide, privacy page, and device pages
 - Ubuntu run and deployment instructions live in `docs/portal/ubuntu-deployment.md`
 
-This document records the working scope and boundary for the portal as implementation begins.
+This document records the working scope and boundary for the current portal.

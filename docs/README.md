@@ -11,6 +11,15 @@ Top-level index for all documentation in this repository. For project-level cont
 | [portal/README.md](portal/README.md) | Portal scope, stack direction, boundary with the backend |
 | [ecosystem/README.md](ecosystem/README.md) | Sensor.Community compatibility analysis and opportunity roadmap |
 
+## Agent entry points
+
+| Area | Start here |
+|------|------------|
+| Repository-wide work | [`../AGENTS.md`](../AGENTS.md) |
+| Firmware work | [`../firmware/AGENTS.md`](../firmware/AGENTS.md) |
+| Backend work | [`../backend/AGENTS.md`](../backend/AGENTS.md) |
+| Portal work | [`../portal/AGENTS.md`](../portal/AGENTS.md) |
+
 ## Source-of-truth hierarchy
 
 - `firmware/` — source of truth for implemented device behavior

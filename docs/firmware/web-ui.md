@@ -50,7 +50,7 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
-`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
+`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`, `/api/gps-location`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
 
 **Response streaming**: all HTML page handlers use `web::sendHtmlResponse()` which sends the response body in 1 KB chunks via `httpd_resp_send_chunk`, avoiding the need for a contiguous HTTP transport buffer equal to the full page size.
 
@@ -74,6 +74,7 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
 | `GET` / `POST` | `/backends` | Backend configuration page |
 | `GET` | `/backends/air360-upload-secret` | Generate a new Air360 upload secret (JSON response) |
+| `GET` | `/api/gps-location` | Latest GPS coordinates from an active GPS sensor (JSON) |
 
 All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set `Content-Type: application/json`.
 
@@ -254,9 +255,9 @@ A single form containing upload settings and one card per backend type.
 - `Sensor.Community` and `Air360 API`: endpoint label — shows the configured backend address without the protocol prefix and without `:443` / `:80` when that port is the protocol default.
 - `Custom Upload` and `InfluxDB`: editable `Use HTTPS`, `Host`, `Path`, and `Port` fields. The browser updates an empty or standard port field between `443` and `80`; custom ports are preserved.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
-- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an `Altitude (m above sea level)` numeric input (`step="any"`, optional; empty or `0` means not set), followed by an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the latitude/longitude fields; editing those fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both latitude and longitude are non-zero.
+- `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an `Altitude (m above sea level)` numeric input (`step="any"`, optional; empty or `0` means not set), followed by an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the latitude/longitude fields; editing those fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both latitude and longitude are non-zero. When the backends page loads, JavaScript calls `GET /api/gps-location`; if a GPS sensor has a fix, the coordinate fields are pre-filled automatically (when empty) or a **Use GPS** button appears in the map status area (when fields already have saved values).
 - `Air360 API` only: upload secret UI. When no secret is stored, the page shows an empty `Upload secret` textarea plus **Generate** button; the button calls `/backends/air360-upload-secret` and fills the textarea with a locally generated secret. When a secret already exists, the page shows `Configured` with a masked preview and keeps the replacement textarea hidden/disabled until the user presses **Change**.
-- Sensor.Community only: `device_id_override` field (overrides the short device ID sent in `X-Sensor`).
+- Sensor.Community only: read-only **Sensor ID** display showing the device's `short_device_id`; users must register this value as their sensor ID in the sensor.community personal account.
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`
@@ -339,6 +340,29 @@ This endpoint does not modify stored configuration. Use `POST /config` followed 
 
 ---
 
+## Endpoint: `/api/gps-location`
+
+`GET /api/gps-location` returns the latest GPS fix from whichever configured sensor has a `kLatitudeDeg` and `kLongitudeDeg` reading in the `MeasurementStore`.
+
+**Fix available:**
+```json
+{ "lat": 55.751244, "lon": 37.617816, "alt": 200.0 }
+```
+
+**Fix available, altitude not reported by sensor:**
+```json
+{ "lat": 55.751244, "lon": 37.617816, "alt": null }
+```
+
+**No GPS sensor configured or no fix yet:**
+```json
+{ "lat": null, "lon": null, "alt": null }
+```
+
+The `/backends` page JavaScript calls this endpoint when the Air360 API card map initialises. If the returned coordinates are valid and the latitude/longitude inputs are empty (no saved location), the fields are auto-filled and the map marker is placed. If the inputs already hold saved values, a **Use GPS** button appears in the map status area; clicking it replaces the inputs with GPS coordinates and repositions the marker.
+
+---
+
 ## Static assets (`/assets/*` and `/favicon.ico`)
 
 CSS (`air360.css`) and JavaScript (`air360.js`) are served from `/assets/air360.css` and `/assets/air360.js`. The browser favicon is served from `/favicon.ico` (`image/x-icon`). All three are compiled into the firmware binary via `EMBED_TXTFILES` / `EMBED_FILES` in `CMakeLists.txt` and exposed through linker symbols in `web_assets.cpp`. Asset lookup is centralised in `findEmbeddedWebAsset()`. Requests to unrecognised asset paths return HTTP 404.
@@ -361,7 +385,7 @@ The CSS uses a token-based design system with full light/dark theme support (`[d
 | **Wi-Fi network selector** | On the config page, `loadWifiNetworks()` calls `GET /wifi-scan`, populates the SSID `<select>`, and — if a `.wifi-menu-list` element is present — also populates the custom picker. Selecting a `.wifi-option` updates the hidden `<select>` value. |
 | **Check SNTP** | On the config page, `checkSntp()` fires `POST /check-sntp` with the current SNTP server input value and displays the result in an inline status span. |
 | **Backend card sync** | The enabled checkbox toggles the `panel--inactive` CSS class on the backend card panel. |
-| **Air360 coordinate map** | The `/backends` page loads local MapLibre assets and OpenStreetMap tiles. The map is progressive enhancement for the Air360 API latitude/longitude fields; if tiles or JavaScript fail, manual coordinate entry still works. |
+| **Air360 coordinate map** | The `/backends` page loads local MapLibre assets and OpenStreetMap tiles. The map is progressive enhancement for the Air360 API latitude/longitude fields; if tiles or JavaScript fail, manual coordinate entry still works. On map init, `GET /api/gps-location` is called; if a fix is available the empty coordinate fields are auto-filled, or a **Use GPS** button is shown when fields already have values. |
 | **Confirm dialogs** | Forms with `data-confirm` show a `window.confirm()` dialog before submitting (used for Apply, Discard, Delete, and Save-and-reboot). |
 | **Password visibility** | Buttons with `data-toggle-pw="id"` (new) or `data-secret-toggle="id"` (legacy) toggle `input.type` between `"password"` and `"text"`. |
 

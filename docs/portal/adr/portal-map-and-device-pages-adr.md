@@ -2,14 +2,15 @@
 
 ## Status
 
-Proposed.
+Accepted. Implemented in `portal/`.
 
 ## Decision Summary
 
-Build the Air360 portal as a Next.js 16 application with two public pages: a
-map page showing all devices as pins with a latest-readings popup, and a device
-detail page with sensor charts for selectable time periods. All data is public
-— no authentication is required.
+Build the Air360 portal as a Next.js 16 application with public pages: a home
+page, a map page showing devices as pins with latest-reading popups, a device
+detail page with sensor charts for selectable time periods, a placeholder build
+guide, and a privacy page. All device data is public; no authentication is
+required for the current portal.
 
 ## Context
 
@@ -37,9 +38,11 @@ for visualizing device data.
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Placeholder public portal home page |
-| `/map` | World map with all device pins |
+| `/` | Public portal home page |
+| `/map` | World map with active device pins and optional offline-device layer |
 | `/devices/:public_id` | Device detail page with sensor charts |
+| `/build` | Placeholder device assembly guide |
+| `/privacy` | Privacy policy |
 
 ### Map (`/map`)
 
@@ -98,7 +101,9 @@ color is based on that average value, and individual circular markers scale with
 map zoom. Map status, the selected metric legend, and the metric selector are
 placed in left-side overlays.
 
-Data is fetched client-side on mount from `GET /v1/devices`.
+Active-device data is fetched client-side on mount from `GET /v1/devices`.
+Offline-device data is fetched from `GET /v1/devices/offline` when the offline
+layer is enabled.
 
 ### Device detail page (`/devices/:public_id`)
 
@@ -106,9 +111,10 @@ Data is fetched client-side on mount from `GET /v1/devices`.
 with full TypeScript support, `ResponsiveContainer`, and composable `LineChart`
 primitives suited to time-series sensor data.
 
-The page shows one chart per `sensor_type`. Each chart contains one line per
-measurement `kind` (e.g., `temperature_c` and `humidity_percent` on the same
-climate chart).
+The page shows one chart per measurement `kind`. Each chart can include one or
+more sensor series for that measurement type. The page also shows device
+metadata, latest-reading cards, sensor metadata, and reverse-geocoded display
+fields returned by the backend.
 
 A period selector at the top of the page controls the time range:
 
@@ -132,19 +138,28 @@ data-fetching library is introduced. The map component and device charts are
 client components (`"use client"`) because MapLibre GL JS and Recharts require
 browser APIs.
 
+`next.config.ts` rewrites same-origin `/v1/*` requests to `AIR360_API_BASE_URL`,
+defaulting to `https://api.air360.ru`. `NEXT_PUBLIC_AIR360_API_BASE_URL` is only
+needed if the browser should call a public API host directly.
+
 ### Component layout
 
 | File | Purpose |
 |------|---------|
-| `src/app/page.tsx` | Placeholder home page |
+| `src/app/page.tsx` | Public home page |
 | `src/app/map/page.tsx` | Map page (shell, imports `DeviceMap`) |
 | `src/app/devices/[public_id]/page.tsx` | Device detail page shell |
+| `src/app/build/page.tsx` | Placeholder device assembly guide |
+| `src/app/privacy/page.tsx` | Privacy policy |
+| `src/components/DeviceMapLoader.tsx` | Client-only MapLibre loader |
 | `src/components/DeviceMap.tsx` | MapLibre map with GeoJSON device layers |
 | `src/components/DevicePopup.tsx` | Popup card: name, last seen, readings, link |
-| `src/components/SensorChart.tsx` | Recharts `LineChart` wrapper per sensor type |
+| `src/components/SensorChart.tsx` | Recharts `LineChart` wrapper per measurement kind |
 | `src/components/PeriodSelector.tsx` | Period toggle buttons |
+| `src/lib/api.ts` | API response types, fetch helper, labels, formatting |
+| `src/lib/config.ts` | Shared portal config such as contact email |
 
-### Dependencies to add
+### Dependencies
 
 | Package | Purpose |
 |---------|---------|

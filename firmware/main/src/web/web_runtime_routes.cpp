@@ -1,12 +1,16 @@
 #include "air360/web_server.hpp"
 
+#include <array>
 #include <cstddef>
+#include <cstdio>
 #include <string>
 #include <string_view>
 
 #include "air360/log_buffer.hpp"
+#include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/time_utils.hpp"
+#include "air360/uploads/measurement_store.hpp"
 #include "air360/web_assets.hpp"
 #include "air360/web_server_internal.hpp"
 #include "esp_err.h"
@@ -187,6 +191,45 @@ esp_err_t WebServer::handleWifiScanRefresh(httpd_req_t* request) {
     httpd_resp_set_status(request, "202 Accepted");
     httpd_resp_set_type(request, "application/json");
     return httpd_resp_sendstr(request, "{\"scanning\":true}");
+}
+
+esp_err_t WebServer::handleGpsLocation(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "application/json");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+
+    std::array<MeasurementRuntimeInfo, kMaxConfiguredSensors> latest{};
+    const std::size_t count =
+        server->measurement_store_->allLatestMeasurements(latest.data(), latest.size());
+
+    for (std::size_t i = 0U; i < count; ++i) {
+        const SensorValue* lat_val =
+            latest[i].measurement.findValue(SensorValueKind::kLatitudeDeg);
+        const SensorValue* lon_val =
+            latest[i].measurement.findValue(SensorValueKind::kLongitudeDeg);
+        if (lat_val == nullptr || lon_val == nullptr) {
+            continue;
+        }
+        const SensorValue* alt_val =
+            latest[i].measurement.findValue(SensorValueKind::kAltitudeM);
+
+        char buf[128];
+        if (alt_val != nullptr) {
+            std::snprintf(buf, sizeof(buf),
+                "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":%.1f}",
+                static_cast<double>(lat_val->value),
+                static_cast<double>(lon_val->value),
+                static_cast<double>(alt_val->value));
+        } else {
+            std::snprintf(buf, sizeof(buf),
+                "{\"lat\":%.6f,\"lon\":%.6f,\"alt\":null}",
+                static_cast<double>(lat_val->value),
+                static_cast<double>(lon_val->value));
+        }
+        return httpd_resp_sendstr(request, buf);
+    }
+
+    return httpd_resp_sendstr(request, "{\"lat\":null,\"lon\":null,\"alt\":null}");
 }
 
 esp_err_t WebServer::handleCheckSntp(httpd_req_t* request) {

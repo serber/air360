@@ -257,7 +257,7 @@ struct BackendRecord {
     BackendProtocol protocol;           // uint8_t enum
     uint8_t     reserved1;
     BackendAuthConfig auth;             // auth type + Basic Auth credentials
-    char        device_id_override[32]; // Sensor.Community: overrides Short ID
+    char        device_id_override[32]; // reserved; no longer used (kept for NVS layout compatibility)
     char        measurement_name[32];   // InfluxDB only
     float       latitude;               // Air360 API only
     float       longitude;             // Air360 API only

@@ -367,14 +367,12 @@ The **Upload interval** field at the top of the page controls how often the devi
 
 To use Sensor.Community:
 
-1. Open **Diagnostics** and find `short_device_id` in the raw status dump — this is the ID you register on the Sensor.Community portal.
-2. Register your device at `https://devices.sensor.community/` using that Short ID.
-3. Return to the firmware **Backends** page.
-4. Enable Sensor.Community.
-5. Leave **Device ID override** at its default value unless you need a different ID for debugging.
-6. Press **Save**.
+1. Open the firmware **Backends** page and enable Sensor.Community.
+2. Note the **Sensor ID** shown in the Sensor.Community card — this is your `short_device_id`.
+3. Register your device at `https://devices.sensor.community/` using that Sensor ID.
+4. Press **Save**.
 
-> The ID registered on the Sensor.Community portal must match the ID the firmware sends. By default this is the `short_device_id` from the Diagnostics page raw status dump. If you fill in the Device ID override field, that value is used instead and must match the portal registration.
+> The ID shown in the Sensor.Community card must match the ID registered on the Sensor.Community portal. The firmware always sends `short_device_id` as the device identifier.
 
 ### Air360 API
 

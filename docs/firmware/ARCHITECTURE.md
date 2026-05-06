@@ -392,7 +392,11 @@ Owns the sensor runtime lifecycle.
 **Lifecycle methods:**
 - `applyConfig(SensorConfigList)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
 - `buildManagedSensors()` — validates transport bindings, calls `SensorRegistry::createDriver()` for each enabled sensor
-- `taskMain()` — polls each sensor at its configured interval, updates measurements, handles errors
+- `taskMain()` — polls each sensor at its configured interval (5 s during the 60 s warmup window), updates measurements, handles errors
+
+**Warmup phase (first 60 s after `taskMain()` starts):**
+
+During the warmup window, `taskMain()` forces the effective poll interval to `min(configured_interval, 5 s)`. This lets sensors that take 10–15 s to initialize reach `kPolling` well within the first minute regardless of the configured interval. Readings taken during warmup update the `latest_by_sensor_` snapshot (visible in the status page and `/api/gps-location`) but are **not appended to the upload queue** — `sample_unix_ms = 0` is passed to `recordMeasurement()`. Once the window expires, the configured poll interval and normal upload queuing resume.
 
 **Sensor runtime states:**
 
@@ -477,7 +481,6 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | type | `BackendType` enum |
 | enabled | Active flag |
 | display_name | `char[32]` |
-| device_id_override | `char[32]` (Sensor.Community only) |
 | host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
@@ -869,6 +872,8 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | SNTP poll period | 250 ms | `network_manager.cpp` |
 | Maintenance loop period | 10 s | `app.cpp` |
 | Sensor task loop period | 250 ms | `sensor_manager.cpp` |
+| Sensor warmup duration | 60 000 ms | `sensor_manager.cpp` |
+| Sensor warmup poll interval | 5 000 ms | `sensor_manager.cpp` |
 
 ---
 

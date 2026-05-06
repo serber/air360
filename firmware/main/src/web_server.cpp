@@ -31,9 +31,9 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-constexpr std::size_t kHttpServerMaxUriHandlers = 20U;
-constexpr char kAir360MapBaseUrl[] = "https://air360.ru/map";
-constexpr char kSensorCommunityMapBaseUrl[] = "https://maps.sensor.community/";
+constexpr std::size_t kHttpServerMaxUriHandlers = 21U;
+constexpr char kAir360MapBaseUrl[]              = "https://air360.ru/map";
+constexpr char kSensorCommunityMapBaseUrl[]     = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
 // interval below what SensorManager supports at runtime.
 constexpr std::uint32_t kMinSensorPollIntervalMs = air360::kMinSensorPollIntervalMs;
@@ -94,7 +94,7 @@ struct BackendCardViewModel {
     std::string username;
     std::string password;
     std::string measurement_name;
-    std::string device_id_override;
+    std::string short_device_id;
     std::string latitude;
     std::string longitude;
     std::string altitude_m;
@@ -953,10 +953,10 @@ std::string renderMapLinksBlock(const BackendCardViewModel& card) {
 
     if (card.backend_type == BackendType::kAir360Api) {
         map_url = card.air360_map_url;
-        map_label = "Air360";
+        map_label = card.display_name;
     } else if (card.backend_type == BackendType::kSensorCommunity) {
         map_url = card.sensor_community_map_url;
-        map_label = "Sensor.Community";
+        map_label = kSensorCommunityDisplayName;
     }
 
     if (map_url.empty()) {
@@ -964,7 +964,7 @@ std::string renderMapLinksBlock(const BackendCardViewModel& card) {
     }
 
     std::string html =
-        "<div class='backend-project-links backend-map-links'><span>Map</span>";
+        "<div class='backend-project-links'><span>Map</span>";
     html += "<a href='";
     html += htmlEscape(map_url);
     html += "' target='_blank' rel='noopener noreferrer'>";
@@ -1175,44 +1175,28 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     https_block.reserve(256U);
     std::string endpoint_block;
     endpoint_block.reserve(1024U);
-    std::string device_id_override_block;
-    device_id_override_block.reserve(512U);
-    std::string project_links_block;
-    project_links_block.reserve(256U);
-
+    std::string short_device_id_block;
     switch (card.backend_type) {
         case BackendType::kSensorCommunity:
             https_block = renderHttpsCheckbox(card);
-            project_links_block =
-                "<div class='backend-project-links'><span>Project</span>"
-                "<a href='https://sensor.community/' target='_blank' rel='noopener noreferrer'>"
-                "sensor.community</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
                 endpoint_block += "</code></span>";
             }
-            device_id_override_block += "<div class='field'><label for='device_id_";
-            device_id_override_block += htmlEscape(card.backend_key);
-            device_id_override_block += "'>Device ID override</label>";
-            device_id_override_block += "<input class='input' id='device_id_";
-            device_id_override_block += htmlEscape(card.backend_key);
-            device_id_override_block += "' name='device_id_";
-            device_id_override_block += htmlEscape(card.backend_key);
-            device_id_override_block += "' maxlength='";
-            device_id_override_block += std::to_string(kBackendIdentifierCapacity - 1U);
-            device_id_override_block += "' value='";
-            device_id_override_block += htmlEscape(card.device_id_override);
-            device_id_override_block += "'>";
-            device_id_override_block += "<span class='field-hint'>Prefilled from Short ID. Change it only for debugging.</span></div>";
+            if (!card.short_device_id.empty()) {
+                short_device_id_block += "<div class='field'><label>Sensor ID</label>";
+                short_device_id_block += "<span class='pill pill--ok'>";
+                short_device_id_block += htmlEscape(card.short_device_id);
+                short_device_id_block += "</span>";
+                short_device_id_block += "<span class='field-hint'>Enter this ID as your sensor ID in your ";
+                short_device_id_block += kSensorCommunityDisplayName;
+                short_device_id_block += " personal account.</span></div>";
+            }
             break;
 
         case BackendType::kAir360Api: {
             https_block = renderHttpsCheckbox(card);
-            project_links_block =
-                "<div class='backend-project-links'><span>Project</span>"
-                "<a href='https://github.com/serber/air360' target='_blank' rel='noopener noreferrer'>"
-                "github.com/serber/air360</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
@@ -1252,6 +1236,8 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += "<div class='location-map' data-air360-location-map data-lat-input='lat_";
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "' data-lon-input='lon_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' data-alt-input='alt_";
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "'></div>";
             endpoint_block += "<div class='location-map-status' data-air360-location-map-status></div>";
@@ -1339,17 +1325,14 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             break;
     }
 
-    if (card.backend_type == BackendType::kSensorCommunity ||
-        card.backend_type == BackendType::kAir360Api) {
-        project_links_block += renderMapLinksBlock(card);
-    }
+    const std::string map_links_block = renderMapLinksBlock(card);
 
     std::string status_block;
     status_block.reserve(512U);
     if (!card.enabled) {
         status_block.clear();
     } else if (card.has_status) {
-        status_block += "<hr/>";
+        status_block += "<hr class='hr'>";
         status_block += "<div class='backend-status'>";
         status_block += "<p>Last attempt: <code>";
         status_block += htmlEscape(card.last_attempt);
@@ -1369,7 +1352,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         }
         status_block += "</div>";
     } else {
-        status_block = "<hr/>";
+        status_block = "<hr class='hr'>";
         status_block += "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
     }
 
@@ -1381,8 +1364,8 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             {"ENABLED_CHECKED", card.enabled ? "checked" : ""},
             {"HTTPS_BLOCK", https_block},
             {"ENDPOINT_BLOCK", endpoint_block},
-            {"DEVICE_ID_OVERRIDE_BLOCK", device_id_override_block},
-            {"PROJECT_LINKS_BLOCK", project_links_block},
+            {"SHORT_DEVICE_ID_BLOCK", short_device_id_block},
+            {"MAP_LINKS_BLOCK", map_links_block},
             {"STATUS_BLOCK", status_block},
         });
 }
@@ -1451,11 +1434,6 @@ BackendsPageViewModel buildBackendsPageViewModel(
             card.password = boundedCString(record->auth.basic_password, kBackendPasswordCapacity);
             card.measurement_name =
                 boundedCString(record->influxdb_measurement, kBackendMeasurementCapacity);
-            card.device_id_override =
-                boundedCString(record->sensor_community_device_id, kBackendIdentifierCapacity);
-            if (card.device_id_override.empty()) {
-                card.device_id_override = build_info.short_device_id;
-            }
             if (record->backend_type == BackendType::kAir360Api) {
                 if (record->latitude != 0.0F || record->longitude != 0.0F) {
                     card.latitude = formatCoordinate(record->latitude);
@@ -1469,6 +1447,7 @@ BackendsPageViewModel buildBackendsPageViewModel(
             card.use_https = descriptor.defaults.protocol == BackendProtocol::kHttps;
             card.port = std::to_string(descriptor.defaults.port);
         }
+        card.short_device_id = build_info.short_device_id;
 
         if (status != nullptr) {
             card.has_status = true;
@@ -2442,6 +2421,17 @@ esp_err_t WebServer::start(
     check_sntp_uri.handler = &WebServer::handleCheckSntp;
     check_sntp_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &check_sntp_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t gps_location_uri{};
+    gps_location_uri.uri = "/api/gps-location";
+    gps_location_uri.method = HTTP_GET;
+    gps_location_uri.handler = &WebServer::handleGpsLocation;
+    gps_location_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &gps_location_uri);
     if (err != ESP_OK) {
         stop();
         return err;

@@ -250,7 +250,7 @@ Once the service is running:
 
 - confirm `nginx` is healthy
 - confirm `air360-backend.service` is healthy
-- request `GET /health`
+- request `GET /`
 - verify that the Fastify app is not exposed directly on a public port
 
 Example checks:
@@ -258,8 +258,8 @@ Example checks:
 ```bash
 systemctl status nginx
 systemctl status air360-backend
-curl -i http://127.0.0.1:3000/health
-curl -i https://api.air360.ru/health
+curl -i http://127.0.0.1:3000/
+curl -i https://api.air360.ru/
 ss -ltnp
 ```
 
@@ -350,7 +350,7 @@ The script performs these steps:
 6. runs `npm run build`
 7. restarts the `systemd` service
 8. prints service status
-9. checks the local health endpoint
+9. checks the local liveness endpoint
 
 Review the variables at the top of the script before first use:
 
