@@ -557,15 +557,34 @@
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    function initAir360LocationMap(container) {
+    async function initAir360LocationMap(container) {
       if (!(container instanceof HTMLElement)) return;
       if (container.dataset.mapReady === 'true') return;
       container.dataset.mapReady = 'true';
 
       const latInput = document.getElementById(container.dataset.latInput || '');
       const lonInput = document.getElementById(container.dataset.lonInput || '');
+      const altInput = document.getElementById(container.dataset.altInput || '');
       const statusNode = container.parentElement?.querySelector('[data-air360-location-map-status]');
       if (!(latInput instanceof HTMLInputElement) || !(lonInput instanceof HTMLInputElement)) return;
+
+      // Fetch GPS before map init so the map can open at the right position
+      // without a post-render jump. A local ESP32 round-trip is typically <50 ms.
+      const gps = await fetch('/api/gps-location')
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+      const gpsPoint = (gps && Number.isFinite(gps.lat) && Number.isFinite(gps.lon))
+        ? { lat: gps.lat, lon: gps.lon }
+        : null;
+      const inputsEmpty = latInput.value.trim() === '' && lonInput.value.trim() === '';
+
+      if (gpsPoint && inputsEmpty) {
+        latInput.value = formatCoordinate(gps.lat);
+        lonInput.value = formatCoordinate(gps.lon);
+        if (altInput instanceof HTMLInputElement && altInput.value.trim() === '' && Number.isFinite(gps.alt)) {
+          altInput.value = formatCoordinate(gps.alt);
+        }
+      }
 
       if (!window.maplibregl) {
         if (statusNode instanceof HTMLElement) statusNode.textContent = 'Map unavailable. Manual coordinates remain editable.';
@@ -632,49 +651,31 @@
 
       if (initial) setMarker(initial, false);
 
-      const altInput = document.getElementById(container.dataset.altInput || '');
-
-      fetch('/api/gps-location')
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null)
-        .then(gps => {
-          if (!gps || !Number.isFinite(gps.lat) || !Number.isFinite(gps.lon)) return;
-          const gpsPoint = { lat: gps.lat, lon: gps.lon };
-          const inputsEmpty = latInput.value.trim() === '' && lonInput.value.trim() === '';
-          if (inputsEmpty) {
+      if (gpsPoint && inputsEmpty) {
+        if (statusNode instanceof HTMLElement) statusNode.textContent = 'Location pre-filled from GPS sensor.';
+        dispatchCoordinateInput(latInput);
+        dispatchCoordinateInput(lonInput);
+      } else if (gpsPoint && !inputsEmpty) {
+        if (statusNode instanceof HTMLElement) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn';
+          btn.textContent = `Use GPS: ${formatCoordinate(gps.lat)}, ${formatCoordinate(gps.lon)}`;
+          btn.addEventListener('click', () => {
             latInput.value = formatCoordinate(gps.lat);
             lonInput.value = formatCoordinate(gps.lon);
-            if (altInput instanceof HTMLInputElement && altInput.value.trim() === '' && Number.isFinite(gps.alt)) {
+            if (altInput instanceof HTMLInputElement && Number.isFinite(gps.alt)) {
               altInput.value = formatCoordinate(gps.alt);
             }
             setMarker(gpsPoint, true);
             dispatchCoordinateInput(latInput);
             dispatchCoordinateInput(lonInput);
-            if (statusNode instanceof HTMLElement) {
-              statusNode.textContent = 'Location pre-filled from GPS sensor.';
-            }
-          } else {
-            if (statusNode instanceof HTMLElement) {
-              const btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'btn';
-              btn.textContent = `Use GPS: ${formatCoordinate(gps.lat)}, ${formatCoordinate(gps.lon)}`;
-              btn.addEventListener('click', () => {
-                latInput.value = formatCoordinate(gps.lat);
-                lonInput.value = formatCoordinate(gps.lon);
-                if (altInput instanceof HTMLInputElement && Number.isFinite(gps.alt)) {
-                  altInput.value = formatCoordinate(gps.alt);
-                }
-                setMarker(gpsPoint, true);
-                dispatchCoordinateInput(latInput);
-                dispatchCoordinateInput(lonInput);
-                statusNode.textContent = '';
-              });
-              statusNode.textContent = '';
-              statusNode.appendChild(btn);
-            }
-          }
-        });
+            statusNode.textContent = '';
+          });
+          statusNode.textContent = '';
+          statusNode.appendChild(btn);
+        }
+      }
 
       map.on('click', event => {
         const point = {

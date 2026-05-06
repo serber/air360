@@ -72,8 +72,8 @@ Drivers access hardware exclusively through `SensorDriverContext`, which carries
 
 ### After `poll()`
 
-- On success: state → `kPolling`, `failures = 0`, `next_retry_ms = 0`, `next_action_time_ms = now + poll_interval_ms`
-- On the first two consecutive poll failures: keep `driver_ready = true` and retry polling after `min(poll_interval_ms, 5000)`. This absorbs short bus glitches without a full driver teardown.
+- On success: state → `kPolling`, `failures = 0`, `next_retry_ms = 0`, `next_action_time_ms = now + effective_poll_ms` where `effective_poll_ms = min(poll_interval_ms, 5000)` during the 60 s warmup window, otherwise `poll_interval_ms`.
+- On the first two consecutive poll failures: keep `driver_ready = true` and retry polling after `min(effective_poll_ms, 5000)`. This absorbs short bus glitches without a full driver teardown.
 - On the third consecutive poll failure: set `driver_ready = false`, increment `failures`, and enter the same exponential init backoff used by `init()` failures.
 
 After 16 consecutive init/poll failures, the manager marks the sensor `kFailed`, clears `next_retry_ms`, and stops automatic retry attempts. A config reload or manual re-enable rebuilds the runtime entry and permits a new attempt.
@@ -130,7 +130,12 @@ This data is **never queued for upload** — it is a display-only snapshot.
 
 ### 2b — Append to `queued_`
 
-A sample is appended to the upload queue **only if `sample_unix_ms > 0`**, i.e., only when SNTP has provided valid UTC time:
+A sample is appended to the upload queue **only if `sample_unix_ms > 0`**. There are two conditions under which `sample_unix_ms = 0` is passed, causing the reading to update the display snapshot but skip the upload queue:
+
+1. **No SNTP time** — the unix clock has not been synchronized yet.
+2. **Warmup phase** — the sensor task is within 60 s of starting. Warmup readings are intentionally excluded to avoid uploading the rapid-fire startup polls (every 5 s) as if they were real scheduled measurements. The status page and diagnostics still see them via `latest_by_sensor_`.
+
+Original condition (applies to both cases):
 
 ```cpp
 if (sample_unix_ms > 0 && !measurement.empty()) {

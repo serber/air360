@@ -34,6 +34,12 @@ constexpr std::uint64_t kSoftPollRetryDelayMs = 5000U;
 // 250 ms loop cadence is fast enough for 1 s retry granularity while keeping
 // the manager mostly idle between scheduled sensor actions.
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
+// Immediately after task start, sensors are polled at this interval so the
+// device reaches a healthy (measured) state quickly. Readings taken during
+// warmup are NOT queued for upload — they only update the latest-measurement
+// snapshot used by the status page and diagnostics.
+constexpr std::uint64_t kWarmupDurationMs = 60'000U;
+constexpr std::uint64_t kWarmupPollIntervalMs = 5'000U;
 // 6 KB covers the driver registry walk plus per-sensor error formatting.
 constexpr uint32_t kManagerTaskStackSize = 6144U;
 // Run above idle so scheduled polls are not delayed by background maintenance.
@@ -388,7 +394,13 @@ void SensorManager::taskMain() {
     esp_task_wdt_add(nullptr);
     ESP_LOGI(kTag, "TWDT: air360_sensor subscribed");
 
+    const std::uint64_t task_start_ms = uptimeMilliseconds();
+    ESP_LOGI(kTag,
+        "Warmup: polling at %" PRIu64 " ms for first %" PRIu64 " ms; readings not queued",
+        kWarmupPollIntervalMs, kWarmupDurationMs);
+
     const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
+    bool warmup_active = true;
 
     for (;;) {
         if (stopRequested()) {
@@ -396,6 +408,11 @@ void SensorManager::taskMain() {
         }
 
         const std::uint64_t now_ms = uptimeMilliseconds();
+        const bool in_warmup = (now_ms - task_start_ms) < kWarmupDurationMs;
+        if (warmup_active && !in_warmup) {
+            warmup_active = false;
+            ESP_LOGI(kTag, "Warmup complete; reverting to configured poll intervals");
+        }
 
         lock();
         const std::size_t sensor_count = sensors_.size();
@@ -427,6 +444,11 @@ void SensorManager::taskMain() {
                 continue;
             }
 
+            const std::uint64_t effective_poll_ms =
+                in_warmup
+                    ? std::min<std::uint64_t>(record.poll_interval_ms, kWarmupPollIntervalMs)
+                    : static_cast<std::uint64_t>(record.poll_interval_ms);
+
             const esp_err_t op_err =
                 needs_init ? driver->init(record, driver_context) : driver->poll();
             SensorMeasurement measurement =
@@ -441,7 +463,7 @@ void SensorManager::taskMain() {
                     record.id,
                     record.sensor_type,
                     measurement,
-                    currentUnixMilliseconds());
+                    in_warmup ? 0 : currentUnixMilliseconds());
             }
 
             lock();
@@ -468,7 +490,7 @@ void SensorManager::taskMain() {
                 sensor.runtime.next_retry_ms = 0U;
                 sensor.runtime.last_error = driver_status;
                 sensor.next_action_time_ms =
-                    now_ms + (needs_init ? 0U : sensor.record.poll_interval_ms);
+                    now_ms + (needs_init ? 0U : effective_poll_ms);
             } else {
                 sensor.runtime.state = classifyFailureState(op_err);
                 sensor.runtime.last_error = last_error;
@@ -485,7 +507,7 @@ void SensorManager::taskMain() {
                     sensor.driver_ready = true;
                     sensor.next_action_time_ms =
                         now_ms + std::min<std::uint64_t>(
-                                     sensor.record.poll_interval_ms,
+                                     effective_poll_ms,
                                      kSoftPollRetryDelayMs);
                     sensor.runtime.next_retry_ms = sensor.next_action_time_ms;
                     sensor.runtime.soft_fails = driver->softFailCount();
