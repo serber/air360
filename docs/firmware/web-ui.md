@@ -257,7 +257,7 @@ A single form containing upload settings and one card per backend type.
 - `InfluxDB`: editable `User`, `Password`, and `Measurement` fields.
 - `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an `Altitude (m above sea level)` numeric input (`step="any"`, optional; empty or `0` means not set), followed by an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the latitude/longitude fields; editing those fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both latitude and longitude are non-zero. When the backends page loads, JavaScript calls `GET /api/gps-location`; if a GPS sensor has a fix, the coordinate fields are pre-filled automatically (when empty) or a **Use GPS** button appears in the map status area (when fields already have saved values).
 - `Air360 API` only: upload secret UI. When no secret is stored, the page shows an empty `Upload secret` textarea plus **Generate** button; the button calls `/backends/air360-upload-secret` and fills the textarea with a locally generated secret. When a secret already exists, the page shows `Configured` with a masked preview and keeps the replacement textarea hidden/disabled until the user presses **Change**.
-- Sensor.Community only: `device_id_override` field (overrides the short device ID sent in `X-Sensor`).
+- Sensor.Community only: read-only **Sensor ID** display showing the device's `short_device_id`; users must register this value as their sensor ID in the sensor.community personal account.
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`

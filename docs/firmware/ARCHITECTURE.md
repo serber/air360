@@ -481,7 +481,6 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | type | `BackendType` enum |
 | enabled | Active flag |
 | display_name | `char[32]` |
-| device_id_override | `char[32]` (Sensor.Community only) |
 | host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |

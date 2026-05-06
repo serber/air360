@@ -578,13 +578,6 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         record->port = port;
 
         switch (descriptor.type) {
-            case BackendType::kSensorCommunity:
-                copyString(
-                    record->sensor_community_device_id,
-                    sizeof(record->sensor_community_device_id),
-                    findFormValue(fields, (std::string("device_id_") + key).c_str()));
-                break;
-
             case BackendType::kAir360Api: {
                 float lat = 0.0F;
                 float lon = 0.0F;

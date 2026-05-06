@@ -24,10 +24,6 @@ std::string legacyDeviceId(const MeasurementBatch& batch) {
     return batch.device_id;
 }
 
-std::string overrideDeviceId(const BackendRecord& record) {
-    return boundedCString(record.sensor_community_device_id, kBackendIdentifierCapacity);
-}
-
 bool mapMeasurement(
     const MeasurementPoint& point,
     std::uint8_t& out_pin,
@@ -325,8 +321,7 @@ bool SensorCommunityUploader::buildRequests(
         upsertLatestValue(*group, value_type, point.value_kind, point.value);
     }
 
-    const std::string device_id_override = overrideDeviceId(record);
-    const std::string device_id = device_id_override.empty() ? legacyDeviceId(batch) : device_id_override;
+    const std::string device_id = legacyDeviceId(batch);
     const std::string x_sensor = std::string(kLegacyPrefix) + device_id;
     const std::string x_mac = std::string(kLegacyPrefix) + batch.esp_mac_id;
     const std::string user_agent =

@@ -189,15 +189,14 @@ Within a group, if the same `value_type` appears more than once (e.g., two tempe
 | Header | Value | Source |
 |--------|-------|--------|
 | `Content-Type` | `application/json` | fixed |
-| `X-Sensor` | `esp32-{device_id}` | `short_device_id` or `device_id_override` |
+| `X-Sensor` | `esp32-{device_id}` | `short_device_id` (or `device_id` as fallback) |
 | `X-MAC-ID` | `esp32-{esp_mac_id}` | station MAC in hex |
 | `X-PIN` | `{pin}` | sensor group pin number |
 | `User-Agent` | `{project_version}/{device_id}/{esp_mac_id}` | build info + identity |
 
 **`X-Sensor` device ID resolution:**
-1. If `device_id_override` is set in `BackendRecord` → use that value
-2. Otherwise use `short_device_id` (24-bit legacy airrohr format)
-3. Fallback to `device_id` if `short_device_id` is empty
+1. Use `short_device_id` (24-bit legacy airrohr format)
+2. Fallback to `device_id` if `short_device_id` is empty
 
 The `short_device_id` must match the device ID registered on `devices.sensor.community`.
 
