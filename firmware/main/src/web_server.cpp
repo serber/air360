@@ -31,7 +31,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-constexpr std::size_t kHttpServerMaxUriHandlers = 20U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 21U;
 constexpr char kAir360MapBaseUrl[] = "https://air360.ru/map";
 constexpr char kSensorCommunityMapBaseUrl[] = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
@@ -1253,6 +1253,8 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "' data-lon-input='lon_";
             endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' data-alt-input='alt_";
+            endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "'></div>";
             endpoint_block += "<div class='location-map-status' data-air360-location-map-status></div>";
             endpoint_block += "</div>";
@@ -2442,6 +2444,17 @@ esp_err_t WebServer::start(
     check_sntp_uri.handler = &WebServer::handleCheckSntp;
     check_sntp_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &check_sntp_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t gps_location_uri{};
+    gps_location_uri.uri = "/api/gps-location";
+    gps_location_uri.method = HTTP_GET;
+    gps_location_uri.handler = &WebServer::handleGpsLocation;
+    gps_location_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &gps_location_uri);
     if (err != ESP_OK) {
         stop();
         return err;

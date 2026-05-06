@@ -56,6 +56,7 @@ class WebServer {
     static esp_err_t handleSensors(httpd_req_t* request);
     static esp_err_t handleBackends(httpd_req_t* request);
     static esp_err_t handleAir360UploadSecret(httpd_req_t* request);
+    static esp_err_t handleGpsLocation(httpd_req_t* request);
 
     httpd_handle_t handle_ = nullptr;
     StatusService* status_service_ = nullptr;

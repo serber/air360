@@ -632,6 +632,50 @@
 
       if (initial) setMarker(initial, false);
 
+      const altInput = document.getElementById(container.dataset.altInput || '');
+
+      fetch('/api/gps-location')
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+        .then(gps => {
+          if (!gps || !Number.isFinite(gps.lat) || !Number.isFinite(gps.lon)) return;
+          const gpsPoint = { lat: gps.lat, lon: gps.lon };
+          const inputsEmpty = latInput.value.trim() === '' && lonInput.value.trim() === '';
+          if (inputsEmpty) {
+            latInput.value = formatCoordinate(gps.lat);
+            lonInput.value = formatCoordinate(gps.lon);
+            if (altInput instanceof HTMLInputElement && altInput.value.trim() === '' && Number.isFinite(gps.alt)) {
+              altInput.value = formatCoordinate(gps.alt);
+            }
+            setMarker(gpsPoint, true);
+            dispatchCoordinateInput(latInput);
+            dispatchCoordinateInput(lonInput);
+            if (statusNode instanceof HTMLElement) {
+              statusNode.textContent = 'Location pre-filled from GPS sensor.';
+            }
+          } else {
+            if (statusNode instanceof HTMLElement) {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'btn';
+              btn.textContent = `Use GPS: ${formatCoordinate(gps.lat)}, ${formatCoordinate(gps.lon)}`;
+              btn.addEventListener('click', () => {
+                latInput.value = formatCoordinate(gps.lat);
+                lonInput.value = formatCoordinate(gps.lon);
+                if (altInput instanceof HTMLInputElement && Number.isFinite(gps.alt)) {
+                  altInput.value = formatCoordinate(gps.alt);
+                }
+                setMarker(gpsPoint, true);
+                dispatchCoordinateInput(latInput);
+                dispatchCoordinateInput(lonInput);
+                statusNode.textContent = '';
+              });
+              statusNode.textContent = '';
+              statusNode.appendChild(btn);
+            }
+          }
+        });
+
       map.on('click', event => {
         const point = {
           lat: event.lngLat.lat,
