@@ -43,9 +43,6 @@ struct BackendRecord {
     // ── auth (common) ────────────────────────────────────
     BackendAuthConfig auth{};
 
-    // ── SensorCommunity-specific ─────────────────────────
-    char sensor_community_device_id[kBackendIdentifierCapacity]{};
-
     // ── InfluxDB-specific ────────────────────────────────
     char influxdb_measurement[kBackendMeasurementCapacity]{};
 

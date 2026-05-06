@@ -608,7 +608,7 @@ Uploads to [Sensor.Community](https://sensor.community/).
 
 Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
 
-`X-Sensor` uses the legacy `esp32-{device_id}` format (or the configured device ID override).
+`X-Sensor` uses the legacy `esp32-{short_device_id}` format, falling back to the full `device_id` only if `short_device_id` is unavailable.
 
 ---
 

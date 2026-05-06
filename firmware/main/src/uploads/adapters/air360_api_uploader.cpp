@@ -67,9 +67,6 @@ std::string errorMessageFromResponse(const UploadTransportResponse& response) {
     if (response.transport_err != ESP_OK) {
         return esp_err_to_name(response.transport_err);
     }
-    if (!response.body_snippet.empty()) {
-        return response.body_snippet;
-    }
     if (response.http_status != 0) {
         return std::string("HTTP ") + std::to_string(response.http_status);
     }
@@ -197,6 +194,7 @@ UploadAttemptResult Air360ApiUploader::deliver(
         result.response_time_ms = response.response_time_ms;
         result.retry_after_seconds = response.retry_after_seconds;
         result.transport_err = response.transport_err;
+        result.response_body_snippet = response.body_snippet;
         result.result = classifyResponse(response);
         if (result.result != UploadResultClass::kSuccess) {
             result.message = errorMessageFromResponse(response);
@@ -264,6 +262,7 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
     result.response_time_ms = response.response_time_ms;
     result.retry_after_seconds = response.retry_after_seconds;
     result.transport_err = response.transport_err;
+    result.response_body_snippet = response.body_snippet;
 
     if (response.transport_err != ESP_OK) {
         result.result = UploadResultClass::kTransportError;
@@ -282,10 +281,6 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
 
     result.result = UploadResultClass::kHttpError;
     result.message = std::string("Registration failed: HTTP ") + std::to_string(response.http_status);
-    if (!response.body_snippet.empty()) {
-        result.message += " — ";
-        result.message += response.body_snippet;
-    }
     ESP_LOGW(kTag, "Air360 registration failed: %s", result.message.c_str());
     return result;
 }

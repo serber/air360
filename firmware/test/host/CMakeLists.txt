@@ -73,6 +73,20 @@ target_compile_features(test_upload_prune_policy PRIVATE cxx_std_17)
 
 add_test(NAME upload_prune_policy COMMAND test_upload_prune_policy)
 
+add_executable(test_sensor_community_uploader
+    ../../main/src/uploads/adapters/sensor_community_uploader.cpp
+    test_sensor_community_uploader.cpp
+)
+
+target_include_directories(test_sensor_community_uploader PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_sensor_community_uploader PRIVATE cxx_std_17)
+
+add_test(NAME sensor_community_uploader COMMAND test_sensor_community_uploader)
+
 add_executable(test_measurement_store
     ../../main/src/uploads/measurement_store.cpp
     ../../main/src/uploads/upload_prune_policy.cpp

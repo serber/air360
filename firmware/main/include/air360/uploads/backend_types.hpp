@@ -7,7 +7,6 @@ namespace air360 {
 
 constexpr std::size_t kMaxConfiguredBackends = 4U;
 constexpr std::size_t kBackendDisplayNameCapacity = 32U;
-constexpr std::size_t kBackendIdentifierCapacity = 32U;
 constexpr std::size_t kBackendHostCapacity = 96U;
 constexpr std::size_t kBackendPathCapacity = 96U;
 constexpr std::size_t kBackendUsernameCapacity = 48U;

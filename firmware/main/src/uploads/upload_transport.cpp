@@ -1,7 +1,9 @@
 #include "air360/uploads/upload_transport.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
+#include <utility>
 
 #include "air360/uploads/upload_log_endpoint.hpp"
 #include "esp_crt_bundle.h"
@@ -14,6 +16,55 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.http";
+constexpr std::size_t kMaxBodySnippetBytes = 512U;
+
+struct ResponseBodyCapture {
+    std::string snippet;
+    bool truncated = false;
+};
+
+void appendBodySnippet(ResponseBodyCapture& capture, const char* data, std::size_t data_len) {
+    if (data == nullptr || data_len == 0U || capture.snippet.size() >= kMaxBodySnippetBytes) {
+        if (data_len > 0U) {
+            capture.truncated = true;
+        }
+        return;
+    }
+
+    const std::size_t available = kMaxBodySnippetBytes - capture.snippet.size();
+    const std::size_t copy_len = std::min(data_len, available);
+    capture.snippet.reserve(kMaxBodySnippetBytes);
+    for (std::size_t index = 0U; index < copy_len; ++index) {
+        const unsigned char ch = static_cast<unsigned char>(data[index]);
+        if (ch == '\r' || ch == '\n' || ch == '\t') {
+            capture.snippet.push_back(' ');
+        } else if (std::isprint(ch) != 0) {
+            capture.snippet.push_back(static_cast<char>(ch));
+        } else {
+            capture.snippet.push_back('?');
+        }
+    }
+
+    if (copy_len < data_len) {
+        capture.truncated = true;
+    }
+}
+
+esp_err_t httpEventHandler(esp_http_client_event_t* event) {
+    if (event == nullptr || event->event_id != HTTP_EVENT_ON_DATA) {
+        return ESP_OK;
+    }
+
+    auto* capture = static_cast<ResponseBodyCapture*>(event->user_data);
+    if (capture == nullptr) {
+        return ESP_OK;
+    }
+
+    const std::size_t data_len =
+        event->data_len > 0 ? static_cast<std::size_t>(event->data_len) : 0U;
+    appendBodySnippet(*capture, static_cast<const char*>(event->data), data_len);
+    return ESP_OK;
+}
 
 esp_http_client_method_t toEspMethod(UploadMethod method) {
     switch (method) {
@@ -41,6 +92,10 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
     config.keep_alive_enable = false;
     config.addr_type = HTTP_ADDR_TYPE_INET;
     config.crt_bundle_attach = esp_crt_bundle_attach;
+
+    ResponseBodyCapture body_capture;
+    config.event_handler = httpEventHandler;
+    config.user_data = &body_capture;
 
     const std::string endpoint = formatUploadEndpointForLog(request.url);
     ESP_LOGI(
@@ -92,6 +147,10 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
             if (parsed > 0UL && parsed <= 3600UL) {
                 response.retry_after_seconds = static_cast<std::uint32_t>(parsed);
             }
+        }
+        response.body_snippet = std::move(body_capture.snippet);
+        if (body_capture.truncated) {
+            response.body_snippet += "...";
         }
     } else if (response.transport_err == ESP_ERR_HTTP_FETCH_HEADER) {
         ESP_LOGE(kTag, "HTTP header parse failed (buffer too small?): %s", endpoint.c_str());
