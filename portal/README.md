@@ -8,9 +8,10 @@ The portal currently provides:
 - `React` 19 and `TypeScript`
 - `Tailwind CSS` 4
 - `ESLint` 9
-- a placeholder home page at `/`
+- a public home page at `/`
 - a public device map at `/map`
 - a placeholder device assembly guide at `/build`
+- a privacy policy at `/privacy`
 - public device measurement charts at `/devices/:public_id`
 
 ## Development
@@ -56,6 +57,7 @@ npm run start
 Portal documentation is stored in `../docs/portal/`.
 
 Ubuntu setup and deployment notes are in `../docs/portal/ubuntu-deployment.md`.
+Portal-local AI agent guidance is in `AGENTS.md`.
 
 ## Notes
 
@@ -63,3 +65,5 @@ Ubuntu setup and deployment notes are in `../docs/portal/ubuntu-deployment.md`.
 - Package manager: `npm`
 - Main application entry: `src/app/page.tsx`
 - Global metadata and layout: `src/app/layout.tsx`
+- API types and fetch helpers: `src/lib/api.ts`
+- API proxy: `next.config.ts`

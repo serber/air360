@@ -6,10 +6,10 @@ Accepted. Implemented in `backend/`.
 
 ## Decision Summary
 
-Add two read endpoints to the Air360 API backend to support the portal: a
-device list endpoint returning all devices with their latest measurements, and a
-measurements history endpoint returning time-bucketed sensor data for a given
-device and period.
+Add portal read endpoints to the Air360 API backend: active and offline device
+lists for the map, plus a measurements history endpoint returning device
+metadata, latest readings, and time-bucketed sensor data for a given device and
+period.
 
 ## Context
 
@@ -20,6 +20,7 @@ endpoint currently exists.
 ## Goals
 
 - Expose all devices with location and latest readings in one request.
+- Expose offline devices separately without stale latest readings.
 - Expose time-bucketed historical measurements for a device and period.
 - Keep the response shape simple and portal-driven.
 - Use TimescaleDB `time_bucket()` for efficient aggregation.
@@ -116,29 +117,52 @@ Response `200`:
 {
   "public_id": "550e8400-e29b-41d4-a716-446655440000",
   "period": "24h",
-  "sensors": [
+  "device": {
+    "name": "Air360-AB12",
+    "latitude": 55.751244,
+    "longitude": 37.618423,
+    "firmware_version": "1.2.0",
+    "registered_at": "2026-04-27T09:15:00.000Z",
+    "last_seen_at": "2026-04-29T10:00:00.000Z",
+    "geo_country": "Russia",
+    "geo_country_code": "ru",
+    "geo_city": "Moscow",
+    "geo_display": "Moscow, Russia"
+  },
+  "by_kind": [
     {
-      "sensor_type": "bme280",
+      "kind": "temperature_c",
       "series": [
         {
-          "kind": "temperature_c",
+          "sensor_type": "bme280",
           "points": [
             { "t": "2026-04-28T10:00:00.000Z", "v": 22.1 },
             { "t": "2026-04-28T10:05:00.000Z", "v": 22.3 }
           ]
-        },
-        {
-          "kind": "humidity_percent",
-          "points": [
-            { "t": "2026-04-28T10:00:00.000Z", "v": 47.8 },
-            { "t": "2026-04-28T10:05:00.000Z", "v": 48.1 }
-          ]
         }
       ]
+    }
+  ],
+  "latest": [
+    {
+      "sensor_type": "bme280",
+      "kind": "temperature_c",
+      "value": 22.5,
+      "sampled_at": "2026-04-29T09:59:00.000Z"
+    }
+  ],
+  "sensors": [
+    {
+      "sensor_type": "bme280",
+      "kinds": ["temperature_c"]
     }
   ]
 }
 ```
+
+GPS measurements are intentionally excluded from chart series and latest-reading
+metadata on this endpoint. The device object carries the current coordinates and
+reverse-geocoded display fields instead.
 
 Error responses:
 

@@ -21,8 +21,8 @@ Based on the current tree, the repository now contains more than the original fi
 
 - an ESP-IDF firmware runtime for `esp32s3`
 - compatibility with the Sensor.Community upload endpoint and registration flow
-- a Fastify-based Air360 backend with device registration, persisted ingest, and latest-reading queries
-- a Next.js portal scaffold
+- a Fastify-based Air360 backend with device registration, authenticated persisted ingest, public device lists, and measurement history queries
+- a Next.js public portal application
 - design and deployment documentation that connects those pieces
 
 The older planning documents in `docs/` still matter, but they should be read as design context unless the implementation confirms them.
@@ -108,19 +108,24 @@ The native API backend source lives in `backend/`. Backend documentation lives i
 Current backend implementation includes:
 
 - Fastify service in TypeScript
-- `GET /` and `GET /health`
+- `GET /`
 - device registration at `PUT /v1/devices/:device_id/register`
 - persisted batch ingest at `PUT /v1/devices/:device_id/batches/:batch_id`
-- latest readings by public device ID at `GET /v1/devices/:public_id/latest`
+- public device list endpoints at `GET /v1/devices` and `GET /v1/devices/offline`
+- measurement history by public device ID at `GET /v1/devices/:public_id/measurements?period=<period>`
 
 ### Portal
 
 The web portal lives in [portal/README.md](portal/README.md).
 
-Current portal implementation is also early:
+Current portal implementation includes:
 
-- Next.js 16 / React 19 / TypeScript scaffold
-- single landing page in `src/app/page.tsx`
+- Next.js 16 / React 19 / TypeScript application
+- public home page at `/`
+- public device map at `/map`
+- placeholder device assembly guide at `/build`
+- privacy page at `/privacy`
+- public device measurement charts at `/devices/:public_id`
 - deployment notes under `docs/portal/`
 
 ## Getting Started
@@ -154,21 +159,22 @@ If you need repository context first:
 
 If you need backend work:
 
-1. Read [docs/backend/README.md](docs/backend/README.md)
-2. Use [backend/README.md](backend/README.md) only as the source directory entry point
+1. Read [backend/AGENTS.md](backend/AGENTS.md)
+2. Read [docs/backend/README.md](docs/backend/README.md)
 
 If you need portal work:
 
-1. Read [portal/README.md](portal/README.md)
-2. Read [docs/portal/README.md](docs/portal/README.md)
+1. Read [portal/AGENTS.md](portal/AGENTS.md)
+2. Read [portal/README.md](portal/README.md)
+3. Read [docs/portal/README.md](docs/portal/README.md)
 
 ## Current Status
 
 Current implementation status appears to be:
 
 - `firmware/` is the most substantial implemented part of the repository
-- `backend/` is a native API backend with registration, ingest persistence, and latest-reading endpoints
-- `portal/` is a minimal frontend scaffold
+- `backend/` is a native API backend with registration, authenticated ingest persistence, public device lists, measurement history, and reverse-geocoded display fields
+- `portal/` is a public frontend with home, map, build guide placeholder, privacy page, and device measurement pages
 - many documents in `docs/` still describe intended direction, rollout phases, and compatibility constraints rather than completed work
 
 ## Development Notes

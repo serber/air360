@@ -22,6 +22,7 @@ behavior against `/backend`.
 
 | Document | Purpose |
 |----------|---------|
+| [../../backend/AGENTS.md](../../backend/AGENTS.md) | Backend-local working contract for AI agents |
 | [adr/README.md](adr/README.md) | Backend architecture decision records |
 | [backend-stack-decision.md](backend-stack-decision.md) | Backend-only stack direction and scaffold boundaries |
 | [backend-ubuntu-deployment-guide.md](backend-ubuntu-deployment-guide.md) | Standalone Ubuntu deployment guide |
@@ -32,7 +33,8 @@ behavior against `/backend`.
 ## Overview
 
 The Air360 API backend is a Fastify-based service for device registration,
-sensor measurement ingest, and latest-reading queries.
+authenticated sensor measurement ingest, public device lists, measurement
+history queries, and reverse-geocoded device display fields.
 
 ## Stack
 
@@ -53,12 +55,18 @@ backend/
     config/env.ts          - environment variable parsing
     plugins/               - shared Fastify setup
     routes/
+      root.ts              - service liveness route
       v1/
-        devices.ts         - device registration and latest readings
+        devices.ts         - device registration, active and offline device lists
         ingest.ts          - sensor batch ingest
+        measurements.ts    - public measurement history queries
     modules/
       devices/
         device-repository.ts      - device DB operations
+      geo/
+        geo-worker.ts             - throttled reverse-geocode background worker
+        reverse-geocoder.ts       - Nominatim reverse geocode client
+        geo-queue-repository.ts   - pending device geocode queue
       ingest/
         ingest-repository.ts      - batch and measurement DB operations
       measurements/
@@ -126,11 +134,20 @@ devices
   name               TEXT            - device name from firmware config
   latitude           FLOAT8          - user-provided device latitude
   longitude          FLOAT8          - user-provided device longitude
+  altitude_m         FLOAT8 NULL     - optional altitude used for sea-level pressure
   firmware_version   TEXT
   upload_secret_hash TEXT NULL       - sha256:<base64url(sha256(upload_secret))>
   last_batch_id      BIGINT NULL     - batch_id of the most recent ingest, updated on each ingest
+  geo_country        TEXT NULL       - reverse-geocoded country name
+  geo_country_code   TEXT NULL       - reverse-geocoded country code
+  geo_city           TEXT NULL       - reverse-geocoded city/town/village
+  geo_display        TEXT NULL       - human-readable location label for the portal
   registered_at      TIMESTAMPTZ     - set once on first registration
   last_seen_at       TIMESTAMPTZ     - updated on registration and ingest
+
+geo_update_queue
+  device_id          BIGINT PK       - references devices(device_id)
+  queued_at          TIMESTAMPTZ     - server time when reverse geocode was queued
 
 batches
   device_id          BIGINT PK       - references devices(device_id)
@@ -158,6 +175,11 @@ within `Number.MAX_SAFE_INTEGER`.
 `public_id` is a UUID generated on device registration. External-facing APIs use
 `public_id` to identify devices; `device_id` is internal.
 
+`geo_update_queue` is processed by a throttled in-process worker started from
+`src/app.ts`. It calls Nominatim reverse geocoding and stores display fields on
+the device record. Device ingest queues a geocode refresh when GPS coordinates
+move more than 100 meters or when no display location exists yet.
+
 ## API
 
 All timestamps are UTC. All endpoints return JSON unless noted otherwise.
@@ -170,16 +192,6 @@ Response `200`:
 
 ```json
 { "service": "air360-api-backend", "status": "ok" }
-```
-
-### `GET /health`
-
-Health check.
-
-Response `200`:
-
-```json
-{ "ok": true }
 ```
 
 ### `GET /v1/devices`
@@ -277,12 +289,24 @@ Response `200`:
 {
   "public_id": "550e8400-e29b-41d4-a716-446655440000",
   "period": "24h",
-  "sensors": [
+  "device": {
+    "name": "Air360-AB12",
+    "latitude": 55.751244,
+    "longitude": 37.618423,
+    "firmware_version": "1.2.0",
+    "registered_at": "2026-04-27T09:15:00.000Z",
+    "last_seen_at": "2026-04-29T10:00:00.000Z",
+    "geo_country": "Russia",
+    "geo_country_code": "ru",
+    "geo_city": "Moscow",
+    "geo_display": "Moscow, Russia"
+  },
+  "by_kind": [
     {
-      "sensor_type": "bme280",
+      "kind": "temperature_c",
       "series": [
         {
-          "kind": "temperature_c",
+          "sensor_type": "bme280",
           "points": [
             { "t": "2026-04-28T10:00:00.000Z", "v": 22.1 },
             { "t": "2026-04-28T10:05:00.000Z", "v": 22.3 }
@@ -290,9 +314,27 @@ Response `200`:
         }
       ]
     }
+  ],
+  "latest": [
+    {
+      "sensor_type": "bme280",
+      "kind": "temperature_c",
+      "value": 22.5,
+      "sampled_at": "2026-04-29T09:59:00.000Z"
+    }
+  ],
+  "sensors": [
+    {
+      "sensor_type": "bme280",
+      "kinds": ["temperature_c"]
+    }
   ]
 }
 ```
+
+GPS measurements are excluded from `by_kind`, `latest`, and `sensors` for this
+endpoint. Device coordinates and reverse-geocoded display fields are returned
+under `device`.
 
 Error responses:
 
@@ -323,7 +365,8 @@ Request body:
   "firmware_version": "1.2.0",
   "location": {
     "latitude": 55.751244,
-    "longitude": 37.618423
+    "longitude": 37.618423,
+    "altitude_m": 156.0
   },
   "upload_secret_hash": "sha256:base64url-sha256-value"
 }
@@ -335,13 +378,14 @@ Request body:
 | `firmware_version` | string | yes | Firmware version string |
 | `location.latitude` | number | yes | Decimal degrees, -90 to 90 |
 | `location.longitude` | number | yes | Decimal degrees, -180 to 180 |
+| `location.altitude_m` | number | no | Device altitude in meters; stored as `NULL` when omitted |
 | `upload_secret_hash` | string | yes | `sha256:<base64url(sha256(upload_secret))>` |
 | `schema_version` | integer | no | Currently `1` |
 
 Registration rules:
 
 - A new `device_id` creates the device record and stores the hash.
-- An existing `device_id` with the same hash updates name, location, firmware version, and `last_seen_at`.
+- An existing `device_id` with the same hash updates name, location, altitude, firmware version, and `last_seen_at`.
 - An existing `device_id` with a different hash is rejected with `401`.
 
 Response `200`:
@@ -419,10 +463,14 @@ Rules enforced by the current implementation:
 - Every `sample.sensor_type` must be supported.
 - Every `values[].kind` must be supported.
 - The device must already be registered.
+- `Authorization: Bearer <upload_secret>` must match the stored registration hash.
+- Duplicate `(device_id, batch_id)` requests return `200` without inserting measurements again.
+- If a sample includes `gps_nmea` latitude and longitude, ingest updates the device location and may queue a reverse-geocode refresh.
+- If a `pressure_hpa` value is received and device altitude is non-zero, ingest stores both `pressure_hpa_raw` and sea-level-adjusted `pressure_hpa`.
 
 Supported `sensor_type` values:
 
-`bme280` `bme680` `sps30` `scd30` `veml7700` `gps_nmea` `dht11` `dht22` `htu2x` `sht4x` `ds18b20` `me3_no2` `ina219` `mhz19b` `sds011`
+`bme280` `bme680` `sps30` `scd30` `veml7700` `gps_nmea` `dht11` `dht22` `htu2x` `sht3x` `sht4x` `ds18b20` `me3_no2` `ina219` `mhz19b` `sds011` `aht30`
 
 Supported `values[].kind` values:
 
@@ -441,57 +489,21 @@ Error responses:
 | 404 | `device_not_found` | Device has not been registered |
 | 500 | `internal_error` | Unexpected server error |
 
-### `GET /v1/devices/:public_id/latest`
+## Removed Or Not Implemented Routes
 
-Returns the latest reading for each `(sensor_type, kind)` pair recorded by the
-device.
-
-Path parameters:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `public_id` | UUID | Public device identifier from the register response |
-
-Response `200`:
-
-```json
-{
-  "public_id": "550e8400-e29b-41d4-a716-446655440000",
-  "last_seen_at": "2026-04-27T09:30:00.000Z",
-  "sensors": [
-    {
-      "sensor_type": "bme280",
-      "readings": [
-        { "kind": "temperature_c", "value": 22.5, "sampled_at": "2026-04-27T09:29:55.000Z" },
-        { "kind": "humidity_percent", "value": 48.0, "sampled_at": "2026-04-27T09:29:55.000Z" },
-        { "kind": "pressure_hpa", "value": 1013.2, "sampled_at": "2026-04-27T09:29:55.000Z" }
-      ]
-    },
-    {
-      "sensor_type": "sps30",
-      "readings": [
-        { "kind": "pm2_5_ug_m3", "value": 12.3, "sampled_at": "2026-04-27T09:29:55.000Z" }
-      ]
-    }
-  ]
-}
-```
-
-If the device has no measurements yet, `sensors` is an empty array.
-
-Error responses:
-
-| Code | `error.code` | Reason |
-|------|--------------|--------|
-| 404 | `device_not_found` | Device has not been registered |
-| 500 | `internal_error` | Unexpected server error |
+The current backend does not register a standalone
+`GET /v1/devices/:public_id/latest` route. Latest readings are exposed through
+`GET /v1/devices` for the map and through the `latest` field of
+`GET /v1/devices/:public_id/measurements?period=<period>` for the device page.
 
 ## Current State
 
 - Device registration and upsert: implemented.
 - Sensor batch ingest with persistence: implemented.
-- Latest readings per device: implemented.
+- Latest readings for active devices: implemented through `GET /v1/devices`.
 - TimescaleDB hypertable and compression migrations: implemented.
 - Upload secret auth (bearer token on ingest, hash stored at registration): implemented.
 - Device list with latest measurements (`GET /v1/devices`): implemented.
+- Offline device list (`GET /v1/devices/offline`): implemented.
 - Time-bucketed measurement history (`GET /v1/devices/:public_id/measurements`): implemented.
+- Reverse-geocoded device display fields and queue: implemented.

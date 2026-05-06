@@ -44,12 +44,15 @@ The user-facing frontend is expected to live as a separate application and is ou
 Based on the current `/backend` implementation:
 
 - standalone Fastify application, versioned route prefix `/v1`
-- `GET /` and `GET /health` for basic service checks
+- `GET /` for basic service checks
 - `PUT /v1/devices/{device_id}/register` — device registration and upsert
-- `PUT /v1/devices/{device_id}/batches/{batch_id}` — sensor batch ingest with persistence
-- `GET /v1/devices/{public_id}/latest` — latest readings per device (identified by UUID `public_id`)
+- `PUT /v1/devices/{device_id}/batches/{batch_id}` — upload-secret-authenticated sensor batch ingest with persistence
+- `GET /v1/devices` — active public devices with latest measurements for the portal map
+- `GET /v1/devices/offline` — offline public devices without stale measurements
+- `GET /v1/devices/{public_id}/measurements?period={period}` — time-bucketed public measurement history for portal device pages
 - persistence implemented: PostgreSQL 18 + TimescaleDB 2 (`measurements` is a hypertable with compression)
-- auth not implemented yet
+- upload write auth implemented with firmware-generated bearer secrets and stored hashes
+- reverse-geocoded display fields implemented through an in-process queue worker
 
 Implementation details should be verified against the `/backend` source tree rather than this design note.
 

@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Active implementation work is centered on `firmware/` and `docs/firmware/`.
-- `backend/` and `portal/` exist in the repository, but they are still early scaffolds and should not drive firmware assumptions.
+- `firmware/` and `docs/firmware/` remain the most mature implementation area.
+- `backend/` and `portal/` are implemented project applications with their own local agent contracts; they still should not drive firmware assumptions unless firmware code confirms the device behavior.
 - Treat firmware code and firmware implementation docs as the authoritative layer for current device behavior.
 
 ## Build commands
@@ -21,8 +21,11 @@ Do not try `which idf.py`, do not search for it, do not try other paths. Use the
 ## Source-of-truth rules
 
 - Treat `firmware/` as the source of truth for implemented firmware behavior.
+- Treat `backend/` as the source of truth for implemented native API behavior.
+- Treat `portal/` as the source of truth for implemented public web portal behavior.
 - Treat `docs/firmware/` as explanatory documentation for the current firmware implementation, not as an independent source of truth.
-- Treat the rest of `docs/` as design, planning, or ecosystem context unless firmware implementation confirms it.
+- Treat `docs/backend/` and `docs/portal/` as explanatory documentation for those applications, not as independent sources of truth.
+- Treat the rest of `docs/` as design, planning, or ecosystem context unless implementation confirms it.
 - Keep repository-level docs and firmware-level docs clearly separated.
 - Avoid documenting generated files in `firmware/build/` except when narrow factual hints are needed.
 - Preserve project-specific terminology and avoid generic boilerplate.
@@ -97,6 +100,8 @@ Before reporting any task as done — regardless of type (code, docs, refactor, 
 ## Agent-oriented files
 
 - Firmware-local working contract: [`firmware/AGENTS.md`](firmware/AGENTS.md)
+- Backend-local working contract: [`backend/AGENTS.md`](backend/AGENTS.md)
+- Portal-local working contract: [`portal/AGENTS.md`](portal/AGENTS.md)
 - Firmware documentation index: [`docs/firmware/README.md`](docs/firmware/README.md)
 - Firmware doc template: [`docs/firmware/doc-template.md`](docs/firmware/doc-template.md)
 - Firmware doc hygiene checker: `python3 scripts/check_firmware_docs.py`

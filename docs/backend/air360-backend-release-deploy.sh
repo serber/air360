@@ -34,8 +34,8 @@ systemctl restart "${SERVICE_NAME}"
 echo "==> 8. Showing service status"
 systemctl --no-pager --full status "${SERVICE_NAME}"
 
-echo "==> 9. Checking local health endpoint"
-curl -fsS http://127.0.0.1:3000/health
+echo "==> 9. Checking local liveness endpoint"
+curl -fsS http://127.0.0.1:3000/
 
 echo
 echo "${APP_NAME} deployment finished successfully."
