@@ -32,8 +32,8 @@ namespace {
 
 constexpr char kTag[] = "air360.web";
 constexpr std::size_t kHttpServerMaxUriHandlers = 21U;
-constexpr char kAir360MapBaseUrl[] = "https://air360.ru/map";
-constexpr char kSensorCommunityMapBaseUrl[] = "https://maps.sensor.community/";
+constexpr char kAir360MapBaseUrl[]              = "https://air360.ru/map";
+constexpr char kSensorCommunityMapBaseUrl[]     = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
 // interval below what SensorManager supports at runtime.
 constexpr std::uint32_t kMinSensorPollIntervalMs = air360::kMinSensorPollIntervalMs;
@@ -953,10 +953,10 @@ std::string renderMapLinksBlock(const BackendCardViewModel& card) {
 
     if (card.backend_type == BackendType::kAir360Api) {
         map_url = card.air360_map_url;
-        map_label = "Air360";
+        map_label = card.display_name;
     } else if (card.backend_type == BackendType::kSensorCommunity) {
         map_url = card.sensor_community_map_url;
-        map_label = "sensor.community";
+        map_label = kSensorCommunityDisplayName;
     }
 
     if (map_url.empty()) {
@@ -1176,16 +1176,9 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
     std::string endpoint_block;
     endpoint_block.reserve(1024U);
     std::string short_device_id_block;
-    std::string project_links_block;
-    project_links_block.reserve(256U);
-
     switch (card.backend_type) {
         case BackendType::kSensorCommunity:
             https_block = renderHttpsCheckbox(card);
-            project_links_block =
-                "<div class='backend-project-links'><span>Project</span>"
-                "<a href='https://sensor.community/' target='_blank' rel='noopener noreferrer'>"
-                "sensor.community</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
@@ -1196,16 +1189,14 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
                 short_device_id_block += "<span class='pill pill--ok'>";
                 short_device_id_block += htmlEscape(card.short_device_id);
                 short_device_id_block += "</span>";
-                short_device_id_block += "<span class='field-hint'>Enter this ID as your sensor ID in your sensor.community personal account.</span></div>";
+                short_device_id_block += "<span class='field-hint'>Enter this ID as your sensor ID in your ";
+                short_device_id_block += kSensorCommunityDisplayName;
+                short_device_id_block += " personal account.</span></div>";
             }
             break;
 
         case BackendType::kAir360Api: {
             https_block = renderHttpsCheckbox(card);
-            project_links_block =
-                "<div class='backend-project-links'><span>Project</span>"
-                "<a href='https://github.com/serber/air360' target='_blank' rel='noopener noreferrer'>"
-                "github.com/serber/air360</a></div>";
             if (!card.endpoint.empty()) {
                 endpoint_block += "<span class='field-hint'>Endpoint: <code>";
                 endpoint_block += htmlEscape(card.endpoint);
@@ -1334,17 +1325,14 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             break;
     }
 
-    if (card.backend_type == BackendType::kSensorCommunity ||
-        card.backend_type == BackendType::kAir360Api) {
-        project_links_block += renderMapLinksBlock(card);
-    }
+    const std::string map_links_block = renderMapLinksBlock(card);
 
     std::string status_block;
     status_block.reserve(512U);
     if (!card.enabled) {
         status_block.clear();
     } else if (card.has_status) {
-        status_block += "<hr/>";
+        status_block += "<hr class='hr'>";
         status_block += "<div class='backend-status'>";
         status_block += "<p>Last attempt: <code>";
         status_block += htmlEscape(card.last_attempt);
@@ -1364,7 +1352,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         }
         status_block += "</div>";
     } else {
-        status_block = "<hr/>";
+        status_block = "<hr class='hr'>";
         status_block += "<div class='backend-status'><p>Status: <code>unavailable</code></p></div>";
     }
 
@@ -1377,7 +1365,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             {"HTTPS_BLOCK", https_block},
             {"ENDPOINT_BLOCK", endpoint_block},
             {"SHORT_DEVICE_ID_BLOCK", short_device_id_block},
-            {"PROJECT_LINKS_BLOCK", project_links_block},
+            {"MAP_LINKS_BLOCK", map_links_block},
             {"STATUS_BLOCK", status_block},
         });
 }

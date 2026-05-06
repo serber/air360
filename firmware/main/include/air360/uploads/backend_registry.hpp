@@ -9,6 +9,9 @@
 
 namespace air360 {
 
+constexpr char kAir360DisplayName[]          = "Air360";
+constexpr char kSensorCommunityDisplayName[] = "Sensor.Community";
+
 using BackendValidationFn  = bool (*)(const BackendRecord& record, std::string& error);
 using BackendUploaderFactory = std::unique_ptr<IBackendUploader> (*)();
 
