@@ -23,7 +23,7 @@ class Mhz19bSensor final : public SensorDriver {
     std::string lastError() const override;
 
   private:
-    void reset();
+    void teardown();
     void setError(const std::string& message);
 
     mhz19b_dev_t device_{};

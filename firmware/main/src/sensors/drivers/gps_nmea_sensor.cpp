@@ -4,7 +4,6 @@
 #include <cinttypes>
 #include <cstdint>
 #include <memory>
-#include <new>
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
@@ -39,20 +38,14 @@ constexpr std::size_t kGpsEventQueueSize = 8U;
 
 }  // namespace
 
-GpsNmeaSensor::GpsNmeaSensor() = default;
-
-GpsNmeaSensor::~GpsNmeaSensor() = default;
-
 SensorType GpsNmeaSensor::type() const {
     return SensorType::kGpsNmea;
 }
 
 void GpsNmeaSensor::resetParser() {
-    // Placement-new avoids heap churn on re-init: the parser lives in-place
-    // as a data member, so destroy-then-reconstruct keeps allocations out of
-    // the sensor poll/init hot path.
-    parser_.~TinyGPSPlus();
-    new (&parser_) TinyGPSPlus();
+    // std::optional::emplace destroys the held parser (if any) and constructs a
+    // fresh one in place, keeping heap allocations off the sensor init path.
+    parser_.emplace();
 }
 
 esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
@@ -158,7 +151,7 @@ esp_err_t GpsNmeaSensor::poll() {
 
         total_bytes_read += static_cast<std::size_t>(bytes_read);
         for (int index = 0; index < bytes_read; ++index) {
-            parser_.encode(static_cast<char>(buffer[index]));
+            parser_->encode(static_cast<char>(buffer[index]));
         }
     }
 
@@ -247,8 +240,13 @@ TickType_t GpsNmeaSensor::computeReadTimeoutTicks() const {
 void GpsNmeaSensor::rebuildMeasurement() {
     measurement_.clear();
 
+    if (!parser_) {
+        setError("GPS parser is not initialized.");
+        return;
+    }
+
     bool has_values = false;
-    const bool location_valid = parser_.location.isValid();
+    const bool location_valid = parser_->location.isValid();
     if (location_valid) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
@@ -256,55 +254,55 @@ void GpsNmeaSensor::rebuildMeasurement() {
         }
         measurement_.addValue(
             SensorValueKind::kLatitudeDeg,
-            static_cast<float>(parser_.location.lat()));
+            static_cast<float>(parser_->location.lat()));
         measurement_.addValue(
             SensorValueKind::kLongitudeDeg,
-            static_cast<float>(parser_.location.lng()));
+            static_cast<float>(parser_->location.lng()));
     }
-    if (parser_.altitude.isValid()) {
+    if (parser_->altitude.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kAltitudeM,
-            static_cast<float>(parser_.altitude.meters()));
+            static_cast<float>(parser_->altitude.meters()));
     }
-    if (parser_.satellites.isValid()) {
+    if (parser_->satellites.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kSatellites,
-            static_cast<float>(parser_.satellites.value()));
+            static_cast<float>(parser_->satellites.value()));
     }
-    if (parser_.speed.isValid()) {
+    if (parser_->speed.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kSpeedKnots,
-            static_cast<float>(parser_.speed.knots()));
+            static_cast<float>(parser_->speed.knots()));
     }
-    if (parser_.course.isValid()) {
+    if (parser_->course.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kCourseDeg,
-            static_cast<float>(parser_.course.deg()));
+            static_cast<float>(parser_->course.deg()));
     }
-    if (parser_.hdop.isValid()) {
+    if (parser_->hdop.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kHdop,
-            static_cast<float>(parser_.hdop.hdop()));
+            static_cast<float>(parser_->hdop.hdop()));
     }
 
     if (location_valid) {

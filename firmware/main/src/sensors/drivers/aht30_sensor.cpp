@@ -19,7 +19,7 @@ constexpr char kTag[] = "air360.sensor.aht30";
 }  // namespace
 
 Aht30Sensor::~Aht30Sensor() {
-    reset();
+    teardown();
 }
 
 SensorType Aht30Sensor::type() const {
@@ -27,7 +27,7 @@ SensorType Aht30Sensor::type() const {
 }
 
 esp_err_t Aht30Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
@@ -98,7 +98,7 @@ std::string Aht30Sensor::lastError() const {
     return last_error_;
 }
 
-void Aht30Sensor::reset() {
+void Aht30Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (handle_ != nullptr) {

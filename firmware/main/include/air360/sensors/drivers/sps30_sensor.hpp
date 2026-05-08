@@ -23,7 +23,7 @@ class Sps30Sensor final : public SensorDriver {
   private:
     void setError(const std::string& message);
     esp_err_t startMeasurement();
-    void reset();
+    void teardown();
 
     SensorRecord record_{};
     i2c_dev_t device_{};

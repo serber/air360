@@ -22,7 +22,7 @@ constexpr std::uint32_t kSht3xI2cSpeedHz = 100000U;
 }  // namespace
 
 Sht3xSensor::~Sht3xSensor() {
-    reset();
+    teardown();
 }
 
 SensorType Sht3xSensor::type() const {
@@ -30,7 +30,7 @@ SensorType Sht3xSensor::type() const {
 }
 
 esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
@@ -47,7 +47,7 @@ esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContex
     esp_err_t err = sht3x_init_desc(&device_, record.i2c_address, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize SHT3X descriptor.");
-        reset();
+        teardown();
         return err;
     }
     descriptor_initialized_ = true;
@@ -58,13 +58,13 @@ esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContex
     err = sht3x_init(&device_);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize SHT3X sensor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
     err = sht3x_set_heater(&device_, false);
     if (err != ESP_OK) {
         setError(std::string("Failed to disable SHT3X heater: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -120,7 +120,7 @@ std::string Sht3xSensor::lastError() const {
     return last_error_;
 }
 
-void Sht3xSensor::reset() {
+void Sht3xSensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {

@@ -22,7 +22,7 @@ bool isSupportedAnalogPin(std::int16_t pin) {
 }  // namespace
 
 Me3No2Sensor::~Me3No2Sensor() {
-    releaseHandles();
+    teardown();
 }
 
 SensorType Me3No2Sensor::type() const {
@@ -35,7 +35,7 @@ esp_err_t Me3No2Sensor::init(
     // ME3-NO2 is an ADC-only driver and does not need the shared driver context.
     static_cast<void>(context);
 
-    releaseHandles();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
@@ -73,7 +73,7 @@ esp_err_t Me3No2Sensor::init(
     err = adc_oneshot_config_channel(adc_handle_, channel, &channel_cfg);
     if (err != ESP_OK) {
         setError(std::string("ADC channel config failed: ") + esp_err_to_name(err) + ".");
-        releaseHandles();
+        teardown();
         return err;
     }
 
@@ -143,7 +143,7 @@ void Me3No2Sensor::setError(const std::string& message) {
     last_error_ = message;
 }
 
-void Me3No2Sensor::releaseHandles() {
+void Me3No2Sensor::teardown() {
     if (cali_handle_ != nullptr) {
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
         adc_cali_delete_scheme_curve_fitting(cali_handle_);

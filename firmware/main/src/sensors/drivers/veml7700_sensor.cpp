@@ -19,7 +19,7 @@ constexpr std::uint32_t kVeml7700I2cSpeedHz = 100000U;
 }  // namespace
 
 Veml7700Sensor::~Veml7700Sensor() {
-    reset();
+    teardown();
 }
 
 SensorType Veml7700Sensor::type() const {
@@ -29,7 +29,7 @@ SensorType Veml7700Sensor::type() const {
 esp_err_t Veml7700Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
@@ -47,7 +47,7 @@ esp_err_t Veml7700Sensor::init(
     esp_err_t err = veml7700_init_desc(&device_, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize VEML7700 descriptor.");
-        reset();
+        teardown();
         return err;
     }
 
@@ -59,7 +59,7 @@ esp_err_t Veml7700Sensor::init(
     err = veml7700_probe(&device_);
     if (err != ESP_OK) {
         setError(std::string("Failed to detect VEML7700 sensor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -76,7 +76,7 @@ esp_err_t Veml7700Sensor::init(
     err = veml7700_set_config(&device_, &config_);
     if (err != ESP_OK) {
         setError(std::string("Failed to configure VEML7700 sensor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -119,7 +119,7 @@ std::string Veml7700Sensor::lastError() const {
     return last_error_;
 }
 
-void Veml7700Sensor::reset() {
+void Veml7700Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {

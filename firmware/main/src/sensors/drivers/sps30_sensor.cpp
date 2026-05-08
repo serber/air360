@@ -59,10 +59,10 @@ std::string describeResult(std::int16_t result) {
 }  // namespace
 
 Sps30Sensor::~Sps30Sensor() {
-    reset();
+    teardown();
 }
 
-void Sps30Sensor::reset() {
+void Sps30Sensor::teardown() {
     if (device_initialized_) {
         i2c_dev_delete_mutex(&device_);
         device_initialized_ = false;
@@ -78,7 +78,7 @@ SensorType Sps30Sensor::type() const {
 esp_err_t Sps30Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();

@@ -23,7 +23,7 @@ class Sht3xSensor final : public SensorDriver {
     std::string lastError() const override;
 
   private:
-    void reset();
+    void teardown();
     void setError(const std::string& message);
 
     SensorRecord record_{};

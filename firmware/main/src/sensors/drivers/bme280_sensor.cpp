@@ -5,8 +5,6 @@
 #include <memory>
 #include <string>
 
-#include "bme280.h"
-
 #include "air360/sensors/transport_binding.hpp"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -25,18 +23,8 @@ constexpr std::uint32_t kBme280I2cSpeedHz = 100000U;
 
 }  // namespace
 
-struct Bme280DriverState {
-    i2c_dev_t dev{};
-    bool dev_initialized = false;
-    i2c_bus_handle_t bus = nullptr;
-    bme280_handle_t sensor = nullptr;
-};
-
-Bme280Sensor::Bme280Sensor() : state_(std::make_unique<Bme280DriverState>()) {}
-
 Bme280Sensor::~Bme280Sensor() {
-    destroyState();
-    state_.reset();
+    teardown();
 }
 
 SensorType Bme280Sensor::type() const {
@@ -46,54 +34,51 @@ SensorType Bme280Sensor::type() const {
 esp_err_t Bme280Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
+    teardown();
     measurement_.clear();
     last_error_.clear();
-    initialized_ = false;
     soft_fail_policy_.onPollOk();
 
-    destroyState();
-
-    std::memset(&state_->dev, 0, sizeof(state_->dev));
-    esp_err_t err = context.i2c_bus_manager->setupDevice(record, kBme280I2cSpeedHz, state_->dev);
+    esp_err_t err = context.i2c_bus_manager->setupDevice(record, kBme280I2cSpeedHz, dev_);
     if (err != ESP_OK) {
         setError(std::string("Failed to set up I2C device for BME280: ") + esp_err_to_name(err));
-        destroyState();
+        teardown();
         return err;
     }
-    state_->dev_initialized = true;
+    dev_initialized_ = true;
 
-    err = i2c_dev_check_present(&state_->dev);
+    err = i2c_dev_check_present(&dev_);
     if (err != ESP_OK) {
         setError("BME280 did not respond on the selected I2C bus and address.");
-        destroyState();
+        teardown();
         return ESP_ERR_NOT_FOUND;
     }
 
-    err = context.i2c_bus_manager->getComponentBus(record.i2c_bus_id, state_->bus);
+    err = context.i2c_bus_manager->getComponentBus(record.i2c_bus_id, bus_);
     if (err != ESP_OK) {
         setError("Failed to bind BME280 to the shared I2C bus.");
-        destroyState();
+        teardown();
         return err;
     }
 
-    state_->sensor = bme280_create(state_->bus, record.i2c_address);
-    if (state_->sensor == nullptr) {
+    sensor_ = bme280_create(bus_, record.i2c_address);
+    if (sensor_ == nullptr) {
         setError("Failed to allocate the BME280 component driver.");
-        destroyState();
+        teardown();
         return ESP_ERR_NO_MEM;
     }
 
     // bme280_default_init() reads and validates the chip ID internally.
-    err = bme280_default_init(state_->sensor);
+    err = bme280_default_init(sensor_);
     if (err != ESP_OK) {
         setError("Failed to initialize BME280 (chip ID mismatch or I2C error).");
-        destroyState();
+        teardown();
         return err;
     }
 
     err = configureSensor();
     if (err != ESP_OK) {
-        destroyState();
+        teardown();
         return err;
     }
 
@@ -102,12 +87,12 @@ esp_err_t Bme280Sensor::init(
 }
 
 esp_err_t Bme280Sensor::poll() {
-    if (!initialized_ || !state_) {
+    if (!initialized_) {
         setError("BME280 is not initialized.");
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = bme280_take_forced_measurement(state_->sensor);
+    esp_err_t err = bme280_take_forced_measurement(sensor_);
     if (err != ESP_OK) {
         setError("Failed to start BME280 forced measurement.");
         if (soft_fail_policy_.onPollErr()) {
@@ -120,7 +105,7 @@ esp_err_t Bme280Sensor::poll() {
     }
 
     float temperature = 0.0F;
-    err = bme280_read_temperature(state_->sensor, &temperature);
+    err = bme280_read_temperature(sensor_, &temperature);
     if (err != ESP_OK) {
         setError("Failed to read BME280 temperature.");
         if (soft_fail_policy_.onPollErr()) {
@@ -133,7 +118,7 @@ esp_err_t Bme280Sensor::poll() {
     }
 
     float humidity = 0.0F;
-    err = bme280_read_humidity(state_->sensor, &humidity);
+    err = bme280_read_humidity(sensor_, &humidity);
     if (err != ESP_OK) {
         setError("Failed to read BME280 humidity.");
         if (soft_fail_policy_.onPollErr()) {
@@ -146,7 +131,7 @@ esp_err_t Bme280Sensor::poll() {
     }
 
     float pressure_hpa = 0.0F;
-    err = bme280_read_pressure(state_->sensor, &pressure_hpa);
+    err = bme280_read_pressure(sensor_, &pressure_hpa);
     if (err != ESP_OK) {
         setError("Failed to read BME280 pressure.");
         if (soft_fail_policy_.onPollErr()) {
@@ -178,7 +163,7 @@ std::string Bme280Sensor::lastError() const {
 
 esp_err_t Bme280Sensor::configureSensor() {
     const esp_err_t err = bme280_set_sampling(
-        state_->sensor,
+        sensor_,
         BME280_MODE_FORCED,
         kOversampling,
         kOversampling,
@@ -193,25 +178,21 @@ esp_err_t Bme280Sensor::configureSensor() {
     return ESP_OK;
 }
 
-void Bme280Sensor::destroyState() {
-    if (!state_) {
-        return;
-    }
-
-    if (state_->sensor != nullptr) {
-        bme280_delete(&state_->sensor);
-        state_->sensor = nullptr;
+void Bme280Sensor::teardown() {
+    if (sensor_ != nullptr) {
+        bme280_delete(&sensor_);
+        sensor_ = nullptr;
     }
 
     // i2c_bus_create() borrowed the bus from i2cdev — do not delete the bus itself.
 
-    if (state_->dev_initialized) {
-        i2c_dev_delete_mutex(&state_->dev);
+    if (dev_initialized_) {
+        i2c_dev_delete_mutex(&dev_);
     }
 
-    std::memset(&state_->dev, 0, sizeof(state_->dev));
-    state_->dev_initialized = false;
-    state_->bus = nullptr;
+    std::memset(&dev_, 0, sizeof(dev_));
+    dev_initialized_ = false;
+    bus_ = nullptr;
     initialized_ = false;
     soft_fail_policy_.onPollOk();
 }

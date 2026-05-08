@@ -25,7 +25,7 @@ class Me3No2Sensor final : public SensorDriver {
 
   private:
     void setError(const std::string& message);
-    void releaseHandles();
+    void teardown();
 
     SensorRecord record_{};
     SensorMeasurement measurement_{};

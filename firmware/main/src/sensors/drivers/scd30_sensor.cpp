@@ -30,15 +30,17 @@ std::uint16_t measurementIntervalSeconds(std::uint32_t poll_interval_ms) {
 }  // namespace
 
 Scd30Sensor::~Scd30Sensor() {
-    reset();
+    teardown();
 }
+
+
 
 SensorType Scd30Sensor::type() const {
     return SensorType::kScd30;
 }
 
 esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
@@ -55,7 +57,7 @@ esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContex
     esp_err_t err = scd30_init_desc(&device_, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize SCD30 descriptor.");
-        reset();
+        teardown();
         return err;
     }
     descriptor_initialized_ = true;
@@ -63,21 +65,21 @@ esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContex
     err = i2c_dev_check_present(&device_);
     if (err != ESP_OK) {
         setError("SCD30 sensor was not detected on I2C bus 0 at address 0x61.");
-        reset();
+        teardown();
         return err;
     }
 
     err = scd30_set_measurement_interval(&device_, measurementIntervalSeconds(record_.poll_interval_ms));
     if (err != ESP_OK) {
         setError("Failed to configure SCD30 measurement interval.");
-        reset();
+        teardown();
         return err;
     }
 
     err = scd30_trigger_continuous_measurement(&device_, 0U);
     if (err != ESP_OK) {
         setError("Failed to start continuous SCD30 measurement.");
-        reset();
+        teardown();
         return err;
     }
 
@@ -157,7 +159,7 @@ std::string Scd30Sensor::lastError() const {
     return last_error_;
 }
 
-void Scd30Sensor::reset() {
+void Scd30Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {

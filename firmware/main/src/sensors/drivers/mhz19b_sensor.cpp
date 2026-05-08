@@ -15,7 +15,7 @@ constexpr char kTag[] = "air360.sensor.mhz19b";
 }  // namespace
 
 Mhz19bSensor::~Mhz19bSensor() {
-    reset();
+    teardown();
 }
 
 SensorType Mhz19bSensor::type() const {
@@ -25,7 +25,7 @@ SensorType Mhz19bSensor::type() const {
 esp_err_t Mhz19bSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     // MH-Z19B owns its UART setup through the component driver; context is not needed.
     static_cast<void>(context);
-    reset();
+    teardown();
     measurement_.clear();
     last_error_.clear();
 
@@ -98,7 +98,7 @@ std::string Mhz19bSensor::lastError() const {
     return last_error_;
 }
 
-void Mhz19bSensor::reset() {
+void Mhz19bSensor::teardown() {
     if (initialized_) {
         mhz19b_free(&device_);
     }

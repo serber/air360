@@ -22,7 +22,7 @@ constexpr std::uint32_t kIna219I2cSpeedHz = 100000U;
 }  // namespace
 
 Ina219Sensor::~Ina219Sensor() {
-    reset();
+    teardown();
 }
 
 SensorType Ina219Sensor::type() const {
@@ -30,7 +30,7 @@ SensorType Ina219Sensor::type() const {
 }
 
 esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     measurement_.clear();
     last_error_.clear();
 
@@ -46,7 +46,7 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
     esp_err_t err = ina219_init_desc(&device_, record.i2c_address, port, sda, scl);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize INA219 descriptor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
     descriptor_initialized_ = true;
@@ -55,7 +55,7 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
     err = ina219_init(&device_);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize INA219: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -68,14 +68,14 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
         INA219_MODE_CONT_SHUNT_BUS);
     if (err != ESP_OK) {
         setError(std::string("Failed to configure INA219: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
     err = ina219_calibrate(&device_, kShuntResistanceOhm);
     if (err != ESP_OK) {
         setError(std::string("Failed to calibrate INA219: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -147,7 +147,7 @@ std::string Ina219Sensor::lastError() const {
     return last_error_;
 }
 
-void Ina219Sensor::reset() {
+void Ina219Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {

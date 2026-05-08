@@ -12,14 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "bme680.h"
-
 namespace air360 {
-
-struct Bme680DriverState {
-    bme680_t device{};
-    bool descriptor_initialized = false;
-};
 
 namespace {
 
@@ -38,11 +31,8 @@ constexpr std::uint16_t kHeaterDurationMs = 100U;
 
 }  // namespace
 
-Bme680Sensor::Bme680Sensor() : state_(std::make_unique<Bme680DriverState>()) {}
-
 Bme680Sensor::~Bme680Sensor() {
-    reset();
-    state_.reset();
+    teardown();
 }
 
 SensorType Bme680Sensor::type() const {
@@ -52,11 +42,11 @@ SensorType Bme680Sensor::type() const {
 esp_err_t Bme680Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
     last_error_.clear();
-    initialized_ = false;
+    soft_fail_policy_.onPollOk();
 
     i2c_port_t port = I2C_NUM_0;
     gpio_num_t sda = GPIO_NUM_NC;
@@ -66,34 +56,34 @@ esp_err_t Bme680Sensor::init(
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    std::memset(&state_->device, 0, sizeof(state_->device));
+    std::memset(&device_, 0, sizeof(device_));
 
     esp_err_t err = bme680_init_desc(
-        &state_->device,
+        &device_,
         record.i2c_address,
         port,
         sda,
         scl);
     if (err != ESP_OK) {
         setError("Failed to initialize BME680 descriptor.");
-        reset();
+        teardown();
         return err;
     }
-    state_->descriptor_initialized = true;
-    state_->device.i2c_dev.cfg.master.clk_speed = kBme680I2cSpeedHz;
-    state_->device.i2c_dev.cfg.sda_pullup_en = 1;
-    state_->device.i2c_dev.cfg.scl_pullup_en = 1;
+    descriptor_initialized_ = true;
+    device_.i2c_dev.cfg.master.clk_speed = kBme680I2cSpeedHz;
+    device_.i2c_dev.cfg.sda_pullup_en = 1;
+    device_.i2c_dev.cfg.scl_pullup_en = 1;
 
-    err = bme680_init_sensor(&state_->device);
+    err = bme680_init_sensor(&device_);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize BME680 sensor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
     const esp_err_t configure_err = configureSensor();
     if (configure_err != ESP_OK) {
-        reset();
+        teardown();
         return configure_err;
     }
 
@@ -102,13 +92,13 @@ esp_err_t Bme680Sensor::init(
 }
 
 esp_err_t Bme680Sensor::poll() {
-    if (!initialized_ || !state_) {
+    if (!initialized_) {
         setError("BME680 is not initialized.");
         return ESP_ERR_INVALID_STATE;
     }
 
     uint32_t measurement_duration_ticks = 0U;
-    esp_err_t err = bme680_get_measurement_duration(&state_->device, &measurement_duration_ticks);
+    esp_err_t err = bme680_get_measurement_duration(&device_, &measurement_duration_ticks);
     if (err != ESP_OK || measurement_duration_ticks == 0U) {
         setError("Failed to calculate BME680 measurement duration.");
         if (soft_fail_policy_.onPollErr()) {
@@ -120,7 +110,7 @@ esp_err_t Bme680Sensor::poll() {
         return err != ESP_OK ? err : ESP_FAIL;
     }
 
-    err = bme680_force_measurement(&state_->device);
+    err = bme680_force_measurement(&device_);
     if (err != ESP_OK) {
         setError("Failed to start BME680 forced measurement.");
         if (soft_fail_policy_.onPollErr()) {
@@ -135,7 +125,7 @@ esp_err_t Bme680Sensor::poll() {
     vTaskDelay(measurement_duration_ticks);
 
     bme680_values_float_t data{};
-    err = bme680_get_results_float(&state_->device, &data);
+    err = bme680_get_results_float(&device_, &data);
     if (err != ESP_OK) {
         setError(std::string("Failed to read BME680 measurement: ") + esp_err_to_name(err));
         if (soft_fail_policy_.onPollErr()) {
@@ -185,7 +175,7 @@ std::string Bme680Sensor::lastError() const {
 
 esp_err_t Bme680Sensor::configureSensor() {
     esp_err_t err = bme680_set_oversampling_rates(
-        &state_->device,
+        &device_,
         kOversampling,
         kOversampling,
         kOversampling);
@@ -194,25 +184,25 @@ esp_err_t Bme680Sensor::configureSensor() {
         return err;
     }
 
-    err = bme680_set_filter_size(&state_->device, kFilter);
+    err = bme680_set_filter_size(&device_, kFilter);
     if (err != ESP_OK) {
         setError("Failed to configure BME680 filter.");
         return err;
     }
 
-    err = bme680_set_heater_profile(&state_->device, 0U, kHeaterTemperatureC, kHeaterDurationMs);
+    err = bme680_set_heater_profile(&device_, 0U, kHeaterTemperatureC, kHeaterDurationMs);
     if (err != ESP_OK) {
         setError("Failed to configure BME680 gas heater profile.");
         return err;
     }
 
-    err = bme680_use_heater_profile(&state_->device, 0);
+    err = bme680_use_heater_profile(&device_, 0);
     if (err != ESP_OK) {
         setError("Failed to enable BME680 gas heater profile.");
         return err;
     }
 
-    err = bme680_set_ambient_temperature(&state_->device, kAmbientTemperatureC);
+    err = bme680_set_ambient_temperature(&device_, kAmbientTemperatureC);
     if (err != ESP_OK) {
         setError("Failed to configure BME680 ambient temperature.");
         return err;
@@ -221,18 +211,14 @@ esp_err_t Bme680Sensor::configureSensor() {
     return ESP_OK;
 }
 
-void Bme680Sensor::reset() {
+void Bme680Sensor::teardown() {
+    if (descriptor_initialized_) {
+        bme680_free_desc(&device_);
+        descriptor_initialized_ = false;
+    }
+    std::memset(&device_, 0, sizeof(device_));
     initialized_ = false;
     soft_fail_policy_.onPollOk();
-    if (!state_) {
-        return;
-    }
-
-    if (state_->descriptor_initialized) {
-        bme680_free_desc(&state_->device);
-        std::memset(&state_->device, 0, sizeof(state_->device));
-        state_->descriptor_initialized = false;
-    }
 }
 
 void Bme680Sensor::setError(const std::string& message) {

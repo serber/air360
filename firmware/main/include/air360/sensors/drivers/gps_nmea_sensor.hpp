@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
@@ -12,8 +13,8 @@ namespace air360 {
 
 class GpsNmeaSensor final : public SensorDriver {
   public:
-    GpsNmeaSensor();
-    ~GpsNmeaSensor() override;
+    GpsNmeaSensor() = default;
+    ~GpsNmeaSensor() override = default;
 
     SensorType type() const override;
     esp_err_t init(
@@ -33,7 +34,9 @@ class GpsNmeaSensor final : public SensorDriver {
 
     SensorRecord record_{};
     UartPortManager* uart_port_manager_ = nullptr;
-    TinyGPSPlus parser_{};
+    // std::optional re-initializes TinyGPSPlus in place via emplace(), avoiding
+    // both heap allocations and placement-new on this hot-init path.
+    std::optional<TinyGPSPlus> parser_;
     SensorMeasurement measurement_{};
     std::string last_error_;
     std::size_t max_bytes_per_poll_ = 0U;

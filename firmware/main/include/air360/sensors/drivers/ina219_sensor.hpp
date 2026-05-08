@@ -23,7 +23,7 @@ class Ina219Sensor final : public SensorDriver {
     std::string lastError() const override;
 
   private:
-    void reset();
+    void teardown();
     void setError(const std::string& message);
 
     ina219_t device_{};
