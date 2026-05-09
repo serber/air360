@@ -82,21 +82,21 @@ Each facade exposes `boot*()` methods invoked in sequence from `App::run()`; the
 
 ## Phase 2 — 9-step boot sequence (`App::run`)
 
-Steps execute sequentially in the main task. There is no parallelism at this stage.
+Steps execute sequentially in the main task. There is no parallelism at this stage. `App::run()` is a thin orchestrator: each row in the table below is invoked through a dedicated helper, either on `App` itself or on one of the boot-time facades.
 
-| Step | Action | Fatal? | Side effect |
-|------|--------|--------|-------------|
-| pre | Init RGB LED (GPIO48 WS2812) | No | LED turns blue |
-| 1/9 | Arm task watchdog (30 s, panic on timeout) | No | Main task subscribed to TWDT |
-| 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | Red LED on failure |
-| 3/9 | Initialize network core (`netif` + event loop) | **Yes** | Red LED on failure |
-| 4/9 | Load or create `device_cfg` | No | `boot_count` incremented; `StatusService` updated |
-| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | **`cellular` task spawned** if `enabled != 0` |
-| 5/9 | Load or create `sensor_cfg`; start sensor task | No | **`air360_sensor` task spawned** |
-| 6/9 | Load or create `backend_cfg` | No | — |
-| 7/9 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `StatusService` updated with network and cellular state |
-| 8/9 | Start upload manager; apply backend config | No | **`air360_upload` task spawned** |
-| 9/9 | Start web server | **Yes** | Green or pink LED on success; main task enters maintenance loop |
+| Step | Action | Fatal? | Implemented in | Side effect |
+|------|--------|--------|----------------|-------------|
+| pre | Install log buffer; init RGB LED (GPIO48 WS2812) | No | `App::bootInstrumentation` | LED turns blue |
+| 1/9 | Arm task watchdog (30 s, panic on timeout) | No | `App::bootSystem` | Main task subscribed to TWDT |
+| 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
+| 3/9 | Initialize network core (`netif` + event loop) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
+| 4/9 | Load or create `device_cfg` | No | `PlatformLayer::boot` | `boot_count` incremented; `StatusService` updated |
+| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | `NetworkLayer::bootCellular` | **`cellular` task spawned** if `enabled != 0` |
+| 5/9 | Load or create `sensor_cfg`; start sensor task | No | `DataLayer::bootSensors` | **`air360_sensor` task spawned**; BLE advertiser started |
+| 6/9 | Load or create `backend_cfg` | No | `DataLayer::bootBackends` | — |
+| 7/9 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `NetworkLayer::bootWifi` | `StatusService` updated with network and cellular state |
+| 8/9 | Start upload manager; apply backend config | No | `DataLayer::bootUploads` | **`air360_upload` task spawned** |
+| 9/9 | Start web server | **Yes** | `App::bootWebServer` | Green or pink LED on success (via `App::indicateReady`); fall through to `App::runMaintenanceLoop`. On failure the device enters `runFailedBootLoop` instead of letting the main task return — this keeps TWDT fed and avoids a panic-reboot cycle while leaving the red LED visible. |
 
 ---
 

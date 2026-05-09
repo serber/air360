@@ -72,23 +72,23 @@ firmware/
 
 Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one static `air360::App` instance and calls `App::run()`.
 
-`App::run()` performs a 9-step initialization sequence:
+`App::run()` is a thin orchestrator that delegates each step to a dedicated method on `App` or one of the boot-time facades (`PlatformLayer`, `NetworkLayer`, `DataLayer`):
 
-| Step | Action | Notes |
-|------|--------|-------|
-| pre | RGB LED init | WS2812 on GPIO48 - blue while booting |
-| 1 | Watchdog arm | 30-second timeout, panic enabled |
-| 2 | NVS flash init | Auto-erase on partition mismatch |
-| 3 | Network core init | `esp_netif_init()`, default event loop |
-| 4 | Device config load/create | NVS namespace `air360`, key `device_cfg`; boot counter increment |
-| 4b | Cellular config load/create and manager start | NVS key `cellular_cfg`; may launch `cellular` |
-| 5 | Sensor config load/create and manager start | NVS key `sensor_cfg`; may launch `air360_sensor`; BLE advertising may start after this |
-| 6 | Backend config load/create | NVS key `backend_cfg` |
-| 7 | Network mode resolution | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
-| 8 | Upload manager start | Launches `air360_upload` when enabled backends exist |
-| 9 | Web server start | Starts `esp_http_server`; main task enters maintenance loop |
+| Step | Action | Implemented in | Notes |
+|------|--------|----------------|-------|
+| pre | Log buffer + RGB LED init | `App::bootInstrumentation` | WS2812 on GPIO48 - blue while booting |
+| 1 | Watchdog arm | `App::bootSystem` | 30-second timeout, panic enabled |
+| 2 | NVS flash init | `App::bootSystem` | Auto-erase on partition mismatch |
+| 3 | Network core init | `App::bootSystem` | `esp_netif_init()`, default event loop |
+| 4 | Device config load/create | `PlatformLayer::boot` | NVS namespace `air360`, key `device_cfg`; boot counter increment |
+| 4b | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS key `cellular_cfg`; may launch `cellular` |
+| 5 | Sensor config load/create and manager start | `DataLayer::bootSensors` | NVS key `sensor_cfg`; may launch `air360_sensor`; BLE advertising starts here |
+| 6 | Backend config load/create | `DataLayer::bootBackends` | NVS key `backend_cfg` |
+| 7 | Network mode resolution | `NetworkLayer::bootWifi` | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
+| 8 | Upload manager start | `DataLayer::bootUploads` | Launches `air360_upload` when enabled backends exist |
+| 9 | Web server start | `App::bootWebServer` | Starts `esp_http_server`; main task enters `App::runMaintenanceLoop` |
 
-After the startup sequence, `App::run()` enters a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots.
+After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of panic-rebooting on a 30-second cycle.
 
 Full startup order with dependencies:
 

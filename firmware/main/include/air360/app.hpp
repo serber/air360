@@ -19,6 +19,13 @@ class App {
     void run();
 
   private:
+    void bootInstrumentation();
+    [[nodiscard]] bool bootSystem();
+    [[nodiscard]] bool bootWebServer();
+    void indicateReady();
+    void runMaintenanceLoop();
+    void runFailedBootLoop();
+
     PlatformLayer platform_;
     StatusService status_service_;
     NetworkLayer  network_;

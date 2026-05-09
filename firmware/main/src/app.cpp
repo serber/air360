@@ -116,47 +116,28 @@ esp_err_t initNetworkingCore() {
     return ESP_OK;
 }
 
+// Returns true and lights the red LED if `err` is fatal; returns false on
+// success so the caller can `if (reportBootError(...)) return;`.
+bool reportBootError(const char* what, esp_err_t err) {
+    if (err == ESP_OK) {
+        return false;
+    }
+    ESP_LOGE(kTag, "%s failed: %s", what, esp_err_to_name(err));
+    setLedColor(kLedBrightness, 0U, 0U);
+    return true;
+}
+
 }  // namespace
 
 App::App() : status_service_(platform_.buildInfo()) {}
 
 void App::run() {
-    logBufferInstall();
+    bootInstrumentation();
 
-    const esp_err_t leds_err = initRgbLed();
-    if (leds_err != ESP_OK) {
-        ESP_LOGW(kTag, "RGB LED setup failed: %s", esp_err_to_name(leds_err));
-    }
-
-    ESP_LOGI(kTag, "Boot step 1/9: arm task watchdog");
-    const esp_err_t watchdog_err = initWatchdog();
-    if (watchdog_err != ESP_OK) {
-        ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
-    } else {
-        ESP_LOGI(kTag, "TWDT: app_main subscribed (30 s, panic enabled)");
-    }
-
-    ESP_LOGI(kTag, "Boot step 2/9: initialize NVS");
-    const esp_err_t storage_err = initStorage();
-    if (storage_err != ESP_OK) {
-        ESP_LOGE(kTag, "NVS init failed: %s", esp_err_to_name(storage_err));
-        setLedColor(kLedBrightness, 0U, 0U);
+    if (!bootSystem()) {
+        runFailedBootLoop();
         return;
     }
-
-    ESP_LOGI(kTag, "Boot step 3/9: initialize network core");
-    const esp_err_t network_core_err = initNetworkingCore();
-    if (network_core_err != ESP_OK) {
-        ESP_LOGE(
-            kTag,
-            "Network core init failed: %s",
-            esp_err_to_name(network_core_err));
-        setLedColor(kLedBrightness, 0U, 0U);
-        return;
-    }
-
-    status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
-    status_service_.markNvsReady(true);
 
     platform_.boot(status_service_);
     network_.bootCellular(platform_, status_service_);
@@ -165,6 +146,49 @@ void App::run() {
     network_.bootWifi(platform_, status_service_);
     data_.bootUploads(platform_, network_, status_service_);
 
+    if (!bootWebServer()) {
+        runFailedBootLoop();
+        return;
+    }
+    indicateReady();
+
+    runMaintenanceLoop();
+}
+
+void App::bootInstrumentation() {
+    logBufferInstall();
+
+    const esp_err_t leds_err = initRgbLed();
+    if (leds_err != ESP_OK) {
+        ESP_LOGW(kTag, "RGB LED setup failed: %s", esp_err_to_name(leds_err));
+    }
+}
+
+bool App::bootSystem() {
+    ESP_LOGI(kTag, "Boot step 1/9: arm task watchdog");
+    const esp_err_t watchdog_err = initWatchdog();
+    if (watchdog_err != ESP_OK) {
+        ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
+    } else {
+        ESP_LOGI(kTag, "TWDT: app_main subscribed (30 s, panic enabled)");
+    }
+    status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
+
+    ESP_LOGI(kTag, "Boot step 2/9: initialize NVS");
+    if (reportBootError("NVS init", initStorage())) {
+        return false;
+    }
+    status_service_.markNvsReady(true);
+
+    ESP_LOGI(kTag, "Boot step 3/9: initialize network core");
+    if (reportBootError("Network core init", initNetworkingCore())) {
+        return false;
+    }
+
+    return true;
+}
+
+bool App::bootWebServer() {
     ESP_LOGI(kTag, "Boot step 9/9: start status web server");
     const esp_err_t web_err =
         web_server_.start(
@@ -183,13 +207,14 @@ void App::run() {
             network_.cellularConfigRepo(),
             network_.cellularConfig(),
             platform_.deviceConfig().http_port);
-    if (web_err != ESP_OK) {
-        ESP_LOGE(kTag, "Web server start failed: %s", esp_err_to_name(web_err));
-        setLedColor(kLedBrightness, 0U, 0U);
-        return;
+    if (reportBootError("Web server start", web_err)) {
+        return false;
     }
     status_service_.setWebServerStarted(true);
+    return true;
+}
 
+void App::indicateReady() {
     ESP_LOGI(
         kTag,
         "Runtime ready on port %" PRIu16,
@@ -199,7 +224,9 @@ void App::run() {
     } else {
         setLedColor(0U, kLedBrightness, 0U);  // green — station mode
     }
+}
 
+void App::runMaintenanceLoop() {
     for (;;) {
         const NetworkState network_state = network_.networkManager().state();
         if (network_state.mode == NetworkMode::kStation &&
@@ -216,6 +243,22 @@ void App::run() {
 
         status_service_.setNetworkState(network_.networkManager().state());
         status_service_.setCellularState(network_.cellularManager().state());
+        std::uint32_t remaining_ms = kRuntimeMaintenanceDelayMs;
+        while (remaining_ms > 0U) {
+            const std::uint32_t slice = std::min(remaining_ms, kRuntimeMaintenanceSliceMs);
+            vTaskDelay(pdMS_TO_TICKS(slice));
+            esp_task_wdt_reset();
+            remaining_ms -= slice;
+        }
+    }
+}
+
+void App::runFailedBootLoop() {
+    // Without this loop the main task returns and stops feeding TWDT, which
+    // panics and reboots after 30 s — turning a recoverable boot failure into
+    // a reboot cycle. Just keep TWDT happy and let the operator see the red
+    // LED and any logs that did make it out.
+    for (;;) {
         std::uint32_t remaining_ms = kRuntimeMaintenanceDelayMs;
         while (remaining_ms > 0U) {
             const std::uint32_t slice = std::min(remaining_ms, kRuntimeMaintenanceSliceMs);

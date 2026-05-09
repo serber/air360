@@ -68,7 +68,7 @@ The state is guarded by a mutex inside `NetworkManager`; callers receive copies 
 
 ## Boot-time network selection
 
-`App::run()` decides step 7 from the cellular and Wi-Fi config:
+`NetworkLayer::bootWifi` (boot step 7, called from `App::run()`) decides the network mode from the cellular and Wi-Fi config:
 
 ```text
 cellular_config.enabled != 0?
