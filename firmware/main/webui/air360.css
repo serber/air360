@@ -644,6 +644,10 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
 }
 .backend-name { font-weight: 600; font-size: 13px; min-width: 140px; }
+.overview-empty {
+  padding: 16px 18px;
+  margin: 0;
+}
 
 .sensor-row {
   padding: 16px 18px;

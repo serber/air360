@@ -1000,7 +1000,7 @@ std::string renderSensorOverviewBlock(
     const std::vector<SensorRuntimeInfo>& sensors,
     const MeasurementStoreSnapshot& measurement_store) {
     if (sensors.empty()) {
-        return "<p class='muted'>No sensors configured yet.</p>";
+        return "<p class='muted overview-empty'>No sensors configured yet.</p>";
     }
 
     std::string html;
