@@ -234,7 +234,7 @@ Upload backend configuration. Holds up to `kMaxConfiguredBackends` (4) backend r
 ```cpp
 struct BackendConfigList {
     uint32_t magic;              // 0x41333632
-    uint16_t schema_version;     // 2
+    uint16_t schema_version;     // 1
     uint16_t record_size;        // sizeof(BackendRecord)
     uint16_t backend_count;
     uint16_t reserved0;
@@ -257,7 +257,6 @@ struct BackendRecord {
     BackendProtocol protocol;           // uint8_t enum
     uint8_t     reserved1;
     BackendAuthConfig auth;             // auth type + Basic Auth credentials
-    char        device_id_override[32]; // reserved; no longer used (kept for NVS layout compatibility)
     char        measurement_name[32];   // InfluxDB only
     float       latitude;               // Air360 API only
     float       longitude;             // Air360 API only

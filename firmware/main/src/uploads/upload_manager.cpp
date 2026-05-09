@@ -72,11 +72,22 @@ void UploadManager::start(
 }
 
 esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
-    std::vector<std::pair<std::uint32_t, std::uint64_t>> acknowledged_by_id;
+    struct PreservedBackendState {
+        std::uint32_t id = 0U;
+        std::uint64_t acknowledged_sample_id = 0U;
+        std::uint64_t enabled_at_uptime_ms = 0U;
+        bool was_enabled = false;
+    };
+    std::vector<PreservedBackendState> preserved;
     lock();
-    acknowledged_by_id.reserve(backends_.size());
+    preserved.reserve(backends_.size());
     for (const auto& backend : backends_) {
-        acknowledged_by_id.emplace_back(backend.snapshot.id, backend.acknowledged_sample_id);
+        preserved.push_back(PreservedBackendState{
+            backend.snapshot.id,
+            backend.acknowledged_sample_id,
+            backend.snapshot.enabled_at_uptime_ms,
+            backend.snapshot.enabled,
+        });
     }
     unlock();
 
@@ -91,11 +102,17 @@ esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
 
     std::vector<ManagedBackend> next_backends = buildManagedBackends(config);
     for (auto& backend : next_backends) {
-        for (const auto& previous : acknowledged_by_id) {
-            if (previous.first == backend.snapshot.id) {
-                backend.acknowledged_sample_id = previous.second;
-                break;
+        for (const auto& previous : preserved) {
+            if (previous.id != backend.snapshot.id) {
+                continue;
             }
+            backend.acknowledged_sample_id = previous.acknowledged_sample_id;
+            // Preserve original warmup start so reconfiguring an already-enabled
+            // backend does not reset its "first attempt" deadline.
+            if (previous.was_enabled && backend.snapshot.enabled) {
+                backend.snapshot.enabled_at_uptime_ms = previous.enabled_at_uptime_ms;
+            }
+            break;
         }
     }
 
@@ -331,6 +348,7 @@ void UploadManager::taskMain() {
                 UploadResultClass aggregate_result = UploadResultClass::kUnknown;
                 BackendRuntimeState next_state = BackendRuntimeState::kIdle;
                 std::string last_error;
+                std::string response_body_snippet;
                 int last_http_status = 0;
                 std::uint32_t last_response_time_ms = 0U;
                 std::uint32_t next_retry_count = base_snapshot.retry_count;
@@ -374,6 +392,7 @@ void UploadManager::taskMain() {
                             aggregate_result = attempt.result;
                             last_http_status = attempt.status_code;
                             last_error = attempt.message;
+                            response_body_snippet = attempt.response_body_snippet;
                             acknowledge_window = attempt.acknowledgesWindow();
 
                             if (aggregate_result == UploadResultClass::kSuccess) {
@@ -404,6 +423,31 @@ void UploadManager::taskMain() {
                 if (attempt_finished_us > attempt_started_us) {
                     last_response_time_ms = static_cast<std::uint32_t>(
                         (attempt_finished_us - attempt_started_us) / 1000LL);
+                }
+
+                if (isBackendFailure(aggregate_result)) {
+                    if (response_body_snippet.empty()) {
+                        ESP_LOGW(
+                            kTag,
+                            "Backend upload failed: backend_id=%" PRIu32
+                            " type=%s result=%s http_status=%d error=%s",
+                            record.id,
+                            backendTypeKey(record.backend_type),
+                            uploadResultClassKey(aggregate_result),
+                            last_http_status,
+                            last_error.empty() ? "<none>" : last_error.c_str());
+                    } else {
+                        ESP_LOGW(
+                            kTag,
+                            "Backend upload failed: backend_id=%" PRIu32
+                            " type=%s result=%s http_status=%d error=%s response_body=%s",
+                            record.id,
+                            backendTypeKey(record.backend_type),
+                            uploadResultClassKey(aggregate_result),
+                            last_http_status,
+                            last_error.empty() ? "<none>" : last_error.c_str(),
+                            response_body_snippet.c_str());
+                    }
                 }
 
                 std::uint64_t updated_acknowledged_sample_id = acknowledged_sample_id;

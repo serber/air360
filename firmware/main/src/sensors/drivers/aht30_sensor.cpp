@@ -1,6 +1,7 @@
 #include "air360/sensors/drivers/aht30_sensor.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -19,7 +20,7 @@ constexpr char kTag[] = "air360.sensor.aht30";
 }  // namespace
 
 Aht30Sensor::~Aht30Sensor() {
-    reset();
+    teardown();
 }
 
 SensorType Aht30Sensor::type() const {
@@ -27,10 +28,11 @@ SensorType Aht30Sensor::type() const {
 }
 
 esp_err_t Aht30Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     i2c_master_bus_handle_t bus_handle = nullptr;
     esp_err_t err = context.i2c_bus_manager->getMasterBusHandle(record.i2c_bus_id, bus_handle);
@@ -58,35 +60,23 @@ esp_err_t Aht30Sensor::poll() {
 
     float temperature_c = 0.0F;
     float humidity_percent = 0.0F;
-    esp_err_t err = aht30_get_temperature_humidity_value(handle_, &temperature_c, &humidity_percent);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to read AHT30 measurement: ") + esp_err_to_name(err));
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = aht30_get_temperature_humidity_value(handle_, &temperature_c, &humidity_percent);
+        err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read AHT30 measurement: ") + esp_err_to_name(err),
+            err);
     }
 
     if (std::isnan(temperature_c) || std::isnan(humidity_percent)) {
-        setError("AHT30 returned invalid values.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return ESP_ERR_INVALID_RESPONSE;
+        return reportPollFailure(kTag, "AHT30 returned invalid values.", ESP_ERR_INVALID_RESPONSE);
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
@@ -94,21 +84,13 @@ SensorMeasurement Aht30Sensor::latestMeasurement() const {
     return measurement_;
 }
 
-std::string Aht30Sensor::lastError() const {
-    return last_error_;
-}
-
-void Aht30Sensor::reset() {
+void Aht30Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (handle_ != nullptr) {
         aht30_delete(handle_);
         handle_ = nullptr;
     }
-}
-
-void Aht30Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createAht30Sensor() {

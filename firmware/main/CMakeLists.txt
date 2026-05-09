@@ -3,6 +3,9 @@ idf_component_register(
         "src/app_main.cpp"
         "src/app.cpp"
         "src/ble_advertiser.cpp"
+        "src/data/data_layer.cpp"
+        "src/network/network_layer.cpp"
+        "src/platform/platform_layer.cpp"
         "src/build_info.cpp"
         "src/cellular_config_repository.cpp"
         "src/cellular_manager.cpp"
@@ -48,6 +51,7 @@ idf_component_register(
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
         "src/sensors/drivers/veml7700_sensor.cpp"
+        "src/sensors/sensor_driver.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
@@ -127,4 +131,41 @@ idf_component_register(
 )
 
 target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_20)
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wunused-result)
+target_compile_options(${COMPONENT_LIB} PRIVATE
+    # Surface real bugs.  -Wall and -Wextra are already on by ESP-IDF; listed
+    # here for clarity.
+    -Wall
+    -Wextra
+    -Wshadow
+    -Wmissing-declarations
+    -Wcast-align
+    -Wdouble-promotion
+    -Wformat=2
+
+    # ESP-IDF applies a global -Werror; without these overrides every new
+    # warning above would block the build.  PR 1 (this commit) keeps the
+    # noisier categories as warnings so they show up in compile output as
+    # cleanup work; subsequent PRs are expected to tighten them one
+    # subsystem at a time.
+    -Wno-error=shadow
+    -Wno-error=cast-align
+    -Wno-error=double-promotion
+    -Wno-error=format
+
+    # Promote near-certain bugs to errors.
+    -Werror=return-type
+    -Werror=switch
+    -Werror=missing-declarations
+    -Werror=unused-result
+
+    # FreeRTOS task-entry signatures take a void* arg that is often unused;
+    # silencing this avoids a sea of (void)arg casts across drivers.
+    -Wno-unused-parameter
+
+    # C++-only diagnostics — guarded so they do not reach the third_party
+    # Sensirion C sources also compiled into this component.
+    $<$<COMPILE_LANGUAGE:CXX>:-Wnon-virtual-dtor>
+    $<$<COMPILE_LANGUAGE:CXX>:-Woverloaded-virtual>
+    $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=overloaded-virtual>
+    $<$<COMPILE_LANGUAGE:CXX>:-Werror=non-virtual-dtor>
+)

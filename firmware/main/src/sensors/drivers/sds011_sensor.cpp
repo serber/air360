@@ -65,7 +65,7 @@ esp_err_t Sds011Sensor::init(const SensorRecord& record, const SensorDriverConte
     record_ = record;
     uart_port_manager_ = context.uart_port_manager;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
     soft_fail_policy_.onPollOk();
     resetParser();
     uart_overrun_count_ = 0U;
@@ -138,17 +138,13 @@ esp_err_t Sds011Sensor::poll() {
 
     soft_fail_policy_.onPollOk();
     if (found_frame) {
-        last_error_.clear();
+        clearError();
     }
     return ESP_OK;
 }
 
 SensorMeasurement Sds011Sensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string Sds011Sensor::lastError() const {
-    return last_error_;
 }
 
 esp_err_t Sds011Sensor::drainUartEvents() {
@@ -339,24 +335,21 @@ void Sds011Sensor::storeMeasurement(const Reading& reading) {
 }
 
 esp_err_t Sds011Sensor::handlePollError(esp_err_t err, const char* message) {
-    setError(message != nullptr ? message : esp_err_to_name(err));
-    if (soft_fail_policy_.onPollErr()) {
-        ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        initialized_ = false;
+    const esp_err_t result = reportPollFailure(
+        kTag,
+        message != nullptr ? std::string(message) : std::string(esp_err_to_name(err)),
+        err);
+    // SDS011-specific: dump any partial frame buffered by the parser when the
+    // base policy escalates to a hard fail and clears initialized_.
+    if (!initialized_) {
         resetParser();
-    } else if (soft_fail_policy_.soft_fails == 1U) {
-        ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
     }
-    return err;
+    return result;
 }
 
 void Sds011Sensor::resetParser() {
     frame_.fill(0U);
     frame_index_ = 0U;
-}
-
-void Sds011Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createSds011Sensor() {

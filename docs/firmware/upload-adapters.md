@@ -71,6 +71,8 @@ struct UploadRequestSpec {
 
 Adapters map transport/protocol responses to `UploadResultClass`. `UploadManager` applies that result per backend delivery window: `kSuccess` and `kNoData` advance only that backend cursor, while failures keep only that backend window for retry. Backend-specific failures also feed the best-effort demotion policy documented in [measurement-pipeline.md](measurement-pipeline.md); shared `kNoNetwork` failures do not.
 
+For HTTP status failures, adapters keep the user-facing error message to the status code, for example `HTTP 400`. The server response body is copied separately into `response_body_snippet` so it appears only in the upload task warning log, not in backend status, diagnostics JSON, or the web UI.
+
 ---
 
 ## Sensor.Community
@@ -481,7 +483,8 @@ struct UploadTransportResponse {
     uint32_t    connect_time_ms;
     uint32_t    request_send_time_ms;
     uint32_t    first_response_time_ms;
-    string      body_snippet;         // used in error messages
+    uint32_t    retry_after_seconds;
+    string      body_snippet;         // sanitized response body for upload warning logs
 };
 ```
 

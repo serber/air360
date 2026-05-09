@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
 
@@ -23,19 +22,15 @@ class Ds18b20Sensor final : public SensorDriver {
         const SensorDriverContext& context) override;
     esp_err_t poll() override;
     SensorMeasurement latestMeasurement() const override;
-    std::string lastError() const override;
 
   private:
-    void reset();
-    void setError(const std::string& message);
+    void teardown();
 
     SensorRecord record_{};
     onewire_bus_handle_t bus_ = nullptr;
     ds18b20_device_handle_t device_ = nullptr;
     onewire_device_address_t address_ = 0U;
     SensorMeasurement measurement_{};
-    std::string last_error_;
-    bool initialized_ = false;
 };
 
 std::unique_ptr<SensorDriver> createDs18b20Sensor();

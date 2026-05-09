@@ -22,7 +22,7 @@ constexpr std::uint32_t kIna219I2cSpeedHz = 100000U;
 }  // namespace
 
 Ina219Sensor::~Ina219Sensor() {
-    reset();
+    teardown();
 }
 
 SensorType Ina219Sensor::type() const {
@@ -30,9 +30,10 @@ SensorType Ina219Sensor::type() const {
 }
 
 esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     i2c_port_t port = I2C_NUM_0;
     gpio_num_t sda = GPIO_NUM_NC;
@@ -46,7 +47,7 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
     esp_err_t err = ina219_init_desc(&device_, record.i2c_address, port, sda, scl);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize INA219 descriptor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
     descriptor_initialized_ = true;
@@ -55,7 +56,7 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
     err = ina219_init(&device_);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize INA219: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -68,19 +69,18 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
         INA219_MODE_CONT_SHUNT_BUS);
     if (err != ESP_OK) {
         setError(std::string("Failed to configure INA219: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
     err = ina219_calibrate(&device_, kShuntResistanceOhm);
     if (err != ESP_OK) {
         setError(std::string("Failed to calibrate INA219: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
     initialized_ = true;
-    last_error_.clear();
     return ESP_OK;
 }
 
@@ -91,42 +91,27 @@ esp_err_t Ina219Sensor::poll() {
     }
 
     float bus_voltage_v = 0.0F;
-    esp_err_t err = ina219_get_bus_voltage(&device_, &bus_voltage_v);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to read INA219 bus voltage: ") + esp_err_to_name(err));
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ina219_get_bus_voltage(&device_, &bus_voltage_v); err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read INA219 bus voltage: ") + esp_err_to_name(err),
+            err);
     }
 
     float current_a = 0.0F;
-    err = ina219_get_current(&device_, &current_a);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to read INA219 current: ") + esp_err_to_name(err));
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ina219_get_current(&device_, &current_a); err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read INA219 current: ") + esp_err_to_name(err),
+            err);
     }
 
     float power_w = 0.0F;
-    err = ina219_get_power(&device_, &power_w);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to read INA219 power: ") + esp_err_to_name(err));
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ina219_get_power(&device_, &power_w); err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read INA219 power: ") + esp_err_to_name(err),
+            err);
     }
 
     measurement_.clear();
@@ -134,8 +119,7 @@ esp_err_t Ina219Sensor::poll() {
     measurement_.addValue(SensorValueKind::kVoltageMv, bus_voltage_v * 1000.0F);
     measurement_.addValue(SensorValueKind::kCurrentMa, current_a * 1000.0F);
     measurement_.addValue(SensorValueKind::kPowerMw, power_w * 1000.0F);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
@@ -143,11 +127,7 @@ SensorMeasurement Ina219Sensor::latestMeasurement() const {
     return measurement_;
 }
 
-std::string Ina219Sensor::lastError() const {
-    return last_error_;
-}
-
-void Ina219Sensor::reset() {
+void Ina219Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
@@ -155,10 +135,6 @@ void Ina219Sensor::reset() {
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }
-}
-
-void Ina219Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createIna219Sensor() {

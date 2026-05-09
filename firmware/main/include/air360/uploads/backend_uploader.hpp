@@ -83,6 +83,7 @@ struct UploadAttemptResult {
     std::uint32_t response_time_ms = 0U;
     std::uint32_t retry_after_seconds = 0U;
     std::string message;
+    std::string response_body_snippet;
 
     bool acknowledgesWindow() const {
         return result == UploadResultClass::kSuccess ||

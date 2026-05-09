@@ -1,18 +1,17 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
-#include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
+#include "bme280.h"
+#include "i2c_bus.h"
+#include "i2cdev.h"
 
 namespace air360 {
 
-struct Bme280DriverState;
-
 class Bme280Sensor final : public SensorDriver {
   public:
-    Bme280Sensor();
+    Bme280Sensor() = default;
     ~Bme280Sensor() override;
     SensorType type() const override;
     esp_err_t init(
@@ -20,17 +19,16 @@ class Bme280Sensor final : public SensorDriver {
         const SensorDriverContext& context) override;
     esp_err_t poll() override;
     SensorMeasurement latestMeasurement() const override;
-    std::string lastError() const override;
 
   private:
     esp_err_t configureSensor();
-    void destroyState();
-    void setError(const std::string& message);
+    void teardown();
 
     SensorMeasurement measurement_{};
-    std::string last_error_;
-    std::unique_ptr<Bme280DriverState> state_;
-    bool initialized_ = false;
+    i2c_dev_t dev_{};
+    bool dev_initialized_ = false;
+    i2c_bus_handle_t bus_ = nullptr;
+    bme280_handle_t sensor_ = nullptr;
 };
 
 std::unique_ptr<SensorDriver> createBme280Sensor();

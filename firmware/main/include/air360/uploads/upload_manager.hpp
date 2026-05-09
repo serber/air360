@@ -35,6 +35,9 @@ struct BackendStatusSnapshot {
     std::string display_name;
     BackendRuntimeState state = BackendRuntimeState::kDisabled;
     UploadResultClass last_result = UploadResultClass::kUnknown;
+    // First time this backend was observed in an enabled state. Used to size the
+    // warmup window before declaring "no first attempt yet" a fault.
+    std::uint64_t enabled_at_uptime_ms = 0U;
     std::uint64_t last_attempt_uptime_ms = 0U;
     std::uint64_t last_success_uptime_ms = 0U;
     std::int64_t last_attempt_unix_ms = 0;

@@ -5,6 +5,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+extern "C" void app_main(void);
+extern "C" void vApplicationStackOverflowHook(TaskHandle_t task, char* name);
+
 // Called by FreeRTOS when the canary at the bottom of any task stack is
 // overwritten. Logs the task name and reboots so the watchdog does not
 // silently proceed with a corrupted stack.

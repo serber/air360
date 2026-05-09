@@ -59,10 +59,10 @@ std::string describeResult(std::int16_t result) {
 }  // namespace
 
 Sps30Sensor::~Sps30Sensor() {
-    reset();
+    teardown();
 }
 
-void Sps30Sensor::reset() {
+void Sps30Sensor::teardown() {
     if (device_initialized_) {
         i2c_dev_delete_mutex(&device_);
         device_initialized_ = false;
@@ -78,10 +78,11 @@ SensorType Sps30Sensor::type() const {
 esp_err_t Sps30Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     std::memset(&device_, 0, sizeof(device_));
     esp_err_t err = context.i2c_bus_manager->setupDevice(record, kSps30I2cSpeedHz, device_);
@@ -156,14 +157,10 @@ esp_err_t Sps30Sensor::poll() {
             &typical_particle_size);
     }();
     if (result != NO_ERROR) {
-        setError(std::string("Failed to read SPS30 measurement: ") + describeResult(result) + ".");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return mapResultToEspErr(result);
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read SPS30 measurement: ") + describeResult(result) + ".",
+            mapResultToEspErr(result));
     }
 
     measurement_.clear();
@@ -178,21 +175,12 @@ esp_err_t Sps30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kNc4_0PerCm3, nc_4p0);
     measurement_.addValue(SensorValueKind::kNc10_0PerCm3, nc_10p0);
     measurement_.addValue(SensorValueKind::kTypicalParticleSizeUm, typical_particle_size);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
 SensorMeasurement Sps30Sensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string Sps30Sensor::lastError() const {
-    return last_error_;
-}
-
-void Sps30Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 esp_err_t Sps30Sensor::startMeasurement() {

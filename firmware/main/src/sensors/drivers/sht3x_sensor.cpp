@@ -22,7 +22,7 @@ constexpr std::uint32_t kSht3xI2cSpeedHz = 100000U;
 }  // namespace
 
 Sht3xSensor::~Sht3xSensor() {
-    reset();
+    teardown();
 }
 
 SensorType Sht3xSensor::type() const {
@@ -30,10 +30,11 @@ SensorType Sht3xSensor::type() const {
 }
 
 esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     i2c_port_t port = I2C_NUM_0;
     gpio_num_t sda = GPIO_NUM_NC;
@@ -47,7 +48,7 @@ esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContex
     esp_err_t err = sht3x_init_desc(&device_, record.i2c_address, port, sda, scl);
     if (err != ESP_OK) {
         setError("Failed to initialize SHT3X descriptor.");
-        reset();
+        teardown();
         return err;
     }
     descriptor_initialized_ = true;
@@ -58,13 +59,13 @@ esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContex
     err = sht3x_init(&device_);
     if (err != ESP_OK) {
         setError(std::string("Failed to initialize SHT3X sensor: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
     err = sht3x_set_heater(&device_, false);
     if (err != ESP_OK) {
         setError(std::string("Failed to disable SHT3X heater: ") + esp_err_to_name(err));
-        reset();
+        teardown();
         return err;
     }
 
@@ -80,35 +81,24 @@ esp_err_t Sht3xSensor::poll() {
 
     float temperature_c = 0.0F;
     float humidity_percent = 0.0F;
-    esp_err_t err = sht3x_measure(&device_, &temperature_c, &humidity_percent);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to read SHT3X measurement: ") + esp_err_to_name(err));
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = sht3x_measure(&device_, &temperature_c, &humidity_percent);
+        err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read SHT3X measurement: ") + esp_err_to_name(err),
+            err);
     }
 
     if (std::isnan(temperature_c) || std::isnan(humidity_percent)) {
-        setError("SHT3X driver returned invalid values.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return ESP_ERR_INVALID_RESPONSE;
+        return reportPollFailure(
+            kTag, "SHT3X driver returned invalid values.", ESP_ERR_INVALID_RESPONSE);
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
@@ -116,11 +106,7 @@ SensorMeasurement Sht3xSensor::latestMeasurement() const {
     return measurement_;
 }
 
-std::string Sht3xSensor::lastError() const {
-    return last_error_;
-}
-
-void Sht3xSensor::reset() {
+void Sht3xSensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
@@ -128,10 +114,6 @@ void Sht3xSensor::reset() {
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }
-}
-
-void Sht3xSensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createSht3xSensor() {

@@ -1,8 +1,6 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
-#include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
 #include "i2cdev.h"
@@ -20,18 +18,14 @@ class Scd30Sensor final : public SensorDriver {
         const SensorDriverContext& context) override;
     esp_err_t poll() override;
     SensorMeasurement latestMeasurement() const override;
-    std::string lastError() const override;
 
   private:
-    void reset();
-    void setError(const std::string& message);
+    void teardown();
 
     SensorRecord record_{};
     i2c_dev_t device_{};
     bool descriptor_initialized_ = false;
     SensorMeasurement measurement_{};
-    std::string last_error_;
-    bool initialized_ = false;
     bool measurement_running_ = false;
 };
 

@@ -64,11 +64,6 @@ bool validateSensorCommunityRecord(const BackendRecord& record, std::string& err
         return false;
     }
 
-    if (!isNullTerminated(record.sensor_community_device_id, kBackendIdentifierCapacity)) {
-        error = "Sensor.Community device ID is not null-terminated.";
-        return false;
-    }
-
     return validateHttpEndpoint(record, error);
 }
 

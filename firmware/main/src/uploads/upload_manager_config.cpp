@@ -54,6 +54,9 @@ std::vector<UploadManager::ManagedBackend> UploadManager::buildManagedBackends(
         managed.descriptor = descriptor;
         managed.snapshot.id = record.id;
         managed.snapshot.enabled = record.enabled != 0U;
+        if (managed.snapshot.enabled) {
+            managed.snapshot.enabled_at_uptime_ms = now_ms;
+        }
         managed.snapshot.backend_type = record.backend_type;
         managed.snapshot.backend_key =
             descriptor != nullptr ? descriptor->backend_key : std::string("unknown");

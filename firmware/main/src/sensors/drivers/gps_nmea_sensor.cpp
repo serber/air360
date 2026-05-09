@@ -4,7 +4,6 @@
 #include <cinttypes>
 #include <cstdint>
 #include <memory>
-#include <new>
 #include <string>
 
 #include "air360/sensors/transport_binding.hpp"
@@ -39,20 +38,14 @@ constexpr std::size_t kGpsEventQueueSize = 8U;
 
 }  // namespace
 
-GpsNmeaSensor::GpsNmeaSensor() = default;
-
-GpsNmeaSensor::~GpsNmeaSensor() = default;
-
 SensorType GpsNmeaSensor::type() const {
     return SensorType::kGpsNmea;
 }
 
 void GpsNmeaSensor::resetParser() {
-    // Placement-new avoids heap churn on re-init: the parser lives in-place
-    // as a data member, so destroy-then-reconstruct keeps allocations out of
-    // the sensor poll/init hot path.
-    parser_.~TinyGPSPlus();
-    new (&parser_) TinyGPSPlus();
+    // std::optional::emplace destroys the held parser (if any) and constructs a
+    // fresh one in place, keeping heap allocations off the sensor init path.
+    parser_.emplace();
 }
 
 esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
@@ -60,7 +53,7 @@ esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverCont
     uart_port_manager_ = context.uart_port_manager;
     resetParser();
     measurement_.clear();
-    last_error_.clear();
+    clearError();
     soft_fail_policy_.onPollOk();
     max_bytes_per_poll_ = computeMaxBytesPerPoll();
     read_timeout_ticks_ = computeReadTimeoutTicks();
@@ -100,14 +93,7 @@ esp_err_t GpsNmeaSensor::poll() {
 
     esp_err_t err = drainUartEvents();
     if (err != ESP_OK) {
-        setError("Failed to process GPS UART events.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+        return reportPollFailure(kTag, "Failed to process GPS UART events.", err);
     }
 
     std::uint8_t buffer[kGpsReadBufferSize]{};
@@ -117,14 +103,7 @@ esp_err_t GpsNmeaSensor::poll() {
         std::size_t buffered_length = 0U;
         err = uart_port_manager_->bufferedDataLength(record_.uart_port_id, buffered_length);
         if (err != ESP_OK) {
-            setError("Failed to inspect GPS UART buffer.");
-            if (soft_fail_policy_.onPollErr()) {
-                ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-                initialized_ = false;
-            } else if (soft_fail_policy_.soft_fails == 1U) {
-                ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            }
-            return err;
+            return reportPollFailure(kTag, "Failed to inspect GPS UART buffer.", err);
         }
 
         const TickType_t timeout_ticks =
@@ -142,14 +121,7 @@ esp_err_t GpsNmeaSensor::poll() {
             read_size,
             timeout_ticks);
         if (bytes_read < 0) {
-            setError("Failed to read GPS UART data.");
-            if (soft_fail_policy_.onPollErr()) {
-                ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-                initialized_ = false;
-            } else if (soft_fail_policy_.soft_fails == 1U) {
-                ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            }
-            return ESP_FAIL;
+            return reportPollFailure(kTag, "Failed to read GPS UART data.", ESP_FAIL);
         }
 
         if (bytes_read == 0) {
@@ -158,20 +130,13 @@ esp_err_t GpsNmeaSensor::poll() {
 
         total_bytes_read += static_cast<std::size_t>(bytes_read);
         for (int index = 0; index < bytes_read; ++index) {
-            parser_.encode(static_cast<char>(buffer[index]));
+            parser_->encode(static_cast<char>(buffer[index]));
         }
     }
 
     err = drainUartEvents();
     if (err != ESP_OK) {
-        setError("Failed to process GPS UART events.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+        return reportPollFailure(kTag, "Failed to process GPS UART events.", err);
     }
 
     if (total_bytes_read == 0U) {
@@ -187,10 +152,6 @@ esp_err_t GpsNmeaSensor::poll() {
 
 SensorMeasurement GpsNmeaSensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string GpsNmeaSensor::lastError() const {
-    return last_error_;
 }
 
 esp_err_t GpsNmeaSensor::drainUartEvents() {
@@ -247,8 +208,13 @@ TickType_t GpsNmeaSensor::computeReadTimeoutTicks() const {
 void GpsNmeaSensor::rebuildMeasurement() {
     measurement_.clear();
 
+    if (!parser_) {
+        setError("GPS parser is not initialized.");
+        return;
+    }
+
     bool has_values = false;
-    const bool location_valid = parser_.location.isValid();
+    const bool location_valid = parser_->location.isValid();
     if (location_valid) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
@@ -256,66 +222,62 @@ void GpsNmeaSensor::rebuildMeasurement() {
         }
         measurement_.addValue(
             SensorValueKind::kLatitudeDeg,
-            static_cast<float>(parser_.location.lat()));
+            static_cast<float>(parser_->location.lat()));
         measurement_.addValue(
             SensorValueKind::kLongitudeDeg,
-            static_cast<float>(parser_.location.lng()));
+            static_cast<float>(parser_->location.lng()));
     }
-    if (parser_.altitude.isValid()) {
+    if (parser_->altitude.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kAltitudeM,
-            static_cast<float>(parser_.altitude.meters()));
+            static_cast<float>(parser_->altitude.meters()));
     }
-    if (parser_.satellites.isValid()) {
+    if (parser_->satellites.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kSatellites,
-            static_cast<float>(parser_.satellites.value()));
+            static_cast<float>(parser_->satellites.value()));
     }
-    if (parser_.speed.isValid()) {
+    if (parser_->speed.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kSpeedKnots,
-            static_cast<float>(parser_.speed.knots()));
+            static_cast<float>(parser_->speed.knots()));
     }
-    if (parser_.course.isValid()) {
+    if (parser_->course.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kCourseDeg,
-            static_cast<float>(parser_.course.deg()));
+            static_cast<float>(parser_->course.deg()));
     }
-    if (parser_.hdop.isValid()) {
+    if (parser_->hdop.isValid()) {
         if (!has_values) {
             measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
             has_values = true;
         }
         measurement_.addValue(
             SensorValueKind::kHdop,
-            static_cast<float>(parser_.hdop.hdop()));
+            static_cast<float>(parser_->hdop.hdop()));
     }
 
     if (location_valid) {
-        last_error_.clear();
+        clearError();
     } else {
         setError("No GPS fix yet.");
     }
-}
-
-void GpsNmeaSensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createGpsNmeaSensor() {

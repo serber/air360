@@ -32,10 +32,11 @@ This document covers the low-level HTTP transport used by the firmware's HTTP-ba
 2. Call `esp_http_client_init()`.
 3. Set all headers from `request.headers` via `esp_http_client_set_header()`.
 4. If `request.body` is non-empty, set it via `esp_http_client_set_post_field()`.
-5. Call `esp_http_client_perform()` — blocks until the response is received or the timeout expires.
-6. Extract HTTP status code and response content length.
-7. Compute total wall-clock duration from `esp_timer_get_time()`.
-8. Call `esp_http_client_cleanup()` unconditionally.
+5. Attach a response event handler that captures a sanitized response-body snippet.
+6. Call `esp_http_client_perform()` — blocks until the response is received or the timeout expires.
+7. Extract HTTP status code, response content length, and `Retry-After`.
+8. Compute total wall-clock duration from `esp_timer_get_time()`.
+9. Call `esp_http_client_cleanup()` unconditionally.
 
 The client handle is created and destroyed within a single `execute()` call — there is no connection reuse.
 
@@ -71,20 +72,22 @@ struct UploadTransportResponse {
     uint32_t   request_send_time_ms;    // Reserved — always 0
     uint32_t   first_response_time_ms;  // Reserved — always 0
     uint32_t   retry_after_seconds;     // Parsed Retry-After value; 0 if absent or > 3600
-    string     body_snippet;            // Error description on failure; empty on success
+    string     body_snippet;            // Sanitized response body or local setup error
 };
 ```
 
 `connect_time_ms`, `request_send_time_ms`, and `first_response_time_ms` are defined in the struct but not populated by the current implementation. They are reserved for future per-phase timing.
 
-`body_snippet` is set to a short human-readable error string in the following early-exit cases:
+When `esp_http_client_perform()` completes with `ESP_OK`, `body_snippet` contains up to 512 printable bytes from the HTTP response body. Newlines and tabs are collapsed to spaces, other non-printable bytes become `?`, and longer bodies are truncated with `...`. Adapters copy this field into `UploadAttemptResult::response_body_snippet`; it is used only by the upload task warning log and is not exposed through backend status, diagnostics JSON, or the web UI.
+
+`body_snippet` is also set to a short human-readable error string in the following early-exit cases:
 
 | Failure point | `body_snippet` value |
 |---------------|---------------------|
 | `esp_http_client_init` returned `nullptr` | `"esp_http_client_init failed"` |
 | Header set failed | `"failed to set request header"` |
 | Body set failed | `"failed to set request body"` |
-| `esp_http_client_perform` succeeded | empty string |
+| `esp_http_client_perform` succeeded | sanitized response body snippet |
 
 If `esp_http_client_perform` fails (network error, DNS failure, timeout), `transport_err` is set to the ESP-IDF error code and `http_status` remains 0. `body_snippet` is empty in this case — the error is in `transport_err`.
 
@@ -123,3 +126,11 @@ air360.http: HTTP header parse failed (buffer too small?): https://api.example.t
 ```
 
 Log tag: `air360.http`.
+
+Backend delivery failures are logged by `UploadManager` at `WARN` level. For HTTP status failures, the log includes the backend id, backend type, result class, HTTP status code, and adapter error message. When the server returned a response body, the same log line appends the sanitized body snippet as `response_body`:
+
+```
+air360.upload: Backend upload failed: backend_id=2 type=air360_api result=http_error http_status=400 error=HTTP 400 response_body={"error":"invalid payload"}
+```
+
+Log tag: `air360.upload`.

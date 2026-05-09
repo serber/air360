@@ -7,12 +7,14 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_err.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.me3_no2";
 constexpr adc_atten_t kAnalogAttenuation = ADC_ATTEN_DB_12;
 
 bool isSupportedAnalogPin(std::int16_t pin) {
@@ -22,7 +24,7 @@ bool isSupportedAnalogPin(std::int16_t pin) {
 }  // namespace
 
 Me3No2Sensor::~Me3No2Sensor() {
-    releaseHandles();
+    teardown();
 }
 
 SensorType Me3No2Sensor::type() const {
@@ -35,13 +37,13 @@ esp_err_t Me3No2Sensor::init(
     // ME3-NO2 is an ADC-only driver and does not need the shared driver context.
     static_cast<void>(context);
 
-    releaseHandles();
+    teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
     channel_ = -1;
     calibration_enabled_ = false;
-    initialized_ = false;
 
     if (!isSupportedAnalogPin(record.analog_gpio_pin)) {
         setError("Analog GPIO pin is not configured.");
@@ -73,7 +75,7 @@ esp_err_t Me3No2Sensor::init(
     err = adc_oneshot_config_channel(adc_handle_, channel, &channel_cfg);
     if (err != ESP_OK) {
         setError(std::string("ADC channel config failed: ") + esp_err_to_name(err) + ".");
-        releaseHandles();
+        teardown();
         return err;
     }
 
@@ -107,13 +109,15 @@ esp_err_t Me3No2Sensor::poll() {
     }
 
     int raw = 0;
-    const esp_err_t err = adc_oneshot_read(
-        adc_handle_,
-        static_cast<adc_channel_t>(channel_),
-        &raw);
-    if (err != ESP_OK) {
-        setError(std::string("ADC read failed: ") + esp_err_to_name(err) + ".");
-        return err;
+    if (esp_err_t err = adc_oneshot_read(
+            adc_handle_,
+            static_cast<adc_channel_t>(channel_),
+            &raw);
+        err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("ADC read failed: ") + esp_err_to_name(err) + ".",
+            err);
     }
 
     measurement_.clear();
@@ -127,7 +131,7 @@ esp_err_t Me3No2Sensor::poll() {
         }
     }
 
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
@@ -135,15 +139,7 @@ SensorMeasurement Me3No2Sensor::latestMeasurement() const {
     return measurement_;
 }
 
-std::string Me3No2Sensor::lastError() const {
-    return last_error_;
-}
-
-void Me3No2Sensor::setError(const std::string& message) {
-    last_error_ = message;
-}
-
-void Me3No2Sensor::releaseHandles() {
+void Me3No2Sensor::teardown() {
     if (cali_handle_ != nullptr) {
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
         adc_cali_delete_scheme_curve_fitting(cali_handle_);

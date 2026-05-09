@@ -1,18 +1,15 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
-#include <string>
 
 #include "air360/sensors/sensor_driver.hpp"
+#include "bme680.h"
 
 namespace air360 {
 
-struct Bme680DriverState;
-
 class Bme680Sensor final : public SensorDriver {
   public:
-    Bme680Sensor();
+    Bme680Sensor() = default;
     ~Bme680Sensor() override;
     SensorType type() const override;
     esp_err_t init(
@@ -20,18 +17,15 @@ class Bme680Sensor final : public SensorDriver {
         const SensorDriverContext& context) override;
     esp_err_t poll() override;
     SensorMeasurement latestMeasurement() const override;
-    std::string lastError() const override;
 
   private:
     esp_err_t configureSensor();
-    void reset();
-    void setError(const std::string& message);
+    void teardown();
 
     SensorRecord record_{};
     SensorMeasurement measurement_{};
-    std::string last_error_;
-    std::unique_ptr<Bme680DriverState> state_;
-    bool initialized_ = false;
+    bme680_t device_{};
+    bool descriptor_initialized_ = false;
 };
 
 std::unique_ptr<SensorDriver> createBme680Sensor();

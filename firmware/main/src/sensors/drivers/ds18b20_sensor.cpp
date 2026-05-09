@@ -16,7 +16,7 @@ constexpr char kTag[] = "air360.sensor.ds18b20";
 }  // namespace
 
 Ds18b20Sensor::~Ds18b20Sensor() {
-    reset();
+    teardown();
 }
 
 SensorType Ds18b20Sensor::type() const {
@@ -26,10 +26,11 @@ SensorType Ds18b20Sensor::type() const {
 esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     // DS18B20 uses its own one-wire bus and does not need the shared driver context.
     static_cast<void>(context);
-    reset();
+    teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     if (record_.analog_gpio_pin < 0) {
         setError("DS18B20 GPIO pin is not configured.");
@@ -49,7 +50,7 @@ esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverCont
     esp_err_t err = onewire_new_bus_rmt(&bus_config, &rmt_config, &bus_);
     if (err != ESP_OK) {
         setError("Failed to initialize 1-Wire bus.");
-        reset();
+        teardown();
         return err;
     }
 
@@ -57,7 +58,7 @@ esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverCont
     err = onewire_new_device_iter(bus_, &iter);
     if (err != ESP_OK) {
         setError("Failed to create 1-Wire device iterator.");
-        reset();
+        teardown();
         return err;
     }
 
@@ -79,7 +80,7 @@ esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverCont
             ds18b20_del_device(next_device);
             onewire_del_device_iter(iter);
             setError("Multiple DS18B20 sensors detected on the same GPIO bus. Only one sensor per slot is supported.");
-            reset();
+            teardown();
             return ESP_ERR_NOT_SUPPORTED;
         }
 
@@ -91,20 +92,20 @@ esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverCont
     onewire_del_device_iter(iter);
     if (search_result != ESP_ERR_NOT_FOUND) {
         setError("1-Wire device enumeration failed.");
-        reset();
+        teardown();
         return search_result;
     }
 
     if (!found_ds18b20 || device_ == nullptr) {
         setError("No DS18B20 sensor detected on the selected GPIO bus.");
-        reset();
+        teardown();
         return ESP_ERR_NOT_FOUND;
     }
 
     err = ds18b20_set_resolution(device_, DS18B20_RESOLUTION_12B);
     if (err != ESP_OK) {
         setError("Failed to configure DS18B20 resolution.");
-        reset();
+        teardown();
         return err;
     }
 
@@ -118,36 +119,20 @@ esp_err_t Ds18b20Sensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = ds18b20_trigger_temperature_conversion(device_);
-    if (err != ESP_OK) {
-        setError("Failed to trigger DS18B20 temperature conversion.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ds18b20_trigger_temperature_conversion(device_); err != ESP_OK) {
+        return reportPollFailure(
+            kTag, "Failed to trigger DS18B20 temperature conversion.", err);
     }
 
     float temperature_c = 0.0F;
-    err = ds18b20_get_temperature(device_, &temperature_c);
-    if (err != ESP_OK) {
-        setError("Failed to read DS18B20 temperature.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ds18b20_get_temperature(device_, &temperature_c); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to read DS18B20 temperature.", err);
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
@@ -155,11 +140,7 @@ SensorMeasurement Ds18b20Sensor::latestMeasurement() const {
     return measurement_;
 }
 
-std::string Ds18b20Sensor::lastError() const {
-    return last_error_;
-}
-
-void Ds18b20Sensor::reset() {
+void Ds18b20Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (device_ != nullptr) {
@@ -171,10 +152,6 @@ void Ds18b20Sensor::reset() {
         bus_ = nullptr;
     }
     address_ = 0U;
-}
-
-void Ds18b20Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createDs18b20Sensor() {
