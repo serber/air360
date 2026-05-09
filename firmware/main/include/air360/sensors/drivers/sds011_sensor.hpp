@@ -22,7 +22,6 @@ class Sds011Sensor final : public SensorDriver {
         const SensorDriverContext& context) override;
     esp_err_t poll() override;
     SensorMeasurement latestMeasurement() const override;
-    std::string lastError() const override;
 
   private:
     struct Reading {
@@ -40,16 +39,13 @@ class Sds011Sensor final : public SensorDriver {
     void storeMeasurement(const Reading& reading);
     esp_err_t handlePollError(esp_err_t err, const char* message);
     void resetParser();
-    void setError(const std::string& message);
 
     SensorRecord record_{};
     UartPortManager* uart_port_manager_ = nullptr;
     SensorMeasurement measurement_{};
-    std::string last_error_;
     std::array<std::uint8_t, 10U> frame_{};
     std::size_t frame_index_ = 0U;
     std::uint32_t uart_overrun_count_ = 0U;
-    bool initialized_ = false;
 };
 
 std::unique_ptr<SensorDriver> createSds011Sensor();

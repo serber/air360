@@ -29,7 +29,8 @@ esp_err_t Ds18b20Sensor::init(const SensorRecord& record, const SensorDriverCont
     teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     if (record_.analog_gpio_pin < 0) {
         setError("DS18B20 GPIO pin is not configured.");
@@ -118,45 +119,25 @@ esp_err_t Ds18b20Sensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = ds18b20_trigger_temperature_conversion(device_);
-    if (err != ESP_OK) {
-        setError("Failed to trigger DS18B20 temperature conversion.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ds18b20_trigger_temperature_conversion(device_); err != ESP_OK) {
+        return reportPollFailure(
+            kTag, "Failed to trigger DS18B20 temperature conversion.", err);
     }
 
     float temperature_c = 0.0F;
-    err = ds18b20_get_temperature(device_, &temperature_c);
-    if (err != ESP_OK) {
-        setError("Failed to read DS18B20 temperature.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = ds18b20_get_temperature(device_, &temperature_c); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to read DS18B20 temperature.", err);
     }
 
     measurement_.clear();
     measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
 SensorMeasurement Ds18b20Sensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string Ds18b20Sensor::lastError() const {
-    return last_error_;
 }
 
 void Ds18b20Sensor::teardown() {
@@ -171,10 +152,6 @@ void Ds18b20Sensor::teardown() {
         bus_ = nullptr;
     }
     address_ = 0U;
-}
-
-void Ds18b20Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createDs18b20Sensor() {

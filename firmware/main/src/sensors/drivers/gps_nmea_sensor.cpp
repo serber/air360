@@ -53,7 +53,7 @@ esp_err_t GpsNmeaSensor::init(const SensorRecord& record, const SensorDriverCont
     uart_port_manager_ = context.uart_port_manager;
     resetParser();
     measurement_.clear();
-    last_error_.clear();
+    clearError();
     soft_fail_policy_.onPollOk();
     max_bytes_per_poll_ = computeMaxBytesPerPoll();
     read_timeout_ticks_ = computeReadTimeoutTicks();
@@ -93,14 +93,7 @@ esp_err_t GpsNmeaSensor::poll() {
 
     esp_err_t err = drainUartEvents();
     if (err != ESP_OK) {
-        setError("Failed to process GPS UART events.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+        return reportPollFailure(kTag, "Failed to process GPS UART events.", err);
     }
 
     std::uint8_t buffer[kGpsReadBufferSize]{};
@@ -110,14 +103,7 @@ esp_err_t GpsNmeaSensor::poll() {
         std::size_t buffered_length = 0U;
         err = uart_port_manager_->bufferedDataLength(record_.uart_port_id, buffered_length);
         if (err != ESP_OK) {
-            setError("Failed to inspect GPS UART buffer.");
-            if (soft_fail_policy_.onPollErr()) {
-                ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-                initialized_ = false;
-            } else if (soft_fail_policy_.soft_fails == 1U) {
-                ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            }
-            return err;
+            return reportPollFailure(kTag, "Failed to inspect GPS UART buffer.", err);
         }
 
         const TickType_t timeout_ticks =
@@ -135,14 +121,7 @@ esp_err_t GpsNmeaSensor::poll() {
             read_size,
             timeout_ticks);
         if (bytes_read < 0) {
-            setError("Failed to read GPS UART data.");
-            if (soft_fail_policy_.onPollErr()) {
-                ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-                initialized_ = false;
-            } else if (soft_fail_policy_.soft_fails == 1U) {
-                ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            }
-            return ESP_FAIL;
+            return reportPollFailure(kTag, "Failed to read GPS UART data.", ESP_FAIL);
         }
 
         if (bytes_read == 0) {
@@ -157,14 +136,7 @@ esp_err_t GpsNmeaSensor::poll() {
 
     err = drainUartEvents();
     if (err != ESP_OK) {
-        setError("Failed to process GPS UART events.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+        return reportPollFailure(kTag, "Failed to process GPS UART events.", err);
     }
 
     if (total_bytes_read == 0U) {
@@ -180,10 +152,6 @@ esp_err_t GpsNmeaSensor::poll() {
 
 SensorMeasurement GpsNmeaSensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string GpsNmeaSensor::lastError() const {
-    return last_error_;
 }
 
 esp_err_t GpsNmeaSensor::drainUartEvents() {
@@ -306,14 +274,10 @@ void GpsNmeaSensor::rebuildMeasurement() {
     }
 
     if (location_valid) {
-        last_error_.clear();
+        clearError();
     } else {
         setError("No GPS fix yet.");
     }
-}
-
-void GpsNmeaSensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createGpsNmeaSensor() {

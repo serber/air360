@@ -36,7 +36,7 @@ esp_err_t Bme280Sensor::init(
     const SensorDriverContext& context) {
     teardown();
     measurement_.clear();
-    last_error_.clear();
+    clearError();
     soft_fail_policy_.onPollOk();
 
     esp_err_t err = context.i2c_bus_manager->setupDevice(record, kBme280I2cSpeedHz, dev_);
@@ -92,55 +92,23 @@ esp_err_t Bme280Sensor::poll() {
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t err = bme280_take_forced_measurement(sensor_);
-    if (err != ESP_OK) {
-        setError("Failed to start BME280 forced measurement.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = bme280_take_forced_measurement(sensor_); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to start BME280 forced measurement.", err);
     }
 
     float temperature = 0.0F;
-    err = bme280_read_temperature(sensor_, &temperature);
-    if (err != ESP_OK) {
-        setError("Failed to read BME280 temperature.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = bme280_read_temperature(sensor_, &temperature); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to read BME280 temperature.", err);
     }
 
     float humidity = 0.0F;
-    err = bme280_read_humidity(sensor_, &humidity);
-    if (err != ESP_OK) {
-        setError("Failed to read BME280 humidity.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = bme280_read_humidity(sensor_, &humidity); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to read BME280 humidity.", err);
     }
 
     float pressure_hpa = 0.0F;
-    err = bme280_read_pressure(sensor_, &pressure_hpa);
-    if (err != ESP_OK) {
-        setError("Failed to read BME280 pressure.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = bme280_read_pressure(sensor_, &pressure_hpa); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to read BME280 pressure.", err);
     }
 
     measurement_.clear();
@@ -148,17 +116,12 @@ esp_err_t Bme280Sensor::poll() {
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity);
     measurement_.addValue(SensorValueKind::kPressureHpa, pressure_hpa);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
 SensorMeasurement Bme280Sensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string Bme280Sensor::lastError() const {
-    return last_error_;
 }
 
 esp_err_t Bme280Sensor::configureSensor() {
@@ -195,10 +158,6 @@ void Bme280Sensor::teardown() {
     bus_ = nullptr;
     initialized_ = false;
     soft_fail_policy_.onPollOk();
-}
-
-void Bme280Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createBme280Sensor() {

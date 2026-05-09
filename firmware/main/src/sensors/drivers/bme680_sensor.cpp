@@ -45,7 +45,7 @@ esp_err_t Bme680Sensor::init(
     teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
     soft_fail_policy_.onPollOk();
 
     i2c_port_t port = I2C_NUM_0;
@@ -98,56 +98,35 @@ esp_err_t Bme680Sensor::poll() {
     }
 
     uint32_t measurement_duration_ticks = 0U;
-    esp_err_t err = bme680_get_measurement_duration(&device_, &measurement_duration_ticks);
-    if (err != ESP_OK || measurement_duration_ticks == 0U) {
-        setError("Failed to calculate BME680 measurement duration.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err != ESP_OK ? err : ESP_FAIL;
+    if (esp_err_t err = bme680_get_measurement_duration(&device_, &measurement_duration_ticks);
+        err != ESP_OK || measurement_duration_ticks == 0U) {
+        return reportPollFailure(
+            kTag,
+            "Failed to calculate BME680 measurement duration.",
+            err != ESP_OK ? err : ESP_FAIL);
     }
 
-    err = bme680_force_measurement(&device_);
-    if (err != ESP_OK) {
-        setError("Failed to start BME680 forced measurement.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = bme680_force_measurement(&device_); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to start BME680 forced measurement.", err);
     }
 
     vTaskDelay(measurement_duration_ticks);
 
     bme680_values_float_t data{};
-    err = bme680_get_results_float(&device_, &data);
-    if (err != ESP_OK) {
-        setError(std::string("Failed to read BME680 measurement: ") + esp_err_to_name(err));
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = bme680_get_results_float(&device_, &data); err != ESP_OK) {
+        return reportPollFailure(
+            kTag,
+            std::string("Failed to read BME680 measurement: ") + esp_err_to_name(err),
+            err);
     }
 
     if (std::isnan(data.temperature) ||
         std::isnan(data.humidity) ||
         std::isnan(data.pressure)) {
-        setError("BME680 driver returned invalid values.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return ESP_ERR_INVALID_RESPONSE;
+        return reportPollFailure(
+            kTag,
+            "BME680 driver returned invalid values.",
+            ESP_ERR_INVALID_RESPONSE);
     }
 
     measurement_.clear();
@@ -160,17 +139,12 @@ esp_err_t Bme680Sensor::poll() {
         measurement_.addValue(SensorValueKind::kGasResistanceOhms, data.gas_resistance);
     }
 
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
 SensorMeasurement Bme680Sensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string Bme680Sensor::lastError() const {
-    return last_error_;
 }
 
 esp_err_t Bme680Sensor::configureSensor() {
@@ -219,10 +193,6 @@ void Bme680Sensor::teardown() {
     std::memset(&device_, 0, sizeof(device_));
     initialized_ = false;
     soft_fail_policy_.onPollOk();
-}
-
-void Bme680Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createBme680Sensor() {

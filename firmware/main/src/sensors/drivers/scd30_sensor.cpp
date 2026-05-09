@@ -33,8 +33,6 @@ Scd30Sensor::~Scd30Sensor() {
     teardown();
 }
 
-
-
 SensorType Scd30Sensor::type() const {
     return SensorType::kScd30;
 }
@@ -43,7 +41,8 @@ esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContex
     teardown();
     record_ = record;
     measurement_.clear();
-    last_error_.clear();
+    clearError();
+    soft_fail_policy_.onPollOk();
 
     i2c_port_t port = I2C_NUM_0;
     gpio_num_t sda = GPIO_NUM_NC;
@@ -85,7 +84,7 @@ esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContex
 
     measurement_running_ = true;
     initialized_ = true;
-    last_error_ = "Waiting for first SCD30 sample.";
+    setError("Waiting for first SCD30 sample.");
     return ESP_OK;
 }
 
@@ -96,49 +95,28 @@ esp_err_t Scd30Sensor::poll() {
     }
 
     bool data_ready = false;
-    esp_err_t err = scd30_get_data_ready_status(&device_, &data_ready);
-    if (err != ESP_OK) {
-        setError("Failed to query SCD30 data-ready status.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = scd30_get_data_ready_status(&device_, &data_ready); err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to query SCD30 data-ready status.", err);
     }
 
     if (!data_ready) {
         measurement_.clear();
         soft_fail_policy_.onPollOk();
-        last_error_ = "Waiting for new SCD30 sample.";
+        setError("Waiting for new SCD30 sample.");
         return ESP_OK;
     }
 
     float co2_ppm = 0.0F;
     float temperature_c = 0.0F;
     float humidity_percent = 0.0F;
-    err = scd30_read_measurement(&device_, &co2_ppm, &temperature_c, &humidity_percent);
-    if (err != ESP_OK) {
-        setError("Failed to read SCD30 measurement.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return err;
+    if (esp_err_t err = scd30_read_measurement(&device_, &co2_ppm, &temperature_c, &humidity_percent);
+        err != ESP_OK) {
+        return reportPollFailure(kTag, "Failed to read SCD30 measurement.", err);
     }
 
     if (std::isnan(co2_ppm) || std::isnan(temperature_c) || std::isnan(humidity_percent)) {
-        setError("SCD30 driver returned invalid values.");
-        if (soft_fail_policy_.onPollErr()) {
-            ESP_LOGE(kTag, "hard error after %u soft fails: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-            initialized_ = false;
-        } else if (soft_fail_policy_.soft_fails == 1U) {
-            ESP_LOGW(kTag, "soft fail 1/%u: %s", kSensorPollFailureReinitThreshold, last_error_.c_str());
-        }
-        return ESP_ERR_INVALID_RESPONSE;
+        return reportPollFailure(
+            kTag, "SCD30 driver returned invalid values.", ESP_ERR_INVALID_RESPONSE);
     }
 
     measurement_.clear();
@@ -146,17 +124,12 @@ esp_err_t Scd30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kCo2Ppm, co2_ppm);
     measurement_.addValue(SensorValueKind::kTemperatureC, temperature_c);
     measurement_.addValue(SensorValueKind::kHumidityPercent, humidity_percent);
-    soft_fail_policy_.onPollOk();
-    last_error_.clear();
+    notePollSuccess();
     return ESP_OK;
 }
 
 SensorMeasurement Scd30Sensor::latestMeasurement() const {
     return measurement_;
-}
-
-std::string Scd30Sensor::lastError() const {
-    return last_error_;
 }
 
 void Scd30Sensor::teardown() {
@@ -171,10 +144,6 @@ void Scd30Sensor::teardown() {
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }
-}
-
-void Scd30Sensor::setError(const std::string& message) {
-    last_error_ = message;
 }
 
 std::unique_ptr<SensorDriver> createScd30Sensor() {

@@ -81,12 +81,40 @@ class SensorDriver {
         const SensorDriverContext& context) = 0;
     virtual esp_err_t poll() = 0;
     virtual SensorMeasurement latestMeasurement() const = 0;
-    virtual std::string lastError() const = 0;
+    virtual std::string lastError() const { return last_error_; }
 
     std::uint32_t softFailCount() const { return soft_fail_policy_.soft_fails; }
 
   protected:
     SoftFailPolicy soft_fail_policy_{};
+    std::string    last_error_;
+    bool           initialized_ = false;
+
+    // Set last_error_ without mutating soft-fail counters. Used on init paths
+    // and on warning-only poll paths (e.g. "warming up") that should not
+    // penalize the driver.
+    void setError(std::string message) { last_error_ = std::move(message); }
+
+    void clearError() { last_error_.clear(); }
+
+    // Single point of escalation policy for poll() failures. Stores the
+    // message in last_error_, advances the soft-fail counter, and emits the
+    // canonical soft/hard log lines under the given tag. Marks the driver
+    // un-initialized once the soft-fail threshold is reached so the manager
+    // re-runs init() on the next cycle.
+    //
+    // Returns the err that was passed in, so callers can chain:
+    //
+    //     if (esp_err_t err = sensor_X(); err != ESP_OK) {
+    //         return reportPollFailure(kTag, "X failed", err);
+    //     }
+    //
+    [[nodiscard]] esp_err_t reportPollFailure(
+        const char* tag, std::string message, esp_err_t err);
+
+    // Reset soft-fail counters and clear last_error_. Call on a successful
+    // poll, including no-data-yet paths that should not penalize the driver.
+    void notePollSuccess();
 };
 
 }  // namespace air360

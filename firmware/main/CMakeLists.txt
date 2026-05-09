@@ -48,6 +48,7 @@ idf_component_register(
         "src/sensors/drivers/sensirion_i2c_hal.cpp"
         "src/sensors/drivers/sps30_sensor.cpp"
         "src/sensors/drivers/veml7700_sensor.cpp"
+        "src/sensors/sensor_driver.cpp"
         "src/sensors/sensor_manager.cpp"
         "src/sensors/sensor_registry.cpp"
         "src/sensors/transport_binding.cpp"
