@@ -64,32 +64,19 @@ extern "C" void app_main(void) {
 }
 ```
 
-`App::run()` is where all initialization happens and where the main task spends the rest of its life. To prevent large objects from overflowing the 8 KB main task stack, `App` owns long-lived runtime objects as explicit members and the single `App` instance itself lives in static storage:
+`App::run()` is where all initialization happens and where the main task spends the rest of its life. To prevent large objects from overflowing the 8 KB main task stack, `App` owns long-lived runtime objects through three boot-time facades, plus `StatusService` and `WebServer`. The single `App` instance itself lives in static storage:
 
 ```cpp
 class App {
-    BuildInfo build_info_;
-    ConfigRepository config_repository_;
-    DeviceConfig config_;
+    PlatformLayer platform_;   // BuildInfo, ConfigRepository, DeviceConfig, Air360 secret
     StatusService status_service_;
-    SensorConfigRepository sensor_config_repository_;
-    SensorConfigList sensor_config_list_;
-    SensorManager sensor_manager_;
-    MeasurementStore measurement_store_;
-    CellularConfigRepository cellular_config_repository_;
-    CellularConfig cellular_config_;
-    CellularManager cellular_manager_;
-    BackendConfigRepository backend_config_repository_;
-    BackendConfigList backend_config_list_;
-    UploadManager upload_manager_;
-    NetworkManager network_manager_;
-    WebServer web_server_;
-    esp_timer_handle_t debug_window_timer_ = nullptr;
-    BleAdvertiser ble_advertiser_;
+    NetworkLayer  network_;    // NetworkManager, CellularManager + CellularConfig, debug timer
+    DataLayer     data_;       // SensorManager + cfg, MeasurementStore, BLE, BackendConfig + UploadManager
+    WebServer     web_server_;
 };
 ```
 
-This makes lifecycle ownership visible in `app.hpp` while still placing the runtime graph in BSS/data rather than on the main task stack. `App`, the manager classes, the web server, BLE advertiser, and transport managers are non-copyable so RTOS handles, callback registrations, and shared mutex-protected state cannot be accidentally duplicated.
+Each facade exposes `boot*()` methods invoked in sequence from `App::run()`; the boot order and `Boot step N/9` log lines are unchanged. This makes lifecycle ownership visible in `app.hpp` while still placing the runtime graph in BSS/data rather than on the main task stack. `App`, the facades, the manager classes, the web server, BLE advertiser, and transport managers are non-copyable so RTOS handles, callback registrations, and shared mutex-protected state cannot be accidentally duplicated.
 
 ---
 

@@ -70,7 +70,10 @@ firmware/
 ### Core runtime
 
 - `main/src/app_main.cpp` — `app_main()` entry, constructs and runs `air360::App`
-- `main/src/app.cpp` — 9-step boot sequence: LEDs, watchdog, NVS, network core, config, sensors, uploads, web server
+- `main/src/app.cpp` — 9-step boot sequence: LEDs, watchdog, NVS, network core, then delegates to facade `boot*()` methods and starts the web server
+- `main/src/platform/platform_layer.cpp` — `PlatformLayer` facade owning `BuildInfo`, `ConfigRepository`, `DeviceConfig`, and `Air360ApiCredentialRepository`
+- `main/src/network/network_layer.cpp` — `NetworkLayer` facade owning `NetworkManager`, `CellularManager`, `CellularConfigRepository`, the Wi-Fi debug-window timer, and the cellular boot phase
+- `main/src/data/data_layer.cpp` — `DataLayer` facade owning sensors, measurement store, BLE advertiser, backend config and `UploadManager`
 - `main/src/build_info.cpp` — build metadata and device identity (device_id, short_device_id, esp_mac_id)
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
@@ -95,6 +98,7 @@ Headers under `main/include/air360/` define the public C++ interfaces used insid
 - `app.hpp`, `build_info.hpp`, `config_repository.hpp`, `network_manager.hpp`
 - `cellular_config_repository.hpp`, `cellular_manager.hpp`, `connectivity_checker.hpp`, `modem_gpio.hpp`
 - `status_service.hpp`, `time_utils.hpp`, `web_form.hpp`, `web_server.hpp`, `web_server_internal.hpp`, `web_assets.hpp`, `web_ui.hpp`
+- `platform/platform_layer.hpp`, `network/network_layer.hpp`, `data/data_layer.hpp` — boot-time facades grouping the long-lived runtime objects owned by `App`
 - `sensors/` — sensor types, registry, transport, config, driver interface
 - `uploads/` — backend config, measurement store, upload transport, uploader interfaces
 
