@@ -161,7 +161,7 @@ The Overview page is the main runtime dashboard.
 
 ![Runtime Overview](images/firmware_overview.png)
 
-A **Health pill** (`Healthy` / `Unhealthy`) is shown inline under the page heading.
+A **Health pill** is shown inline under the page heading. It can read `Healthy`, `Starting up` (right after boot, while sensors and SNTP are still warming up), `Degraded` (a previously healthy check regressed), `Offline` (no station uplink past warmup), `Fault` (hard error in a sensor or backend), or `Setup` (Wi-Fi station credentials not configured yet).
 
 The stats bar shows four values:
 
@@ -515,7 +515,7 @@ What this means in practice:
 
 - It is normal for uploads to not start immediately when the web UI first becomes reachable.
 - The **Overview** Connection block shows the current UTC date once time is synchronized. Before sync the date shows `1970-01-01`.
-- The **Health** pill turns `Healthy` once time sync and other checks pass.
+- The **Health** pill stays at `Starting up` while SNTP and sensors are still warming up, then transitions to `Healthy` once all checks pass.
 - The firmware retries SNTP continuously while the uplink is active.
 - SNTP works over both Wi-Fi and cellular — no separate configuration is needed for cellular.
 

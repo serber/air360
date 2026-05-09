@@ -659,7 +659,7 @@ Produces HTML and JSON payloads for web routes. Aggregates runtime state from al
 
 For each request, `StatusService` now captures snapshot copies of the stored config/network/cellular state and then pulls snapshot data from `SensorManager`, `MeasurementStore`, `UploadManager`, `CellularManager`, and `BleAdvertiser`. The Overview page, Diagnostics page, and raw status JSON are rendered from that single request-local snapshot so the UI does not race on mutable shared state while rendering.
 
-The raw status JSON rendered inside the Diagnostics page includes `health_status`, `health_summary`, and `health_checks`.
+The raw status JSON rendered inside the Diagnostics page includes `health_status`, `health_summary`, and `health_checks`. Top-level `health_status` is one of `healthy`, `booting`, `degraded`, `offline`, `fault`, or `setup_required`. Each entry under `health_checks` exposes a `state` of `skipped`, `pending`, `ok`, `stale`, or `failed` so consumers can distinguish "warming up" from "regressed" from "broken".
 
 ---
 

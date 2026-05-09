@@ -577,6 +577,7 @@ void NetworkManager::handleWifiEvent(
                 manager->state_.lab_ap_active || manager->state_.mode == NetworkMode::kSetupAp;
 
             manager->state_.station_connected = false;
+            manager->state_.station_connected_at_uptime_ms = 0U;
             manager->state_.ip_address.clear();
             manager->state_.last_disconnect_reason = reason;
             manager->state_.last_disconnect_reason_label = disconnectReasonLabel(reason);
@@ -687,6 +688,7 @@ void NetworkManager::handleIpEvent(
         manager->state_.mode = NetworkMode::kStation;
     }
     manager->state_.station_connected = true;
+    manager->state_.station_connected_at_uptime_ms = air360::uptimeMilliseconds();
     manager->state_.last_error.clear();
     manager->state_.reconnect_backoff_active = false;
     manager->state_.next_reconnect_uptime_ms = 0U;
@@ -1037,6 +1039,7 @@ esp_err_t NetworkManager::attemptStationConnect(
         lock();
         setStateError(state_, "station connect timeout (DHCP or IP assignment not completed)");
         state_.station_connected = false;
+        state_.station_connected_at_uptime_ms = 0U;
         state_.ip_address.clear();
         if (preserve_ap) {
             state_.mode = NetworkMode::kSetupAp;
@@ -1250,6 +1253,7 @@ esp_err_t NetworkManager::startLabAp(const DeviceConfig& config) {
     state_.mode = NetworkMode::kSetupAp;
     state_.lab_ap_active = true;
     state_.station_connected = false;
+    state_.station_connected_at_uptime_ms = 0U;
     state_.ip_address = ip_buffer;
     state_.reconnect_backoff_active = false;
     state_.next_reconnect_uptime_ms = 0U;
@@ -1512,6 +1516,7 @@ esp_err_t NetworkManager::stopStation() {
 
     lock();
     state_.station_connected = false;
+    state_.station_connected_at_uptime_ms = 0U;
     state_.ip_address.clear();
     state_.reconnect_backoff_active = false;
     state_.next_reconnect_uptime_ms = 0U;

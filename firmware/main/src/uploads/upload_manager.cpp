@@ -72,11 +72,22 @@ void UploadManager::start(
 }
 
 esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
-    std::vector<std::pair<std::uint32_t, std::uint64_t>> acknowledged_by_id;
+    struct PreservedBackendState {
+        std::uint32_t id = 0U;
+        std::uint64_t acknowledged_sample_id = 0U;
+        std::uint64_t enabled_at_uptime_ms = 0U;
+        bool was_enabled = false;
+    };
+    std::vector<PreservedBackendState> preserved;
     lock();
-    acknowledged_by_id.reserve(backends_.size());
+    preserved.reserve(backends_.size());
     for (const auto& backend : backends_) {
-        acknowledged_by_id.emplace_back(backend.snapshot.id, backend.acknowledged_sample_id);
+        preserved.push_back(PreservedBackendState{
+            backend.snapshot.id,
+            backend.acknowledged_sample_id,
+            backend.snapshot.enabled_at_uptime_ms,
+            backend.snapshot.enabled,
+        });
     }
     unlock();
 
@@ -91,11 +102,17 @@ esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
 
     std::vector<ManagedBackend> next_backends = buildManagedBackends(config);
     for (auto& backend : next_backends) {
-        for (const auto& previous : acknowledged_by_id) {
-            if (previous.first == backend.snapshot.id) {
-                backend.acknowledged_sample_id = previous.second;
-                break;
+        for (const auto& previous : preserved) {
+            if (previous.id != backend.snapshot.id) {
+                continue;
             }
+            backend.acknowledged_sample_id = previous.acknowledged_sample_id;
+            // Preserve original warmup start so reconfiguring an already-enabled
+            // backend does not reset its "first attempt" deadline.
+            if (previous.was_enabled && backend.snapshot.enabled) {
+                backend.snapshot.enabled_at_uptime_ms = previous.enabled_at_uptime_ms;
+            }
+            break;
         }
     }
 

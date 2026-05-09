@@ -94,7 +94,18 @@ When a client connects to the setup AP, the OS attempts a captive portal probe. 
 
 Displays a read-only dashboard. Refreshed on every page load (no auto-refresh).
 
-**Health pill** — aggregated status (`Healthy` / `Unhealthy`) rendered inline under the page heading. No separate panel.
+**Health pill** — aggregated top-level status rendered inline under the page heading. No separate panel. Possible labels and palettes:
+
+| Label | Status key | Meaning |
+|-------|------------|---------|
+| `Healthy` | `healthy` | All applicable checks succeeded. |
+| `Starting up` | `booting` | One or more checks are still inside their warmup window (e.g. SNTP not synced yet, sensors awaiting first sample). |
+| `Degraded` | `degraded` | A check that previously reached `ok` regressed to `stale`. |
+| `Offline` | `offline` | Station uplink is past its warmup window and not connected. |
+| `Fault` | `fault` | A check is in `failed` state — explicit hardware/config error that will not self-heal. |
+| `Setup` | `setup_required` | Station Wi-Fi credentials are not configured yet. |
+
+Each individual check (`time_synced`, `sensors_reporting`, `uplink_available`, `backends_healthy`) follows the same lifecycle: `skipped` (not applicable), `pending` (still warming up), `ok`, `stale` (was ok, regressed), `failed` (never reached ok within its warmup window or hard error).
 
 **Stats bar** — four cells:
 

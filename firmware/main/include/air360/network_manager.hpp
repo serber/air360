@@ -41,6 +41,7 @@ struct NetworkState {
     bool station_config_present = false;
     bool station_connect_attempted = false;
     bool station_connected = false;
+    std::uint64_t station_connected_at_uptime_ms = 0U;
     bool time_sync_attempted = false;
     bool time_synchronized = false;
     bool lab_ap_active = false;

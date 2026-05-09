@@ -12,6 +12,7 @@
 #include "air360/sensors/sensor_driver.hpp"
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
+#include "air360/tuning.hpp"
 #include "air360/web_ui.hpp"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -358,15 +359,29 @@ struct StatusServiceRenderSnapshot {
 
 enum class HealthStatus : std::uint8_t {
     kHealthy = 0U,
+    kBooting,
     kDegraded,
     kOffline,
+    kFault,
     kSetupRequired,
+};
+
+// Per-check lifecycle. A check that has never reached kOk is kPending while
+// inside its warmup window and kFailed once the deadline elapses; a check that
+// reached kOk and later regressed is kStale. Disabled or non-applicable checks
+// are kSkipped and do not influence the aggregate.
+enum class CheckState : std::uint8_t {
+    kSkipped = 0U,
+    kPending,
+    kOk,
+    kStale,
+    kFailed,
 };
 
 struct HealthCheckViewModel {
     std::string key;
     std::string label;
-    bool ok = false;
+    CheckState state = CheckState::kSkipped;
     std::string summary;
     std::string pill_text;
 };
@@ -381,16 +396,56 @@ const char* healthStatusKey(HealthStatus status) {
     switch (status) {
         case HealthStatus::kHealthy:
             return "healthy";
+        case HealthStatus::kBooting:
+            return "booting";
         case HealthStatus::kDegraded:
             return "degraded";
         case HealthStatus::kOffline:
             return "offline";
+        case HealthStatus::kFault:
+            return "fault";
         case HealthStatus::kSetupRequired:
         default:
             return "setup_required";
     }
 }
 
+const char* checkStateKey(CheckState state) {
+    switch (state) {
+        case CheckState::kSkipped:
+            return "skipped";
+        case CheckState::kPending:
+            return "pending";
+        case CheckState::kOk:
+            return "ok";
+        case CheckState::kStale:
+            return "stale";
+        case CheckState::kFailed:
+        default:
+            return "failed";
+    }
+}
+
+// Worst-of aggregator across a set of per-item check states. Used to collapse
+// per-sensor / per-backend states into a single check.
+CheckState worseCheckState(CheckState a, CheckState b) {
+    auto rank = [](CheckState s) -> int {
+        switch (s) {
+            case CheckState::kSkipped:
+                return 0;
+            case CheckState::kOk:
+                return 1;
+            case CheckState::kPending:
+                return 2;
+            case CheckState::kStale:
+                return 3;
+            case CheckState::kFailed:
+            default:
+                return 4;
+        }
+    };
+    return rank(a) >= rank(b) ? a : b;
+}
 
 std::uint64_t sensorFreshnessThresholdMs(std::uint32_t poll_interval_ms) {
     // Never mark a sensor stale sooner than 15 s; otherwise fast pollers would
@@ -404,61 +459,119 @@ std::uint64_t sensorFreshnessThresholdMs(std::uint32_t poll_interval_ms) {
     return threshold > kMinimumFreshnessThresholdMs ? threshold : kMinimumFreshnessThresholdMs;
 }
 
-bool sensorIsReporting(
+std::uint64_t sensorWarmupDeadlineMs(const SensorRuntimeInfo& sensor) {
+    // Give a freshly-initialized sensor at least 15 s to produce its first
+    // sample, or 2 polling intervals — whichever is longer. Sensors that have
+    // not reached kInitialized yet inherit a small device-uptime grace period
+    // from the caller.
+    constexpr std::uint64_t kMinFirstSampleWaitMs = 15000ULL;
+    const std::uint64_t poll_window =
+        static_cast<std::uint64_t>(sensor.poll_interval_ms) * 2ULL;
+    const std::uint64_t window =
+        poll_window > kMinFirstSampleWaitMs ? poll_window : kMinFirstSampleWaitMs;
+    return sensor.initialized_at_uptime_ms + window;
+}
+
+CheckState evaluateSensorCheck(
     const SensorRuntimeInfo& sensor,
-    const MeasurementRuntimeInfo& measurement_runtime,
+    const MeasurementRuntimeInfo* measurement_runtime,
     std::uint64_t now_uptime_ms) {
     if (!sensor.enabled) {
-        return true;
+        return CheckState::kSkipped;
     }
 
     switch (sensor.state) {
-        case SensorRuntimeState::kConfigured:
-        case SensorRuntimeState::kInitialized:
-        case SensorRuntimeState::kPolling:
-            break;
-        case SensorRuntimeState::kDisabled:
         case SensorRuntimeState::kAbsent:
         case SensorRuntimeState::kUnsupported:
         case SensorRuntimeState::kFailed:
         case SensorRuntimeState::kError:
+            return CheckState::kFailed;
+        case SensorRuntimeState::kDisabled:
+            return CheckState::kSkipped;
+        case SensorRuntimeState::kConfigured:
+        case SensorRuntimeState::kInitialized:
+        case SensorRuntimeState::kPolling:
         default:
-            return false;
+            break;
     }
 
-    if (measurement_runtime.last_sample_time_ms == 0U ||
-        measurement_runtime.last_sample_time_ms > now_uptime_ms) {
-        return false;
+    const bool have_sample = measurement_runtime != nullptr &&
+                             measurement_runtime->last_sample_time_ms != 0U &&
+                             measurement_runtime->last_sample_time_ms <= now_uptime_ms;
+    if (have_sample) {
+        const std::uint64_t sample_age_ms =
+            now_uptime_ms - measurement_runtime->last_sample_time_ms;
+        if (sample_age_ms <= sensorFreshnessThresholdMs(sensor.poll_interval_ms)) {
+            return CheckState::kOk;
+        }
+        return CheckState::kStale;
     }
 
-    const std::uint64_t sample_age_ms = now_uptime_ms - measurement_runtime.last_sample_time_ms;
-    return sample_age_ms <= sensorFreshnessThresholdMs(sensor.poll_interval_ms);
+    // No sample yet. If the sensor has been initialized and the warmup window
+    // has elapsed, treat it as failed; otherwise it is still pending.
+    if (sensor.initialized_at_uptime_ms != 0U &&
+        now_uptime_ms > sensorWarmupDeadlineMs(sensor)) {
+        return CheckState::kFailed;
+    }
+    return CheckState::kPending;
 }
 
-bool backendIsHealthy(const BackendStatusSnapshot& backend) {
-    if (!backend.enabled) {
-        return true;
-    }
-
-    if (backend.state == BackendRuntimeState::kError) {
-        return false;
-    }
-
-    switch (backend.last_result) {
+bool backendResultIsBad(UploadResultClass result) {
+    switch (result) {
         case UploadResultClass::kConfigError:
         case UploadResultClass::kUnsupported:
         case UploadResultClass::kTransportError:
         case UploadResultClass::kHttpError:
         case UploadResultClass::kNoNetwork:
-            return false;
+            return true;
         case UploadResultClass::kUnknown:
         case UploadResultClass::kNoData:
         case UploadResultClass::kSuccess:
         default:
-            return true;
+            return false;
     }
 }
 
+CheckState evaluateBackendCheck(
+    const BackendStatusSnapshot& backend,
+    std::uint32_t upload_interval_ms,
+    bool uplink_available,
+    std::uint64_t now_uptime_ms) {
+    if (!backend.enabled) {
+        return CheckState::kSkipped;
+    }
+
+    if (backend.state == BackendRuntimeState::kError) {
+        return CheckState::kFailed;
+    }
+
+    const bool ever_succeeded = backend.last_success_uptime_ms != 0U;
+    const bool ever_attempted = backend.last_attempt_uptime_ms != 0U;
+    const bool last_bad = backendResultIsBad(backend.last_result);
+
+    if (ever_attempted) {
+        if (last_bad) {
+            return ever_succeeded ? CheckState::kStale : CheckState::kFailed;
+        }
+        return CheckState::kOk;
+    }
+
+    // Never attempted yet. Compute warmup deadline: enabled time + one upload
+    // interval + a small grace. While uplink is missing the upload manager
+    // cannot try, so warmup also waits on it implicitly.
+    constexpr std::uint64_t kFirstAttemptGraceMs = 5000ULL;
+    const std::uint64_t deadline =
+        backend.enabled_at_uptime_ms +
+        static_cast<std::uint64_t>(upload_interval_ms) +
+        kFirstAttemptGraceMs;
+    if (!uplink_available) {
+        return CheckState::kPending;
+    }
+    if (backend.enabled_at_uptime_ms != 0U && now_uptime_ms > deadline) {
+        return CheckState::kFailed;
+    }
+    return CheckState::kPending;
+}
 
 const MeasurementRuntimeInfo* measurementRuntimeForSensor(
     const MeasurementStoreSnapshot& measurement_store,
@@ -472,132 +585,361 @@ const MeasurementRuntimeInfo* measurementRuntimeForSensor(
     return nullptr;
 }
 
+CheckState evaluateUplinkCheck(
+    const NetworkState& network_state,
+    std::uint64_t now_uptime_ms) {
+    if (!network_state.station_config_present) {
+        // The setup_required top-level state covers this; reflect it as skipped
+        // so the uplink check does not inflate the aggregate.
+        return CheckState::kSkipped;
+    }
+    if (network_state.station_connected) {
+        return CheckState::kOk;
+    }
+
+    // Warmup grace: until uptime exceeds one full connect timeout we treat
+    // the missing uplink as still-pending rather than a regression.
+    const std::uint64_t warmup_deadline_ms =
+        static_cast<std::uint64_t>(tuning::network::kConnectTimeoutMs);
+    if (now_uptime_ms <= warmup_deadline_ms) {
+        return CheckState::kPending;
+    }
+    return CheckState::kStale;
+}
+
+CheckState evaluateTimeCheck(
+    const NetworkState& network_state,
+    std::uint64_t now_uptime_ms) {
+    if (!network_state.station_config_present) {
+        return CheckState::kSkipped;
+    }
+    if (network_state.time_synchronized) {
+        return CheckState::kOk;
+    }
+    // Time can only sync once the station is connected, so anchor warmup to
+    // station_connected_at. While the station is still down, time stays
+    // pending unless it has been previously synchronized in this boot.
+    constexpr std::uint64_t kSntpWarmupMs = 30000ULL;
+    if (network_state.station_connected_at_uptime_ms != 0U) {
+        const std::uint64_t deadline =
+            network_state.station_connected_at_uptime_ms + kSntpWarmupMs;
+        if (now_uptime_ms <= deadline) {
+            return CheckState::kPending;
+        }
+    } else {
+        // Station never connected yet — defer to uplink check.
+        return CheckState::kPending;
+    }
+
+    return network_state.last_time_sync_unix_ms != 0
+               ? CheckState::kStale
+               : CheckState::kFailed;
+}
+
 HealthViewModel buildHealthViewModel(
     const NetworkState& network_state,
     const std::vector<SensorRuntimeInfo>& sensors,
     const std::vector<BackendStatusSnapshot>& backends,
-    const MeasurementStoreSnapshot& measurement_store) {
+    const MeasurementStoreSnapshot& measurement_store,
+    std::uint32_t upload_interval_ms) {
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
     const bool setup_required = !network_state.station_config_present;
     const bool setup_ap_recovery =
         network_state.mode == NetworkMode::kSetupAp && network_state.station_config_present;
     const bool uplink_available = network_state.station_connected;
-    const bool time_synced = network_state.time_synchronized;
 
+    const CheckState uplink_state = evaluateUplinkCheck(network_state, now_uptime_ms);
+    const CheckState time_state = evaluateTimeCheck(network_state, now_uptime_ms);
+
+    CheckState sensors_state = CheckState::kSkipped;
     std::size_t enabled_sensor_count = 0U;
-    std::size_t failing_sensor_count = 0U;
+    std::size_t pending_sensor_count = 0U;
+    std::size_t stale_sensor_count = 0U;
+    std::size_t failed_sensor_count = 0U;
     for (const auto& sensor : sensors) {
         if (!sensor.enabled) {
             continue;
         }
-
         ++enabled_sensor_count;
-        const MeasurementRuntimeInfo* measurement_runtime =
+        const MeasurementRuntimeInfo* runtime =
             measurementRuntimeForSensor(measurement_store, sensor.id);
-        if (measurement_runtime == nullptr ||
-            !sensorIsReporting(sensor, *measurement_runtime, now_uptime_ms)) {
-            ++failing_sensor_count;
+        const CheckState s = evaluateSensorCheck(sensor, runtime, now_uptime_ms);
+        sensors_state = worseCheckState(sensors_state, s);
+        switch (s) {
+            case CheckState::kPending:
+                ++pending_sensor_count;
+                break;
+            case CheckState::kStale:
+                ++stale_sensor_count;
+                break;
+            case CheckState::kFailed:
+                ++failed_sensor_count;
+                break;
+            case CheckState::kOk:
+            case CheckState::kSkipped:
+            default:
+                break;
         }
     }
+    if (enabled_sensor_count > 0U && sensors_state == CheckState::kSkipped) {
+        // All enabled sensors landed in kSkipped (e.g. driver state kDisabled
+        // for an enabled record). Surface that as kOk so the aggregate is
+        // honest about the user-facing intent.
+        sensors_state = CheckState::kOk;
+    }
 
+    CheckState backends_state = CheckState::kSkipped;
     std::size_t enabled_backend_count = 0U;
-    std::size_t failing_backend_count = 0U;
+    std::size_t pending_backend_count = 0U;
+    std::size_t stale_backend_count = 0U;
+    std::size_t failed_backend_count = 0U;
     for (const auto& backend : backends) {
         if (!backend.enabled) {
             continue;
         }
-
         ++enabled_backend_count;
-        if (!backendIsHealthy(backend)) {
-            ++failing_backend_count;
+        const CheckState s = evaluateBackendCheck(
+            backend, upload_interval_ms, uplink_available, now_uptime_ms);
+        backends_state = worseCheckState(backends_state, s);
+        switch (s) {
+            case CheckState::kPending:
+                ++pending_backend_count;
+                break;
+            case CheckState::kStale:
+                ++stale_backend_count;
+                break;
+            case CheckState::kFailed:
+                ++failed_backend_count;
+                break;
+            case CheckState::kOk:
+            case CheckState::kSkipped:
+            default:
+                break;
         }
     }
+
+    auto sensor_summary = [&]() -> std::string {
+        if (enabled_sensor_count == 0U) {
+            return "No enabled sensors.";
+        }
+        if (sensors_state == CheckState::kOk) {
+            return "All enabled sensors are reporting.";
+        }
+        if (failed_sensor_count > 0U) {
+            return std::to_string(failed_sensor_count) + " sensor(s) failed to report.";
+        }
+        if (stale_sensor_count > 0U) {
+            return std::to_string(stale_sensor_count) + " sensor(s) stopped reporting.";
+        }
+        return std::to_string(pending_sensor_count) + " sensor(s) warming up.";
+    };
+
+    auto backend_summary = [&]() -> std::string {
+        if (enabled_backend_count == 0U) {
+            return "No enabled backends.";
+        }
+        if (backends_state == CheckState::kOk) {
+            return "All enabled backends look healthy.";
+        }
+        if (failed_backend_count > 0U) {
+            return std::to_string(failed_backend_count) + " backend(s) failing.";
+        }
+        if (stale_backend_count > 0U) {
+            return std::to_string(stale_backend_count) + " backend(s) regressed.";
+        }
+        return std::to_string(pending_backend_count) + " backend(s) waiting for first upload.";
+    };
+
+    auto sensor_pill = [&]() -> std::string {
+        if (enabled_sensor_count == 0U || sensors_state == CheckState::kOk) {
+            return "sensors ok";
+        }
+        if (failed_sensor_count > 0U) {
+            return std::to_string(failed_sensor_count) + " sensor failed";
+        }
+        if (stale_sensor_count > 0U) {
+            return std::to_string(stale_sensor_count) + " sensor stale";
+        }
+        return std::to_string(pending_sensor_count) + " sensor warming";
+    };
+
+    auto backend_pill = [&]() -> std::string {
+        if (enabled_backend_count == 0U || backends_state == CheckState::kOk) {
+            return "backends ok";
+        }
+        if (failed_backend_count > 0U) {
+            return std::to_string(failed_backend_count) + " backend failed";
+        }
+        if (stale_backend_count > 0U) {
+            return std::to_string(stale_backend_count) + " backend stale";
+        }
+        return std::to_string(pending_backend_count) + " backend warming";
+    };
+
+    auto uplink_summary = [&]() -> std::string {
+        if (setup_required) {
+            return "Station setup is not complete.";
+        }
+        if (setup_ap_recovery) {
+            return network_state.setup_ap_retry_active
+                       ? "Setup AP fallback is active and station retry is scheduled."
+                       : "Setup AP fallback is active while station recovery is pending.";
+        }
+        switch (uplink_state) {
+            case CheckState::kOk:
+                return "Station uplink connected.";
+            case CheckState::kPending:
+                return "Station uplink connecting.";
+            case CheckState::kStale:
+            case CheckState::kFailed:
+            default:
+                return "Station uplink unavailable.";
+        }
+    };
+
+    auto uplink_pill = [&]() -> std::string {
+        switch (uplink_state) {
+            case CheckState::kSkipped:
+                return "uplink setup";
+            case CheckState::kOk:
+                return "uplink ok";
+            case CheckState::kPending:
+                return "uplink connecting";
+            case CheckState::kStale:
+            case CheckState::kFailed:
+            default:
+                return "uplink down";
+        }
+    };
+
+    auto time_summary = [&]() -> std::string {
+        switch (time_state) {
+            case CheckState::kOk:
+                return "Valid time available.";
+            case CheckState::kPending:
+                return network_state.time_sync_error.empty()
+                           ? "Time sync in progress."
+                           : network_state.time_sync_error;
+            case CheckState::kStale:
+                return network_state.time_sync_error.empty()
+                           ? "Time sync was lost."
+                           : network_state.time_sync_error;
+            case CheckState::kSkipped:
+                return "Time sync deferred until setup completes.";
+            case CheckState::kFailed:
+            default:
+                return network_state.time_sync_error.empty()
+                           ? "Time sync failed."
+                           : network_state.time_sync_error;
+        }
+    };
+
+    auto time_pill = [&]() -> std::string {
+        switch (time_state) {
+            case CheckState::kSkipped:
+                return "time setup";
+            case CheckState::kOk:
+                return "time ok";
+            case CheckState::kPending:
+                return "time syncing";
+            case CheckState::kStale:
+                return "time stale";
+            case CheckState::kFailed:
+            default:
+                return "time missing";
+        }
+    };
 
     HealthViewModel model;
     model.checks = {
         {
             "time_synced",
             "Time synced",
-            time_synced,
-            time_synced ? "Valid time available."
-                        : (network_state.time_sync_error.empty() ? "Valid time not available yet."
-                                                                 : network_state.time_sync_error),
-            time_synced ? "time ok" : "time missing",
+            time_state,
+            time_summary(),
+            time_pill(),
         },
         {
             "sensors_reporting",
             "Sensors reporting",
-            failing_sensor_count == 0U,
-            enabled_sensor_count == 0U
-                ? "No enabled sensors."
-                : (failing_sensor_count == 0U
-                       ? "All enabled sensors are reporting."
-                       : std::to_string(failing_sensor_count) + " sensor(s) are not reporting."),
-            failing_sensor_count == 0U ? "sensors ok"
-                                       : std::to_string(failing_sensor_count) + " sensor issue",
+            sensors_state,
+            sensor_summary(),
+            sensor_pill(),
         },
         {
             "uplink_available",
             "Uplink available",
-            uplink_available,
-            setup_required
-                ? "Station setup is not complete."
-                : (setup_ap_recovery
-                       ? (network_state.setup_ap_retry_active
-                              ? "Setup AP fallback is active and station retry is scheduled."
-                              : "Setup AP fallback is active while station recovery is pending.")
-                       : (uplink_available ? "Station uplink connected."
-                                           : "Station uplink unavailable.")),
-            uplink_available ? "uplink ok" : "uplink down",
+            uplink_state,
+            uplink_summary(),
+            uplink_pill(),
         },
         {
             "backends_healthy",
             "Backends healthy",
-            failing_backend_count == 0U,
-            enabled_backend_count == 0U
-                ? "No enabled backends."
-                : (failing_backend_count == 0U
-                       ? "All enabled backends look healthy."
-                       : std::to_string(failing_backend_count) + " backend(s) need attention."),
-            failing_backend_count == 0U ? "backends ok"
-                                        : std::to_string(failing_backend_count) + " backend issue",
+            backends_state,
+            backend_summary(),
+            backend_pill(),
         },
     };
 
     if (setup_required) {
         model.status = HealthStatus::kSetupRequired;
         model.summary = "Device is in setup mode. Configure station Wi-Fi to enter normal operation.";
-    } else if (setup_ap_recovery) {
+        return model;
+    }
+
+    if (setup_ap_recovery) {
         model.status = HealthStatus::kOffline;
         model.summary = network_state.setup_ap_retry_active
                             ? "Setup AP is active while the device keeps retrying upstream Wi-Fi."
                             : "Setup AP is active after station failure.";
-    } else if (!uplink_available || !time_synced) {
+        return model;
+    }
+
+    // Aggregate worst severity across applicable checks.
+    CheckState worst = CheckState::kSkipped;
+    for (const auto& check : model.checks) {
+        worst = worseCheckState(worst, check.state);
+    }
+
+    // If we have lost the uplink past warmup and time has nothing to lean on,
+    // surface that as a single "offline" top-level status — it's the message
+    // the operator needs to see first.
+    const bool uplink_down_steady =
+        uplink_state == CheckState::kStale || uplink_state == CheckState::kFailed;
+    const bool time_down_steady =
+        time_state == CheckState::kStale || time_state == CheckState::kFailed;
+    if (uplink_down_steady && time_down_steady) {
         model.status = HealthStatus::kOffline;
-        if (!uplink_available && !time_synced) {
-            model.summary = "Station uplink is unavailable and valid time is not ready yet.";
-        } else if (!uplink_available) {
-            model.summary = "Station uplink is unavailable.";
-        } else {
-            model.summary = "Valid time is not ready yet.";
-        }
-    } else if (failing_sensor_count > 0U || failing_backend_count > 0U) {
-        model.status = HealthStatus::kDegraded;
-        if (failing_sensor_count > 0U && failing_backend_count > 0U) {
-            model.summary = std::to_string(failing_sensor_count) + " sensor(s) and " +
-                            std::to_string(failing_backend_count) +
-                            " backend(s) need attention.";
-        } else if (failing_sensor_count > 0U) {
+        model.summary = "Station uplink is unavailable and valid time is not ready yet.";
+        return model;
+    }
+    if (uplink_down_steady) {
+        model.status = HealthStatus::kOffline;
+        model.summary = "Station uplink is unavailable.";
+        return model;
+    }
+
+    switch (worst) {
+        case CheckState::kFailed:
+            model.status = HealthStatus::kFault;
+            model.summary = "One or more components require attention.";
+            break;
+        case CheckState::kStale:
+            model.status = HealthStatus::kDegraded;
+            model.summary = "A previously healthy component stopped responding.";
+            break;
+        case CheckState::kPending:
+            model.status = HealthStatus::kBooting;
+            model.summary = "Device is starting up — components are still warming up.";
+            break;
+        case CheckState::kOk:
+        case CheckState::kSkipped:
+        default:
+            model.status = HealthStatus::kHealthy;
             model.summary =
-                std::to_string(failing_sensor_count) + " sensor(s) are not reporting.";
-        } else {
-            model.summary =
-                std::to_string(failing_backend_count) + " backend(s) need attention.";
-        }
-    } else {
-        model.status = HealthStatus::kHealthy;
-        model.summary =
-            "Time is synced, enabled sensors are reporting, and enabled backends look healthy.";
+                "Time is synced, enabled sensors are reporting, and enabled backends look healthy.";
+            break;
     }
 
     return model;
@@ -867,14 +1209,49 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     bool has_ble_state,
     const BleState& ble_state) {
     RuntimeOverviewViewModel model;
-    const HealthViewModel health =
-        buildHealthViewModel(network_state, sensors, upload.backends, measurement_store);
-    const bool healthy = (health.status == HealthStatus::kHealthy);
+    const HealthViewModel health = buildHealthViewModel(
+        network_state, sensors, upload.backends, measurement_store, upload.upload_interval_ms);
+
+    // Pill class + label per top-level status: kBooting/kSetupRequired use the
+    // neutral palettes; kDegraded uses warn; kOffline/kFault are red.
+    auto pill_class_for = [](HealthStatus status) -> const char* {
+        switch (status) {
+            case HealthStatus::kHealthy:
+                return "chip ok";
+            case HealthStatus::kBooting:
+                return "chip accent";
+            case HealthStatus::kDegraded:
+                return "chip warn";
+            case HealthStatus::kSetupRequired:
+                return "chip warn";
+            case HealthStatus::kOffline:
+            case HealthStatus::kFault:
+            default:
+                return "chip err";
+        }
+    };
+    auto pill_label_for = [](HealthStatus status) -> const char* {
+        switch (status) {
+            case HealthStatus::kHealthy:
+                return "Healthy";
+            case HealthStatus::kBooting:
+                return "Starting up";
+            case HealthStatus::kDegraded:
+                return "Degraded";
+            case HealthStatus::kOffline:
+                return "Offline";
+            case HealthStatus::kFault:
+                return "Fault";
+            case HealthStatus::kSetupRequired:
+            default:
+                return "Setup";
+        }
+    };
     model.health_status_pill_html = "<span class='";
-    model.health_status_pill_html += healthy ? "chip ok" : "chip err";
+    model.health_status_pill_html += pill_class_for(health.status);
     model.health_status_pill_html += "'>";
     model.health_status_pill_html += "<span class='dot'></span>";
-    model.health_status_pill_html += healthy ? "Healthy" : "Unhealthy";
+    model.health_status_pill_html += pill_label_for(health.status);
     model.health_status_pill_html += "</span>";
 
     // Uplink stat: cellular is primary when enabled; Wi-Fi is fallback/debug only.
@@ -951,7 +1328,8 @@ std::string buildStatusJsonDocument(
         render_snapshot.network_state,
         render_snapshot.sensors,
         render_snapshot.upload.backends,
-        render_snapshot.measurement_store);
+        render_snapshot.measurement_store,
+        render_snapshot.upload.upload_interval_ms);
     const RuntimeDiagnosticsSnapshot diagnostics =
         buildRuntimeDiagnosticsSnapshot(render_snapshot);
 
@@ -995,7 +1373,7 @@ std::string buildStatusJsonDocument(
         json += jsonEscape(check.key);
         json += "\":{";
         json += "\"state\":\"";
-        json += check.ok ? "ok" : "attention";
+        json += checkStateKey(check.state);
         json += "\",\"summary\":\"";
         json += jsonEscape(check.summary);
         json += "\"}";

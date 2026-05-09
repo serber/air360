@@ -33,6 +33,9 @@ struct SensorRuntimeInfo {
     std::uint32_t failures = 0U;
     std::uint32_t soft_fails = 0U;
     std::uint64_t next_retry_ms = 0U;
+    // First time the sensor reached kInitialized after a successful init.
+    // Used to size the warmup window before declaring "no first sample yet" a fault.
+    std::uint64_t initialized_at_uptime_ms = 0U;
     std::string last_error;
 };
 

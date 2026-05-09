@@ -483,6 +483,9 @@ void SensorManager::taskMain() {
                 sensor.consecutive_poll_failures = 0U;
                 sensor.runtime.state = needs_init ? SensorRuntimeState::kInitialized
                                                   : SensorRuntimeState::kPolling;
+                if (sensor.runtime.initialized_at_uptime_ms == 0U) {
+                    sensor.runtime.initialized_at_uptime_ms = now_ms;
+                }
                 if (!needs_init) {
                     sensor.runtime.failures = 0U;
                 }
