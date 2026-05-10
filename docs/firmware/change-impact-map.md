@@ -45,6 +45,7 @@ This document maps common firmware code changes to the other code, configuration
 | `uploads/adapters/*.cpp` | `backend_registry.cpp`, `upload_transport.cpp` | `upload-adapters.md`, `measurement-pipeline.md`, `configuration-reference.md` |
 | `main/Kconfig.projbuild`, `sdkconfig.defaults` | consumers of affected `CONFIG_AIR360_*` values | `configuration-reference.md`, `ARCHITECTURE.md`, `transport-binding.md`, sensor docs, `firmware/README.md` |
 | `partitions.csv` | any code relying on SPIFFS, OTA, or NVS assumptions | `firmware/README.md`, `ARCHITECTURE.md`, relevant ADRs |
+| `ota_service.cpp`, `web/web_ota_routes.cpp` | `web_server.cpp`, `app.cpp`, `main/webui/page_config.html`, `main/webui/air360.js` | `web-ui.md`, `startup-pipeline.md`, `ARCHITECTURE.md`, `adr/implemented-ota-firmware-update-adr.md` |
 
 ## Task-specific reminders
 

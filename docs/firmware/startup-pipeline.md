@@ -267,15 +267,16 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 `WebServer::start()` configures and starts `esp_http_server`:
 
 - Stack size: 16 384 bytes
-- Max URI handlers: 20
+- Max URI handlers: 24
 
-HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
+HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, OTA endpoints (`POST /ota`, `GET /ota/status`, `POST /ota/rollback`), Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
 
 Failure is **fatal** — sets red LED, returns from `run()`.
 
 On success:
 - `StatusService` is updated (web server started flag)
 - LED turns green (station mode) or pink (setup AP mode)
+- `OtaService::confirmRunningImage()` is invoked. If the running image is in `ESP_OTA_IMG_PENDING_VERIFY` (i.e. this is the first boot after a successful OTA), `esp_ota_mark_app_valid_cancel_rollback()` cancels the pending verification so future reboots keep this slot. If the new image had crashed before reaching this point, the bootloader would have already rolled back automatically.
 - Main task enters the maintenance loop (remains subscribed to TWDT)
 
 ---
@@ -342,6 +343,7 @@ I (air360.app) Boot step 7/9: resolve network mode
 I (air360.app) Boot step 8/9: start upload manager
 I (air360.app) Boot step 9/9: start status web server
 I (air360.app) Runtime ready on port 80
+I (air360.ota) Marked running image valid (rollback cancelled)   (only after a fresh OTA install)
 ```
 
 ---

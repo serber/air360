@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "air360/ota_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/sensors/sensor_manager.hpp"
@@ -31,7 +32,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-constexpr std::size_t kHttpServerMaxUriHandlers = 21U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 24U;
 constexpr char kAir360MapBaseUrl[]              = "https://air360.ru/map";
 constexpr char kSensorCommunityMapBaseUrl[]     = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
@@ -79,6 +80,12 @@ struct ConfigPageViewModel {
     // BLE
     bool ble_advertise_enabled = false;
     std::uint8_t ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
+    // OTA
+    std::string ota_running_version;
+    std::string ota_running_slot;
+    std::string ota_target_slot;
+    std::string ota_target_slot_size;
+    bool ota_rollback_armed = false;
 };
 
 struct BackendCardViewModel {
@@ -219,8 +226,26 @@ ConfigPageViewModel buildConfigPageViewModel(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice);
+
+std::string formatSlotCapacity(std::uint32_t bytes) {
+    if (bytes == 0U) {
+        return "—";
+    }
+    char buffer[32];
+    if (bytes >= (1024U * 1024U)) {
+        const double mb = static_cast<double>(bytes) / (1024.0 * 1024.0);
+        std::snprintf(buffer, sizeof(buffer), "%.2f MB", mb);
+    } else if (bytes >= 1024U) {
+        const double kb = static_cast<double>(bytes) / 1024.0;
+        std::snprintf(buffer, sizeof(buffer), "%.1f KB", kb);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%u B", static_cast<unsigned>(bytes));
+    }
+    return std::string(buffer);
+}
 std::string renderBackendCard(const BackendCardViewModel& card);
 BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
@@ -292,11 +317,13 @@ std::string renderConfigPage(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice) {
     const ConfigPageViewModel model =
         buildConfigPageViewModel(
-            config, cellular_config, network_state, network_manager, notice, error_notice);
+            config, cellular_config, network_state, network_manager,
+            ota_status, notice, error_notice);
 
     const std::string body = renderPageTemplate(
         WebTemplateKey::kConfig,
@@ -331,6 +358,11 @@ std::string renderConfigPage(
             {"BLE_ADVERTISE_ENABLED_CHECKED", model.ble_advertise_enabled ? "checked" : ""},
             {"BLE_GROUP_DISABLED_CLASS", model.ble_advertise_enabled ? "" : "field--disabled"},
             {"BLE_ADV_INTERVAL_OPTIONS", buildBleIntervalOptions(model.ble_adv_interval_index)},
+            {"OTA_RUNNING_VERSION", htmlEscape(model.ota_running_version)},
+            {"OTA_RUNNING_SLOT", htmlEscape(model.ota_running_slot)},
+            {"OTA_TARGET_SLOT", htmlEscape(model.ota_target_slot)},
+            {"OTA_TARGET_SLOT_SIZE", htmlEscape(model.ota_target_slot_size)},
+            {"OTA_ROLLBACK_NOTICE_HIDDEN", model.ota_rollback_armed ? "" : " hidden"},
         });
 
     return renderPageDocument(
@@ -978,6 +1010,7 @@ ConfigPageViewModel buildConfigPageViewModel(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice) {
     ConfigPageViewModel model;
@@ -1084,6 +1117,15 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.ble_advertise_enabled = config.ble_advertise_enabled != 0U;
     model.ble_adv_interval_index = config.ble_adv_interval_index < kBleAdvIntervalCount
         ? config.ble_adv_interval_index : kBleAdvIntervalDefaultIndex;
+
+    model.ota_running_version =
+        ota_status.running_version.empty() ? "unknown" : ota_status.running_version;
+    model.ota_running_slot =
+        ota_status.running_slot_label.empty() ? "unknown" : ota_status.running_slot_label;
+    model.ota_target_slot =
+        ota_status.target_slot_label.empty() ? "inactive slot" : ota_status.target_slot_label;
+    model.ota_target_slot_size = formatSlotCapacity(ota_status.target_slot_size_bytes);
+    model.ota_rollback_armed = ota_status.rollback_armed;
 
     return model;
 }
@@ -2166,6 +2208,7 @@ std::string renderConfigPage(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice) {
     return ::air360::renderConfigPage(
@@ -2173,6 +2216,7 @@ std::string renderConfigPage(
         cellular_config,
         network_state,
         network_manager,
+        ota_status,
         notice,
         error_notice);
 }
@@ -2226,6 +2270,7 @@ esp_err_t WebServer::start(
     UploadManager& upload_manager,
     CellularConfigRepository& cellular_config_repository,
     CellularConfig& cellular_config,
+    OtaService& ota_service,
     std::uint16_t port) {
     if (handle_ != nullptr) {
         return ESP_ERR_INVALID_STATE;
@@ -2245,6 +2290,7 @@ esp_err_t WebServer::start(
     upload_manager_ = &upload_manager;
     cellular_config_repository_ = &cellular_config_repository;
     cellular_config_ = &cellular_config;
+    ota_service_ = &ota_service;
     staged_sensor_config_ = sensor_config_list;
     has_pending_sensor_changes_ = false;
 
@@ -2432,6 +2478,39 @@ esp_err_t WebServer::start(
     gps_location_uri.handler = &WebServer::handleGpsLocation;
     gps_location_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &gps_location_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t ota_upload_uri{};
+    ota_upload_uri.uri = "/ota";
+    ota_upload_uri.method = HTTP_POST;
+    ota_upload_uri.handler = &WebServer::handleOtaUpload;
+    ota_upload_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &ota_upload_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t ota_status_uri{};
+    ota_status_uri.uri = "/ota/status";
+    ota_status_uri.method = HTTP_GET;
+    ota_status_uri.handler = &WebServer::handleOtaStatus;
+    ota_status_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &ota_status_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t ota_rollback_uri{};
+    ota_rollback_uri.uri = "/ota/rollback";
+    ota_rollback_uri.method = HTTP_POST;
+    ota_rollback_uri.handler = &WebServer::handleOtaRollback;
+    ota_rollback_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &ota_rollback_uri);
     if (err != ESP_OK) {
         stop();
         return err;

@@ -7,6 +7,7 @@
 #include "air360/cellular_config_repository.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
+#include "air360/ota_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/sensors/sensor_registry.hpp"
@@ -66,6 +67,7 @@ std::string renderConfigPage(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice);
 std::string renderBackendsPage(

@@ -15,6 +15,7 @@ idf_component_register(
         "src/connectivity_checker.cpp"
         "src/crypto_utils.cpp"
         "src/network_manager.cpp"
+        "src/ota_service.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
         "src/web/web_request_body.cpp"
@@ -64,11 +65,13 @@ idf_component_register(
         "src/web/web_form.cpp"
         "src/web/web_runtime_routes.cpp"
         "src/web/web_mutating_routes.cpp"
+        "src/web/web_ota_routes.cpp"
         "src/web/web_server_helpers.cpp"
     INCLUDE_DIRS
         "include"
         "third_party/sps30"
     REQUIRES
+        app_update
         esp_app_format
         esp_common
         esp_event

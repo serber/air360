@@ -14,6 +14,7 @@ This document is the high-level system map for the firmware: component boundarie
 - `firmware/main/src/network_manager.cpp`
 - `firmware/main/src/web_server.cpp`
 - `firmware/main/src/web/`
+- `firmware/main/src/ota_service.cpp`
 - `firmware/main/src/sensors/sensor_manager.cpp`
 - `firmware/main/src/uploads/upload_manager.cpp`
 
@@ -663,6 +664,25 @@ The raw status JSON rendered inside the Diagnostics page includes `health_status
 
 ---
 
+### `OtaService` — `ota_service.cpp`
+
+Owns the firmware-update state machine. Wraps the ESP-IDF `app_update` API (`esp_ota_begin`, `esp_ota_write`, `esp_ota_end`, `esp_ota_set_boot_partition`, `esp_ota_abort`) and provides a single-writer transfer protected by an instance mutex so HTTP handlers, the maintenance loop, and the status renderer can all read `snapshot()` without racing the streaming writer.
+
+**Lifecycle:**
+- `App::run()` constructs one instance; on first call the constructor reads `esp_app_get_description()` and the running partition state so the snapshot is populated before boot completes.
+- After `indicateReady()` the app calls `confirmRunningImage()`. If the running image is in `ESP_OTA_IMG_PENDING_VERIFY` (i.e. the device just rebooted into a freshly-flashed slot), this calls `esp_ota_mark_app_valid_cancel_rollback()`. If the new image had crashed before reaching this point, the bootloader would have already rolled back automatically.
+
+**Transfer:**
+- `begin(content_length)` selects the inactive slot via `esp_ota_get_next_update_partition(nullptr)` and starts the write with `OTA_WITH_SEQUENTIAL_WRITES` so the slot is erased progressively as data arrives.
+- `writeChunk(data, n)` is called once per HTTP chunk; on any `esp_ota_write` failure it calls `esp_ota_abort` and surfaces the error in `OtaStatus`.
+- `commitAndScheduleReboot()` calls `esp_ota_end`, validates the pending image's `project_name` against `air360_firmware`, calls `esp_ota_set_boot_partition`, and schedules a one-shot `air360_ota_reboot` FreeRTOS task (stack 2048, priority 1) that waits 1.5 s and calls `esp_restart()`. The deferral lets the HTTP response flush before the reboot.
+
+**Manual rollback:** `requestRollback()` calls `esp_ota_mark_app_invalid_rollback_and_reboot()`, used by `POST /ota/rollback?confirm=yes` for diagnostics.
+
+**Log tag:** `air360.ota`
+
+---
+
 ### `BuildInfo` — `build_info.cpp`
 
 Reads project metadata at runtime from ESP-IDF ROM/flash info.
@@ -728,13 +748,13 @@ Partition table defined in `partitions.csv`:
 | Name | Type | Offset | Size | Runtime usage |
 |------|------|--------|------|---------------|
 | `nvs` | data/nvs | 0x9000 | 24 KB | DeviceConfig, SensorConfig, BackendConfig, boot counter |
-| `otadata` | data/ota | 0xf000 | 8 KB | OTA metadata (present, OTA logic not yet implemented) |
+| `otadata` | data/ota | 0xf000 | 8 KB | OTA boot-slot selection (read by bootloader, written by `OtaService`) |
 | `phy_init` | data/phy | 0x11000 | 4 KB | PHY calibration (managed by IDF) |
-| `ota_0` | app/ota_0 | 0x20000 | 6 MB | Primary application image slot |
-| `ota_1` | app/ota_1 | 0x620000 | 6 MB | Secondary application image slot reserved for OTA |
+| `ota_0` | app/ota_0 | 0x20000 | 6 MB | Application image slot A |
+| `ota_1` | app/ota_1 | 0x620000 | 6 MB | Application image slot B |
 | `storage` | data/spiffs | 0xc20000 | 3 MB | Reserved, not mounted or used |
 
-The current runtime depends only on NVS. SPIFFS is reserved for future use; OTA image slots are present so future OTA support does not require another partition-table change.
+Both OTA application slots are used at runtime: `OtaService` streams new images into whichever slot is inactive and switches `otadata` on commit; the bootloader rolls back automatically if the new image fails to reach a known-good state. SPIFFS remains reserved for future use.
 
 ---
 
@@ -823,6 +843,7 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | `air360.backend_cfg` | BackendConfigRepository |
 | `air360.web` | WebServer |
 | `air360.ble` | BleAdvertiser |
+| `air360.ota` | OtaService |
 
 ### Error handling patterns
 
@@ -906,10 +927,10 @@ No application-level RTOS queues. Upload delivery progress is tracked via per-ba
 - Lab AP mode at `192.168.4.1` with `/wifi-scan` endpoint
 - SNTP synchronization gating upload start
 - Health check aggregation in the Diagnostics raw JSON dump
+- OTA firmware update via the Firmware update card on `/config` (POST `/ota` streaming endpoint) with automatic rollback on boot failure
 
 ### Planned or reserved but not yet implemented
 
-- OTA firmware update logic (partition reserved)
 - SPIFFS data partition (partition reserved, not mounted)
 - Captive portal / DNS redirect in Lab AP mode
 - Local auth enforcement (flag stored but not checked)
