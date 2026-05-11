@@ -13,9 +13,14 @@
 #include "esp_system.h"
 #include "esp_task_wdt.h"
 // esp_modem_api.h (C API) uses PdpContext from the C++ layer — pull it in first.
+// The upstream esp_modem header has a -Wshadow violation in PdpContext ctor;
+// we cannot patch managed_components, so suppress it just for these includes.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "cxx_include/esp_modem_types.hpp"
 using esp_modem::PdpContext;
 #include "esp_modem_api.h"
+#pragma GCC diagnostic pop
 #include "esp_netif.h"
 #include "esp_netif_ppp.h"
 #include "esp_timer.h"
