@@ -1,0 +1,279 @@
+"use client";
+
+import maplibregl from "maplibre-gl";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
+import { fetchJson } from "@/lib/api";
+import { MAP_STYLE } from "@/lib/map-style";
+
+const PREVIEW_SOURCE_ID = "air360-home-preview-devices";
+const PREVIEW_RING_LAYER_ID = "air360-home-preview-rings";
+const PREVIEW_CIRCLE_LAYER_ID = "air360-home-preview-circles";
+const PREVIEW_LABEL_LAYER_ID = "air360-home-preview-labels";
+const PREVIEW_METRIC = "pm2_5_ug_m3";
+
+type PreviewFeature = {
+  type: "Feature";
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    color: string;
+    label: string;
+    ringColor: string;
+  };
+};
+
+type PreviewFeatureCollection = {
+  type: "FeatureCollection";
+  features: PreviewFeature[];
+};
+
+export function HomeMapPreview() {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const featureCollectionRef = useRef<PreviewFeatureCollection>(
+    emptyFeatureCollection(),
+  );
+  const [devices, setDevices] = useState<DeviceSummary[]>([]);
+  const featureCollection = useMemo(
+    () => buildPreviewFeatureCollection(devices),
+    [devices],
+  );
+
+  useEffect(() => {
+    featureCollectionRef.current = featureCollection;
+  }, [featureCollection]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchJson<DevicesResponse>("/v1/devices", controller.signal)
+      .then((data) => setDevices(data.devices))
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDevices([]);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const container = mapContainerRef.current;
+
+    if (!container || mapRef.current) {
+      return;
+    }
+
+    const map = new maplibregl.Map({
+      attributionControl: { compact: true },
+      center: [20, 35],
+      container,
+      doubleClickZoom: false,
+      dragPan: false,
+      dragRotate: false,
+      interactive: false,
+      keyboard: false,
+      maxZoom: 15,
+      pitchWithRotate: false,
+      scrollZoom: false,
+      style: MAP_STYLE,
+      touchZoomRotate: false,
+      zoom: 1.5,
+    });
+
+    mapRef.current = map;
+
+    map.on("load", () => {
+      map.addSource(PREVIEW_SOURCE_ID, {
+        type: "geojson",
+        data: emptyFeatureCollection(),
+      });
+
+      map.addLayer({
+        id: PREVIEW_RING_LAYER_ID,
+        type: "circle",
+        source: PREVIEW_SOURCE_ID,
+        paint: {
+          "circle-color": ["get", "ringColor"],
+          "circle-opacity": 0.75,
+          "circle-radius": 13,
+        },
+      });
+
+      map.addLayer({
+        id: PREVIEW_CIRCLE_LAYER_ID,
+        type: "circle",
+        source: PREVIEW_SOURCE_ID,
+        paint: {
+          "circle-color": ["get", "color"],
+          "circle-radius": 7,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
+        },
+      });
+
+      map.addLayer({
+        id: PREVIEW_LABEL_LAYER_ID,
+        type: "symbol",
+        source: PREVIEW_SOURCE_ID,
+        layout: {
+          "text-allow-overlap": false,
+          "text-field": ["get", "label"],
+          "text-font": ["Noto Sans Regular"],
+          "text-offset": [0, 1.25],
+          "text-size": 10,
+        },
+        paint: {
+          "text-color": "#0c1411",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.5,
+        },
+      });
+
+      syncPreviewMap(map, featureCollectionRef.current);
+    });
+
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current?.isStyleLoaded()) {
+      return;
+    }
+
+    syncPreviewMap(mapRef.current, featureCollection);
+  }, [featureCollection]);
+
+  return (
+    <div className="air-map-preview" aria-label="Air360 map preview">
+      <div ref={mapContainerRef} className="air-map-preview-canvas" />
+
+      <div className="air-map-preview-legend">
+        <div className="air-map-preview-legend-title">PM2.5 · ug/m3</div>
+        <div className="air-map-preview-legend-row">
+          <span className="air-swatch" style={{ background: "var(--aqi-1)" }} /> 0-12 · good
+        </div>
+        <div className="air-map-preview-legend-row">
+          <span className="air-swatch" style={{ background: "var(--aqi-2)" }} /> 12-35 · moderate
+        </div>
+        <div className="air-map-preview-legend-row">
+          <span className="air-swatch" style={{ background: "var(--aqi-3)" }} /> 35-55 · sensitive
+        </div>
+        <div className="air-map-preview-legend-row">
+          <span className="air-swatch" style={{ background: "var(--aqi-4)" }} /> 55+ · unhealthy
+        </div>
+      </div>
+
+      <div className="air-map-preview-meter">
+        visible
+        <b>{devices.length}</b>
+      </div>
+    </div>
+  );
+}
+
+function syncPreviewMap(
+  map: maplibregl.Map,
+  featureCollection: PreviewFeatureCollection,
+) {
+  const source = map.getSource(PREVIEW_SOURCE_ID) as
+    | maplibregl.GeoJSONSource
+    | undefined;
+
+  source?.setData(featureCollection);
+  fitPreviewDevices(map, featureCollection.features);
+}
+
+function fitPreviewDevices(map: maplibregl.Map, features: PreviewFeature[]) {
+  if (features.length === 0) {
+    map.easeTo({ center: [20, 35], zoom: 1.5 });
+    return;
+  }
+
+  if (features.length === 1) {
+    map.easeTo({ center: features[0].geometry.coordinates, zoom: 9 });
+    return;
+  }
+
+  const bounds = new maplibregl.LngLatBounds();
+
+  for (const feature of features) {
+    bounds.extend(feature.geometry.coordinates);
+  }
+
+  map.fitBounds(bounds, {
+    maxZoom: 8,
+    padding: { bottom: 72, left: 48, right: 48, top: 72 },
+  });
+}
+
+function buildPreviewFeatureCollection(
+  devices: DeviceSummary[],
+): PreviewFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: devices.map((device) => {
+      const reading = findReading(device, PREVIEW_METRIC);
+      const colors = pm25Colors(reading?.value);
+
+      return {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [device.location.longitude, device.location.latitude],
+        },
+        properties: {
+          color: colors.color,
+          label: typeof reading?.value === "number" ? markerValue(reading.value) : "",
+          ringColor: colors.ring,
+        },
+      };
+    }),
+  };
+}
+
+function emptyFeatureCollection(): PreviewFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: [],
+  };
+}
+
+function findReading(
+  device: DeviceSummary,
+  kind: string,
+): DeviceReading | undefined {
+  for (const sensor of device.sensors) {
+    const reading = sensor.readings.find((candidate) => candidate.kind === kind);
+
+    if (reading) {
+      return reading;
+    }
+  }
+
+  return undefined;
+}
+
+function pm25Colors(value: number | undefined): { color: string; ring: string } {
+  if (typeof value !== "number") {
+    return { color: "#64748b", ring: "#e2e8f0" };
+  }
+
+  if (value <= 12) return { color: "#15803d", ring: "#bbf7d0" };
+  if (value <= 35.4) return { color: "#ca8a04", ring: "#fef08a" };
+  if (value <= 55.4) return { color: "#ea580c", ring: "#fed7aa" };
+  if (value <= 150.4) return { color: "#be123c", ring: "#fecdd3" };
+  return { color: "#7f1d1d", ring: "#fecaca" };
+}
+
+function markerValue(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value >= 100 ? 0 : 1,
+  }).format(value);
+}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DeviceDetail } from "@/components/DeviceDetail";
+import { PortalNav } from "@/components/PortalShell";
 
 type DevicePageProps = {
   params: Promise<{ public_id: string }>;
@@ -8,15 +9,20 @@ type DevicePageProps = {
 export async function generateMetadata({
   params,
 }: DevicePageProps): Promise<Metadata> {
-  const { public_id } = await params;
+  await params;
 
   return {
-    title: `Device ${public_id}`,
+    title: "Device details",
   };
 }
 
 export default async function DevicePage({ params }: DevicePageProps) {
   const { public_id } = await params;
 
-  return <DeviceDetail publicId={public_id} />;
+  return (
+    <div className="air-page">
+      <PortalNav active="map" />
+      <DeviceDetail publicId={public_id} />
+    </div>
+  );
 }

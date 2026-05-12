@@ -28,9 +28,10 @@ The portal currently covers public read-only project and device pages:
 - public home page at `/`
 - map page at `/map` with active devices from `GET /v1/devices` and optional
   offline devices from `GET /v1/devices/offline`
-- placeholder device assembly guide at `/build`
-- privacy page at `/privacy`
+- privacy page at `/privacy` using the shared portal shell and document layout
 - device popup with latest readings grouped by sensor type
+- device popup shows a country flag when `geo_country_code` is present in the
+  public device summary response
 - map metric selector for humidity, pressure, temperature, CO2, PM10, PM1.0,
   PM2.5, PM4.0, and illuminance
 - marker quality color based on the selected metric, with opacity and border
@@ -62,10 +63,21 @@ The portal currently covers public read-only project and device pages:
 - cluster labels show the average value for the currently selected metric
 - map status, metric legend, and metric selector are placed in left-side
   overlays
+- the map page uses the shared portal shell and an Air360 layer-chip control for
+  measurement selection while keeping the implemented metric legends and
+  freshness indicators unchanged
 - device detail page at `/devices/:public_id` with sensor charts from
   `GET /v1/devices/:public_id/measurements?period=<period>`
 - latest-reading cards, sensor metadata, device coordinates, and reverse-geocoded
   display labels from the same measurement response
+- device detail pages use the shared portal shell, a current-reading strip,
+  segmented period controls, chart cards, and a right-side metadata/sidebar
+  layout
+- shared Air360 visual tokens and shell primitives for the public portal home
+  page, including reusable navigation, footer, buttons, cards, metric grids, and
+  live-data preview blocks
+- home-page summary counters loaded from `GET /v1/stats` instead of hard-coded
+  values
 
 Potential future account flows remain out of scope for the current portal
 implementation.
@@ -131,7 +143,10 @@ default portal flow uses same-origin `/v1/*` requests.
 - `backend/` already exists as a separate Fastify service
 - `firmware/` already exists as the device-side implementation
 - `portal/` exists as a `Next.js` project with a public home page, public map,
-  placeholder device assembly guide, privacy page, and device pages
+  privacy page, and device pages
+- the public home, map, device detail, and privacy pages use reusable `air-*`
+  global style primitives and shared shell primitives from
+  `portal/src/components/PortalShell.tsx`
 - Ubuntu run and deployment instructions live in `docs/portal/ubuntu-deployment.md`
 
 This document records the working scope and boundary for the current portal.

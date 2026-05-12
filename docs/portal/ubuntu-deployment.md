@@ -102,7 +102,7 @@ sudo chown -R air360:air360 /opt/air360
 
 Suggested layout:
 
-- `/opt/air360` for the Air360 repository checkout
+- `/opt/air360/app` for the Air360 repository checkout
 - `/opt/air360/portal` for the portal application itself
 - `/etc/air360-portal.env` for environment variables
 - `/etc/systemd/system/air360-portal.service` for the service unit
@@ -268,12 +268,7 @@ ss -ltnp | grep 3000
 When new portal changes are deployed:
 
 ```bash
-cd /opt/air360
-sudo -u air360 git pull
-cd /opt/air360/portal
-sudo -u air360 npm ci
-sudo -u air360 npm run build
-sudo systemctl restart air360-portal
+sudo /opt/air360/portal/deploy-portal.sh
 ```
 
 If the deployed environment requires the webpack fallback:

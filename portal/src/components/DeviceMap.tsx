@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { DevicePopup } from "@/components/DevicePopup";
 import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
 import { fetchJson } from "@/lib/api";
+import { MAP_STYLE } from "@/lib/map-style";
 
 const DEVICE_SOURCE_ID = "air360-devices";
 const CLUSTER_CIRCLE_LAYER_ID = "air360-cluster-circles";
@@ -19,27 +20,6 @@ const OFFLINE_DEVICE_CIRCLE_LAYER_ID = "air360-offline-device-circles";
 const OFFLINE_DEVICE_LABEL_LAYER_ID = "air360-offline-device-labels";
 const DEFAULT_MAP_CENTER: [number, number] = [0, 20];
 const DEFAULT_MAP_ZOOM = 2;
-
-const MAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    },
-  },
-  layers: [
-    {
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    },
-  ],
-};
 
 const MAP_METRICS = [
   { value: "humidity_percent", label: "Humidity" },
@@ -366,6 +346,7 @@ export function DeviceMap() {
     const map = new maplibregl.Map({
       center: hashView?.center ?? DEFAULT_MAP_CENTER,
       container: mapContainerRef.current,
+      maxZoom: 15,
       style: MAP_STYLE,
       zoom: hashView?.zoom ?? DEFAULT_MAP_ZOOM,
     });
@@ -746,17 +727,19 @@ export function DeviceMap() {
         popupRootRef.current?.unmount();
 
         const popupElement = document.createElement("div");
-        const popupRoot = createRoot(popupElement);
-        popupRoot.render(<DevicePopup device={device} />);
-        popupRootRef.current = popupRoot;
-
         const popup = new maplibregl.Popup({
-          closeButton: true,
+          className: "air-map-popup",
+          closeButton: false,
           closeOnClick: true,
           maxWidth: "340px",
         })
           .setLngLat([device.location.longitude, device.location.latitude])
           .setDOMContent(popupElement);
+        const popupRoot = createRoot(popupElement);
+        popupRoot.render(
+          <DevicePopup device={device} onClose={() => popup.remove()} />,
+        );
+        popupRootRef.current = popupRoot;
 
         popup.on("close", () => {
           popupRoot.unmount();
@@ -793,17 +776,19 @@ export function DeviceMap() {
         popupRootRef.current?.unmount();
 
         const popupElement = document.createElement("div");
-        const popupRoot = createRoot(popupElement);
-        popupRoot.render(<DevicePopup device={device} />);
-        popupRootRef.current = popupRoot;
-
         const popup = new maplibregl.Popup({
-          closeButton: true,
+          className: "air-map-popup",
+          closeButton: false,
           closeOnClick: true,
           maxWidth: "340px",
         })
           .setLngLat([device.location.longitude, device.location.latitude])
           .setDOMContent(popupElement);
+        const popupRoot = createRoot(popupElement);
+        popupRoot.render(
+          <DevicePopup device={device} onClose={() => popup.remove()} />,
+        );
+        popupRootRef.current = popupRoot;
 
         popup.on("close", () => {
           popupRoot.unmount();
@@ -893,13 +878,16 @@ export function DeviceMap() {
   }, [isMapReady, metric]);
 
   return (
-    <section className="relative min-h-screen bg-[#e6ece8]">
-      <div className="absolute left-4 top-4 z-[500] flex max-w-sm flex-col gap-3 md:left-6 md:top-6">
-        <div className="rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
-          {state.status === "loading" && "Loading devices..."}
-          {state.status === "ready" &&
-            `${visibleDevices.length} device${visibleDevices.length === 1 ? "" : "s"}`}
-          {state.status === "error" && state.message}
+    <section className="air-map-page">
+      <div className="air-map-control-stack">
+        <div className="air-map-status-panel">
+          <span className="air-live-dot" />
+          <span>
+            {state.status === "loading" && "Loading devices..."}
+            {state.status === "ready" &&
+              `${visibleDevices.length} device${visibleDevices.length === 1 ? "" : "s"}`}
+            {state.status === "error" && state.message}
+          </span>
         </div>
 
         <div className="rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-xs text-slate-600 shadow-lg backdrop-blur">
@@ -955,30 +943,25 @@ export function DeviceMap() {
         </div>
       </div>
 
-      <div className="absolute bottom-6 left-4 z-[500] max-h-[42vh] w-[min(520px,calc(100vw-2rem))] overflow-y-auto rounded-md border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur md:left-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-          Map display
-        </p>
-        <h1 className="mt-1 text-xl font-semibold text-slate-950">
-          Measurement layer
-        </h1>
-        <div className="mt-4 flex flex-wrap gap-2" aria-label="Map metric">
+      <div className="air-map-layer-stack">
+        <h1 className="air-map-layer-title">Measurement layer</h1>
+        <div className="air-map-layer-panel" aria-label="Map metric">
           {MAP_METRICS.map((option) => (
             <button
               aria-pressed={metric === option.value}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-950 hover:text-slate-950 aria-pressed:border-slate-950 aria-pressed:bg-slate-950 aria-pressed:text-white"
+              className="air-map-layer-button"
               key={option.value}
               onClick={() => setMetric(option.value)}
               type="button"
             >
-              {option.label}
+              <span>{option.label}</span>
             </button>
           ))}
         </div>
-        <label className="mt-4 flex items-center gap-2 border-t border-slate-200 pt-3 text-sm font-medium text-slate-700">
+
+        <label className="air-map-offline-toggle">
           <input
             checked={showOfflineDevices}
-            className="h-4 w-4 rounded border-slate-300 text-slate-950"
             onChange={(event) => {
               const checked = event.target.checked;
 
@@ -993,14 +976,14 @@ export function DeviceMap() {
           Show offline devices
         </label>
         {showOfflineDevices && offlineState.status === "loading" ? (
-          <p className="mt-2 text-xs text-slate-500">Loading offline devices...</p>
+          <p className="air-map-control-note">Loading offline devices...</p>
         ) : null}
         {showOfflineDevices && offlineState.status === "error" ? (
-          <p className="mt-2 text-xs text-rose-700">{offlineState.message}</p>
+          <p className="air-map-control-error">{offlineState.message}</p>
         ) : null}
       </div>
 
-      <div ref={mapContainerRef} className="h-screen min-h-[640px] w-full" />
+      <div ref={mapContainerRef} className="air-map-canvas" />
 
       {state.status === "ready" &&
       visibleDevices.length === 0 &&

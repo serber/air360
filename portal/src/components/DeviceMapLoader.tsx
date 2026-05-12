@@ -6,7 +6,7 @@ const DeviceMap = dynamic(
   () => import("@/components/DeviceMap").then((module) => module.DeviceMap),
   {
     loading: () => (
-      <main className="flex min-h-screen items-center justify-center bg-[#e6ece8] px-4 text-slate-700">
+      <main className="air-map-page flex items-center justify-center px-4 text-[var(--ink-2)]">
         Loading map...
       </main>
     ),
