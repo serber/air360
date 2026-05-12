@@ -1,18 +1,20 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { PortalLocaleToggle } from "@/components/PortalLocaleToggle";
 import { PortalThemeToggle } from "@/components/PortalThemeToggle";
 
 const navLinks = [
-  { href: "/", label: "Overview", id: "home" },
-  { href: "/map", label: "Map", id: "map" },
+  { href: "/", labelKey: "overview", id: "home" },
+  { href: "/map", labelKey: "map", id: "map" },
 ];
 
 const footerGroups = [
   {
-    title: "Project",
+    titleKey: "project",
     links: [
-      { href: "/map", label: "Map" },
-      { href: "https://github.com/serber/air360", label: "GitHub" },
-      { href: "/privacy", label: "Privacy policy" },
+      { href: "/map", labelKey: "map", namespace: "common" },
+      { href: "https://github.com/serber/air360", labelKey: "github", namespace: "common" },
+      { href: "/privacy", labelKey: "privacyPolicy", namespace: "common" },
     ],
   },
 ];
@@ -42,24 +44,28 @@ export function ArrowIcon({ className = "air-arrow" }: { className?: string }) {
 }
 
 export function PortalNav({ active }: { active: string }) {
+  const common = useTranslations("common");
+  const nav = useTranslations("nav");
+
   return (
     <nav className="air-nav">
       <div className="air-nav-inner">
-        <Link href="/" aria-label="Air360">
+        <Link href="/" aria-label={common("brandAria")}>
           <BrandMark />
         </Link>
-        <div className="air-nav-links" aria-label="Primary navigation">
+        <div className="air-nav-links" aria-label={common("primaryNavigation")}>
           {navLinks.map((link) => (
             <Link
               className={`air-nav-link${link.id === active ? " air-active" : ""}`}
               href={link.href}
               key={link.href}
             >
-              {link.label}
+              {nav(link.labelKey)}
             </Link>
           ))}
         </div>
         <div className="air-nav-right">
+          <PortalLocaleToggle />
           <PortalThemeToggle />
         </div>
       </div>
@@ -68,27 +74,33 @@ export function PortalNav({ active }: { active: string }) {
 }
 
 export function PortalFooter() {
+  const common = useTranslations("common");
+  const footer = useTranslations("footer");
+
   return (
     <footer className="air-footer">
       <div className="air-container">
         <div className="air-footer-grid">
           <div>
-            <Link href="/" aria-label="Air360">
+            <Link href="/" aria-label={common("brandAria")}>
               <BrandMark />
             </Link>
             <p className="air-muted air-footer-copy">
-              An open community network of air-quality sensors with public map
-              views and device measurement history.
+              {footer("copy")}
             </p>
           </div>
 
           {footerGroups.map((group) => (
-            <div key={group.title}>
-              <h4>{group.title}</h4>
+            <div key={group.titleKey}>
+              <h4>{footer(group.titleKey)}</h4>
               <ul>
                 {group.links.map((link) => (
-                  <li key={`${group.title}-${link.label}`}>
-                    <Link href={link.href}>{link.label}</Link>
+                  <li key={`${group.titleKey}-${link.href}`}>
+                    <Link href={link.href}>
+                      {link.namespace === "common"
+                        ? common(link.labelKey)
+                        : footer(link.labelKey)}
+                    </Link>
                   </li>
                 ))}
               </ul>

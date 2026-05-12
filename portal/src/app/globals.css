@@ -304,6 +304,7 @@ svg {
   font-weight: 600;
   gap: 9px;
   letter-spacing: 0;
+  margin-top: 8px;
 }
 
 .air-brand-glyph {
@@ -388,6 +389,14 @@ svg {
 .air-icon-button svg {
   height: 16px;
   width: 16px;
+}
+
+.air-locale-button {
+  font-family: var(--air-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  width: 36px;
 }
 
 .air-hero {

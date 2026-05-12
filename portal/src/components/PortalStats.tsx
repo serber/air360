@@ -1,39 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useFormatter, useTranslations } from "next-intl";
 import { fetchJson, type PortalStatsResponse } from "@/lib/api";
 
 type StatItem = {
   key: keyof PortalStatsResponse;
-  label: string;
-  format: (value: number) => string;
+  labelKey: string;
+  format: "number" | "compact";
 };
-
-const numberFormatter = new Intl.NumberFormat(undefined);
-const compactFormatter = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 1,
-  notation: "compact",
-});
 
 const stats: StatItem[] = [
   {
     key: "active_devices",
-    label: "Active devices",
-    format: (value) => numberFormatter.format(value),
+    labelKey: "activeDevices",
+    format: "number",
   },
   {
     key: "countries",
-    label: "Countries",
-    format: (value) => numberFormatter.format(value),
+    labelKey: "countries",
+    format: "number",
   },
   {
     key: "data_points_24h",
-    label: "Data points / 24h",
-    format: (value) => compactFormatter.format(value),
+    labelKey: "dataPoints24h",
+    format: "compact",
   },
 ];
 
 export function PortalStats() {
+  const t = useTranslations("stats");
+  const format = useFormatter();
   const [data, setData] = useState<PortalStatsResponse | null>(null);
 
   useEffect(() => {
@@ -54,9 +51,14 @@ export function PortalStats() {
     <div className="air-hero-stats">
       {stats.map((stat) => (
         <div className="air-kv" key={stat.key}>
-          <span className="air-kv-label">{stat.label}</span>
+          <span className="air-kv-label">{t(stat.labelKey)}</span>
           <span className="air-kv-value">
-            {data ? stat.format(data[stat.key]) : "-"}
+            {data
+              ? format.number(data[stat.key], {
+                  maximumFractionDigits: stat.format === "compact" ? 1 : 0,
+                  notation: stat.format === "compact" ? "compact" : "standard",
+                })
+              : "-"}
           </span>
         </div>
       ))}

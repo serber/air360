@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import type { KindMeasurements } from "@/lib/api";
 import {
   formatChartTime,
@@ -50,6 +51,7 @@ export type ChartMeasurement = Omit<KindMeasurements, "series"> & {
 };
 
 export function SensorChart({ measurement }: SensorChartProps) {
+  const t = useTranslations("chart");
   const seriesKeys = measurement.series.map(chartSeriesKey);
   const seriesByKey = new Map(
     measurement.series.map((series) => [chartSeriesKey(series), series]),
@@ -60,20 +62,19 @@ export function SensorChart({ measurement }: SensorChartProps) {
     <article className="air-chart-card">
       <div className="air-chart-head">
         <div className="air-chart-head-left">
-          <span className="air-chart-source">Measurement</span>
+          <span className="air-chart-source">{t("source")}</span>
           <div>
             {measurement.title ?? kindLabel(measurement.kind)}
           </div>
         </div>
         <div className="air-chart-stats">
-          {seriesKeys.length}{" "}
-          {seriesKeys.length === 1 ? "source" : "sources"}
+          {t("sourceCount", { count: seriesKeys.length })}
         </div>
       </div>
 
       {rows.length === 0 ? (
         <p className="air-chart-empty">
-          No points for this period.
+          {t("empty")}
         </p>
       ) : (
         <div className="air-chart-body">

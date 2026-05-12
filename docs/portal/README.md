@@ -89,14 +89,20 @@ The current working direction for the portal is:
 - `Next.js` as the frontend application framework
 - `React` as the UI layer
 - `TypeScript` for application code
+- `next-intl` for UI localization
 
 `Next.js` is a good fit here because the portal needs public pages, client-side
 map rendering, and device detail pages with browser-only charting libraries.
 
 The map uses `maplibre-gl` with OpenStreetMap raster tiles and GeoJSON-backed
 device layers. The device detail page uses `recharts` for time-series charts.
-Exact choices for future form libraries and auth helpers remain open and should
-be selected later to match the actual backend auth model.
+UI strings are loaded through `next-intl`; the current locales are `en` and
+`ru`, with messages stored in `portal/messages/en.json` and
+`portal/messages/ru.json`. The header language toggle stores the selected
+locale in the `air360-locale` cookie. If the cookie is absent, the portal uses
+the browser `Accept-Language` header to choose between `en` and `ru`, falling
+back to `en`. Exact choices for future form libraries and auth helpers remain
+open and should be selected later to match the actual backend auth model.
 
 ## Boundary Between Portal And Backend
 

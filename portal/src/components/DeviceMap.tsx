@@ -3,7 +3,14 @@
 import maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import {
+  NextIntlClientProvider,
+  useLocale,
+  useMessages,
+  useTranslations,
+} from "next-intl";
 import { DevicePopup } from "@/components/DevicePopup";
+import { defaultTimeZone } from "@/i18n/request";
 import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
 import { fetchJson } from "@/lib/api";
 import { MAP_STYLE } from "@/lib/map-style";
@@ -22,15 +29,15 @@ const DEFAULT_MAP_CENTER: [number, number] = [0, 20];
 const DEFAULT_MAP_ZOOM = 2;
 
 const MAP_METRICS = [
-  { value: "humidity_percent", label: "Humidity" },
-  { value: "pressure_hpa", label: "Pressure" },
-  { value: "temperature_c", label: "Temperature" },
-  { value: "co2_ppm", label: "CO2" },
-  { value: "pm10_0_ug_m3", label: "PM10" },
-  { value: "pm1_0_ug_m3", label: "PM1.0" },
-  { value: "pm2_5_ug_m3", label: "PM2.5" },
-  { value: "pm4_0_ug_m3", label: "PM4.0" },
-  { value: "illuminance_lux", label: "Light" },
+  { value: "humidity_percent", labelKey: "humidity_percent" },
+  { value: "pressure_hpa", labelKey: "pressure_hpa" },
+  { value: "temperature_c", labelKey: "temperature_c" },
+  { value: "co2_ppm", labelKey: "co2_ppm" },
+  { value: "pm10_0_ug_m3", labelKey: "pm10_0_ug_m3" },
+  { value: "pm1_0_ug_m3", labelKey: "pm1_0_ug_m3" },
+  { value: "pm2_5_ug_m3", labelKey: "pm2_5_ug_m3" },
+  { value: "pm4_0_ug_m3", labelKey: "pm4_0_ug_m3" },
+  { value: "illuminance_lux", labelKey: "illuminance_lux" },
 ] as const;
 
 type MapMetric = (typeof MAP_METRICS)[number]["value"];
@@ -222,6 +229,9 @@ type OfflineLoadState =
   | { status: "error"; devices: DeviceSummary[]; message: string };
 
 export function DeviceMap() {
+  const t = useTranslations("mapPage");
+  const locale = useLocale();
+  const messages = useMessages();
   const [state, setState] = useState<LoadState>({
     status: "loading",
     devices: [],
@@ -239,6 +249,13 @@ export function DeviceMap() {
   const popupRootRef = useRef<Root | null>(null);
   const offlineControllerRef = useRef<AbortController | null>(null);
   const hashViewRef = useRef(false);
+  const localeRef = useRef(locale);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    localeRef.current = locale;
+    messagesRef.current = messages;
+  }, [locale, messages]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -737,7 +754,13 @@ export function DeviceMap() {
           .setDOMContent(popupElement);
         const popupRoot = createRoot(popupElement);
         popupRoot.render(
-          <DevicePopup device={device} onClose={() => popup.remove()} />,
+          <NextIntlClientProvider
+            locale={localeRef.current}
+            messages={messagesRef.current}
+            timeZone={defaultTimeZone}
+          >
+            <DevicePopup device={device} onClose={() => popup.remove()} />
+          </NextIntlClientProvider>,
         );
         popupRootRef.current = popupRoot;
 
@@ -786,7 +809,13 @@ export function DeviceMap() {
           .setDOMContent(popupElement);
         const popupRoot = createRoot(popupElement);
         popupRoot.render(
-          <DevicePopup device={device} onClose={() => popup.remove()} />,
+          <NextIntlClientProvider
+            locale={localeRef.current}
+            messages={messagesRef.current}
+            timeZone={defaultTimeZone}
+          >
+            <DevicePopup device={device} onClose={() => popup.remove()} />
+          </NextIntlClientProvider>,
         );
         popupRootRef.current = popupRoot;
 
@@ -883,9 +912,9 @@ export function DeviceMap() {
         <div className="air-map-status-panel">
           <span className="air-live-dot" />
           <span>
-            {state.status === "loading" && "Loading devices..."}
+            {state.status === "loading" && t("loadingDevices")}
             {state.status === "ready" &&
-              `${visibleDevices.length} device${visibleDevices.length === 1 ? "" : "s"}`}
+              t("deviceCount", { count: visibleDevices.length })}
             {state.status === "error" && state.message}
           </span>
         </div>
@@ -911,15 +940,15 @@ export function DeviceMap() {
             <LightLegend />
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <LegendItem className="air360-quality-good" label="Good" />
+              <LegendItem className="air360-quality-good" label={t("quality.good")} />
               <LegendItem
                 className="air360-quality-moderate"
-                label="Moderate"
+                label={t("quality.moderate")}
               />
-              <LegendItem className="air360-quality-poor" label="Poor" />
-              <LegendItem className="air360-quality-bad" label="Bad" />
-              <LegendItem className="air360-quality-neutral" label="Data only" />
-              <LegendItem className="air360-quality-no-data" label="No data" />
+              <LegendItem className="air360-quality-poor" label={t("quality.poor")} />
+              <LegendItem className="air360-quality-bad" label={t("quality.bad")} />
+              <LegendItem className="air360-quality-neutral" label={t("quality.dataOnly")} />
+              <LegendItem className="air360-quality-no-data" label={t("quality.noData")} />
             </div>
           )}
           <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
@@ -944,8 +973,8 @@ export function DeviceMap() {
       </div>
 
       <div className="air-map-layer-stack">
-        <h1 className="air-map-layer-title">Measurement layer</h1>
-        <div className="air-map-layer-panel" aria-label="Map metric">
+        <h1 className="air-map-layer-title">{t("measurementLayer")}</h1>
+        <div className="air-map-layer-panel" aria-label={t("metricAria")}>
           {MAP_METRICS.map((option) => (
             <button
               aria-pressed={metric === option.value}
@@ -954,7 +983,7 @@ export function DeviceMap() {
               onClick={() => setMetric(option.value)}
               type="button"
             >
-              <span>{option.label}</span>
+              <span>{t(`metrics.${option.labelKey}`)}</span>
             </button>
           ))}
         </div>
@@ -973,10 +1002,10 @@ export function DeviceMap() {
             }}
             type="checkbox"
           />
-          Show offline devices
+          {t("showOfflineDevices")}
         </label>
         {showOfflineDevices && offlineState.status === "loading" ? (
-          <p className="air-map-control-note">Loading offline devices...</p>
+          <p className="air-map-control-note">{t("loadingOfflineDevices")}</p>
         ) : null}
         {showOfflineDevices && offlineState.status === "error" ? (
           <p className="air-map-control-error">{offlineState.message}</p>
@@ -989,7 +1018,7 @@ export function DeviceMap() {
       visibleDevices.length === 0 &&
       offlineState.status !== "loading" ? (
         <div className="absolute inset-x-4 bottom-6 z-[500] mx-auto max-w-md rounded-md border border-slate-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-lg backdrop-blur">
-          No active devices with valid coordinates were returned by the backend.
+          {t("empty")}
         </div>
       ) : null}
     </section>

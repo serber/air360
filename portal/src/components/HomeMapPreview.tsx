@@ -2,6 +2,7 @@
 
 import maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
 import { fetchJson } from "@/lib/api";
 import { MAP_STYLE } from "@/lib/map-style";
@@ -31,6 +32,7 @@ type PreviewFeatureCollection = {
 };
 
 export function HomeMapPreview() {
+  const t = useTranslations("home");
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const featureCollectionRef = useRef<PreviewFeatureCollection>(
@@ -151,7 +153,7 @@ export function HomeMapPreview() {
   }, [featureCollection]);
 
   return (
-    <div className="air-map-preview" aria-label="Air360 map preview">
+    <div className="air-map-preview" aria-label={t("mapPreviewAria")}>
       <div ref={mapContainerRef} className="air-map-preview-canvas" />
     </div>
   );

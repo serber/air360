@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { HomeMapPreview } from "@/components/HomeMapPreview";
 import { ArrowIcon, PortalFooter, PortalNav } from "@/components/PortalShell";
 import { PortalStats } from "@/components/PortalStats";
 
 export default function Home() {
+  const t = useTranslations("home");
+
   return (
     <div className="air-page">
       <PortalNav active="home" />
@@ -13,18 +16,16 @@ export default function Home() {
             <div className="air-hero-grid">
               <div>
                 <h1 className="air-display-1 air-hero-title">
-                  Air quality data
+                  {t("titleLine1")}
                   <br />
-                  <em>from real devices.</em>
+                  <em>{t("titleLine2")}</em>
                 </h1>
                 <p className="air-lead">
-                  Air360 collects measurements from open-source sensors installed
-                  by people in different places. Build a device, connect it, and
-                  its data appears on the public map.
+                  {t("lead")}
                 </p>
                 <div className="air-hero-cta">
                   <Link href="/map" className="air-btn air-btn-primary air-btn-lg">
-                    Explore the map
+                    {t("exploreMap")}
                     <ArrowIcon />
                   </Link>
                 </div>

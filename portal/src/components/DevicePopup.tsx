@@ -1,7 +1,7 @@
 import type { DeviceSummary } from "@/lib/api";
+import { useFormatter, useTranslations } from "next-intl";
 import {
   countryCodeFlag,
-  formatDateTime,
   formatValue,
   isDeviceStale,
   kindLabel,
@@ -13,6 +13,8 @@ type DevicePopupProps = {
 };
 
 export function DevicePopup({ device, onClose }: DevicePopupProps) {
+  const t = useTranslations("devicePopup");
+  const format = useFormatter();
   const isStale = isDeviceStale(device.last_seen_at);
   const flag = countryCodeFlag(device.geo_country_code);
   const readings = device.sensors.flatMap((sensor) =>
@@ -32,12 +34,17 @@ export function DevicePopup({ device, onClose }: DevicePopupProps) {
             {flag ? <span className="air-device-popup-flag">{flag}</span> : null}
           </h2>
           <div className={isStale ? "air-device-popup-id air-stale" : "air-device-popup-id"}>
-            last seen {formatDateTime(device.last_seen_at)}
+            {t("lastSeen", {
+              date: format.dateTime(new Date(device.last_seen_at), {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+            })}
           </div>
         </div>
         {onClose ? (
           <button
-            aria-label="Close popup"
+            aria-label={t("close")}
             className="air-device-popup-close"
             onClick={onClose}
             type="button"
@@ -58,10 +65,10 @@ export function DevicePopup({ device, onClose }: DevicePopupProps) {
       <div className="air-device-popup-body">
         {isStale ? (
           <p className="air-device-popup-note">
-            Device has not connected for more than 1 hour.
+            {t("stale")}
           </p>
         ) : readings.length === 0 ? (
-          <p className="air-device-popup-note">No measurements yet.</p>
+          <p className="air-device-popup-note">{t("noMeasurements")}</p>
         ) : (
           readings.slice(0, 9).map((reading) => (
             <div className="air-device-popup-kv" key={reading.key}>
@@ -73,7 +80,7 @@ export function DevicePopup({ device, onClose }: DevicePopupProps) {
       </div>
 
       <div className="air-device-popup-foot">
-        <a href={`/devices/${device.public_id}`}>open device →</a>
+        <a href={`/devices/${device.public_id}`}>{t("openDevice")}</a>
       </div>
     </div>
   );

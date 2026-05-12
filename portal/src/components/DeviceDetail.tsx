@@ -3,13 +3,13 @@
 import Link from "next/link";
 import maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
+import { useFormatter, useTranslations } from "next-intl";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { SensorChart, type ChartMeasurement } from "@/components/SensorChart";
 import type { KindMeasurements, MeasurementsResponse, Period } from "@/lib/api";
 import {
   countryCodeFlag,
   fetchJson,
-  formatDateTime,
   formatValue,
   isDeviceStale,
   kindLabel,
@@ -27,6 +27,8 @@ type LoadState =
   | { status: "error"; data?: MeasurementsResponse; message: string };
 
 export function DeviceDetail({ publicId }: DeviceDetailProps) {
+  const t = useTranslations("deviceDetail");
+  const format = useFormatter();
   const [period, setPeriod] = useState<Period>("24h");
   const [state, setState] = useState<LoadState>({ status: "idle" });
 
@@ -58,11 +60,15 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
   const byKind = state.data?.by_kind ?? [];
   const latest = state.data?.latest ?? [];
   const sensors = state.data?.sensors ?? [];
-  const chartMeasurements = buildChartMeasurements(byKind);
+  const chartMeasurements = buildChartMeasurements(byKind, {
+    pressureTitle: t("pressureTitle"),
+    seaLevel: t("seaLevel"),
+    station: t("station"),
+  });
   const isStale = device ? isDeviceStale(device.last_seen_at) : true;
   const isLoading =
     state.status === "idle" || state.data === undefined || state.data.period !== period;
-  const deviceTitle = device?.name?.trim() || "Device";
+  const deviceTitle = device?.name?.trim() || t("fallbackTitle");
   const countryFlag = countryCodeFlag(device?.geo_country_code);
   const countryValue = device?.geo_country
     ? `${device.geo_country}${countryFlag ? ` ${countryFlag}` : ""}`
@@ -76,9 +82,9 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
       <div className="air-container">
         <header className="air-device-head">
           <div className="air-crumb">
-            <Link href="/map">← Back to map</Link>
+            <Link href="/map">{t("backToMap")}</Link>
             <span>/</span>
-            <span>DEVICE</span>
+            <span>{t("crumb")}</span>
           </div>
 
           <div className="air-device-title-row">
@@ -86,7 +92,7 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
             {device ? (
               <span className={isStale ? "air-pill-status air-stale" : "air-pill-status"}>
                 <span className="air-live-dot" />
-                {isStale ? "Stale" : "Online"}
+                {isStale ? t("stale") : t("online")}
               </span>
             ) : null}
           </div>
@@ -94,16 +100,16 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
           {device ? (
             <div className="air-device-meta">
               <span>
-                Location <b>{device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}</b>
+                {t("locationMeta")} <b>{device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}</b>
               </span>
               <span>
-                Joined <b>{formatDateTime(device.registered_at)}</b>
+                {t("joined")} <b>{formatDeviceDate(format, device.registered_at)}</b>
               </span>
               <span>
-                Last seen <b>{formatDateTime(device.last_seen_at)}</b>
+                {t("lastSeen")} <b>{formatDeviceDate(format, device.last_seen_at)}</b>
               </span>
               <span>
-                Firmware <b>{device.firmware_version}</b>
+                {t("firmware")} <b>{device.firmware_version}</b>
               </span>
             </div>
           ) : null}
@@ -127,10 +133,10 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
         <section className="air-device-control-bar">
           <PeriodSelector value={period} onChange={setPeriod} />
           <p className="air-device-load-state">
-            {isLoading && "Loading measurements..."}
+            {isLoading && t("loadingMeasurements")}
             {!isLoading &&
               state.status === "ready" &&
-              `${chartMeasurements.length} chart${chartMeasurements.length === 1 ? "" : "s"} for selected period`}
+              t("chartCount", { count: chartMeasurements.length })}
             {!isLoading && state.status === "error" && state.message}
           </p>
         </section>
@@ -139,10 +145,9 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
           <div className="air-device-charts">
             {chartMeasurements.length === 0 && !isLoading ? (
               <section className="air-empty-state">
-                <h2>No chart data</h2>
+                <h2>{t("noChartTitle")}</h2>
                 <p>
-                  The backend did not return measurements for this device and
-                  period.
+                  {t("noChartBody")}
                 </p>
               </section>
             ) : null}
@@ -155,8 +160,8 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
           <aside className="air-device-side">
             <section className="air-info-card">
               <div className="air-info-card-head">
-                <h4>Location</h4>
-                <Link href={deviceMapHref}>map →</Link>
+                <h4>{t("location")}</h4>
+                <Link href={deviceMapHref}>{t("mapLink")}</Link>
               </div>
               {device ? (
                 <DeviceStaticMap
@@ -167,18 +172,18 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
                 <div className="air-mini-map air-mini-map-empty" />
               )}
               <div className="air-info-card-body">
-                <InfoRow label="Country" value={countryValue} />
-                <InfoRow label="City" value={device?.geo_city ?? "Unknown"} />
+                <InfoRow label={t("country")} value={countryValue} />
+                <InfoRow label={t("city")} value={device?.geo_city ?? t("unknown")} />
                 <InfoRow
-                  label="Lat"
+                  label={t("latitude")}
                   value={device ? device.latitude.toFixed(5) : "-"}
                 />
                 <InfoRow
-                  label="Lon"
+                  label={t("longitude")}
                   value={device ? device.longitude.toFixed(5) : "-"}
                 />
                 <InfoRow
-                  label="Altitude"
+                  label={t("altitude")}
                   value={
                     typeof device?.altitude_m === "number"
                       ? `${device.altitude_m.toFixed(1)} m`
@@ -190,7 +195,7 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
 
             <section className="air-info-card">
               <div className="air-info-card-head">
-                <h4>Hardware</h4>
+                <h4>{t("hardware")}</h4>
               </div>
               <div className="air-sensor-list">
                 {sensors.length > 0 ? (
@@ -207,7 +212,7 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
                     </div>
                   ))
                 ) : (
-                  <p className="air-info-empty">No sensors returned.</p>
+                  <p className="air-info-empty">{t("noSensors")}</p>
                 )}
               </div>
             </section>
@@ -221,6 +226,11 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
 
 function buildChartMeasurements(
   measurements: KindMeasurements[],
+  labels: {
+    pressureTitle: string;
+    seaLevel: string;
+    station: string;
+  },
 ): ChartMeasurement[] {
   const seaLevelPressure = measurements.find(
     (measurement) => measurement.kind === "pressure_hpa",
@@ -231,7 +241,7 @@ function buildChartMeasurements(
   const pressureKinds = new Set(["pressure_hpa", "pressure_hpa_raw"]);
   const pressureChart =
     seaLevelPressure || stationPressure
-      ? buildPressureChart(seaLevelPressure, stationPressure)
+      ? buildPressureChart(seaLevelPressure, stationPressure, labels)
       : null;
   const charts: ChartMeasurement[] = [];
   let pressureChartAdded = false;
@@ -255,26 +265,31 @@ function buildChartMeasurements(
 function buildPressureChart(
   seaLevelPressure: KindMeasurements | undefined,
   stationPressure: KindMeasurements | undefined,
+  labels: {
+    pressureTitle: string;
+    seaLevel: string;
+    station: string;
+  },
 ): ChartMeasurement {
   const series: ChartMeasurement["series"] = [
     ...(seaLevelPressure?.series.map((item) => ({
       ...item,
       chartKey: `${item.sensor_type}:pressure_hpa`,
       kind: "pressure_hpa",
-      label: `${sensorLabel(item.sensor_type)} · Sea level`,
+      label: `${sensorLabel(item.sensor_type)} · ${labels.seaLevel}`,
     })) ?? []),
     ...(stationPressure?.series.map((item) => ({
       ...item,
       chartKey: `${item.sensor_type}:pressure_hpa_raw`,
       kind: "pressure_hpa_raw",
-      label: `${sensorLabel(item.sensor_type)} · Station`,
+      label: `${sensorLabel(item.sensor_type)} · ${labels.station}`,
     })) ?? []),
   ];
 
   return {
     kind: "pressure_hpa",
     series,
-    title: "Pressure",
+    title: labels.pressureTitle,
   };
 }
 
@@ -285,6 +300,7 @@ function DeviceStaticMap({
   latitude: number;
   longitude: number;
 }) {
+  const t = useTranslations("deviceDetail");
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
@@ -340,10 +356,26 @@ function DeviceStaticMap({
   return (
     <div
       ref={mapContainerRef}
-      aria-label="Device location map"
+      aria-label={t("deviceLocationMap")}
       className="air-mini-map"
     />
   );
+}
+
+function formatDeviceDate(
+  format: ReturnType<typeof useFormatter>,
+  value: string,
+): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return format.dateTime(date, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

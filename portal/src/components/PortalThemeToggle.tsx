@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 
 const STORAGE_KEY = "air360-theme";
 
@@ -59,6 +60,7 @@ function SunIcon() {
 }
 
 export function PortalThemeToggle() {
+  const t = useTranslations("common");
   const theme = useSyncExternalStore(subscribe, getStoredTheme, getServerTheme);
 
   useEffect(() => {
@@ -74,10 +76,10 @@ export function PortalThemeToggle() {
 
   return (
     <button
-      aria-label="Toggle theme"
+      aria-label={t("themeToggle")}
       className="air-icon-button"
       onClick={toggleTheme}
-      title="Toggle theme"
+      title={t("themeToggle")}
       type="button"
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
