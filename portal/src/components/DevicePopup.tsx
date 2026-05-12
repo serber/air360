@@ -1,5 +1,5 @@
 import type { DeviceSummary } from "@/lib/api";
-import { useFormatter, useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   countryCodeFlag,
   formatValue,
@@ -26,7 +26,7 @@ const GPS_READING_KINDS = new Set([
 
 export function DevicePopup({ device, onClose }: DevicePopupProps) {
   const t = useTranslations("devicePopup");
-  const format = useFormatter();
+  const locale = useLocale();
   const isStale = isDeviceStale(device.last_seen_at);
   const flag = countryCodeFlag(device.geo_country_code);
   const sensorGroups = device.sensors
@@ -54,10 +54,7 @@ export function DevicePopup({ device, onClose }: DevicePopupProps) {
           </h2>
           <div className={isStale ? "air-device-popup-id air-stale" : "air-device-popup-id"}>
             {t("lastSeen", {
-              date: format.dateTime(new Date(device.last_seen_at), {
-                dateStyle: "medium",
-                timeStyle: "short",
-              }),
+              date: formatCompactPopupDate(device.last_seen_at, locale),
             })}
           </div>
         </div>
@@ -112,4 +109,24 @@ export function DevicePopup({ device, onClose }: DevicePopupProps) {
       </div>
     </div>
   );
+}
+
+function formatCompactPopupDate(value: string, locale: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  return new Intl.DateTimeFormat(locale, {
+    ...(isToday ? {} : { day: "2-digit", month: "2-digit" }),
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

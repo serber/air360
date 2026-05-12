@@ -81,7 +81,7 @@
     }
   },
   "devicePopup": {
-    "lastSeen": "last seen {date}",
+    "lastSeen": "Seen {date}",
     "close": "Close popup",
     "stale": "Device has not connected for more than 1 hour.",
     "noMeasurements": "No measurements yet.",

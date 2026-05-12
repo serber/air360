@@ -3,13 +3,14 @@
 import Link from "next/link";
 import maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { SensorChart, type ChartMeasurement } from "@/components/SensorChart";
 import type { KindMeasurements, MeasurementsResponse, Period } from "@/lib/api";
 import {
   countryCodeFlag,
   fetchJson,
+  formatDateTime,
   formatValue,
   isDeviceStale,
   kindLabel,
@@ -28,7 +29,6 @@ type LoadState =
 
 export function DeviceDetail({ publicId }: DeviceDetailProps) {
   const t = useTranslations("deviceDetail");
-  const format = useFormatter();
   const [period, setPeriod] = useState<Period>("24h");
   const [state, setState] = useState<LoadState>({ status: "idle" });
 
@@ -103,10 +103,10 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
                 {t("locationMeta")} <b>{device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}</b>
               </span>
               <span>
-                {t("joined")} <b>{formatDeviceDate(format, device.registered_at)}</b>
+                {t("joined")} <b>{formatDateTime(device.registered_at)}</b>
               </span>
               <span>
-                {t("lastSeen")} <b>{formatDeviceDate(format, device.last_seen_at)}</b>
+                {t("lastSeen")} <b>{formatDateTime(device.last_seen_at)}</b>
               </span>
               <span>
                 {t("firmware")} <b>{device.firmware_version}</b>
@@ -360,22 +360,6 @@ function DeviceStaticMap({
       className="air-mini-map"
     />
   );
-}
-
-function formatDeviceDate(
-  format: ReturnType<typeof useFormatter>,
-  value: string,
-): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return format.dateTime(date, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
