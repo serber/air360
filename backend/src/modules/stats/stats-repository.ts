@@ -5,7 +5,7 @@ import type { Database } from "../../db/schema";
 export interface PortalStats {
   active_devices: number;
   countries: number;
-  data_points_24h: number;
+  reports_24h: number;
 }
 
 export async function getPortalStats(
@@ -25,14 +25,14 @@ export async function getPortalStats(
       ) AS countries,
       (
         SELECT COUNT(*)
-        FROM measurements
-        WHERE sampled_at >= NOW() - INTERVAL '24 hours'
-      ) AS data_points_24h
+        FROM batches
+        WHERE received_at >= NOW() - INTERVAL '24 hours'
+      ) AS reports_24h
   `.execute(db);
 
   return result.rows[0] ?? {
     active_devices: 0,
     countries: 0,
-    data_points_24h: 0,
+    reports_24h: 0,
   };
 }

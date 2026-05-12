@@ -239,7 +239,7 @@ Response `200`:
 {
   "active_devices": 42,
   "countries": 7,
-  "data_points_24h": 18240
+  "reports_24h": 1440
 }
 ```
 
@@ -248,8 +248,7 @@ Counter definitions:
 - `active_devices` counts devices with `last_seen_at` within the last hour.
 - `countries` counts distinct non-empty `geo_country_code` values across all
   devices.
-- `data_points_24h` counts measurement rows with `sampled_at` within the last
-  24 hours.
+- `reports_24h` counts batch rows with `received_at` within the last 24 hours.
 
 ---
 

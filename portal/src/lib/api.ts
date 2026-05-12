@@ -52,7 +52,7 @@ export type DevicesResponse = {
 export type PortalStatsResponse = {
   active_devices: number;
   countries: number;
-  data_points_24h: number;
+  reports_24h: number;
 };
 
 export type MeasurementPoint = {

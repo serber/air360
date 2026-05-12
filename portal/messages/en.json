@@ -26,7 +26,7 @@
   "stats": {
     "activeDevices": "Active devices",
     "countries": "Countries",
-    "dataPoints24h": "Data points / 24h"
+    "reports24h": "Reports / 24h"
   },
   "periods": {
     "aria": "Measurement period",
@@ -65,10 +65,23 @@
       "bad": "Bad",
       "dataOnly": "Data only",
       "noData": "No data"
+    },
+    "legend": {
+      "temperature": "Temperature",
+      "pressure": "Pressure",
+      "humidity": "Humidity",
+      "light": "Light",
+      "coldToHot": "cold to hot",
+      "lowToHigh": "low to high",
+      "dryToHumid": "dry to humid",
+      "baselineToHigh": "baseline to high",
+      "cleanToHazardous": "clean to hazardous",
+      "darkToBright": "dark to bright",
+      "noData": "No data"
     }
   },
   "devicePopup": {
-    "lastSeen": "last seen {date}",
+    "lastSeen": "Seen {date}",
     "close": "Close popup",
     "stale": "Device has not connected for more than 1 hour.",
     "noMeasurements": "No measurements yet.",

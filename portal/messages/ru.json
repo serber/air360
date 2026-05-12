@@ -26,7 +26,7 @@
   "stats": {
     "activeDevices": "Активные устройства",
     "countries": "Страны",
-    "dataPoints24h": "Данных / 24 ч"
+    "reports24h": "Отчетов / 24 ч"
   },
   "periods": {
     "aria": "Период измерений",
@@ -65,10 +65,23 @@
       "bad": "Очень плохо",
       "dataOnly": "Только данные",
       "noData": "Нет данных"
+    },
+    "legend": {
+      "temperature": "Температура",
+      "pressure": "Давление",
+      "humidity": "Влажность",
+      "light": "Свет",
+      "coldToHot": "от холода к жаре",
+      "lowToHigh": "от низкого к высокому",
+      "dryToHumid": "от сухого к влажному",
+      "baselineToHigh": "от фона к высокому",
+      "cleanToHazardous": "от чистого к опасному",
+      "darkToBright": "от темного к яркому",
+      "noData": "Нет данных"
     }
   },
   "devicePopup": {
-    "lastSeen": "последний раз на связи {date}",
+    "lastSeen": "Был {date}",
     "close": "Закрыть окно",
     "stale": "Устройство не выходило на связь больше 1 часа.",
     "noMeasurements": "Измерений пока нет.",
