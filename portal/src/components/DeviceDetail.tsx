@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import maplibregl from "maplibre-gl";
+import { useEffect, useRef, useState } from "react";
+import { useFormatter, useTranslations } from "next-intl";
 import { PeriodSelector } from "@/components/PeriodSelector";
-import { SensorChart } from "@/components/SensorChart";
-import type { MeasurementsResponse, Period } from "@/lib/api";
+import { SensorChart, type ChartMeasurement } from "@/components/SensorChart";
+import type { KindMeasurements, MeasurementsResponse, Period } from "@/lib/api";
 import {
+  countryCodeFlag,
   fetchJson,
-  formatDateTime,
   formatValue,
+  isDeviceStale,
   kindLabel,
   sensorLabel,
 } from "@/lib/api";
+import { MAP_STYLE } from "@/lib/map-style";
 
 type DeviceDetailProps = {
   publicId: string;
@@ -23,6 +27,8 @@ type LoadState =
   | { status: "error"; data?: MeasurementsResponse; message: string };
 
 export function DeviceDetail({ publicId }: DeviceDetailProps) {
+  const t = useTranslations("deviceDetail");
+  const format = useFormatter();
   const [period, setPeriod] = useState<Period>("24h");
   const [state, setState] = useState<LoadState>({ status: "idle" });
 
@@ -54,152 +60,329 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
   const byKind = state.data?.by_kind ?? [];
   const latest = state.data?.latest ?? [];
   const sensors = state.data?.sensors ?? [];
+  const chartMeasurements = buildChartMeasurements(byKind, {
+    pressureTitle: t("pressureTitle"),
+    seaLevel: t("seaLevel"),
+    station: t("station"),
+  });
+  const isStale = device ? isDeviceStale(device.last_seen_at) : true;
   const isLoading =
     state.status === "idle" || state.data === undefined || state.data.period !== period;
+  const deviceTitle = device?.name?.trim() || t("fallbackTitle");
+  const countryFlag = countryCodeFlag(device?.geo_country_code);
+  const countryValue = device?.geo_country
+    ? `${device.geo_country}${countryFlag ? ` ${countryFlag}` : ""}`
+    : (countryFlag ?? "-");
+  const deviceMapHref = device
+    ? `/map#11/${device.latitude.toFixed(5)}/${device.longitude.toFixed(5)}`
+    : "/map";
 
   return (
-    <main className="min-h-screen bg-[#f4f7f5] text-slate-950">
-      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <Link
-              className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-900"
-              href="/map"
-            >
-              Back to map
-            </Link>
-            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Device
-            </p>
-            <h1 className="mt-2 break-all text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-              {device?.name ?? publicId}
-            </h1>
-            {device && (
-              <p className="mt-1 font-mono text-sm text-slate-400">{publicId}</p>
-            )}
+    <main className="air-device-page">
+      <div className="air-container">
+        <header className="air-device-head">
+          <div className="air-crumb">
+            <Link href="/map">{t("backToMap")}</Link>
+            <span>/</span>
+            <span>{t("crumb")}</span>
           </div>
 
-          <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="air-device-title-row">
+            <h1>{deviceTitle}</h1>
+            {device ? (
+              <span className={isStale ? "air-pill-status air-stale" : "air-pill-status"}>
+                <span className="air-live-dot" />
+                {isStale ? t("stale") : t("online")}
+              </span>
+            ) : null}
+          </div>
+
+          {device ? (
+            <div className="air-device-meta">
+              <span>
+                {t("locationMeta")} <b>{device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}</b>
+              </span>
+              <span>
+                {t("joined")} <b>{formatDeviceDate(format, device.registered_at)}</b>
+              </span>
+              <span>
+                {t("lastSeen")} <b>{formatDeviceDate(format, device.last_seen_at)}</b>
+              </span>
+              <span>
+                {t("firmware")} <b>{device.firmware_version}</b>
+              </span>
+            </div>
+          ) : null}
+
+          {latest.length > 0 ? (
+            <div className="air-now-strip">
+              {latest.map((reading) => (
+                <div
+                  className="air-now-cell"
+                  key={`${reading.sensor_type}-${reading.kind}`}
+                >
+                  <span className="air-now-label">{kindLabel(reading.kind)}</span>
+                  <span className="air-now-value">{formatValue(reading.kind, reading.value)}</span>
+                  <span className="air-now-source">{sensorLabel(reading.sensor_type)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </header>
 
-        {device && (
-          <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Location
-              </p>
-              {device.geo_display ? (
-                <p className="mt-1 text-sm text-slate-950">{device.geo_display}</p>
-              ) : (
-                <p className="mt-1 text-sm text-slate-950">
-                  {device.latitude.toFixed(4)}, {device.longitude.toFixed(4)}
-                </p>
-              )}
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Firmware
-              </p>
-              <p className="mt-1 text-sm text-slate-950">
-                {device.firmware_version}
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Registered
-              </p>
-              <p className="mt-1 text-sm text-slate-950">
-                {formatDateTime(device.registered_at)}
-              </p>
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Last seen
-              </p>
-              <p className="mt-1 text-sm text-slate-950">
-                {formatDateTime(device.last_seen_at)}
-              </p>
-            </div>
-          </section>
-        )}
-
-        {latest.length > 0 && (
-          <section className="mt-4">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">
-              Latest readings
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {latest.map((r) => (
-                <div
-                  key={`${r.sensor_type}-${r.kind}`}
-                  className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                >
-                  <p className="text-xs font-semibold text-emerald-700">
-                    {sensorLabel(r.sensor_type)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {kindLabel(r.kind)}
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-slate-950">
-                    {formatValue(r.kind, r.value)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {sensors.length > 0 && (
-          <section className="mt-4">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">
-              Sensors
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {sensors.map((s) => (
-                <div
-                  key={s.sensor_type}
-                  className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                >
-                  <p className="text-sm font-semibold text-slate-950">
-                    {sensorLabel(s.sensor_type)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {s.kinds.map(kindLabel).join(", ")}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-600">
-            {isLoading && "Loading measurements..."}
+        <section className="air-device-control-bar">
+          <PeriodSelector value={period} onChange={setPeriod} />
+          <p className="air-device-load-state">
+            {isLoading && t("loadingMeasurements")}
             {!isLoading &&
               state.status === "ready" &&
-              `${byKind.length} measurement type${byKind.length === 1 ? "" : "s"} for selected period`}
+              t("chartCount", { count: chartMeasurements.length })}
             {!isLoading && state.status === "error" && state.message}
           </p>
         </section>
 
-        {byKind.length === 0 && !isLoading ? (
-          <section className="mt-8 rounded-md border border-slate-200 bg-white px-4 py-10 text-center shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-950">
-              No chart data
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              The backend did not return measurements for this device and
-              period.
-            </p>
-          </section>
-        ) : null}
+        <div className="air-device-panel-grid">
+          <div className="air-device-charts">
+            {chartMeasurements.length === 0 && !isLoading ? (
+              <section className="air-empty-state">
+                <h2>{t("noChartTitle")}</h2>
+                <p>
+                  {t("noChartBody")}
+                </p>
+              </section>
+            ) : null}
 
-        <div className="mt-6 grid gap-5">
-          {byKind.map((k) => (
-            <SensorChart key={k.kind} measurement={k} />
-          ))}
+            {chartMeasurements.map((k) => (
+              <SensorChart key={k.kind} measurement={k} />
+            ))}
+          </div>
+
+          <aside className="air-device-side">
+            <section className="air-info-card">
+              <div className="air-info-card-head">
+                <h4>{t("location")}</h4>
+                <Link href={deviceMapHref}>{t("mapLink")}</Link>
+              </div>
+              {device ? (
+                <DeviceStaticMap
+                  latitude={device.latitude}
+                  longitude={device.longitude}
+                />
+              ) : (
+                <div className="air-mini-map air-mini-map-empty" />
+              )}
+              <div className="air-info-card-body">
+                <InfoRow label={t("country")} value={countryValue} />
+                <InfoRow label={t("city")} value={device?.geo_city ?? t("unknown")} />
+                <InfoRow
+                  label={t("latitude")}
+                  value={device ? device.latitude.toFixed(5) : "-"}
+                />
+                <InfoRow
+                  label={t("longitude")}
+                  value={device ? device.longitude.toFixed(5) : "-"}
+                />
+                <InfoRow
+                  label={t("altitude")}
+                  value={
+                    typeof device?.altitude_m === "number"
+                      ? `${device.altitude_m.toFixed(1)} m`
+                      : "-"
+                  }
+                />
+              </div>
+            </section>
+
+            <section className="air-info-card">
+              <div className="air-info-card-head">
+                <h4>{t("hardware")}</h4>
+              </div>
+              <div className="air-sensor-list">
+                {sensors.length > 0 ? (
+                  sensors.map((sensor) => (
+                    <div className="air-sensor-row" key={sensor.sensor_type}>
+                      <div>
+                        <div className="air-sensor-name">
+                          {sensorLabel(sensor.sensor_type)}
+                        </div>
+                        <div className="air-sensor-desc">
+                          {sensor.kinds.map(kindLabel).join(", ")}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="air-info-empty">{t("noSensors")}</p>
+                )}
+              </div>
+            </section>
+
+          </aside>
         </div>
       </div>
     </main>
+  );
+}
+
+function buildChartMeasurements(
+  measurements: KindMeasurements[],
+  labels: {
+    pressureTitle: string;
+    seaLevel: string;
+    station: string;
+  },
+): ChartMeasurement[] {
+  const seaLevelPressure = measurements.find(
+    (measurement) => measurement.kind === "pressure_hpa",
+  );
+  const stationPressure = measurements.find(
+    (measurement) => measurement.kind === "pressure_hpa_raw",
+  );
+  const pressureKinds = new Set(["pressure_hpa", "pressure_hpa_raw"]);
+  const pressureChart =
+    seaLevelPressure || stationPressure
+      ? buildPressureChart(seaLevelPressure, stationPressure, labels)
+      : null;
+  const charts: ChartMeasurement[] = [];
+  let pressureChartAdded = false;
+
+  for (const measurement of measurements) {
+    if (pressureKinds.has(measurement.kind)) {
+      if (pressureChart && !pressureChartAdded) {
+        charts.push(pressureChart);
+        pressureChartAdded = true;
+      }
+
+      continue;
+    }
+
+    charts.push(measurement);
+  }
+
+  return charts;
+}
+
+function buildPressureChart(
+  seaLevelPressure: KindMeasurements | undefined,
+  stationPressure: KindMeasurements | undefined,
+  labels: {
+    pressureTitle: string;
+    seaLevel: string;
+    station: string;
+  },
+): ChartMeasurement {
+  const series: ChartMeasurement["series"] = [
+    ...(seaLevelPressure?.series.map((item) => ({
+      ...item,
+      chartKey: `${item.sensor_type}:pressure_hpa`,
+      kind: "pressure_hpa",
+      label: `${sensorLabel(item.sensor_type)} · ${labels.seaLevel}`,
+    })) ?? []),
+    ...(stationPressure?.series.map((item) => ({
+      ...item,
+      chartKey: `${item.sensor_type}:pressure_hpa_raw`,
+      kind: "pressure_hpa_raw",
+      label: `${sensorLabel(item.sensor_type)} · ${labels.station}`,
+    })) ?? []),
+  ];
+
+  return {
+    kind: "pressure_hpa",
+    series,
+    title: labels.pressureTitle,
+  };
+}
+
+function DeviceStaticMap({
+  latitude,
+  longitude,
+}: {
+  latitude: number;
+  longitude: number;
+}) {
+  const t = useTranslations("deviceDetail");
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
+
+  useEffect(() => {
+    const container = mapContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const center: [number, number] = [longitude, latitude];
+    const markerElement = document.createElement("div");
+    markerElement.className = "air-mini-map-pin";
+
+    const map = new maplibregl.Map({
+      attributionControl: { compact: true },
+      center,
+      container,
+      doubleClickZoom: false,
+      dragPan: false,
+      dragRotate: false,
+      interactive: false,
+      keyboard: false,
+      maxZoom: 11,
+      minZoom: 11,
+      pitchWithRotate: false,
+      scrollZoom: false,
+      style: MAP_STYLE,
+      touchZoomRotate: false,
+      zoom: 11,
+    });
+
+    const marker = new maplibregl.Marker({
+      anchor: "center",
+      element: markerElement,
+    })
+      .setLngLat(center)
+      .addTo(map);
+
+    mapRef.current = map;
+    markerRef.current = marker;
+    map.once("load", () => map.resize());
+
+    return () => {
+      markerRef.current?.remove();
+      mapRef.current?.remove();
+      markerRef.current = null;
+      mapRef.current = null;
+    };
+  }, [latitude, longitude]);
+
+  return (
+    <div
+      ref={mapContainerRef}
+      aria-label={t("deviceLocationMap")}
+      className="air-mini-map"
+    />
+  );
+}
+
+function formatDeviceDate(
+  format: ReturnType<typeof useFormatter>,
+  value: string,
+): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return format.dateTime(date, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="air-info-row">
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
   );
 }

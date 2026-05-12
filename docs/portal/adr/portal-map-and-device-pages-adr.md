@@ -41,7 +41,6 @@ for visualizing device data.
 | `/` | Public portal home page |
 | `/map` | World map with active device pins and optional offline-device layer |
 | `/devices/:public_id` | Device detail page with sensor charts |
-| `/build` | Placeholder device assembly guide |
 | `/privacy` | Privacy policy |
 
 ### Map (`/map`)
@@ -99,7 +98,9 @@ channel. Dense device areas use compact clusters with capped visual size;
 cluster labels show the average value for the selected metric, cluster fill
 color is based on that average value, and individual circular markers scale with
 map zoom. Map status, the selected metric legend, and the metric selector are
-placed in left-side overlays.
+placed in left-side overlays. The metric selector is presented as a compact
+Air360 layer-chip control; the detailed metric legends and freshness indicators
+remain the implementation source for the map's threshold semantics.
 
 Active-device data is fetched client-side on mount from `GET /v1/devices`.
 Offline-device data is fetched from `GET /v1/devices/offline` when the offline
@@ -115,6 +116,11 @@ The page shows one chart per measurement `kind`. Each chart can include one or
 more sensor series for that measurement type. The page also shows device
 metadata, latest-reading cards, sensor metadata, and reverse-geocoded display
 fields returned by the backend.
+
+The device detail UI uses the shared portal shell, a current-reading strip for
+the latest values, segmented period controls, reusable chart cards, and a
+right-side metadata/sidebar layout for location, hardware, and data-integrity
+summary fields.
 
 A period selector at the top of the page controls the time range:
 
@@ -149,8 +155,8 @@ needed if the browser should call a public API host directly.
 | `src/app/page.tsx` | Public home page |
 | `src/app/map/page.tsx` | Map page (shell, imports `DeviceMap`) |
 | `src/app/devices/[public_id]/page.tsx` | Device detail page shell |
-| `src/app/build/page.tsx` | Placeholder device assembly guide |
 | `src/app/privacy/page.tsx` | Privacy policy |
+| `src/components/PortalShell.tsx` | Shared public portal navigation, footer, brand mark, and arrow primitive |
 | `src/components/DeviceMapLoader.tsx` | Client-only MapLibre loader |
 | `src/components/DeviceMap.tsx` | MapLibre map with GeoJSON device layers |
 | `src/components/DevicePopup.tsx` | Popup card: name, last seen, readings, link |

@@ -38,7 +38,7 @@ Local `/v1/*` requests are proxied by `next.config.ts` to `AIR360_API_BASE_URL`,
 
 ## First code files to inspect
 
-- App routes: `src/app/page.tsx`, `src/app/map/page.tsx`, `src/app/devices/[public_id]/page.tsx`, `src/app/build/page.tsx`, `src/app/privacy/page.tsx`
+- App routes: `src/app/page.tsx`, `src/app/map/page.tsx`, `src/app/devices/[public_id]/page.tsx`, `src/app/privacy/page.tsx`
 - Layout and global CSS: `src/app/layout.tsx`, `src/app/globals.css`
 - API contracts and formatting: `src/lib/api.ts`, `src/lib/config.ts`
 - Map UI: `src/components/DeviceMap.tsx`, `src/components/DeviceMapLoader.tsx`, `src/components/DevicePopup.tsx`
@@ -50,7 +50,6 @@ Local `/v1/*` requests are proxied by `next.config.ts` to `AIR360_API_BASE_URL`,
 - `/`
 - `/map`
 - `/devices/:public_id`
-- `/build`
 - `/privacy`
 
 ## Co-change expectations

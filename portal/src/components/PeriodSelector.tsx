@@ -1,7 +1,9 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { Period } from "@/lib/api";
-import { PERIOD_OPTIONS } from "@/lib/api";
+
+const PERIOD_OPTIONS: Period[] = ["1h", "24h", "7d", "30d", "90d", "180d", "365d"];
 
 type PeriodSelectorProps = {
   value: Period;
@@ -9,22 +11,23 @@ type PeriodSelectorProps = {
 };
 
 export function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
+  const t = useTranslations("periods");
+
   return (
     <div
-      className="flex flex-wrap gap-2"
+      className="air-segmented-control"
       role="radiogroup"
-      aria-label="Measurement period"
+      aria-label={t("aria")}
     >
       {PERIOD_OPTIONS.map((period) => (
         <button
-          aria-checked={period.value === value}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-950 hover:text-slate-950 aria-checked:border-slate-950 aria-checked:bg-slate-950 aria-checked:text-white"
-          key={period.value}
-          onClick={() => onChange(period.value)}
+          aria-checked={period === value}
+          key={period}
+          onClick={() => onChange(period)}
           role="radio"
           type="button"
         >
-          {period.label}
+          {t(period)}
         </button>
       ))}
     </div>

@@ -36,6 +36,7 @@ export type DeviceSensor = {
 export type DeviceSummary = {
   public_id: string;
   name: string;
+  geo_country_code: string | null;
   location: {
     latitude: number;
     longitude: number;
@@ -46,6 +47,12 @@ export type DeviceSummary = {
 
 export type DevicesResponse = {
   devices: DeviceSummary[];
+};
+
+export type PortalStatsResponse = {
+  active_devices: number;
+  countries: number;
+  data_points_24h: number;
 };
 
 export type MeasurementPoint = {
@@ -67,13 +74,13 @@ export type DeviceInfo = {
   name: string;
   latitude: number;
   longitude: number;
+  altitude_m: number | null;
   firmware_version: string;
   registered_at: string;
   last_seen_at: string;
   geo_country: string | null;
   geo_country_code: string | null;
   geo_city: string | null;
-  geo_display: string | null;
 };
 
 export type LatestReading = {
@@ -179,6 +186,19 @@ export function formatValue(kind: string, value: number): string {
   return `${new Intl.NumberFormat(undefined, {
     maximumFractionDigits: Math.abs(value) >= 100 ? 0 : 2,
   }).format(value)}${unit ? ` ${unit}` : ""}`;
+}
+
+export function countryCodeFlag(countryCode: string | null | undefined): string | null {
+  if (!countryCode || !/^[a-z]{2}$/i.test(countryCode)) {
+    return null;
+  }
+
+  const base = 0x1f1e6;
+  const letters = countryCode.toUpperCase();
+
+  return Array.from(letters)
+    .map((letter) => String.fromCodePoint(base + letter.charCodeAt(0) - 65))
+    .join("");
 }
 
 export function sensorLabel(sensorType: string): string {
