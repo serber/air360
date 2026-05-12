@@ -287,6 +287,6 @@ function pm25Colors(value: number | undefined): { color: string; ring: string } 
 
 function markerValue(value: number): string {
   return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: Math.abs(value) < 10 ? 2 : 1,
+    maximumFractionDigits: 0,
   }).format(value);
 }
