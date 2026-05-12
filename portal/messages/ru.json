@@ -26,7 +26,7 @@
   "stats": {
     "activeDevices": "Активные устройства",
     "countries": "Страны",
-    "dataPoints24h": "Данных / 24 ч"
+    "reports24h": "Отчетов / 24 ч"
   },
   "periods": {
     "aria": "Период измерений",

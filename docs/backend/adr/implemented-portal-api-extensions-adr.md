@@ -103,13 +103,13 @@ Response `200`:
 {
   "active_devices": 42,
   "countries": 7,
-  "data_points_24h": 18240
+  "reports_24h": 1440
 }
 ```
 
 `active_devices` uses the same one-hour freshness window as `GET /v1/devices`.
 `countries` counts distinct non-empty `geo_country_code` values across all
-devices. `data_points_24h` counts measurement rows sampled in the last 24 hours.
+devices. `reports_24h` counts batch rows received in the last 24 hours.
 
 ### `GET /v1/devices/:public_id/measurements?period=<period>`
 

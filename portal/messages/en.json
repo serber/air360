@@ -26,7 +26,7 @@
   "stats": {
     "activeDevices": "Active devices",
     "countries": "Countries",
-    "dataPoints24h": "Data points / 24h"
+    "reports24h": "Reports / 24h"
   },
   "periods": {
     "aria": "Measurement period",

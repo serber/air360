@@ -22,8 +22,8 @@ const stats: StatItem[] = [
     format: "number",
   },
   {
-    key: "data_points_24h",
-    labelKey: "dataPoints24h",
+    key: "reports_24h",
+    labelKey: "reports24h",
     format: "compact",
   },
 ];
