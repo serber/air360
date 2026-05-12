@@ -8,7 +8,6 @@ import { fetchJson } from "@/lib/api";
 import { MAP_STYLE } from "@/lib/map-style";
 
 const PREVIEW_SOURCE_ID = "air360-home-preview-devices";
-const PREVIEW_RING_LAYER_ID = "air360-home-preview-rings";
 const PREVIEW_CIRCLE_LAYER_ID = "air360-home-preview-circles";
 const PREVIEW_LABEL_LAYER_ID = "air360-home-preview-labels";
 const PREVIEW_METRIC = "pm2_5_ug_m3";
@@ -22,7 +21,9 @@ type PreviewFeature = {
   properties: {
     color: string;
     label: string;
+    opacity: number;
     ringColor: string;
+    strokeWidth: number;
   };
 };
 
@@ -95,25 +96,30 @@ export function HomeMapPreview() {
       });
 
       map.addLayer({
-        id: PREVIEW_RING_LAYER_ID,
-        type: "circle",
-        source: PREVIEW_SOURCE_ID,
-        paint: {
-          "circle-color": ["get", "ringColor"],
-          "circle-opacity": 0.75,
-          "circle-radius": 13,
-        },
-      });
-
-      map.addLayer({
         id: PREVIEW_CIRCLE_LAYER_ID,
         type: "circle",
         source: PREVIEW_SOURCE_ID,
         paint: {
           "circle-color": ["get", "color"],
-          "circle-radius": 7,
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 2,
+          "circle-opacity": ["get", "opacity"],
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            8,
+            5,
+            10,
+            8,
+            13,
+            12,
+            17,
+            16,
+            23,
+          ],
+          "circle-stroke-color": ["get", "ringColor"],
+          "circle-stroke-opacity": ["get", "opacity"],
+          "circle-stroke-width": ["get", "strokeWidth"],
         },
       });
 
@@ -122,16 +128,40 @@ export function HomeMapPreview() {
         type: "symbol",
         source: PREVIEW_SOURCE_ID,
         layout: {
-          "text-allow-overlap": false,
+          "text-allow-overlap": true,
           "text-field": ["get", "label"],
-          "text-font": ["Noto Sans Regular"],
-          "text-offset": [0, 1.25],
-          "text-size": 10,
+          "text-font": ["Open Sans Bold"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            7,
+            5,
+            8,
+            8,
+            9,
+            13,
+            11,
+            16,
+            12,
+          ],
         },
         paint: {
-          "text-color": "#0c1411",
-          "text-halo-color": "#ffffff",
-          "text-halo-width": 1.5,
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(15, 23, 42, 0.35)",
+          "text-halo-width": 1,
+          "text-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            2,
+            0,
+            4,
+            0,
+            6,
+            1,
+          ],
         },
       });
 
@@ -212,7 +242,9 @@ function buildPreviewFeatureCollection(
         properties: {
           color: colors.color,
           label: typeof reading?.value === "number" ? markerValue(reading.value) : "",
+          opacity: 0.94,
           ringColor: colors.ring,
+          strokeWidth: 3,
         },
       };
     }),
@@ -255,6 +287,6 @@ function pm25Colors(value: number | undefined): { color: string; ring: string } 
 
 function markerValue(value: number): string {
   return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: value >= 100 ? 0 : 1,
+    maximumFractionDigits: Math.abs(value) < 10 ? 2 : 1,
   }).format(value);
 }

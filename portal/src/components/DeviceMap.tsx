@@ -2026,20 +2026,37 @@ function freshnessLevel(lastSeenAt: string): FreshnessLevel {
 
 function markerValue(metric: MapMetric, value: number): string {
   if (metric === "temperature_c") {
-    return Math.round(value).toString();
+    return formatMarkerNumber(value, { maximumFractionDigits: 1 });
   }
 
   if (metric === "humidity_percent") {
-    return Math.round(value).toString();
+    return formatMarkerNumber(value, { maximumFractionDigits: 1 });
   }
 
   if (metric === "co2_ppm") {
     return value >= 1000
-      ? `${Math.round(value / 100) / 10}k`
-      : Math.round(value).toString();
+      ? `${formatMarkerNumber(value / 1000, { maximumFractionDigits: 1 })}k`
+      : formatMarkerNumber(value, { maximumFractionDigits: 0 });
   }
 
-  return Math.round(value).toString();
+  if (metric === "pressure_hpa") {
+    return formatMarkerNumber(value, { maximumFractionDigits: 1 });
+  }
+
+  if (metric === "illuminance_lux") {
+    return formatMarkerNumber(value, { maximumFractionDigits: 0 });
+  }
+
+  return formatMarkerNumber(value, {
+    maximumFractionDigits: Math.abs(value) < 10 ? 2 : 1,
+  });
+}
+
+function formatMarkerNumber(
+  value: number,
+  options: Intl.NumberFormatOptions,
+): string {
+  return new Intl.NumberFormat(undefined, options).format(value);
 }
 
 function hasValidLocation(device: DeviceSummary): boolean {
