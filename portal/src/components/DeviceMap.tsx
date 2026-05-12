@@ -1041,22 +1041,26 @@ function LegendItem({
 }
 
 function NoDataLegendItem() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div className="mt-3 border-t border-slate-200 pt-3 text-slate-500">
       <span className="flex items-center gap-2">
         <span className="air360-legend-dot air360-quality-no-data" />
-        No data
+        {t("noData")}
       </span>
     </div>
   );
 }
 
 function TemperatureLegend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <span className="font-semibold text-slate-700">Temperature</span>
-        <span className="text-slate-500">cold to hot</span>
+        <span className="font-semibold text-slate-700">{t("temperature")}</span>
+        <span className="text-slate-500">{t("coldToHot")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1088,11 +1092,13 @@ function TemperatureLegend() {
 }
 
 function PressureLegend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <span className="font-semibold text-slate-700">Pressure</span>
-        <span className="text-slate-500">low to high</span>
+        <span className="font-semibold text-slate-700">{t("pressure")}</span>
+        <span className="text-slate-500">{t("lowToHigh")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1124,11 +1130,13 @@ function PressureLegend() {
 }
 
 function HumidityLegend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <span className="font-semibold text-slate-700">Humidity</span>
-        <span className="text-slate-500">dry to humid</span>
+        <span className="font-semibold text-slate-700">{t("humidity")}</span>
+        <span className="text-slate-500">{t("dryToHumid")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1160,11 +1168,13 @@ function HumidityLegend() {
 }
 
 function Co2Legend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold text-slate-700">CO2</span>
-        <span className="text-slate-500">baseline to high</span>
+        <span className="text-slate-500">{t("baselineToHigh")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1196,11 +1206,13 @@ function Co2Legend() {
 }
 
 function Pm25Legend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold text-slate-700">PM2.5</span>
-        <span className="text-slate-500">clean to hazardous</span>
+        <span className="text-slate-500">{t("cleanToHazardous")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1232,11 +1244,13 @@ function Pm25Legend() {
 }
 
 function Pm10Legend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold text-slate-700">PM10</span>
-        <span className="text-slate-500">clean to hazardous</span>
+        <span className="text-slate-500">{t("cleanToHazardous")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1268,11 +1282,13 @@ function Pm10Legend() {
 }
 
 function Pm1Legend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold text-slate-700">PM1.0</span>
-        <span className="text-slate-500">clean to hazardous</span>
+        <span className="text-slate-500">{t("cleanToHazardous")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1304,11 +1320,13 @@ function Pm1Legend() {
 }
 
 function Pm4Legend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold text-slate-700">PM4.0</span>
-        <span className="text-slate-500">clean to hazardous</span>
+        <span className="text-slate-500">{t("cleanToHazardous")}</span>
       </div>
       <div
         aria-hidden="true"
@@ -1340,11 +1358,13 @@ function Pm4Legend() {
 }
 
 function LightLegend() {
+  const t = useTranslations("mapPage.legend");
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <span className="font-semibold text-slate-700">Light</span>
-        <span className="text-slate-500">dark to bright</span>
+        <span className="font-semibold text-slate-700">{t("light")}</span>
+        <span className="text-slate-500">{t("darkToBright")}</span>
       </div>
       <div
         aria-hidden="true"

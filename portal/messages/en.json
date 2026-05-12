@@ -18,9 +18,9 @@
   },
   "home": {
     "mapPreviewAria": "Air360 map preview",
-    "titleLine1": "An air quality map",
-    "titleLine2": "built by people.",
-    "lead": "Air360 collects data from sensors installed by project contributors at home, at work, and around the city. Build your own sensor, connect it, and it will appear on the shared map.",
+    "titleLine1": "Air360 map",
+    "titleLine2": "air sensors online.",
+    "lead": "This page shows readings from Air360 devices that are online now. The hardware and software are open source; add a device and its measurements will appear here.",
     "exploreMap": "Explore the map"
   },
   "stats": {
@@ -64,6 +64,19 @@
       "poor": "Poor",
       "bad": "Bad",
       "dataOnly": "Data only",
+      "noData": "No data"
+    },
+    "legend": {
+      "temperature": "Temperature",
+      "pressure": "Pressure",
+      "humidity": "Humidity",
+      "light": "Light",
+      "coldToHot": "cold to hot",
+      "lowToHigh": "low to high",
+      "dryToHumid": "dry to humid",
+      "baselineToHigh": "baseline to high",
+      "cleanToHazardous": "clean to hazardous",
+      "darkToBright": "dark to bright",
       "noData": "No data"
     }
   },
