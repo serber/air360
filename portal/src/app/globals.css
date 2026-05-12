@@ -521,64 +521,11 @@ svg {
   position: absolute;
 }
 
-.air-map-preview-legend,
-.air-map-preview-meter {
-  backdrop-filter: blur(6px);
-  background: color-mix(in oklab, var(--panel) 92%, transparent);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  font-family: var(--air-font-mono);
-  position: absolute;
-}
-
-.air-map-preview-legend {
-  display: flex;
-  flex-direction: column;
-  font-size: 10.5px;
-  gap: 6px;
-  left: 14px;
-  letter-spacing: 0.04em;
-  padding: 10px 12px;
-  top: 14px;
-}
-
-.air-map-preview-legend-title {
-  color: var(--ink-3);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  margin-bottom: 2px;
-  text-transform: uppercase;
-}
-
-.air-map-preview-legend-row {
-  align-items: center;
-  color: var(--ink-2);
-  display: flex;
-  gap: 7px;
-}
-
 .air-swatch {
   border-radius: 50%;
   display: inline-block;
   height: 9px;
   width: 9px;
-}
-
-.air-map-preview-meter {
-  color: var(--ink-3);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  padding: 10px 12px;
-  right: 14px;
-  text-transform: uppercase;
-  top: 14px;
-}
-
-.air-map-preview-meter b {
-  color: var(--ink);
-  display: block;
-  font-size: 18px;
-  letter-spacing: 0;
 }
 
 .air-section {
@@ -1833,10 +1780,6 @@ svg {
 
   .air-map-preview {
     aspect-ratio: 0.92 / 1;
-  }
-
-  .air-map-preview-legend {
-    max-width: calc(100% - 28px);
   }
 
   .air-stream {

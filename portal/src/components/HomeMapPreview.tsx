@@ -153,27 +153,6 @@ export function HomeMapPreview() {
   return (
     <div className="air-map-preview" aria-label="Air360 map preview">
       <div ref={mapContainerRef} className="air-map-preview-canvas" />
-
-      <div className="air-map-preview-legend">
-        <div className="air-map-preview-legend-title">PM2.5 · ug/m3</div>
-        <div className="air-map-preview-legend-row">
-          <span className="air-swatch" style={{ background: "var(--aqi-1)" }} /> 0-12 · good
-        </div>
-        <div className="air-map-preview-legend-row">
-          <span className="air-swatch" style={{ background: "var(--aqi-2)" }} /> 12-35 · moderate
-        </div>
-        <div className="air-map-preview-legend-row">
-          <span className="air-swatch" style={{ background: "var(--aqi-3)" }} /> 35-55 · sensitive
-        </div>
-        <div className="air-map-preview-legend-row">
-          <span className="air-swatch" style={{ background: "var(--aqi-4)" }} /> 55+ · unhealthy
-        </div>
-      </div>
-
-      <div className="air-map-preview-meter">
-        visible
-        <b>{devices.length}</b>
-      </div>
     </div>
   );
 }
