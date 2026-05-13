@@ -60,6 +60,7 @@ backend/
         devices.ts         - device registration, active and offline device lists
         ingest.ts          - sensor batch ingest
         measurements.ts    - public measurement history queries
+        stats.ts           - public portal summary counters
     modules/
       devices/
         device-repository.ts      - device DB operations
@@ -207,6 +208,7 @@ Response `200`:
     {
       "public_id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "Air360-AB12",
+      "geo_country_code": "RU",
       "location": { "latitude": 55.751244, "longitude": 37.618423 },
       "last_seen_at": "2026-04-29T10:00:00.000Z",
       "sensors": [
@@ -227,6 +229,29 @@ Devices with no measurements appear with `sensors: []`.
 
 ---
 
+### `GET /v1/stats`
+
+Returns public summary counters for the portal home page.
+
+Response `200`:
+
+```json
+{
+  "active_devices": 42,
+  "countries": 7,
+  "reports_24h": 1440
+}
+```
+
+Counter definitions:
+
+- `active_devices` counts devices with `last_seen_at` within the last hour.
+- `countries` counts distinct non-empty `geo_country_code` values across all
+  devices.
+- `reports_24h` counts batch rows with `received_at` within the last 24 hours.
+
+---
+
 ### `GET /v1/devices/offline`
 
 Returns devices that have not been seen for more than one hour. Intended for the
@@ -241,6 +266,7 @@ Response `200`:
     {
       "public_id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "Air360-AB12",
+      "geo_country_code": "RU",
       "location": { "latitude": 55.751244, "longitude": 37.618423 },
       "last_seen_at": "2026-04-29T08:00:00.000Z",
       "sensors": []
@@ -293,13 +319,13 @@ Response `200`:
     "name": "Air360-AB12",
     "latitude": 55.751244,
     "longitude": 37.618423,
+    "altitude_m": 156.0,
     "firmware_version": "1.2.0",
     "registered_at": "2026-04-27T09:15:00.000Z",
     "last_seen_at": "2026-04-29T10:00:00.000Z",
     "geo_country": "Russia",
     "geo_country_code": "ru",
-    "geo_city": "Moscow",
-    "geo_display": "Moscow, Russia"
+    "geo_city": "Moscow"
   },
   "by_kind": [
     {
@@ -504,6 +530,7 @@ The current backend does not register a standalone
 - TimescaleDB hypertable and compression migrations: implemented.
 - Upload secret auth (bearer token on ingest, hash stored at registration): implemented.
 - Device list with latest measurements (`GET /v1/devices`): implemented.
+- Portal summary counters (`GET /v1/stats`): implemented.
 - Offline device list (`GET /v1/devices/offline`): implemented.
 - Time-bucketed measurement history (`GET /v1/devices/:public_id/measurements`): implemented.
 - Reverse-geocoded device display fields and queue: implemented.

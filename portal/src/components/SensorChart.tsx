@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import type { KindMeasurements } from "@/lib/api";
 import {
   formatChartTime,
@@ -30,7 +31,7 @@ const SERIES_COLORS = [
 ];
 
 type SensorChartProps = {
-  measurement: KindMeasurements;
+  measurement: ChartMeasurement;
 };
 
 type ChartRow = {
@@ -38,70 +39,89 @@ type ChartRow = {
   [sensorType: string]: number | string | null;
 };
 
+export type ChartSeries = KindMeasurements["series"][number] & {
+  chartKey?: string;
+  kind?: string;
+  label?: string;
+};
+
+export type ChartMeasurement = Omit<KindMeasurements, "series"> & {
+  series: ChartSeries[];
+  title?: string;
+};
+
 export function SensorChart({ measurement }: SensorChartProps) {
-  const sensorTypes = measurement.series.map((s) => s.sensor_type);
+  const t = useTranslations("chart");
+  const seriesKeys = measurement.series.map(chartSeriesKey);
+  const seriesByKey = new Map(
+    measurement.series.map((series) => [chartSeriesKey(series), series]),
+  );
   const rows = buildRows(measurement);
 
   return (
-    <article className="rounded-md border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-            Measurement
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-950">
-            {kindLabel(measurement.kind)}
-          </h2>
+    <article className="air-chart-card">
+      <div className="air-chart-head">
+        <div className="air-chart-head-left">
+          <span className="air-chart-source">{t("source")}</span>
+          <div>
+            {measurement.title ?? kindLabel(measurement.kind)}
+          </div>
         </div>
-        <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-600">
-          {sensorTypes.length}{" "}
-          {sensorTypes.length === 1 ? "source" : "sources"}
-        </p>
+        <div className="air-chart-stats">
+          {t("sourceCount", { count: seriesKeys.length })}
+        </div>
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-5 rounded-md bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
-          No points for this period.
+        <p className="air-chart-empty">
+          {t("empty")}
         </p>
       ) : (
-        <div className="mt-5 h-[320px]">
+        <div className="air-chart-body">
           <ResponsiveContainer height="100%" width="100%">
             <LineChart
               data={rows}
               margin={{ bottom: 10, left: 4, right: 20, top: 12 }}
             >
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+              <CartesianGrid stroke="var(--line-2)" strokeDasharray="3 3" />
               <XAxis
                 dataKey="sampledAt"
                 minTickGap={24}
-                stroke="#64748b"
+                stroke="var(--ink-3)"
                 tickFormatter={formatChartTime}
                 tickMargin={10}
               />
               <YAxis
                 allowDecimals
-                stroke="#64748b"
+                stroke="var(--ink-3)"
                 tickMargin={8}
                 width={56}
               />
               <Tooltip
                 formatter={(value, name) => [
                   typeof value === "number"
-                    ? formatValue(measurement.kind, value)
+                    ? formatValue(
+                        seriesByKey.get(String(name))?.kind ?? measurement.kind,
+                        value,
+                      )
                     : String(value),
-                  sensorLabel(String(name)),
+                  seriesLabel(seriesByKey.get(String(name))),
                 ]}
                 labelFormatter={(label) => formatChartTime(String(label))}
               />
-              <Legend formatter={(value) => sensorLabel(String(value))} />
-              {sensorTypes.map((sensorType, index) => (
+              <Legend
+                formatter={(value) =>
+                  seriesLabel(seriesByKey.get(String(value)))
+                }
+              />
+              {seriesKeys.map((seriesKey, index) => (
                 <Line
                   connectNulls
-                  dataKey={sensorType}
+                  dataKey={seriesKey}
                   dot={false}
                   isAnimationActive={false}
-                  key={sensorType}
-                  name={sensorType}
+                  key={seriesKey}
+                  name={seriesKey}
                   stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
                   strokeWidth={2}
                   type="monotone"
@@ -115,14 +135,16 @@ export function SensorChart({ measurement }: SensorChartProps) {
   );
 }
 
-function buildRows(measurement: KindMeasurements): ChartRow[] {
+function buildRows(measurement: ChartMeasurement): ChartRow[] {
   const rows = new Map<string, ChartRow>();
 
   for (const series of measurement.series) {
+    const seriesKey = chartSeriesKey(series);
+
     for (const point of series.points) {
       const key = String(point.t);
       const row = rows.get(key) ?? { sampledAt: key };
-      row[series.sensor_type] = point.v;
+      row[seriesKey] = point.v;
       rows.set(key, row);
     }
   }
@@ -131,4 +153,16 @@ function buildRows(measurement: KindMeasurements): ChartRow[] {
     (a, b) =>
       new Date(a.sampledAt).getTime() - new Date(b.sampledAt).getTime(),
   );
+}
+
+function chartSeriesKey(series: ChartSeries): string {
+  return series.chartKey ?? series.sensor_type;
+}
+
+function seriesLabel(series: ChartSeries | undefined): string {
+  if (!series) {
+    return "";
+  }
+
+  return series.label ?? sensorLabel(series.sensor_type);
 }

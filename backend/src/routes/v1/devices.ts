@@ -64,6 +64,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
         return {
           public_id: device.public_id,
           name: device.name,
+          geo_country_code: device.geo_country_code,
           location: { latitude: device.latitude, longitude: device.longitude },
           last_seen_at: device.last_seen_at,
           sensors: Array.from(sensorMap.entries()).map(([sensor_type, readings]) => ({
@@ -83,6 +84,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
       devices: devices.map((device) => ({
         public_id: device.public_id,
         name: device.name,
+        geo_country_code: device.geo_country_code,
         location: { latitude: device.latitude, longitude: device.longitude },
         last_seen_at: device.last_seen_at,
         sensors: [],

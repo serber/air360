@@ -1,137 +1,141 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { PortalFooter, PortalNav } from "@/components/PortalShell";
 import { CONTACT_EMAIL } from "@/lib/config";
 
 export const metadata = { title: "Privacy Policy" };
 
 export default function Privacy() {
+  const t = useTranslations("privacy");
+  const deviceData = t.raw("deviceDataItems") as string[];
+  const visitorData = t.raw("visitorDataItems") as string[];
+
   return (
-    <main className="min-h-screen bg-[#f4f7f5] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl">
-        <Link
-          href="/"
-          className="mb-8 inline-block text-slate-600 hover:text-slate-950"
-        >
-          ← Back to home
-        </Link>
+    <div className="air-page">
+      <PortalNav active="privacy" />
+      <main className="air-doc-page">
+        <div className="air-container">
+          <header className="air-doc-head">
+            <div className="air-crumb">
+              <Link href="/">{t("backToHome")}</Link>
+              <span>/</span>
+              <span>{t("crumb")}</span>
+            </div>
+            <div className="air-doc-title-grid">
+              <div>
+                <span className="air-eyebrow">{t("eyebrow")}</span>
+                <h1 className="air-display-2">{t("title")}</h1>
+              </div>
+              <p className="air-muted">
+                {t("lead")}
+              </p>
+            </div>
+          </header>
 
-        <div className="rounded-md border border-slate-200 bg-white p-8 shadow-sm">
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-            Privacy Policy
-          </h1>
+          <div className="air-doc-grid">
+            <article className="air-doc-article">
+              <section>
+                <h2>{t("introductionTitle")}</h2>
+                <p>
+                  {t("introductionBody")}
+                </p>
+                <p>{t("effectiveDate")}</p>
+              </section>
 
-          <div className="mt-8 space-y-8 text-slate-600">
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">
-                Introduction
-              </h2>
-              <p className="mt-4">
-                Air360 is a public portal for environmental monitoring. This
-                Privacy Policy describes how we handle data collected through the
-                portal.
-              </p>
-              <p className="mt-3">Effective date: May 3, 2026.</p>
-            </section>
+              <section>
+                <h2>{t("deviceDataTitle")}</h2>
+                <p>
+                  {t("deviceDataBody")}
+                </p>
+                <ul>
+                  {deviceData.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <p>
+                  {t("deviceDataPublic")}
+                </p>
+              </section>
 
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">
-                Device data
-              </h2>
-              <p className="mt-4">
-                Air360 is a network of IoT devices that collect environmental
-                measurements in real time. Each device may report:
-              </p>
-              <ul className="mt-3 list-inside list-disc space-y-1 pl-2">
-                <li>Temperature</li>
-                <li>Humidity</li>
-                <li>CO₂ concentration</li>
-                <li>Particulate matter (PM1.0, PM2.5, PM4.0, PM10)</li>
-                <li>Atmospheric pressure</li>
-                <li>Illuminance</li>
-                <li>NO₂ concentration</li>
-                <li>GPS coordinates of the device</li>
-              </ul>
-              <p className="mt-4">
-                All of this data is public and displayed on the portal map. No
-                personal information is associated with these measurements.
-              </p>
-            </section>
+              <section>
+                <h2>{t("visitorDataTitle")}</h2>
+                <p>
+                  {t("visitorDataBody")}
+                </p>
+                <ul>
+                  {visitorData.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <p>
+                  {t("visitorDataRetention")}
+                </p>
+              </section>
 
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">
-                Visitor data
-              </h2>
-              <p className="mt-4">
-                When you visit the portal, our server automatically records
-                standard access log information:
-              </p>
-              <ul className="mt-3 list-inside list-disc space-y-1 pl-2">
-                <li>IP address</li>
-                <li>Date and time of the request</li>
-                <li>Browser type and operating system</li>
-                <li>Referring URL</li>
-              </ul>
-              <p className="mt-4">
-                These logs are not linked to your identity, are retained for up
-                to 90 days, and are used only for technical diagnostics and
-                security.
-              </p>
-            </section>
+              <section>
+                <h2>{t("cookiesTitle")}</h2>
+                <p>
+                  {t("cookiesBody")}
+                </p>
+                <p>
+                  {t("mapTilesBody")}
+                </p>
+              </section>
 
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">Cookies</h2>
-              <p className="mt-4">
-                Air360 does not use tracking or advertising cookies. The portal
-                may set technically necessary cookies required for basic
-                functionality.
-              </p>
-              <p className="mt-4">
-                The map is rendered with MapLibre GL, which may request map tiles
-                from a third-party tile server. Those requests may include your
-                IP address and the map coordinates you are viewing.
-              </p>
-            </section>
+              <section>
+                <h2>{t("sharingTitle")}</h2>
+                <p>
+                  {t("sharingBody")}
+                </p>
+              </section>
 
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">
-                Third-party sharing
-              </h2>
-              <p className="mt-4">
-                Air360 does not sell, rent, or share visitor data with third
-                parties for commercial purposes. Data may be disclosed only when
-                required by applicable law, such as in response to a lawful
-                request from law enforcement.
-              </p>
-            </section>
+              <section>
+                <h2>{t("securityTitle")}</h2>
+                <p>
+                  {t("securityBody")}
+                </p>
+              </section>
 
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">
-                Security
-              </h2>
-              <p className="mt-4">
-                Air360 applies standard technical measures to protect its systems
-                and data. The portal uses HTTPS to encrypt data in transit
-                between your browser and our server.
-              </p>
-            </section>
+              <section>
+                <h2>{t("contactTitle")}</h2>
+                <p>
+                  {t("contactBody")}
+                </p>
+                <p>
+                  <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+                </p>
+              </section>
+            </article>
 
-            <section>
-              <h2 className="text-xl font-semibold text-slate-950">Contact</h2>
-              <p className="mt-4">
-                If you have questions about this Privacy Policy or how we handle
-                data, please contact us at:
-              </p>
-              <p className="mt-3">
-                <a
-                  href={`mailto:${CONTACT_EMAIL}`}
-                  className="text-emerald-700 hover:underline"
-                >
-                  {CONTACT_EMAIL}
-                </a>
-              </p>
-            </section>
+            <aside className="air-doc-side">
+              <div className="air-info-card">
+                <div className="air-info-card-head">
+                  <h4>{t("scope")}</h4>
+                </div>
+                <div className="air-info-card-body">
+                  <div className="air-info-row">
+                    <span>{t("deviceData")}</span>
+                    <b>{t("public")}</b>
+                  </div>
+                  <div className="air-info-row">
+                    <span>{t("visitorLogs")}</span>
+                    <b>90 days</b>
+                  </div>
+                  <div className="air-info-row">
+                    <span>{t("trackingAds")}</span>
+                    <b>{t("no")}</b>
+                  </div>
+                  <div className="air-info-row">
+                    <span>{t("contact")}</span>
+                    <b>{CONTACT_EMAIL}</b>
+                  </div>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+      <PortalFooter />
+    </div>
   );
 }

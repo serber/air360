@@ -572,6 +572,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
                     cell_preview,
                     server->status_service_->networkState(),
                     *server->network_manager_,
+                    server->ota_service_->snapshot(),
                     notice,
                     error));
         };

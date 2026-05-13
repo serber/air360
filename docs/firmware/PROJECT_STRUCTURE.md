@@ -85,7 +85,8 @@ firmware/
 - `main/src/web_assets.cpp` — embedded CSS/JS asset lookup and content-type mapping
 - `main/src/web_ui.cpp` — shared page shell, HTML template expansion, navigation, and HTML escaping
 - `main/src/web_server.cpp` — `esp_http_server` setup, URI registration, and page rendering helpers used by web route files
-- `main/src/web/` — decomposed web route/support files: `web_form.cpp` for host-testable URL/form parsing, `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, and `web_server_helpers.cpp` for HTTP request/response helpers
+- `main/src/web/` — decomposed web route/support files: `web_form.cpp` for host-testable URL/form parsing, `web_runtime_routes.cpp` for read-only/runtime endpoints, `web_mutating_routes.cpp` for `/config`, `/sensors`, and `/backends`, `web_ota_routes.cpp` for the OTA upload/status/rollback endpoints, and `web_server_helpers.cpp` for HTTP request/response helpers
+- `main/src/ota_service.cpp` — `OtaService`: streaming wrapper over the ESP-IDF `app_update` API (`esp_ota_begin/write/end/set_boot_partition`), rollback marker, and deferred-reboot task
 - `main/src/uploads/upload_prune_policy.cpp` — host-testable upload prune/quorum logic shared by `MeasurementStore` and `UploadManager`
 - `main/src/uploads/upload_manager_config.cpp` — `UploadManager` backend construction, batch assembly, and upload precondition helpers
 - `main/src/uploads/upload_manager_status.cpp` — read-only `UploadManager` snapshot/query methods split away from the upload task loop

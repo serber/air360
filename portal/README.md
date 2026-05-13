@@ -8,11 +8,12 @@ The portal currently provides:
 - `React` 19 and `TypeScript`
 - `Tailwind CSS` 4
 - `ESLint` 9
-- a public home page at `/`
-- a public device map at `/map`
-- a placeholder device assembly guide at `/build`
-- a privacy policy at `/privacy`
-- public device measurement charts at `/devices/:public_id`
+- a public home page at `/` using the shared Air360 visual system
+- a public device map at `/map` with Air360 layer controls and preserved
+  metric legends
+- a privacy policy at `/privacy` with the shared Air360 document layout
+- public device measurement charts at `/devices/:public_id` with Air360
+  current-reading, period, chart, and metadata panels
 
 ## Development
 
@@ -65,5 +66,7 @@ Portal-local AI agent guidance is in `AGENTS.md`.
 - Package manager: `npm`
 - Main application entry: `src/app/page.tsx`
 - Global metadata and layout: `src/app/layout.tsx`
+- Shared portal shell and reusable navigation primitives:
+  `src/components/PortalShell.tsx`
 - API types and fetch helpers: `src/lib/api.ts`
 - API proxy: `next.config.ts`

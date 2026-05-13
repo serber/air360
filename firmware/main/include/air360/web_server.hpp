@@ -5,6 +5,7 @@
 #include "air360/cellular_config_repository.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
+#include "air360/ota_service.hpp"
 #include "air360/status_service.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
 #include "air360/sensors/sensor_manager.hpp"
@@ -40,6 +41,7 @@ class WebServer {
         UploadManager& upload_manager,
         CellularConfigRepository& cellular_config_repository,
         CellularConfig& cellular_config,
+        OtaService& ota_service,
         std::uint16_t port);
     void stop();
 
@@ -57,6 +59,9 @@ class WebServer {
     static esp_err_t handleBackends(httpd_req_t* request);
     static esp_err_t handleAir360UploadSecret(httpd_req_t* request);
     static esp_err_t handleGpsLocation(httpd_req_t* request);
+    static esp_err_t handleOtaUpload(httpd_req_t* request);
+    static esp_err_t handleOtaStatus(httpd_req_t* request);
+    static esp_err_t handleOtaRollback(httpd_req_t* request);
 
     httpd_handle_t handle_ = nullptr;
     StatusService* status_service_ = nullptr;
@@ -73,6 +78,7 @@ class WebServer {
     UploadManager* upload_manager_ = nullptr;
     CellularConfigRepository* cellular_config_repository_ = nullptr;
     CellularConfig* cellular_config_ = nullptr;
+    OtaService* ota_service_ = nullptr;
     SensorConfigList staged_sensor_config_{};
     bool has_pending_sensor_changes_ = false;
 };

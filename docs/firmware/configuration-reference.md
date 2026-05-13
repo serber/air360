@@ -79,6 +79,7 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` | Timeout for synchronous station join and `ensureStationTime()`-driven joins |
 | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` | Shared queued-sample capacity before oldest uploads are dropped |
 | `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` | Period between BTHome payload rebuilds in `air360_ble` |
+| `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` | `y` | Enables the bootloader rollback path. After an OTA the new image boots in `ESP_OTA_IMG_PENDING_VERIFY`; if it crashes before `OtaService::confirmRunningImage()` runs, the bootloader returns to the previous slot. |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.
 

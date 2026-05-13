@@ -790,6 +790,130 @@
       }
     }
 
+    // ── OTA firmware upload ──────────────────────────────────────────────────
+    // Progress is driven by XMLHttpRequest upload events on the client side.
+    // We deliberately do not poll /ota/status during the upload: the device
+    // runs a single esp_http_server task, and while it is streaming the POST
+    // body, concurrent GET /ota/status requests queue behind it and time out.
+    function formatOtaBytes(n) {
+      if (!Number.isFinite(n) || n <= 0) return '0 B';
+      if (n >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
+      if (n >= 1024)    return (n / 1024).toFixed(1) + ' KB';
+      return n + ' B';
+    }
+
+    for (const form of document.querySelectorAll('form[data-ota-form]')) {
+      if (!(form instanceof HTMLFormElement)) continue;
+      const card        = form.closest('[data-ota-card]');
+      const fileInput   = form.querySelector('[data-ota-file]');
+      const submitBtn   = form.querySelector('[data-ota-submit]');
+      const progressBox = card?.querySelector('[data-ota-progress]');
+      const progressBar = card?.querySelector('[data-ota-progress-bar]');
+      const progressTtl = card?.querySelector('[data-ota-progress-title]');
+      const progressTxt = card?.querySelector('[data-ota-progress-text]');
+      const banner      = card?.querySelector('[data-ota-banner]');
+      if (!(fileInput instanceof HTMLInputElement) ||
+          !(submitBtn instanceof HTMLButtonElement) ||
+          !(progressBox instanceof HTMLElement) ||
+          !(progressBar instanceof HTMLProgressElement) ||
+          !(progressTxt instanceof HTMLElement) ||
+          !(banner instanceof HTMLElement)) continue;
+
+      const setTitle = text => { if (progressTtl instanceof HTMLElement) progressTtl.textContent = text; };
+      const showBanner = (text, kind) => {
+        banner.className = 'banner ' + (kind === 'err' ? 'err' : 'ok');
+        banner.textContent = text;
+        banner.hidden = false;
+      };
+
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        const file = fileInput.files?.[0];
+        if (!file) return;
+
+        banner.hidden = true;
+        submitBtn.disabled = true;
+        progressBox.hidden = false;
+        progressBar.removeAttribute('value');  // indeterminate until first progress event
+        setTitle('Uploading…');
+        progressTxt.textContent = 'Sending ' + formatOtaBytes(file.size) + '…';
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/ota');
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+        xhr.upload.addEventListener('progress', ev => {
+          if (!ev.lengthComputable) return;
+          const pct = Math.floor((ev.loaded / ev.total) * 100);
+          progressBar.value = pct;
+          progressTxt.textContent = formatOtaBytes(ev.loaded) + ' / ' +
+                                    formatOtaBytes(ev.total) + ' (' + pct + '%)';
+        });
+        xhr.upload.addEventListener('load', () => {
+          // Upload bytes are sent; the device is now finalising the image.
+          progressBar.removeAttribute('value');
+          setTitle('Installing…');
+          progressTxt.textContent = 'Verifying image…';
+        });
+
+        // Polls /ota/status until the device responds after the reboot, then
+        // navigates explicitly to /config. We avoid a blind setTimeout because
+        // the reboot takes a variable amount of time (Wi-Fi join + SNTP), and
+        // we avoid window.location.reload() because the captive portal in
+        // setup-AP mode would redirect the OS-level probe to "/" before our
+        // tab regains connectivity.
+        const waitForDeviceAndNavigate = (attemptsLeft) => {
+          fetch('/ota/status', { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(() => { window.location.assign('/config'); })
+            .catch(() => {
+              if (attemptsLeft > 0) {
+                setTimeout(() => waitForDeviceAndNavigate(attemptsLeft - 1), 1500);
+              } else {
+                showBanner('Device did not respond within 45 s. Reload the page manually once it is back online.', 'err');
+              }
+            });
+        };
+
+        xhr.addEventListener('load', () => {
+          let data = {};
+          try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+          if (xhr.status >= 200 && xhr.status < 300 && data.state === 'success') {
+            progressBar.value = 100;
+            setTitle('Installed');
+            progressTxt.textContent = (data.pending_version ? 'Version ' + data.pending_version + ' — ' : '') +
+                                      'rebooting…';
+            showBanner('Update applied. Waiting for the device to come back online…', 'ok');
+            // Start polling after the deferred-reboot delay so the first probe
+            // doesn't compete with the still-pending esp_restart().
+            setTimeout(() => waitForDeviceAndNavigate(30), 3000);
+          } else {
+            showBanner('Update failed: ' + (data.error || ('HTTP ' + xhr.status)), 'err');
+            submitBtn.disabled = false;
+            setTitle('Upload aborted');
+            progressTxt.textContent = '';
+            progressBar.value = 0;
+          }
+        });
+        xhr.addEventListener('error', () => {
+          showBanner('Network error during upload.', 'err');
+          submitBtn.disabled = false;
+          setTitle('Upload failed');
+          progressTxt.textContent = '';
+          progressBar.value = 0;
+        });
+        xhr.addEventListener('abort', () => {
+          showBanner('Upload aborted.', 'err');
+          submitBtn.disabled = false;
+          setTitle('Upload aborted');
+          progressTxt.textContent = '';
+          progressBar.value = 0;
+        });
+
+        xhr.send(file);
+      });
+    }
+
     // ── Form confirm dialogs ─────────────────────────────────────────────────
     for (const form of document.querySelectorAll('form[data-confirm]')) {
       if (!(form instanceof HTMLFormElement)) continue;

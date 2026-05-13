@@ -161,3 +161,33 @@
   </section>
 
 </form>
+
+<section class='card' data-ota-card>
+  <div class='card-header'>
+    <div>
+      <h3 class='card-title'>Firmware update</h3>
+      <div class='card-sub'>Running <code>{{OTA_RUNNING_VERSION}}</code> from slot <code>{{OTA_RUNNING_SLOT}}</code>. Next install targets <code>{{OTA_TARGET_SLOT}}</code> ({{OTA_TARGET_SLOT_SIZE}}).</div>
+    </div>
+  </div>
+  <div class='card-body stack-14'>
+    <div class='banner accent' data-rollback-armed{{OTA_ROLLBACK_NOTICE_HIDDEN}}>
+      Running image is pending verification. It will be confirmed automatically once boot completes successfully.
+    </div>
+    <form data-ota-form>
+      <label class='field'>
+        <span class='field-label'>Firmware image</span>
+        <input class='input' type='file' accept='.bin,application/octet-stream' required data-ota-file>
+        <span class='field-hint'>Upload the <code>air360_firmware.bin</code> built by <code>idf.py build</code>. The image is written to the inactive slot. If it fails to boot, the device rolls back automatically.</span>
+      </label>
+      <div class='actions'>
+        <button class='btn primary' type='submit' data-ota-submit>Upload and install</button>
+      </div>
+    </form>
+    <div class='field' data-ota-progress hidden>
+      <span class='field-label' data-ota-progress-title>Uploading…</span>
+      <progress class='input' max='100' value='0' data-ota-progress-bar></progress>
+      <span class='field-hint' data-ota-progress-text>Preparing upload…</span>
+    </div>
+    <div class='banner' data-ota-banner hidden></div>
+  </div>
+</section>

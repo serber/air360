@@ -14,10 +14,12 @@ This document covers the local firmware web interface, including routes, page pu
 - `firmware/main/src/web/web_form.cpp`
 - `firmware/main/src/web/web_runtime_routes.cpp`
 - `firmware/main/src/web/web_mutating_routes.cpp`
+- `firmware/main/src/web/web_ota_routes.cpp`
 - `firmware/main/src/web/web_server_helpers.cpp`
 - `firmware/main/src/web_ui.cpp`
 - `firmware/main/src/web_assets.cpp`
 - `firmware/main/src/status_service.cpp`
+- `firmware/main/src/ota_service.cpp`
 - `firmware/main/webui/`
 
 ## Read next
@@ -37,7 +39,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | Port | `http_port` from `DeviceConfig` (default 80) |
 | Task stack | 16 384 bytes (`web::kHttpdStackBytes`) |
 | Worker model | Single httpd task; all concurrent connections share the one stack |
-| URI handlers | up to 20 |
+| URI handlers | up to 24 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
 | Request body limit | 4 096 bytes; oversized POST bodies return `413 Payload Too Large` |
 | Request body receive timeouts | `httpd_req_recv()` timeout results are retried up to 5 consecutive times before the request fails with a timeout |
@@ -50,7 +52,7 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
-`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`, `/api/gps-location`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
+`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`, `/api/gps-location`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. OTA endpoints (`/ota`, `/ota/status`, `/ota/rollback`) live in `main/src/web/web_ota_routes.cpp` and dispatch through `OtaService`. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
 
 **Response streaming**: all HTML page handlers use `web::sendHtmlResponse()` which sends the response body in 1 KB chunks via `httpd_resp_send_chunk`, avoiding the need for a contiguous HTTP transport buffer equal to the full page size.
 
@@ -75,6 +77,9 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `GET` / `POST` | `/backends` | Backend configuration page |
 | `GET` | `/backends/air360-upload-secret` | Generate a new Air360 upload secret (JSON response) |
 | `GET` | `/api/gps-location` | Latest GPS coordinates from an active GPS sensor (JSON) |
+| `POST` | `/ota` | Streamed firmware upload (raw `application/octet-stream` body) |
+| `GET` | `/ota/status` | Current OTA state as JSON (used by the Device page progress UI and diagnostics) |
+| `POST` | `/ota/rollback` | Force rollback to the previous OTA slot; requires `?confirm=yes` |
 
 All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set `Content-Type: application/json`.
 
@@ -82,7 +87,7 @@ All HTML pages set `Content-Type: text/html; charset=utf-8`. JSON endpoints set 
 
 ## Setup AP redirect
 
-When the device is in `kSetupAp` mode (no station credentials, or station connection failed), `GET /`, `GET /sensors`, and `GET /backends` redirect with `302 Found` to `/config`. Navigation links on the config page are also hidden in this mode — only the device configuration form is shown.
+When the device is in `kSetupAp` mode (no station credentials, or station connection failed), `GET /`, `GET /sensors`, and `GET /backends` redirect with `302 Found` to `/config`. Navigation links on the config page are also hidden in this mode — only the Device page is shown. The Firmware Update card is part of `/config`, so an operator can still recover a device by flashing new firmware over the setup AP.
 
 ## Captive portal
 
@@ -279,6 +284,49 @@ A single form containing upload settings and one card per backend type.
 - Validates and stores `InfluxDB` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`, `username`, `password`) plus `measurement_name`.
 - Empty editable port fields save as the selected protocol default. Request URLs omit `:443` for HTTPS and `:80` for HTTP.
 - Saves to NVS and calls `UploadManager::applyConfig()` — normally takes effect immediately without a reboot. If the old upload task cannot stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
+
+### Section: Firmware update (on `/config`)
+
+The Device page renders a "Firmware update" card at the bottom that lets an operator install a new firmware image without USB access. The card shows the running version, the active OTA slot, and the inactive (target) slot. A file picker submits the chosen `.bin` directly to `POST /ota`; the browser drives the progress bar locally from `XMLHttpRequest.upload.onprogress` rather than polling the device (the single esp_http_server task is busy streaming the body and concurrent status polls would just queue behind it). After a successful commit the device schedules `esp_restart()` and the card reloads the page.
+
+The card is reachable in both station mode and setup-AP mode — `/config` is the only navigable page in setup-AP, so a device with broken station credentials can still be recovered by flashing replacement firmware over the Lab AP.
+
+The runtime behaviour (state machine, partition selection, rollback) is owned by `OtaService`; see `firmware/main/src/ota_service.cpp` and the implemented OTA ADR in `docs/firmware/adr/`.
+
+### `POST /ota`
+
+Accepts `application/octet-stream` request bodies. The handler:
+
+1. Rejects requests without a positive `Content-Length` (`400`).
+2. Rejects requests larger than 4 MB (`413`).
+3. Calls `OtaService::begin(content_length)`; returns `409 Conflict` if a transfer is already in progress.
+4. Streams the body in 4 KB chunks via `httpd_req_recv`, calling `OtaService::writeChunk()` each time. Up to 5 consecutive socket timeouts are tolerated before the transfer aborts.
+5. Calls `OtaService::commitAndScheduleReboot()`. On success the response is JSON `state=success`; on any failure the response is a JSON OTA status with the failure reason and an appropriate HTTP status code.
+
+### `GET /ota/status`
+
+Returns the OTA `snapshot()` as JSON:
+
+```json
+{
+  "state": "in_progress",
+  "bytes_written": 1048576,
+  "content_length": 1245184,
+  "running_version": "v0.4.2",
+  "running_slot": "ota_0",
+  "target_slot": "ota_1",
+  "target_slot_size": 6291456,
+  "pending_version": "",
+  "rollback_armed": false,
+  "error": ""
+}
+```
+
+`state` is one of `idle`, `in_progress`, `success`, `error`. `rollback_armed` is `true` when the running image is in `ESP_OTA_IMG_PENDING_VERIFY`; it flips to `false` after `OtaService::confirmRunningImage()` runs successfully at the end of boot. The Device page only consults this endpoint to render the initial card state on page load — progress during an upload comes from the browser's local upload events, not from polling.
+
+### `POST /ota/rollback`
+
+Forces the running image to be marked invalid and reboots back to the previous slot. To prevent accidents the endpoint requires `?confirm=yes` in the query string; without it the response is `400 Bad Request`. Calls `esp_ota_mark_app_invalid_rollback_and_reboot()` — on success the device reboots and the request never receives a body; on failure the response is JSON with the ESP-IDF error name.
 
 ---
 

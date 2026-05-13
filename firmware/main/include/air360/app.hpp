@@ -2,6 +2,7 @@
 
 #include "air360/data/data_layer.hpp"
 #include "air360/network/network_layer.hpp"
+#include "air360/ota_service.hpp"
 #include "air360/platform/platform_layer.hpp"
 #include "air360/status_service.hpp"
 #include "air360/web_server.hpp"
@@ -30,6 +31,7 @@ class App {
     StatusService status_service_;
     NetworkLayer  network_;
     DataLayer     data_;
+    OtaService    ota_service_;
     WebServer     web_server_;
 };
 

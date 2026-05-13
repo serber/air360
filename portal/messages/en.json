@@ -1,0 +1,173 @@
+{
+  "common": {
+    "brandAria": "Air360",
+    "primaryNavigation": "Primary navigation",
+    "themeToggle": "Toggle theme",
+    "localeToggle": "Switch language",
+    "map": "Map",
+    "github": "GitHub",
+    "privacyPolicy": "Privacy policy"
+  },
+  "nav": {
+    "overview": "Overview",
+    "map": "Map"
+  },
+  "footer": {
+    "project": "Project",
+    "copy": "An open community network of air-quality sensors with public map views and device measurement history."
+  },
+  "home": {
+    "mapPreviewAria": "Air360 map preview",
+    "titleLine1": "An air quality map",
+    "titleLine2": "built by people.",
+    "lead": "Air360 collects data from sensors installed by project contributors at home, at work, and around the city. Build your own sensor, connect it, and it will appear on the shared map.",
+    "exploreMap": "Explore the map"
+  },
+  "stats": {
+    "activeDevices": "Active devices",
+    "countries": "Countries",
+    "reports24h": "Reports / 24h"
+  },
+  "periods": {
+    "aria": "Measurement period",
+    "1h": "1 hour",
+    "24h": "24 hours",
+    "7d": "7 days",
+    "30d": "30 days",
+    "90d": "3 months",
+    "180d": "6 months",
+    "365d": "1 year"
+  },
+  "mapPage": {
+    "loadingMap": "Loading map...",
+    "loadingDevices": "Loading devices...",
+    "deviceCount": "{count, plural, =0 {0 devices} =1 {1 device} other {# devices}}",
+    "measurementLayer": "Measurement layer",
+    "metricAria": "Map metric",
+    "showOfflineDevices": "Show offline devices",
+    "loadingOfflineDevices": "Loading offline devices...",
+    "empty": "No active devices with valid coordinates were returned by the backend.",
+    "metrics": {
+      "humidity_percent": "Humidity",
+      "pressure_hpa": "Pressure",
+      "temperature_c": "Temperature",
+      "co2_ppm": "CO2",
+      "pm10_0_ug_m3": "PM10",
+      "pm1_0_ug_m3": "PM1.0",
+      "pm2_5_ug_m3": "PM2.5",
+      "pm4_0_ug_m3": "PM4.0",
+      "illuminance_lux": "Light"
+    },
+    "quality": {
+      "good": "Good",
+      "moderate": "Moderate",
+      "poor": "Poor",
+      "bad": "Bad",
+      "dataOnly": "Data only",
+      "noData": "No data"
+    },
+    "legend": {
+      "temperature": "Temperature",
+      "pressure": "Pressure",
+      "humidity": "Humidity",
+      "light": "Light",
+      "coldToHot": "cold to hot",
+      "lowToHigh": "low to high",
+      "dryToHumid": "dry to humid",
+      "baselineToHigh": "baseline to high",
+      "cleanToHazardous": "clean to hazardous",
+      "darkToBright": "dark to bright",
+      "noData": "No data"
+    }
+  },
+  "devicePopup": {
+    "lastSeen": "Seen {date}",
+    "close": "Close popup",
+    "stale": "Device has not connected for more than 1 hour.",
+    "noMeasurements": "No measurements yet.",
+    "openDevice": "open device →"
+  },
+  "deviceDetail": {
+    "fallbackTitle": "Device",
+    "backToMap": "← Back to map",
+    "crumb": "DEVICE",
+    "stale": "Stale",
+    "online": "Online",
+    "locationMeta": "Location",
+    "joined": "Joined",
+    "lastSeen": "Last seen",
+    "firmware": "Firmware",
+    "loadingMeasurements": "Loading measurements...",
+    "chartCount": "{count, plural, =0 {0 charts} =1 {1 chart} other {# charts}} for selected period",
+    "noChartTitle": "No chart data",
+    "noChartBody": "The backend did not return measurements for this device and period.",
+    "location": "Location",
+    "mapLink": "map →",
+    "country": "Country",
+    "city": "City",
+    "unknown": "Unknown",
+    "latitude": "Lat",
+    "longitude": "Lon",
+    "altitude": "Altitude",
+    "hardware": "Hardware",
+    "noSensors": "No sensors returned.",
+    "deviceLocationMap": "Device location map",
+    "pressureTitle": "Pressure",
+    "seaLevel": "Sea level",
+    "station": "Station"
+  },
+  "chart": {
+    "source": "Measurement",
+    "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
+    "empty": "No points for this period."
+  },
+  "privacy": {
+    "metadataTitle": "Privacy Policy",
+    "backToHome": "← Back to home",
+    "crumb": "PRIVACY",
+    "eyebrow": "Policy",
+    "title": "Privacy Policy",
+    "lead": "Air360 is a public portal for environmental monitoring. This policy describes how we handle device data, visitor logs, and third-party map tile requests.",
+    "introductionTitle": "Introduction",
+    "introductionBody": "Air360 is a public portal for environmental monitoring. This Privacy Policy describes how we handle data collected through the portal.",
+    "effectiveDate": "Effective date: May 3, 2026.",
+    "deviceDataTitle": "Device data",
+    "deviceDataBody": "Air360 is a network of IoT devices that collect environmental measurements in real time. Each device may report:",
+    "deviceDataPublic": "All of this data is public and displayed on the portal map. No personal information is associated with these measurements.",
+    "visitorDataTitle": "Visitor data",
+    "visitorDataBody": "When you visit the portal, our server automatically records standard access log information:",
+    "visitorDataRetention": "These logs are not linked to your identity, are retained for up to 90 days, and are used only for technical diagnostics and security.",
+    "cookiesTitle": "Cookies",
+    "cookiesBody": "Air360 does not use tracking or advertising cookies. The portal may set technically necessary cookies required for basic functionality.",
+    "mapTilesBody": "The map is rendered with MapLibre GL, which may request map tiles from a third-party tile server. Those requests may include your IP address and the map coordinates you are viewing.",
+    "sharingTitle": "Third-party sharing",
+    "sharingBody": "Air360 does not sell, rent, or share visitor data with third parties for commercial purposes. Data may be disclosed only when required by applicable law, such as in response to a lawful request from law enforcement.",
+    "securityTitle": "Security",
+    "securityBody": "Air360 applies standard technical measures to protect its systems and data. The portal uses HTTPS to encrypt data in transit between your browser and our server.",
+    "contactTitle": "Contact",
+    "contactBody": "If you have questions about this Privacy Policy or how we handle data, please contact us at:",
+    "scope": "Scope",
+    "deviceData": "Device data",
+    "public": "Public",
+    "visitorLogs": "Visitor logs",
+    "trackingAds": "Tracking ads",
+    "no": "No",
+    "contact": "Contact",
+    "deviceDataItems": [
+      "Temperature",
+      "Humidity",
+      "CO2 concentration",
+      "Particulate matter (PM1.0, PM2.5, PM4.0, PM10)",
+      "Atmospheric pressure",
+      "Illuminance",
+      "NO2 concentration",
+      "GPS coordinates of the device"
+    ],
+    "visitorDataItems": [
+      "IP address",
+      "Date and time of the request",
+      "Browser type and operating system",
+      "Referring URL"
+    ]
+  }
+}

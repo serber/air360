@@ -7,9 +7,9 @@ Accepted. Implemented in `backend/`.
 ## Decision Summary
 
 Add portal read endpoints to the Air360 API backend: active and offline device
-lists for the map, plus a measurements history endpoint returning device
-metadata, latest readings, and time-bucketed sensor data for a given device and
-period.
+lists for the map, public home-page summary counters, plus a measurements
+history endpoint returning device metadata, latest readings, and time-bucketed
+sensor data for a given device and period.
 
 ## Context
 
@@ -21,6 +21,7 @@ endpoint currently exists.
 
 - Expose all devices with location and latest readings in one request.
 - Expose offline devices separately without stale latest readings.
+- Expose summary counters for the portal home page.
 - Expose time-bucketed historical measurements for a device and period.
 - Keep the response shape simple and portal-driven.
 - Use TimescaleDB `time_bucket()` for efficient aggregation.
@@ -46,6 +47,7 @@ Response `200`:
     {
       "public_id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "Air360-AB12",
+      "geo_country_code": "RU",
       "location": {
         "latitude": 55.751244,
         "longitude": 37.618423
@@ -79,6 +81,7 @@ Response `200`:
     {
       "public_id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "Air360-AB12",
+      "geo_country_code": "RU",
       "location": {
         "latitude": 55.751244,
         "longitude": 37.618423
@@ -89,6 +92,24 @@ Response `200`:
   ]
 }
 ```
+
+### `GET /v1/stats`
+
+Returns public summary counters for the portal home page.
+
+Response `200`:
+
+```json
+{
+  "active_devices": 42,
+  "countries": 7,
+  "reports_24h": 1440
+}
+```
+
+`active_devices` uses the same one-hour freshness window as `GET /v1/devices`.
+`countries` counts distinct non-empty `geo_country_code` values across all
+devices. `reports_24h` counts batch rows received in the last 24 hours.
 
 ### `GET /v1/devices/:public_id/measurements?period=<period>`
 
@@ -121,13 +142,13 @@ Response `200`:
     "name": "Air360-AB12",
     "latitude": 55.751244,
     "longitude": 37.618423,
+    "altitude_m": 156.0,
     "firmware_version": "1.2.0",
     "registered_at": "2026-04-27T09:15:00.000Z",
     "last_seen_at": "2026-04-29T10:00:00.000Z",
     "geo_country": "Russia",
     "geo_country_code": "ru",
-    "geo_city": "Moscow",
-    "geo_display": "Moscow, Russia"
+    "geo_city": "Moscow"
   },
   "by_kind": [
     {
@@ -174,6 +195,7 @@ Error responses:
 ### Affected backend files
 
 - `backend/src/routes/v1/devices.ts` — add `GET /v1/devices` and `GET /v1/devices/offline` handlers
+- `backend/src/routes/v1/stats.ts` — add `GET /v1/stats` handler
 - `backend/src/routes/v1/measurements.ts` — new route file for `GET /v1/devices/:public_id/measurements`
 - `backend/src/routes/v1/index.ts` — register measurements routes
 - `backend/src/modules/devices/device-repository.ts` — add active and offline device list queries

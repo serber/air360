@@ -152,6 +152,13 @@ void App::run() {
     }
     indicateReady();
 
+    // Confirm the running image only after every managed subsystem has reached
+    // a steady state.  If a freshly-flashed image crashed earlier in boot, the
+    // bootloader would have already rolled back; reaching this point means the
+    // image is good and we can cancel the pending-verify state so future
+    // reboots stay on this slot.
+    ota_service_.confirmRunningImage();
+
     runMaintenanceLoop();
 }
 
@@ -206,6 +213,7 @@ bool App::bootWebServer() {
             data_.uploadManager(),
             network_.cellularConfigRepo(),
             network_.cellularConfig(),
+            ota_service_,
             platform_.deviceConfig().http_port);
     if (reportBootError("Web server start", web_err)) {
         return false;

@@ -667,4 +667,4 @@ Check:
 - Sensor poll interval must be between 30 000 ms and 1 800 000 ms (30 s to 30 min).
 - When cellular is enabled, the web UI is only accessible during the Wi-Fi debug window after boot. Set the debug window to a non-zero value to retain web access for configuration.
 - The `storage` partition is reserved but not currently used.
-- OTA firmware update is not yet implemented.
+- OTA firmware update is available from the Device page (`/config`), in the "Firmware update" card at the bottom. Upload the `air360_firmware.bin` file produced by `idf.py build`; the device installs it to the inactive slot, reboots, and automatically rolls back if the new image fails to boot.
