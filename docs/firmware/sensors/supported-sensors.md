@@ -30,6 +30,7 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 | `SCD30` | I2C | Bus 0, address `0x61` | I2C `0x61` | [scd30.md](scd30.md) |
 | `SPS30` | I2C | Bus 0, address `0x69` | I2C `0x69` | [sps30.md](sps30.md) |
 | `SDS011` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [sds011.md](sds011.md) |
+| `PPD42NS` | GPIO | First allowed pin, currently GPIO4 | GPIO4/5/6 | [ppd42ns.md](ppd42ns.md) |
 | `VEML7700` | I2C | Bus 0, address `0x10` | I2C `0x10` | [veml7700.md](veml7700.md) |
 | `HTU2X` | I2C | Bus 0, address `0x40` | I2C `0x40` | [htu2x.md](htu2x.md) |
 | `SHT3X` | I2C | Bus 0, address `0x44` | I2C `0x44`, `0x45` | [sht3x.md](sht3x.md) |

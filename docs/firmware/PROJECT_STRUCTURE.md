@@ -135,6 +135,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` (managed component) |
 | `me3_no2_sensor.cpp` | ME3-NO2 (ADC) | `esp_adc` (IDF built-in) |
+| `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
 | `sensirion_i2c_hal.cpp` | Sensirion I2C HAL | (bridge for SPS30 vendored lib) |
 
 Adding a new sensor means one new driver file plus one registry entry — no changes to the rest of the runtime.

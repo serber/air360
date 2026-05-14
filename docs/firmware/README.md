@@ -99,6 +99,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | [sensors/bme680.md](sensors/bme680.md) | BME680 | I2C `0x77` | Temperature, humidity, pressure, gas resistance |
 | [sensors/sps30.md](sensors/sps30.md) | SPS30 | I2C `0x69` | PM1.0–PM10.0, particle number concentrations, typical particle size |
 | [sensors/sds011.md](sensors/sds011.md) | SDS011 | UART2 default; UART1 selectable | PM2.5, PM10 |
+| [sensors/ppd42ns.md](sensors/ppd42ns.md) | PPD42NS | GPIO | Dust concentration estimate, low pulse occupancy |
 | [sensors/scd30.md](sensors/scd30.md) | SCD30 | I2C `0x61` | CO₂, temperature, humidity |
 | [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | I2C `0x10` | Illuminance |
 | [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | I2C `0x40` | Temperature, humidity |

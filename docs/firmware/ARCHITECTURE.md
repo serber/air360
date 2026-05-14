@@ -433,6 +433,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` |
 | `me3_no2_sensor.cpp` | ME3-NO2 (analog) | `esp_adc` (IDF built-in) |
+| `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
 | `sensirion_i2c_hal.cpp` | Sensirion HAL | (I2C HAL for SPS30) |
 
 GPS reports: latitude, longitude, altitude, satellites, speed, course, HDOP — through the generic `measurements` value array.

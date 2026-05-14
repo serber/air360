@@ -34,6 +34,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
 | [sps30.md](sps30.md) | SPS30 | I2C | Bus 0, `0x69`, SDA=`GPIO8`, SCL=`GPIO9` | PM1.0-PM10.0 mass and number concentrations, typical particle size |
 | [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
+| [ppd42ns.md](ppd42ns.md) | PPD42NS | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Dust concentration estimate, low pulse occupancy |
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht3x.md](sht3x.md) | SHT3X | I2C | Bus 0, `0x44` (alt `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
@@ -47,7 +48,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
-GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
+GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, PPD42NS, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
 
 ## Datasheet Notes
 
@@ -233,6 +234,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Maximum current | `70 mA +/-10 mA` during operation; sleep current below `4 mA` for laser and fan sleep |
 | Air360 mode | Wakes on init/poll, continuous work period, passive/query reporting |
 | Reference links | [Nova Fitness datasheet mirror](https://microcontrollerslab.com/wp-content/uploads/2020/12/NonA-PM-SDS011-Dust-sensor-datasheet.pdf), [Nettigo product page](https://nettigo.eu/products/1085) |
+
+### PPD42NS
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Shinyei |
+| Air360 measurements | Dust concentration estimate in `pcs/0.01cf`, low pulse occupancy percent |
+| Declared service life | Not stated |
+| Operating temperature | `0..45 deg C` |
+| Supply voltage | `DC 5 V +/-10 %` |
+| Accuracy | Not stated as a calibrated PM mass accuracy; output is LPO-derived particle concentration for particles around `1 um` or larger on `P1` |
+| Maximum current | `90 mA` power consumption |
+| Reference links | [RS-hosted PPD42NS specification sheet](https://docs.rs-online.com/e8b9/0900766b8163b7f3.pdf), [Seeed Grove Dust Sensor wiki mirror](https://seeeddoc.github.io/Grove-Dust_Sensor/) |
 
 ### GPS (NMEA)
 

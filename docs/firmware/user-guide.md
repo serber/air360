@@ -287,6 +287,7 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | CO2 | SCD30 |
 | Light | VEML7700 |
 | Particulate Matter | SPS30, SDS011 |
+| Dust Count | PPD42NS |
 | Location | GPS (NMEA) |
 | Gas | ME3-NO2, MH-Z19B |
 | Power Monitoring | INA219 |
@@ -307,6 +308,7 @@ All categories except **Gas** allow only one configured sensor at a time.
 | VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
 | SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
 | SDS011 | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |
+| PPD42NS | GPIO | P1/yellow signal to GPIO4 by default, or GPIO5/GPIO6 if selected; use 3.3 V-safe level shifting |
 | GPS (NMEA) | UART1 at 9600 baud (UART2 selectable) | UART1 RX=GPIO18/TX=GPIO17; UART2 RX=GPIO16/TX=GPIO15 |
 | DHT11, DHT22 | GPIO | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |
 | DS18B20 | GPIO (1-Wire) | Descriptor-allowed pins: GPIO4, GPIO5, or GPIO6 |

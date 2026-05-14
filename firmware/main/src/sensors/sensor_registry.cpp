@@ -13,6 +13,7 @@
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
+#include "air360/sensors/drivers/ppd42ns_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
 #include "air360/sensors/drivers/sds011_sensor.hpp"
 #include "air360/sensors/drivers/sht3x_sensor.hpp"
@@ -400,12 +401,25 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validatePpd42nsRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kGpio) {
+        error = "PPD42NS currently supports only GPIO transport.";
+        return false;
+    }
+
+    return true;
+}
+
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
 // Size computed for ESP32 (32-bit, 4-byte pointers): 23 fields, 60 bytes with padding.
 static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 18U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -830,6 +844,31 @@ constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
         .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateMe3No2Record,
         .create_driver            = &createMe3No2Sensor,
+    },
+    {
+        .type                     = SensorType::kPpd42ns,
+        .type_key                 = "ppd42ns",
+        .display_name             = "PPD42NS",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = true,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = kBoardSensorGpioPins,
+        .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
+        .validate                 = &validatePpd42nsRecord,
+        .create_driver            = &createPpd42nsSensor,
     },
 }};
 

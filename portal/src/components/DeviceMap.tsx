@@ -37,6 +37,10 @@ const MAP_METRICS = [
   { value: "pm1_0_ug_m3", labelKey: "pm1_0_ug_m3" },
   { value: "pm2_5_ug_m3", labelKey: "pm2_5_ug_m3" },
   { value: "pm4_0_ug_m3", labelKey: "pm4_0_ug_m3" },
+  {
+    value: "dust_concentration_pcs_0_01cf",
+    labelKey: "dust_concentration_pcs_0_01cf",
+  },
   { value: "illuminance_lux", labelKey: "illuminance_lux" },
 ] as const;
 
@@ -186,6 +190,15 @@ const PM4_COLOR_STOPS = [
   { label: "50..100", max: 100, color: "#dc2626", ring: "#fecaca" },
   { label: "100..200", max: 200, color: "#7e22ce", ring: "#e9d5ff" },
   { label: "> 200", max: Infinity, color: "#7f1d1d", ring: "#fecaca" },
+] as const;
+
+const DUST_COUNT_COLOR_STOPS = [
+  { labelKey: "dustTrace", range: "0..1k", max: 1000, color: "#047857", ring: "#a7f3d0" },
+  { labelKey: "dustLow", range: "1k..2k", max: 2000, color: "#16a34a", ring: "#bbf7d0" },
+  { labelKey: "dustElevated", range: "2k..4k", max: 4000, color: "#ca8a04", ring: "#fef08a" },
+  { labelKey: "dustHigh", range: "4k..6k", max: 6000, color: "#ea580c", ring: "#fed7aa" },
+  { labelKey: "dustVeryHigh", range: "6k..8k", max: 8000, color: "#be123c", ring: "#fecdd3" },
+  { labelKey: "dustOverRange", range: "> 8k", max: Infinity, color: "#7e22ce", ring: "#e9d5ff" },
 ] as const;
 
 const LIGHT_COLOR_STOPS = [
@@ -936,6 +949,8 @@ export function DeviceMap() {
             <Pm1Legend />
           ) : metric === "pm4_0_ug_m3" ? (
             <Pm4Legend />
+          ) : metric === "dust_concentration_pcs_0_01cf" ? (
+            <DustCountLegend />
           ) : metric === "illuminance_lux" ? (
             <LightLegend />
           ) : (
@@ -1357,6 +1372,51 @@ function Pm4Legend() {
   );
 }
 
+function DustCountLegend() {
+  const t = useTranslations("mapPage.legend");
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-slate-700">{t("dustCount")}</span>
+        <span className="text-slate-500">{t("relativeCount")}</span>
+      </div>
+      <div
+        aria-hidden="true"
+        className="mt-2 h-2 rounded-full"
+        style={{
+          background:
+            "linear-gradient(90deg, #047857, #16a34a, #ca8a04, #ea580c, #be123c, #7e22ce)",
+        }}
+      />
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {DUST_COUNT_COLOR_STOPS.map((stop) => (
+          <span className="flex items-center gap-2" key={stop.labelKey}>
+            <span
+              className="air360-legend-dot"
+              style={
+                {
+                  "--marker-bg": stop.color,
+                  "--marker-ring": stop.ring,
+                } as CSSProperties
+              }
+            />
+            <span>
+              {t(stop.labelKey)}
+              <span className="ml-1 text-slate-500">{stop.range}</span>
+            </span>
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 border-t border-slate-200 pt-3 text-slate-500">
+        <div className="font-medium text-slate-600">pcs/0.01cf</div>
+        {t("countEstimate")}
+      </div>
+      <NoDataLegendItem />
+    </div>
+  );
+}
+
 function LightLegend() {
   const t = useTranslations("mapPage.legend");
 
@@ -1485,6 +1545,10 @@ function metricColors(
     return pm4Colors(reading.value);
   }
 
+  if (metric === "dust_concentration_pcs_0_01cf") {
+    return dustCountColors(reading.value);
+  }
+
   if (metric === "illuminance_lux") {
     return lightColors(reading.value);
   }
@@ -1538,6 +1602,10 @@ function clusterQualityExpression(
 
   if (metric === "pm4_0_ug_m3") {
     return clusterPm4Expression(colorKind);
+  }
+
+  if (metric === "dust_concentration_pcs_0_01cf") {
+    return clusterDustCountExpression(colorKind);
   }
 
   if (metric === "co2_ppm") {
@@ -1845,6 +1913,36 @@ function pm4Colors(value: number): { color: string; ring: string } {
   );
 }
 
+function clusterDustCountExpression(colorKind: "color" | "ring") {
+  const avg = clusterAverageExpression();
+  const color = (stop: (typeof DUST_COUNT_COLOR_STOPS)[number]) =>
+    stop[colorKind];
+
+  return [
+    "case",
+    ["<=", ["get", "metricCount"], 0],
+    QUALITY_COLORS["no-data"][colorKind],
+    ["<=", avg, 1000],
+    color(DUST_COUNT_COLOR_STOPS[0]),
+    ["<=", avg, 2000],
+    color(DUST_COUNT_COLOR_STOPS[1]),
+    ["<=", avg, 4000],
+    color(DUST_COUNT_COLOR_STOPS[2]),
+    ["<=", avg, 6000],
+    color(DUST_COUNT_COLOR_STOPS[3]),
+    ["<=", avg, 8000],
+    color(DUST_COUNT_COLOR_STOPS[4]),
+    color(DUST_COUNT_COLOR_STOPS[5]),
+  ];
+}
+
+function dustCountColors(value: number): { color: string; ring: string } {
+  return (
+    DUST_COUNT_COLOR_STOPS.find((stop) => value <= stop.max) ??
+    DUST_COUNT_COLOR_STOPS[DUST_COUNT_COLOR_STOPS.length - 1]
+  );
+}
+
 function clusterLightExpression(colorKind: "color" | "ring") {
   const avg = clusterAverageExpression();
   const color = (stop: (typeof LIGHT_COLOR_STOPS)[number]) => stop[colorKind];
@@ -2002,6 +2100,7 @@ function qualityLevel(metric: MapMetric, value: number): QualityLevel {
       return "bad";
     case "pressure_hpa":
     case "illuminance_lux":
+    case "dust_concentration_pcs_0_01cf":
       return "neutral";
   }
 }
@@ -2045,6 +2144,12 @@ function markerValue(metric: MapMetric, value: number): string {
 
   if (metric === "illuminance_lux") {
     return Math.round(value).toString();
+  }
+
+  if (metric === "dust_concentration_pcs_0_01cf") {
+    return value >= 1000
+      ? `${Math.round(value / 100) / 10}k`
+      : Math.round(value).toString();
   }
 
   return Math.round(value).toString();

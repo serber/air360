@@ -160,7 +160,7 @@ For the list of all sensor drivers that use these managers, see [sensors/README.
 
 GPIO-backed and analog-backed sensors do not go through a shared transport manager. Their selectable pins are listed in each `SensorDescriptor::allowed_gpio_pins`, and the selected value is stored in `SensorRecord::analog_gpio_pin`.
 
-There is no separate default GPIO field in the descriptor. The add form and type-change path use the first allowed pin as the initial selection, and `SensorRegistry::validateRecord()` rejects GPIO/analog records whose selected pin is not in the descriptor list. Current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow GPIO4, GPIO5, and GPIO6.
+There is no separate default GPIO field in the descriptor. The add form and type-change path use the first allowed pin as the initial selection, and `SensorRegistry::validateRecord()` rejects GPIO/analog records whose selected pin is not in the descriptor list. Current DHT11, DHT22, DS18B20, PPD42NS, and ME3-NO2 descriptors allow GPIO4, GPIO5, and GPIO6.
 
 ---
 

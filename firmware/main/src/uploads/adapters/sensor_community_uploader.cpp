@@ -143,6 +143,10 @@ bool mapMeasurement(
         case SensorType::kUnknown:
         case SensorType::kMe3No2:
         case SensorType::kVeml7700:
+        case SensorType::kIna219:
+        case SensorType::kMhz19b:
+        case SensorType::kAht30:
+        case SensorType::kPpd42ns:
         default:
             return false;
     }

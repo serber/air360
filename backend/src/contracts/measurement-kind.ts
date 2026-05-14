@@ -26,6 +26,8 @@ export const measurementKinds = [
   "voltage_mv",
   "current_ma",
   "power_mw",
+  "dust_concentration_pcs_0_01cf",
+  "low_pulse_occupancy_percent",
 ] as const;
 
 export type MeasurementKind = (typeof measurementKinds)[number];

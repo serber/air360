@@ -178,7 +178,7 @@ For a GPIO or analog sensor, leave UART fields empty and list every selectable G
 
 File: `firmware/main/src/web_server.cpp`
 
-**a) Add to the category array.** Find the relevant category array (`kClimateSensorTypes`, `kGasSensorTypes`, `kParticulateMatterSensorTypes`, `kLightSensorTypes`, `kLocationSensorTypes`, `kPowerSensorTypes`) and append:
+**a) Add to the category array.** Find the relevant category array (`kClimateSensorTypes`, `kGasSensorTypes`, `kParticulateMatterSensorTypes`, `kDustCountSensorTypes`, `kLightSensorTypes`, `kLocationSensorTypes`, `kPowerSensorTypes`) and append:
 ```cpp
 SensorType::kMyNewSensor,
 ```
