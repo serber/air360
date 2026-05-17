@@ -175,6 +175,7 @@ enum class SensorCategory : std::uint8_t {
     kLocation = 4U,
     kGas = 5U,
     kPower = 6U,
+    kDustCount = 7U,
 };
 
 struct SensorCategoryDescriptor {
@@ -629,13 +630,19 @@ constexpr std::array<SensorType, 9U> kClimateSensorTypes{{
     SensorType::kSht4x,
 }};
 
-constexpr std::array<SensorType, 1U> kLightSensorTypes{{
+constexpr std::array<SensorType, 2U> kLightSensorTypes{{
     SensorType::kVeml7700,
+    SensorType::kOpt3001,
 }};
 
-constexpr std::array<SensorType, 2U> kParticulateMatterSensorTypes{{
+constexpr std::array<SensorType, 3U> kParticulateMatterSensorTypes{{
     SensorType::kSps30,
     SensorType::kSds011,
+    SensorType::kPmsx003,
+}};
+
+constexpr std::array<SensorType, 1U> kDustCountSensorTypes{{
+    SensorType::kPpd42ns,
 }};
 
 constexpr std::array<SensorType, 1U> kLocationSensorTypes{{
@@ -652,7 +659,7 @@ constexpr std::array<SensorType, 1U> kPowerSensorTypes{{
     SensorType::kIna219,
 }};
 
-constexpr std::array<SensorCategoryDescriptor, 6U> kSensorCategoryDescriptors{{
+constexpr std::array<SensorCategoryDescriptor, 7U> kSensorCategoryDescriptors{{
     {
         SensorCategory::kClimate,
         "climate",
@@ -666,10 +673,19 @@ constexpr std::array<SensorCategoryDescriptor, 6U> kSensorCategoryDescriptors{{
         SensorCategory::kParticulateMatter,
         "particulate-matter",
         "Particulate Matter",
-        "Fine dust concentration and particle size metrics.",
+        "PM mass concentration and particle size metrics.",
         false,
         kParticulateMatterSensorTypes.data(),
         kParticulateMatterSensorTypes.size(),
+    },
+    {
+        SensorCategory::kDustCount,
+        "dust-count",
+        "Dust Count",
+        "Relative particle-count sensing for dust trend monitoring.",
+        false,
+        kDustCountSensorTypes.data(),
+        kDustCountSensorTypes.size(),
     },
     {
         SensorCategory::kLight,
@@ -724,10 +740,14 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kScd30:
             return SensorCategory::kGas;
         case SensorType::kVeml7700:
+        case SensorType::kOpt3001:
             return SensorCategory::kLight;
         case SensorType::kSps30:
         case SensorType::kSds011:
+        case SensorType::kPmsx003:
             return SensorCategory::kParticulateMatter;
+        case SensorType::kPpd42ns:
+            return SensorCategory::kDustCount;
         case SensorType::kGpsNmea:
             return SensorCategory::kLocation;
         case SensorType::kIna219:

@@ -496,11 +496,11 @@ Rules enforced by the current implementation:
 
 Supported `sensor_type` values:
 
-`bme280` `bme680` `sps30` `scd30` `veml7700` `gps_nmea` `dht11` `dht22` `htu2x` `sht3x` `sht4x` `ds18b20` `me3_no2` `ina219` `mhz19b` `sds011` `aht30`
+`bme280` `bme680` `sps30` `scd30` `veml7700` `gps_nmea` `dht11` `dht22` `htu2x` `sht3x` `sht4x` `ds18b20` `me3_no2` `ina219` `mhz19b` `sds011` `aht30` `ppd42ns` `pmsx003` `opt3001`
 
 Supported `values[].kind` values:
 
-`temperature_c` `humidity_percent` `pressure_hpa` `latitude_deg` `longitude_deg` `altitude_m` `satellites` `speed_knots` `course_deg` `hdop` `gas_resistance_ohms` `pm1_0_ug_m3` `pm2_5_ug_m3` `pm4_0_ug_m3` `pm10_0_ug_m3` `nc0_5_per_cm3` `nc1_0_per_cm3` `nc2_5_per_cm3` `nc4_0_per_cm3` `nc10_0_per_cm3` `typical_particle_size_um` `co2_ppm` `illuminance_lux` `adc_raw` `voltage_mv` `current_ma` `power_mw`
+`temperature_c` `humidity_percent` `pressure_hpa` `latitude_deg` `longitude_deg` `altitude_m` `satellites` `speed_knots` `course_deg` `hdop` `gas_resistance_ohms` `pm1_0_ug_m3` `pm2_5_ug_m3` `pm4_0_ug_m3` `pm10_0_ug_m3` `nc0_5_per_cm3` `nc1_0_per_cm3` `nc2_5_per_cm3` `nc4_0_per_cm3` `nc10_0_per_cm3` `typical_particle_size_um` `co2_ppm` `illuminance_lux` `adc_raw` `voltage_mv` `current_ma` `power_mw` `dust_concentration_pcs_0_01cf` `low_pulse_occupancy_percent` `pc0_3_per_0_1l` `pc0_5_per_0_1l` `pc1_0_per_0_1l` `pc2_5_per_0_1l` `pc5_0_per_0_1l` `pc10_per_0_1l`
 
 Response `200`:
 

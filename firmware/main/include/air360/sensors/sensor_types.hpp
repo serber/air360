@@ -26,6 +26,9 @@ enum class SensorType : std::uint8_t {
     kMhz19b = 15U,
     kSht3x = 16U,
     kAht30 = 17U,
+    kPpd42ns = 18U,
+    kPmsx003 = 19U,
+    kOpt3001 = 20U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -94,6 +97,14 @@ enum class SensorValueKind : std::uint8_t {
     kIlluminanceLux = 28U,
     kCurrentMa = 29U,
     kPowerMw = 30U,
+    kDustConcentrationPcs001Cf = 31U,
+    kLowPulseOccupancyPercent = 32U,
+    kPc0_3Per0_1L = 33U,
+    kPc0_5Per0_1L = 34U,
+    kPc1_0Per0_1L = 35U,
+    kPc2_5Per0_1L = 36U,
+    kPc5_0Per0_1L = 37U,
+    kPc10Per0_1L = 38U,
 };
 
 inline const char* sensorValueKindKey(SensorValueKind kind) {
@@ -152,6 +163,22 @@ inline const char* sensorValueKindKey(SensorValueKind kind) {
             return "current_ma";
         case SensorValueKind::kPowerMw:
             return "power_mw";
+        case SensorValueKind::kDustConcentrationPcs001Cf:
+            return "dust_concentration_pcs_0_01cf";
+        case SensorValueKind::kLowPulseOccupancyPercent:
+            return "low_pulse_occupancy_percent";
+        case SensorValueKind::kPc0_3Per0_1L:
+            return "pc0_3_per_0_1l";
+        case SensorValueKind::kPc0_5Per0_1L:
+            return "pc0_5_per_0_1l";
+        case SensorValueKind::kPc1_0Per0_1L:
+            return "pc1_0_per_0_1l";
+        case SensorValueKind::kPc2_5Per0_1L:
+            return "pc2_5_per_0_1l";
+        case SensorValueKind::kPc5_0Per0_1L:
+            return "pc5_0_per_0_1l";
+        case SensorValueKind::kPc10Per0_1L:
+            return "pc10_per_0_1l";
         case SensorValueKind::kUnknown:
         default:
             return "unknown";
@@ -214,6 +241,22 @@ inline const char* sensorValueKindLabel(SensorValueKind kind) {
             return "Current";
         case SensorValueKind::kPowerMw:
             return "Power";
+        case SensorValueKind::kDustConcentrationPcs001Cf:
+            return "Dust concentration";
+        case SensorValueKind::kLowPulseOccupancyPercent:
+            return "Low pulse occupancy";
+        case SensorValueKind::kPc0_3Per0_1L:
+            return "PC0.3";
+        case SensorValueKind::kPc0_5Per0_1L:
+            return "PC0.5";
+        case SensorValueKind::kPc1_0Per0_1L:
+            return "PC1.0";
+        case SensorValueKind::kPc2_5Per0_1L:
+            return "PC2.5";
+        case SensorValueKind::kPc5_0Per0_1L:
+            return "PC5.0";
+        case SensorValueKind::kPc10Per0_1L:
+            return "PC10";
         case SensorValueKind::kUnknown:
         default:
             return "Value";
@@ -268,6 +311,17 @@ inline const char* sensorValueKindUnit(SensorValueKind kind) {
             return "mA";
         case SensorValueKind::kPowerMw:
             return "mW";
+        case SensorValueKind::kDustConcentrationPcs001Cf:
+            return "pcs/0.01cf";
+        case SensorValueKind::kLowPulseOccupancyPercent:
+            return "%";
+        case SensorValueKind::kPc0_3Per0_1L:
+        case SensorValueKind::kPc0_5Per0_1L:
+        case SensorValueKind::kPc1_0Per0_1L:
+        case SensorValueKind::kPc2_5Per0_1L:
+        case SensorValueKind::kPc5_0Per0_1L:
+        case SensorValueKind::kPc10Per0_1L:
+            return "#/0.1L";
         case SensorValueKind::kUnknown:
         default:
             return "";
@@ -305,11 +359,19 @@ inline int sensorValueKindPrecision(SensorValueKind kind) {
             return 1;
         case SensorValueKind::kCurrentMa:
         case SensorValueKind::kPowerMw:
+        case SensorValueKind::kDustConcentrationPcs001Cf:
+        case SensorValueKind::kLowPulseOccupancyPercent:
             return 1;
         case SensorValueKind::kLatitudeDeg:
         case SensorValueKind::kLongitudeDeg:
             return 6;
         case SensorValueKind::kSatellites:
+        case SensorValueKind::kPc0_3Per0_1L:
+        case SensorValueKind::kPc0_5Per0_1L:
+        case SensorValueKind::kPc1_0Per0_1L:
+        case SensorValueKind::kPc2_5Per0_1L:
+        case SensorValueKind::kPc5_0Per0_1L:
+        case SensorValueKind::kPc10Per0_1L:
             return 0;
         case SensorValueKind::kUnknown:
         default:
@@ -336,6 +398,9 @@ inline const char* sensorTypeKey(SensorType type) {
         case SensorType::kMhz19b:   return "mhz19b";
         case SensorType::kSds011:   return "sds011";
         case SensorType::kAht30:    return "aht30";
+        case SensorType::kPpd42ns:  return "ppd42ns";
+        case SensorType::kPmsx003:  return "pmsx003";
+        case SensorType::kOpt3001:  return "opt3001";
         case SensorType::kUnknown:
         default:                    return "unknown";
     }

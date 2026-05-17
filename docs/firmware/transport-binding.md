@@ -104,9 +104,9 @@ Manages UART ports for sensors that use serial communication. UART0 is reserved 
 | Port | RX | TX | Default sensors |
 |------|----|----|-----------------|
 | UART1 | GPIO18 | GPIO17 | GPS (NMEA) default |
-| UART2 | GPIO16 | GPIO15 | MH-Z19B and SDS011 default |
+| UART2 | GPIO16 | GPIO15 | MH-Z19B, SDS011, and PMSX003 default |
 
-GPS (NMEA), MH-Z19B, and SDS011 allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
+GPS (NMEA), MH-Z19B, SDS011, and PMSX003 allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
 
 ### Port mapping
 
@@ -160,7 +160,7 @@ For the list of all sensor drivers that use these managers, see [sensors/README.
 
 GPIO-backed and analog-backed sensors do not go through a shared transport manager. Their selectable pins are listed in each `SensorDescriptor::allowed_gpio_pins`, and the selected value is stored in `SensorRecord::analog_gpio_pin`.
 
-There is no separate default GPIO field in the descriptor. The add form and type-change path use the first allowed pin as the initial selection, and `SensorRegistry::validateRecord()` rejects GPIO/analog records whose selected pin is not in the descriptor list. Current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow GPIO4, GPIO5, and GPIO6.
+There is no separate default GPIO field in the descriptor. The add form and type-change path use the first allowed pin as the initial selection, and `SensorRegistry::validateRecord()` rejects GPIO/analog records whose selected pin is not in the descriptor list. Current DHT11, DHT22, DS18B20, PPD42NS, and ME3-NO2 descriptors allow GPIO4, GPIO5, and GPIO6.
 
 ---
 
