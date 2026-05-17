@@ -34,6 +34,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
 | [sps30.md](sps30.md) | SPS30 | I2C | Bus 0, `0x69`, SDA=`GPIO8`, SCL=`GPIO9` | PM1.0-PM10.0 mass and number concentrations, typical particle size |
 | [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
+| [pmsx003.md](pmsx003.md) | PMSX003 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM1.0, PM2.5, PM10, particle counts |
 | [ppd42ns.md](ppd42ns.md) | PPD42NS | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Dust concentration estimate, low pulse occupancy |
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
@@ -234,6 +235,21 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Maximum current | `70 mA +/-10 mA` during operation; sleep current below `4 mA` for laser and fan sleep |
 | Air360 mode | Wakes on init/poll, continuous work period, passive/query reporting |
 | Reference links | [Nova Fitness datasheet mirror](https://microcontrollerslab.com/wp-content/uploads/2020/12/NonA-PM-SDS011-Dust-sensor-datasheet.pdf), [Nettigo product page](https://nettigo.eu/products/1085) |
+
+### PMSX003
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Plantower |
+| Air360 measurements | PM1.0, PM2.5, PM10 mass concentration; particle counts above 0.3, 0.5, 1.0, 2.5, 5.0, and 10 um |
+| Supported family | Common 32-byte PMS frame modules through `PMS_TYPE_5003`; PMS3003 is not covered by this descriptor |
+| Declared service life | Module-dependent |
+| Operating temperature | Module-dependent |
+| Supply voltage | `5 V` module supply; UART logic is `3.3 V` TTL |
+| Accuracy | Module-dependent |
+| Maximum current | Module-dependent |
+| Air360 mode | Continuous UART read with `petrovgp/esp-pms` parsing |
+| Reference links | [ESP component page](https://components.espressif.com/components/petrovgp/esp-pms/versions/1.0.0/readme) |
 
 ### PPD42NS
 

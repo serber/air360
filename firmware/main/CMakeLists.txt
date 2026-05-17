@@ -45,6 +45,7 @@ idf_component_register(
         "src/sensors/drivers/ina219_sensor.cpp"
         "src/sensors/drivers/mhz19b_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
+        "src/sensors/drivers/pmsx003_sensor.cpp"
         "src/sensors/drivers/ppd42ns_sensor.cpp"
         "src/sensors/drivers/scd30_sensor.cpp"
         "src/sensors/drivers/sds011_sensor.cpp"
@@ -89,6 +90,7 @@ idf_component_register(
         esp-idf-lib__sht4x
         esp-idf-lib__ina219
         esp-idf-lib__mhz19b
+        petrovgp__esp-pms
         esp-idf-lib__si7021
         esp-idf-lib__veml7700
         espressif__aht30
@@ -173,3 +175,8 @@ target_compile_options(${COMPONENT_LIB} PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=overloaded-virtual>
     $<$<COMPILE_LANGUAGE:CXX>:-Werror=non-virtual-dtor>
 )
+
+# petrovgp/esp-pms 1.0.0 still declares the legacy `driver` dependency, which
+# does not expose split ESP-IDF 6 GPIO/UART headers to the component itself.
+idf_component_get_property(PMS_COMPONENT_LIB petrovgp__esp-pms COMPONENT_LIB)
+target_link_libraries(${PMS_COMPONENT_LIB} PUBLIC idf::esp_driver_gpio idf::esp_driver_uart)

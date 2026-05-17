@@ -231,6 +231,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | SHT4X | I2C | Bus 0, `0x44` | `0x44` | 30 000 ms | — |
 | GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 30 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
 | SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
+| PMSX003 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
 | PPD42NS | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | Use P1 through a 3.3 V-safe level shifter or divider |
 | DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
 | DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |

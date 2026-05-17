@@ -428,6 +428,16 @@ dependencies:
     - esp32c6
     - esp32h2
     version: 1.2.0
+  petrovgp/esp-pms:
+    component_hash: 99ece412a2ee051ba1a467d42297e231f5c42e89da768b0f9dde7f8fb9a285dc
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
 direct_dependencies:
 - cinderblocks/esp_tinygpsplusplus
 - esp-idf-lib/bme680
@@ -446,6 +456,7 @@ direct_dependencies:
 - espressif/led_strip
 - espressif/mdns
 - nordesems/esp-captive-portal
-manifest_hash: 82cf6ffa206987d321981bf02b437d47c8ee3e0f542289a01dd39bf322099577
+- petrovgp/esp-pms
+manifest_hash: b95e041a13b2ea4703c652cdfbf0e8a980d507f324f2a3df7dbf4a531e02ef18
 target: esp32s3
 version: 3.0.0

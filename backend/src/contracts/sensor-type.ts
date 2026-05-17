@@ -17,6 +17,7 @@ export const sensorTypes = [
   "sds011",
   "aht30",
   "ppd42ns",
+  "pmsx003",
 ] as const;
 
 export type SensorType = (typeof sensorTypes)[number];

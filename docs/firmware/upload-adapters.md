@@ -107,6 +107,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | VEML7700 | I2C | — | Not supported, skipped |
 | SPS30 | I2C | 1 | Sent as particulate matter data |
 | SDS011 | UART | 1 | Sent as PM2.5 and PM10 particulate matter data |
+| PMSX003 | UART | 1 | Sent as PM1.0, PM2.5, and PM10 particulate matter data |
 | PPD42NS | GPIO | — | Not supported by Sensor.Community, skipped |
 | GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
 | ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
@@ -184,6 +185,15 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 |-----------|-----------|
 | `kPm2_5UgM3` | `"P2"` |
 | `kPm10_0UgM3` | `"P1"` |
+
+**PMSX003 (pin 1):**
+
+| ValueKind | value_type |
+|-----------|-----------|
+| `kPm1_0UgM3` | `"P0"` |
+| `kPm2_5UgM3` | `"P2"` |
+| `kPm10_0UgM3` | `"P1"` |
+| particle-count bins | skipped |
 
 Within a group, if the same `value_type` appears more than once (e.g., two temperature points for the same sensor in the same batch window), the **latest value wins** — it overwrites the previous one.
 
@@ -502,6 +512,6 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
 | Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
 | Authentication | None | Bearer upload secret | None | Optional Basic Auth |
-| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011 | All sensor types, including PPD42NS | All sensor types, including PPD42NS | All sensor types, including PPD42NS |
+| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS and PMSX003 | All sensor types, including PPD42NS and PMSX003 | All sensor types, including PPD42NS and PMSX003 |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
 | Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config |

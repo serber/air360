@@ -352,6 +352,8 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 30 s |
 | GPS (NMEA) | UART | UART1 | UART1, UART2 | 30 s |
 | MH-Z19B | UART | UART2 | UART1, UART2 | 30 s |
+| SDS011 | UART | UART2 | UART1, UART2 | 30 s |
+| PMSX003 | UART | UART2 | UART1, UART2 | 30 s |
 | DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
 | DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
 | DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 30 s |
@@ -424,6 +426,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
+| `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` |
 | `htu2x_sensor.cpp` | HTU2X (Si7021) | `esp-idf-lib__si7021` |
@@ -608,7 +611,7 @@ Uploads to [Sensor.Community](https://sensor.community/).
 - Headers: `X-Sensor`, `X-MAC-ID`, `X-PIN`, `User-Agent`
 - Format: `{"sensordatavalues": [{"value_type": "...", "value": "..."}]}`
 
-Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
+Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30, SDS011, PMSX003.
 
 `X-Sensor` uses the legacy `esp32-{short_device_id}` format, falling back to the full `device_id` only if `short_device_id` is unavailable.
 

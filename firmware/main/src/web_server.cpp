@@ -634,9 +634,10 @@ constexpr std::array<SensorType, 1U> kLightSensorTypes{{
     SensorType::kVeml7700,
 }};
 
-constexpr std::array<SensorType, 2U> kParticulateMatterSensorTypes{{
+constexpr std::array<SensorType, 3U> kParticulateMatterSensorTypes{{
     SensorType::kSps30,
     SensorType::kSds011,
+    SensorType::kPmsx003,
 }};
 
 constexpr std::array<SensorType, 1U> kDustCountSensorTypes{{
@@ -741,6 +742,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
             return SensorCategory::kLight;
         case SensorType::kSps30:
         case SensorType::kSds011:
+        case SensorType::kPmsx003:
             return SensorCategory::kParticulateMatter;
         case SensorType::kPpd42ns:
             return SensorCategory::kDustCount;

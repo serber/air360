@@ -19,6 +19,7 @@ export const sensorTypes = [
   "sds011",
   "aht30",
   "ppd42ns",
+  "pmsx003",
 ] as const;
 
 export type SensorType = (typeof sensorTypes)[number];
@@ -217,6 +218,7 @@ export function sensorLabel(sensorType: string): string {
     scd30: "SCD30",
     sds011: "SDS011",
     ppd42ns: "PPD42NS",
+    pmsx003: "PMSX003",
     sht3x: "SHT3X",
     sht4x: "SHT4X",
     sps30: "SPS30",
@@ -260,6 +262,12 @@ export function kindLabel(kind: string): string {
     nc2_5_per_cm3: "NC2.5",
     nc4_0_per_cm3: "NC4.0",
     nc10_0_per_cm3: "NC10.0",
+    pc0_3_per_0_1l: "PC0.3",
+    pc0_5_per_0_1l: "PC0.5",
+    pc1_0_per_0_1l: "PC1.0",
+    pc2_5_per_0_1l: "PC2.5",
+    pc5_0_per_0_1l: "PC5.0",
+    pc10_per_0_1l: "PC10",
     no2_voltage_v: "NO2 voltage",
     particle_size_um: "Particle size",
     pm1_0_ug_m3: "PM1.0",
@@ -308,6 +316,7 @@ function valueUnit(kind: string): string {
   if (kind.endsWith("_ohms")) return "ohm";
   if (kind.endsWith("_ohm")) return "ohm";
   if (kind.endsWith("_per_cm3")) return "/cm3";
+  if (kind.endsWith("_per_0_1l")) return "/0.1L";
 
   return "";
 }

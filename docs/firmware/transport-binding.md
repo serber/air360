@@ -104,9 +104,9 @@ Manages UART ports for sensors that use serial communication. UART0 is reserved 
 | Port | RX | TX | Default sensors |
 |------|----|----|-----------------|
 | UART1 | GPIO18 | GPIO17 | GPS (NMEA) default |
-| UART2 | GPIO16 | GPIO15 | MH-Z19B and SDS011 default |
+| UART2 | GPIO16 | GPIO15 | MH-Z19B, SDS011, and PMSX003 default |
 
-GPS (NMEA), MH-Z19B, and SDS011 allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
+GPS (NMEA), MH-Z19B, SDS011, and PMSX003 allow UART1 or UART2 through their `SensorDescriptor::allowed_uart_ports` lists. Removing a port from that descriptor list is enough to narrow a sensor's selectable UARTs.
 
 ### Port mapping
 

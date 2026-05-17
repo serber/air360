@@ -369,6 +369,8 @@ Supported drivers confirmed by the current registry:
 - `SCD30`
 - `VEML7700`
 - `SPS30`
+- `SDS011`
+- `PMSX003`
 - `GPS (NMEA)`
 - `DHT11`
 - `DHT22`
@@ -378,6 +380,8 @@ Current transport model by sensor type:
 
 - `BME280`, `BME680`, `SCD30`, `VEML7700`, `SPS30`
   I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
+- `SDS011`, `PMSX003`, `MH-Z19B`
+  UART sensors on UART2 by default, with UART1 selectable.
 - `GPS (NMEA)`
   UART sensor with fixed board wiring from `CONFIG_AIR360_GPS_DEFAULT_*`.
 
@@ -401,7 +405,7 @@ Current default I2C addresses from the registry are:
 - `VEML7700`: `0x10`
 - `SPS30`: `0x69`
 
-The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Light`, `Particulate Matter`, `Location`, `Gas`, `Power`), transport is inferred from the selected model, board-pin sensors expose only the GPIO pins allowed by the selected sensor descriptor, I2C sensors expose an I2C-address selector, and UART sensors expose the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
+The `/sensors` page no longer asks the user to choose an arbitrary transport. Sensors are organized into categories (`Climate`, `Light`, `Particulate Matter`, `Dust Count`, `Location`, `Gas`, `Power`), transport is inferred from the selected model, board-pin sensors expose only the GPIO pins allowed by the selected sensor descriptor, I2C sensors expose an I2C-address selector, and UART sensors expose the fixed bindings from the registry defaults. All categories except `Gas` currently allow only one configured sensor. Sensor edits are staged in memory until `Apply now` persists the staged list and rebuilds the sensor runtime without rebooting the device.
 
 `GPS (NMEA)` currently reports latitude, longitude, altitude, satellites, speed, course, and HDOP through the generic `measurements` array.
 
