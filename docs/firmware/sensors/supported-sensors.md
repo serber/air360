@@ -33,6 +33,7 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 | `PMSX003` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [pmsx003.md](pmsx003.md) |
 | `PPD42NS` | GPIO | First allowed pin, currently GPIO4 | GPIO4/5/6 | [ppd42ns.md](ppd42ns.md) |
 | `VEML7700` | I2C | Bus 0, address `0x10` | I2C `0x10` | [veml7700.md](veml7700.md) |
+| `OPT3001` | I2C | Bus 0, address `0x44` | I2C `0x44`, `0x45`, `0x46`, `0x47` | [opt3001.md](opt3001.md) |
 | `HTU2X` | I2C | Bus 0, address `0x40` | I2C `0x40` | [htu2x.md](htu2x.md) |
 | `SHT3X` | I2C | Bus 0, address `0x44` | I2C `0x44`, `0x45` | [sht3x.md](sht3x.md) |
 | `SHT4X` | I2C | Bus 0, address `0x44` | I2C `0x44` | [sht4x.md](sht4x.md) |

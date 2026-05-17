@@ -22,6 +22,7 @@
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/ina219_sensor.hpp"
 #include "air360/sensors/drivers/mhz19b_sensor.hpp"
+#include "air360/sensors/drivers/opt3001_sensor.hpp"
 #include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
 
@@ -225,6 +226,19 @@ bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
 
     if (record.transport_kind != TransportKind::kI2c) {
         error = "VEML7700 currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateOpt3001Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "OPT3001 currently supports only I2C.";
         return false;
     }
 
@@ -438,7 +452,7 @@ bool validatePmsx003Record(const SensorRecord& record, std::string& error) {
 static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 19U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -563,6 +577,31 @@ constexpr std::array<SensorDescriptor, 19U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateVeml7700Record,
         .create_driver            = &createVeml7700Sensor,
+    },
+    {
+        .type                     = SensorType::kOpt3001,
+        .type_key                 = "opt3001",
+        .display_name             = "OPT3001",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x44U,
+        .allowed_i2c_addresses    = {0x44U, 0x45U, 0x46U, 0x47U},
+        .allowed_i2c_address_count = 4U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateOpt3001Record,
+        .create_driver            = &createOpt3001Sensor,
     },
     {
         .type                     = SensorType::kGpsNmea,

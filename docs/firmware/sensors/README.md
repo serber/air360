@@ -37,6 +37,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [pmsx003.md](pmsx003.md) | PMSX003 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM1.0, PM2.5, PM10, particle counts |
 | [ppd42ns.md](ppd42ns.md) | PPD42NS | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Dust concentration estimate, low pulse occupancy |
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
+| [opt3001.md](opt3001.md) | OPT3001 | I2C | Bus 0, `0x44` (alt `0x45`, `0x46`, `0x47`), SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht3x.md](sht3x.md) | SHT3X | I2C | Bus 0, `0x44` (alt `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
@@ -208,6 +209,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Accuracy | Vishay documents the part as a high-accuracy ALS and publishes ambient-light range / resolution, but the searchable public datasheet text used here does not expose one clean percentage-accuracy figure |
 | Maximum current | `45 uA` in the most active measurement mode shown in the datasheet (`8 uA` in a lower-power mode, `0.5 uA` in shutdown) |
 | Reference links | [Vishay product page](https://www.vishay.com/en/product/84286/tab/technical-questions/), [Vishay datasheet](https://www.vishay.com/docs/84286/veml7700.pdf) |
+
+### OPT3001
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Texas Instruments |
+| Air360 measurements | Illuminance |
+| Declared service life | Not stated |
+| Operating temperature | `-40..85 deg C` |
+| Supply voltage | `1.6..3.6 V` |
+| Accuracy | Module- and optical-window dependent; the driver reports the sensor's lux value directly |
+| Maximum current | `1.8 uA` typical operating current in the public datasheet |
+| Reference links | [Texas Instruments datasheet](https://www.ti.com/lit/ds/sbos681c/sbos681c.pdf), [ESPHome reference implementation](https://api-docs.esphome.io/opt3001_8cpp_source) |
 
 ### SPS30
 

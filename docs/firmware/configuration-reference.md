@@ -226,6 +226,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | SPS30 | I2C | Bus 0, `0x69` | `0x69` | 30 000 ms | — |
 | SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | — |
 | VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 30 000 ms | — |
+| OPT3001 | I2C | Bus 0, `0x44` | `0x44`, `0x45`, `0x46`, `0x47` | 30 000 ms | ADDR strap selects address |
 | HTU2X | I2C | Bus 0, `0x40` | `0x40` | 30 000 ms | — |
 | SHT3X | I2C | Bus 0, `0x44` | `0x44`, `0x45` | 30 000 ms | — |
 | SHT4X | I2C | Bus 0, `0x44` | `0x44` | 30 000 ms | — |

@@ -496,7 +496,7 @@ Rules enforced by the current implementation:
 
 Supported `sensor_type` values:
 
-`bme280` `bme680` `sps30` `scd30` `veml7700` `gps_nmea` `dht11` `dht22` `htu2x` `sht3x` `sht4x` `ds18b20` `me3_no2` `ina219` `mhz19b` `sds011` `aht30` `ppd42ns` `pmsx003`
+`bme280` `bme680` `sps30` `scd30` `veml7700` `gps_nmea` `dht11` `dht22` `htu2x` `sht3x` `sht4x` `ds18b20` `me3_no2` `ina219` `mhz19b` `sds011` `aht30` `ppd42ns` `pmsx003` `opt3001`
 
 Supported `values[].kind` values:
 

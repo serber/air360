@@ -285,7 +285,7 @@ The Sensors page manages the sensor inventory. Sensors are organized into catego
 | Temperature & Humidity | AHT30, SHT3X, SHT4X, HTU2X, DHT11, DHT22 |
 | Temperature | DS18B20 |
 | CO2 | SCD30 |
-| Light | VEML7700 |
+| Light | VEML7700, OPT3001 |
 | Particulate Matter | SPS30, SDS011, PMSX003 |
 | Dust Count | PPD42NS |
 | Location | GPS (NMEA) |
@@ -306,6 +306,7 @@ All categories except **Gas** allow only one configured sensor at a time.
 | HTU2X | I2C at 0x40 | SDA=GPIO8, SCL=GPIO9 |
 | SCD30 | I2C at 0x61 | SDA=GPIO8, SCL=GPIO9 |
 | VEML7700 | I2C at 0x10 | SDA=GPIO8, SCL=GPIO9 |
+| OPT3001 | I2C at 0x44 | SDA=GPIO8, SCL=GPIO9 |
 | SPS30 | I2C at 0x69 | SDA=GPIO8, SCL=GPIO9 |
 | SDS011 | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |
 | PMSX003 | UART2 at 9600 baud (UART1 selectable) | UART2 RX=GPIO16/TX=GPIO15; UART1 RX=GPIO18/TX=GPIO17 |

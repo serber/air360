@@ -129,6 +129,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` (managed component) |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` (managed component) |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` (managed component) |
+| `opt3001_sensor.cpp` | OPT3001 | Air360 I2C register driver |
 | `htu2x_sensor.cpp` | HTU2X / Si7021 | `esp-idf-lib__si7021` (managed component) |
 | `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` (managed component) |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` (managed component) |

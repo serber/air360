@@ -105,6 +105,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | DS18B20 | GPIO (1-Wire) | 7 | Sent as temperature only |
 | SCD30 | I2C | 17 | Sent as temperature + humidity + CO2 |
 | VEML7700 | I2C | — | Not supported, skipped |
+| OPT3001 | I2C | — | Not supported, skipped |
 | SPS30 | I2C | 1 | Sent as particulate matter data |
 | SDS011 | UART | 1 | Sent as PM2.5 and PM10 particulate matter data |
 | PMSX003 | UART | 1 | Sent as PM1.0, PM2.5, and PM10 particulate matter data |
@@ -512,6 +513,6 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
 | Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
 | Authentication | None | Bearer upload secret | None | Optional Basic Auth |
-| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS and PMSX003 | All sensor types, including PPD42NS and PMSX003 | All sensor types, including PPD42NS and PMSX003 |
+| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
 | Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config |

@@ -103,6 +103,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | [sensors/ppd42ns.md](sensors/ppd42ns.md) | PPD42NS | GPIO | Dust concentration estimate, low pulse occupancy |
 | [sensors/scd30.md](sensors/scd30.md) | SCD30 | I2C `0x61` | CO₂, temperature, humidity |
 | [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | I2C `0x10` | Illuminance |
+| [sensors/opt3001.md](sensors/opt3001.md) | OPT3001 | I2C `0x44` / `0x45` / `0x46` / `0x47` | Illuminance |
 | [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | I2C `0x40` | Temperature, humidity |
 | [sensors/sht3x.md](sensors/sht3x.md) | SHT3X | I2C `0x44` / `0x45` | Temperature, humidity |
 | [sensors/sht4x.md](sensors/sht4x.md) | SHT4X | I2C `0x44` | Temperature, humidity |
