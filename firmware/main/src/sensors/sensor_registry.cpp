@@ -13,6 +13,8 @@
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
+#include "air360/sensors/drivers/pmsx003_sensor.hpp"
+#include "air360/sensors/drivers/ppd42ns_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
 #include "air360/sensors/drivers/sds011_sensor.hpp"
 #include "air360/sensors/drivers/sht3x_sensor.hpp"
@@ -20,6 +22,7 @@
 #include "air360/sensors/drivers/sps30_sensor.hpp"
 #include "air360/sensors/drivers/ina219_sensor.hpp"
 #include "air360/sensors/drivers/mhz19b_sensor.hpp"
+#include "air360/sensors/drivers/opt3001_sensor.hpp"
 #include "air360/sensors/drivers/veml7700_sensor.hpp"
 #include "sdkconfig.h"
 
@@ -229,6 +232,19 @@ bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateOpt3001Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "OPT3001 currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateHtu2xRecord(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -400,12 +416,43 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validatePpd42nsRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kGpio) {
+        error = "PPD42NS currently supports only GPIO transport.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validatePmsx003Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kUart) {
+        error = "PMSX003 currently supports only UART.";
+        return false;
+    }
+
+    if (record.uart_baud_rate != 9600U) {
+        error = "PMSX003 requires UART baud rate of 9600.";
+        return false;
+    }
+
+    return true;
+}
+
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
 // Size computed for ESP32 (32-bit, 4-byte pointers): 23 fields, 60 bytes with padding.
 static_assert(sizeof(SensorDescriptor) == 60U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -530,6 +577,31 @@ constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateVeml7700Record,
         .create_driver            = &createVeml7700Sensor,
+    },
+    {
+        .type                     = SensorType::kOpt3001,
+        .type_key                 = "opt3001",
+        .display_name             = "OPT3001",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x44U,
+        .allowed_i2c_addresses    = {0x44U, 0x45U, 0x46U, 0x47U},
+        .allowed_i2c_address_count = 4U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateOpt3001Record,
+        .create_driver            = &createOpt3001Sensor,
     },
     {
         .type                     = SensorType::kGpsNmea,
@@ -782,6 +854,31 @@ constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
         .create_driver            = &createSds011Sensor,
     },
     {
+        .type                     = SensorType::kPmsx003,
+        .type_key                 = "pmsx003",
+        .display_name             = "PMSX003",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = true,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
+        .default_uart_port_id     = 2U,
+        .allowed_uart_ports       = {1U, 2U},
+        .allowed_uart_port_count  = 2U,
+        .default_uart_rx_gpio_pin = 16,
+        .default_uart_tx_gpio_pin = 15,
+        .default_uart_baud_rate   = 9600U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validatePmsx003Record,
+        .create_driver            = &createPmsx003Sensor,
+    },
+    {
         .type                     = SensorType::kAht30,
         .type_key                 = "aht30",
         .display_name             = "AHT30",
@@ -830,6 +927,31 @@ constexpr std::array<SensorDescriptor, 17U> kDescriptors{{
         .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateMe3No2Record,
         .create_driver            = &createMe3No2Sensor,
+    },
+    {
+        .type                     = SensorType::kPpd42ns,
+        .type_key                 = "ppd42ns",
+        .display_name             = "PPD42NS",
+        .supports_i2c             = false,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = true,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x00U,
+        .allowed_i2c_addresses    = {},
+        .allowed_i2c_address_count = 0U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = kBoardSensorGpioPins,
+        .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
+        .validate                 = &validatePpd42nsRecord,
+        .create_driver            = &createPpd42nsSensor,
     },
 }};
 

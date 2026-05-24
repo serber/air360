@@ -126,8 +126,10 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` (managed component) |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
+| `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` (managed component) |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` (managed component) |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` (managed component) |
+| `opt3001_sensor.cpp` | OPT3001 | Air360 I2C register driver |
 | `htu2x_sensor.cpp` | HTU2X / Si7021 | `esp-idf-lib__si7021` (managed component) |
 | `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` (managed component) |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` (managed component) |
@@ -135,6 +137,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` (managed component) |
 | `me3_no2_sensor.cpp` | ME3-NO2 (ADC) | `esp_adc` (IDF built-in) |
+| `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
 | `sensirion_i2c_hal.cpp` | Sensirion I2C HAL | (bridge for SPS30 vendored lib) |
 
 Adding a new sensor means one new driver file plus one registry entry — no changes to the rest of the runtime.
@@ -158,7 +161,7 @@ Sources: `main/src/uploads/`
 
 ### Third-party sources
 
-`main/third_party/sps30/` — vendored Sensirion SPS30 C library. Most other sensor integrations are consumed as ESP-IDF managed components under `managed_components/`; SDS011 is implemented directly as a small UART frame parser.
+`main/third_party/sps30/` — vendored Sensirion SPS30 C library. Most other sensor integrations are consumed as ESP-IDF managed components under `managed_components/`; SDS011 is implemented directly as a small UART frame parser, and PMSX003 uses the `petrovgp/esp-pms` managed component.
 
 ---
 

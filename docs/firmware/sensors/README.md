@@ -34,7 +34,10 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
 | [sps30.md](sps30.md) | SPS30 | I2C | Bus 0, `0x69`, SDA=`GPIO8`, SCL=`GPIO9` | PM1.0-PM10.0 mass and number concentrations, typical particle size |
 | [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
+| [pmsx003.md](pmsx003.md) | PMSX003 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM1.0, PM2.5, PM10, particle counts |
+| [ppd42ns.md](ppd42ns.md) | PPD42NS | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Dust concentration estimate, low pulse occupancy |
 | [veml7700.md](veml7700.md) | VEML7700 | I2C | Bus 0, `0x10`, SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
+| [opt3001.md](opt3001.md) | OPT3001 | I2C | Bus 0, `0x44` (alt `0x45`, `0x46`, `0x47`), SDA=`GPIO8`, SCL=`GPIO9` | Illuminance |
 | [htu2x.md](htu2x.md) | HTU2X | I2C | Bus 0, `0x40`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht3x.md](sht3x.md) | SHT3X | I2C | Bus 0, `0x44` (alt `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [sht4x.md](sht4x.md) | SHT4X | I2C | Bus 0, `0x44`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
@@ -47,7 +50,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
-GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
+GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, PPD42NS, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
 
 ## Datasheet Notes
 
@@ -207,6 +210,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Maximum current | `45 uA` in the most active measurement mode shown in the datasheet (`8 uA` in a lower-power mode, `0.5 uA` in shutdown) |
 | Reference links | [Vishay product page](https://www.vishay.com/en/product/84286/tab/technical-questions/), [Vishay datasheet](https://www.vishay.com/docs/84286/veml7700.pdf) |
 
+### OPT3001
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Texas Instruments |
+| Air360 measurements | Illuminance |
+| Declared service life | Not stated |
+| Operating temperature | `-40..85 deg C` |
+| Supply voltage | `1.6..3.6 V` |
+| Accuracy | Module- and optical-window dependent; the driver reports the sensor's lux value directly |
+| Maximum current | `1.8 uA` typical operating current in the public datasheet |
+| Reference links | [Texas Instruments datasheet](https://www.ti.com/lit/ds/sbos681c/sbos681c.pdf), [ESPHome reference implementation](https://api-docs.esphome.io/opt3001_8cpp_source) |
+
 ### SPS30
 
 | Field | Value |
@@ -233,6 +249,34 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Maximum current | `70 mA +/-10 mA` during operation; sleep current below `4 mA` for laser and fan sleep |
 | Air360 mode | Wakes on init/poll, continuous work period, passive/query reporting |
 | Reference links | [Nova Fitness datasheet mirror](https://microcontrollerslab.com/wp-content/uploads/2020/12/NonA-PM-SDS011-Dust-sensor-datasheet.pdf), [Nettigo product page](https://nettigo.eu/products/1085) |
+
+### PMSX003
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Plantower |
+| Air360 measurements | PM1.0, PM2.5, PM10 mass concentration; particle counts above 0.3, 0.5, 1.0, 2.5, 5.0, and 10 um |
+| Supported family | Common 32-byte PMS frame modules through `PMS_TYPE_5003`; PMS3003 is not covered by this descriptor |
+| Declared service life | Module-dependent |
+| Operating temperature | Module-dependent |
+| Supply voltage | `5 V` module supply; UART logic is `3.3 V` TTL |
+| Accuracy | Module-dependent |
+| Maximum current | Module-dependent |
+| Air360 mode | Continuous UART read with `petrovgp/esp-pms` parsing |
+| Reference links | [ESP component page](https://components.espressif.com/components/petrovgp/esp-pms/versions/1.0.0/readme) |
+
+### PPD42NS
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Shinyei |
+| Air360 measurements | Dust concentration estimate in `pcs/0.01cf`, low pulse occupancy percent |
+| Declared service life | Not stated |
+| Operating temperature | `0..45 deg C` |
+| Supply voltage | `DC 5 V +/-10 %` |
+| Accuracy | Not stated as a calibrated PM mass accuracy; output is LPO-derived particle concentration for particles around `1 um` or larger on `P1` |
+| Maximum current | `90 mA` power consumption |
+| Reference links | [RS-hosted PPD42NS specification sheet](https://docs.rs-online.com/e8b9/0900766b8163b7f3.pdf), [Seeed Grove Dust Sensor wiki mirror](https://seeeddoc.github.io/Grove-Dust_Sensor/) |
 
 ### GPS (NMEA)
 

@@ -346,12 +346,15 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | SPS30 | I2C | 0x69 | 0x69 | 30 s |
 | SCD30 | I2C | 0x61 | 0x61 | 30 s |
 | VEML7700 | I2C | 0x10 | 0x10 | 30 s |
+| OPT3001 | I2C | 0x44 | 0x44, 0x45, 0x46, 0x47 | 30 s |
 | HTU2X | I2C | 0x40 | 0x40 | 30 s |
 | SHT3X | I2C | 0x44 | 0x44, 0x45 | 30 s |
 | SHT4X | I2C | 0x44 | 0x44 | 30 s |
 | INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 30 s |
 | GPS (NMEA) | UART | UART1 | UART1, UART2 | 30 s |
 | MH-Z19B | UART | UART2 | UART1, UART2 | 30 s |
+| SDS011 | UART | UART2 | UART1, UART2 | 30 s |
+| PMSX003 | UART | UART2 | UART1, UART2 | 30 s |
 | DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
 | DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
 | DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 30 s |
@@ -424,8 +427,10 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
+| `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` |
+| `opt3001_sensor.cpp` | OPT3001 | Air360 I2C register driver |
 | `htu2x_sensor.cpp` | HTU2X (Si7021) | `esp-idf-lib__si7021` |
 | `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` |
 | `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` |
@@ -433,6 +438,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` |
 | `me3_no2_sensor.cpp` | ME3-NO2 (analog) | `esp_adc` (IDF built-in) |
+| `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
 | `sensirion_i2c_hal.cpp` | Sensirion HAL | (I2C HAL for SPS30) |
 
 GPS reports: latitude, longitude, altitude, satellites, speed, course, HDOP — through the generic `measurements` value array.
@@ -607,7 +613,7 @@ Uploads to [Sensor.Community](https://sensor.community/).
 - Headers: `X-Sensor`, `X-MAC-ID`, `X-PIN`, `User-Agent`
 - Format: `{"sensordatavalues": [{"value_type": "...", "value": "..."}]}`
 
-Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30.
+Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30, SDS011, PMSX003, OPT3001.
 
 `X-Sensor` uses the legacy `esp32-{short_device_id}` format, falling back to the full `device_id` only if `short_device_id` is unavailable.
 
@@ -781,7 +787,7 @@ Both OTA application slots are used at runtime: `OtaService` streams new images 
 - Bus 0: SDA=GPIO8, SCL=GPIO9
 - Clock: 100 kHz
 - Transfer timeout: 200 ms
-- Used by: BME280, BME680, SPS30, SCD30, VEML7700, HTU2X, SHT3X, SHT4X
+- Used by: BME280, BME680, SPS30, SCD30, VEML7700, OPT3001, HTU2X, SHT3X, SHT4X
 
 ### UART
 

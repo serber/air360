@@ -56,6 +56,7 @@
       "pm1_0_ug_m3": "PM1.0",
       "pm2_5_ug_m3": "PM2.5",
       "pm4_0_ug_m3": "PM4.0",
+      "dust_concentration_pcs_0_01cf": "Пыль",
       "illuminance_lux": "Свет"
     },
     "quality": {
@@ -71,12 +72,21 @@
       "pressure": "Давление",
       "humidity": "Влажность",
       "light": "Свет",
+      "dustCount": "Пыль",
+      "relativeCount": "запыленность",
+      "dustTrace": "Почти нет",
+      "dustLow": "Немного",
+      "dustElevated": "Заметно",
+      "dustHigh": "Много",
+      "dustVeryHigh": "Очень много",
+      "dustOverRange": "Зашкаливает",
       "coldToHot": "от холода к жаре",
       "lowToHigh": "от низкого к высокому",
       "dryToHumid": "от сухого к влажному",
       "baselineToHigh": "от фона к высокому",
       "cleanToHazardous": "от чистого к опасному",
       "darkToBright": "от темного к яркому",
+      "countEstimate": "PPD42NS показывает текущий уровень пыли.",
       "noData": "Нет данных"
     }
   },

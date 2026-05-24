@@ -16,3 +16,4 @@ dependencies:
   espressif/mdns: '*'
   nordesems/esp-captive-portal: 1.2.0
   espressif/aht30: "1.0.0"
+  petrovgp/esp-pms: ^1.0.0

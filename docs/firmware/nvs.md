@@ -214,6 +214,9 @@ struct SensorRecord {
 | 15 | MH-Z19B |
 | 16 | SHT3X |
 | 17 | AHT30 |
+| 18 | PPD42NS |
+| 19 | PMSX003 |
+| 20 | OPT3001 |
 
 ### `TransportKind` enum values
 
