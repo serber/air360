@@ -123,7 +123,7 @@ Current portal implementation includes:
 - Next.js 16 / React 19 / TypeScript application
 - public home page at `/`
 - public device map at `/map`
-- placeholder device assembly guide at `/build`
+- device assembly guide at `/build` with shield-board and direct ESP32-S3 wiring paths
 - privacy page at `/privacy`
 - public device measurement charts at `/devices/:public_id`
 - deployment notes under `docs/portal/`
@@ -174,7 +174,7 @@ Current implementation status appears to be:
 
 - `firmware/` is the most substantial implemented part of the repository
 - `backend/` is a native API backend with registration, authenticated ingest persistence, public device lists, measurement history, and reverse-geocoded display fields
-- `portal/` is a public frontend with home, map, build guide placeholder, privacy page, and device measurement pages
+- `portal/` is a public frontend with home, map, build guide, privacy page, and device measurement pages
 - many documents in `docs/` still describe intended direction, rollout phases, and compatibility constraints rather than completed work
 
 ## Development Notes

@@ -9,8 +9,8 @@ Accepted. Implemented in `portal/`.
 Build the Air360 portal as a Next.js 16 application with public pages: a home
 page, a map page showing devices as pins with latest-reading popups, a device
 detail page with sensor charts for selectable time periods, a placeholder build
-guide, and a privacy page. All device data is public; no authentication is
-required for the current portal.
+guide that now starts with device assembly paths, and a privacy page. All device
+data is public; no authentication is required for the current portal.
 
 ## Context
 
@@ -40,6 +40,7 @@ for visualizing device data.
 |-------|---------|
 | `/` | Public portal home page |
 | `/map` | World map with active device pins and optional offline-device layer |
+| `/build` | Device assembly guide with shield-board and direct ESP32-S3 wiring paths |
 | `/devices/:public_id` | Device detail page with sensor charts |
 | `/privacy` | Privacy policy |
 

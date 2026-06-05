@@ -11,6 +11,8 @@ The portal currently provides:
 - a public home page at `/` using the shared Air360 visual system
 - a public device map at `/map` with Air360 layer controls and preserved
   metric legends
+- a public build guide at `/build` with shield-board and direct ESP32-S3
+  wiring paths
 - a privacy policy at `/privacy` with the shared Air360 document layout
 - public device measurement charts at `/devices/:public_id` with Air360
   current-reading, period, chart, and metadata panels

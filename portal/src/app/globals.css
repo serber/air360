@@ -1663,6 +1663,10 @@ svg {
   padding: 32px 0 16px;
 }
 
+.air-doc-grid-full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .air-doc-article {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1717,6 +1721,375 @@ svg {
   text-decoration: underline;
 }
 
+.air-doc-article .air-btn-brand {
+  color: #ffffff;
+}
+
+.air-build-guide ol {
+  color: var(--ink-2);
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-left: 20px;
+}
+
+.air-build-option-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.air-build-option {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px;
+}
+
+.air-build-option-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.air-build-option-head > span:last-child {
+  color: var(--ink-3);
+  font-family: var(--air-font-mono);
+  font-size: 11px;
+}
+
+.air-build-option h3 {
+  color: var(--ink);
+  font-family: var(--air-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 18px 0 0;
+}
+
+.air-build-option p {
+  font-size: 14px;
+}
+
+.air-build-option ul {
+  font-size: 13.5px;
+}
+
+.air-build-link-list {
+  display: grid;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.air-build-link-list-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 0;
+}
+
+.air-firmware-top-links {
+  margin-top: 16px;
+}
+
+.air-build-link-placeholder {
+  align-items: center;
+  color: var(--brand);
+  display: inline-flex;
+  font-family: var(--air-font-mono);
+  font-size: 11px;
+  gap: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.air-build-photo-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.air-build-photo-grid-centered {
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
+}
+
+.air-build-photo {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: zoom-in;
+  display: block;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+  width: 100%;
+}
+
+.air-build-photo:hover {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+
+.air-build-photo img {
+  aspect-ratio: 16 / 9;
+  height: auto;
+  object-fit: contain;
+  width: 100%;
+}
+
+.air-image-preview {
+  align-items: center;
+  background: color-mix(in oklab, var(--ink) 72%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 32px;
+  position: fixed;
+  z-index: 100;
+}
+
+.air-image-preview img {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  max-height: min(86vh, 980px);
+  max-width: min(92vw, 1280px);
+  object-fit: contain;
+  width: auto;
+}
+
+.air-image-preview-close {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 24px;
+  height: 40px;
+  justify-content: center;
+  position: fixed;
+  right: 24px;
+  top: 24px;
+  width: 40px;
+  z-index: 101;
+}
+
+.air-firmware-section {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--brand-soft) 74%, transparent), transparent 260px),
+    var(--panel);
+}
+
+.air-firmware-panel {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-top: 22px;
+  padding: 22px;
+}
+
+.air-firmware-panel-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.air-firmware-panel-head h3 {
+  color: var(--ink);
+  font-family: var(--air-font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 12px 0 0;
+}
+
+.air-firmware-access-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.air-firmware-access-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  min-width: 0;
+  padding: 14px;
+}
+
+.air-firmware-access-card span {
+  color: var(--ink-3);
+  display: block;
+  font-family: var(--air-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.air-firmware-access-card b {
+  color: var(--ink);
+  display: block;
+  font-family: var(--air-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.air-firmware-access-card p {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
+.air-firmware-step-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 22px;
+}
+
+.air-firmware-step {
+  align-items: flex-start;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  padding: 14px 16px;
+}
+
+.air-firmware-step span {
+  align-items: center;
+  background: var(--brand-soft);
+  border-radius: 999px;
+  color: var(--brand-ink);
+  display: inline-flex;
+  font-family: var(--air-font-mono);
+  font-size: 11px;
+  height: 28px;
+  justify-content: center;
+  margin-top: 1px;
+  width: 28px;
+}
+
+.air-firmware-step h3 {
+  color: var(--ink);
+  font-family: var(--air-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.air-firmware-step p {
+  font-size: 13.5px;
+  grid-column: 2;
+  line-height: 1.55;
+  margin-top: 8px;
+}
+
+.air-difference-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.air-difference-card {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 18px;
+}
+
+.air-difference-card h3 {
+  color: var(--ink);
+  font-family: var(--air-font-display);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.air-difference-card p {
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin-top: 10px;
+}
+
+.air-wiring-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-top: 22px;
+  overflow-x: auto;
+}
+
+.air-wiring-table {
+  border-collapse: collapse;
+  min-width: 760px;
+  width: 100%;
+}
+
+.air-wiring-table th,
+.air-wiring-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.air-wiring-table th {
+  background: var(--panel-2);
+  color: var(--ink-3);
+  font-family: var(--air-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.air-wiring-table td {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.air-wiring-table td:first-child {
+  color: var(--ink);
+  font-family: var(--air-font-mono);
+  font-weight: 500;
+}
+
+.air-wiring-sensor-list {
+  display: grid;
+  gap: 5px;
+  list-style: disc;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.air-wiring-table tr:last-child td {
+  border-bottom: 0;
+}
+
 .air-doc-side {
   display: flex;
   flex-direction: column;
@@ -1753,8 +2126,17 @@ svg {
 
   .air-device-panel-grid,
   .air-doc-grid,
-  .air-doc-title-grid {
+  .air-doc-title-grid,
+  .air-build-option-grid,
+  .air-build-photo-grid,
+  .air-firmware-access-grid,
+  .air-firmware-step-grid,
+  .air-difference-grid {
     grid-template-columns: 1fr;
+  }
+
+  .air-firmware-panel-head {
+    display: block;
   }
 
   .air-now-cell {
