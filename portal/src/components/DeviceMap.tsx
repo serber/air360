@@ -1565,11 +1565,12 @@ function emptyFeatureCollection(): DeviceFeatureCollection {
 
 function clusterLabelExpression() {
   const avg = clusterAverageExpression();
+  const roundedAvg = ["/", ["round", ["*", avg, 10]], 10];
 
   return [
     "case",
     [">", ["get", "metricCount"], 0],
-    ["to-string", ["round", avg]],
+    ["to-string", roundedAvg],
     "",
   ];
 }
@@ -2124,35 +2125,21 @@ function freshnessLevel(lastSeenAt: string): FreshnessLevel {
 }
 
 function markerValue(metric: MapMetric, value: number): string {
-  if (metric === "temperature_c") {
-    return Math.round(value).toString();
+  if (
+    (metric === "co2_ppm" ||
+      metric === "dust_concentration_pcs_0_01cf") &&
+    value >= 1000
+  ) {
+    return `${formatMarkerNumber(value / 1000)}k`;
   }
 
-  if (metric === "humidity_percent") {
-    return Math.round(value).toString();
-  }
+  return formatMarkerNumber(value);
+}
 
-  if (metric === "co2_ppm") {
-    return value >= 1000
-      ? `${Math.round(value / 100) / 10}k`
-      : Math.round(value).toString();
-  }
-
-  if (metric === "pressure_hpa") {
-    return Math.round(value).toString();
-  }
-
-  if (metric === "illuminance_lux") {
-    return Math.round(value).toString();
-  }
-
-  if (metric === "dust_concentration_pcs_0_01cf") {
-    return value >= 1000
-      ? `${Math.round(value / 100) / 10}k`
-      : Math.round(value).toString();
-  }
-
-  return Math.round(value).toString();
+function formatMarkerNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 function hasValidLocation(device: DeviceSummary): boolean {

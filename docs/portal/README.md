@@ -63,6 +63,8 @@ The portal currently covers public read-only project and device pages:
 - compact clusters for dense areas, with capped cluster sizes and circular
   marker sizes changing by map zoom level
 - cluster labels show the average value for the currently selected metric
+- marker and cluster labels round displayed measurement values to the nearest
+  tenth
 - map status, metric legend, and metric selector are placed in left-side
   overlays
 - the map page uses the shared portal shell and an Air360 layer-chip control for

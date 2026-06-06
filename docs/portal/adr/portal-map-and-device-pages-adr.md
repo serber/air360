@@ -97,7 +97,8 @@ Data-only metrics use a neutral marker color. Device freshness from
 stale devices remain visible without consuming the selected metric color
 channel. Dense device areas use compact clusters with capped visual size;
 cluster labels show the average value for the selected metric, cluster fill
-color is based on that average value, and individual circular markers scale with
+color is based on that average value, and marker and cluster labels round
+displayed values to the nearest tenth. Individual circular markers scale with
 map zoom. Map status, the selected metric legend, and the metric selector are
 placed in left-side overlays. The metric selector is presented as a compact
 Air360 layer-chip control; the detailed metric legends and freshness indicators
