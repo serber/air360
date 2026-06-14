@@ -6,6 +6,7 @@ import { PortalThemeToggle } from "@/components/PortalThemeToggle";
 const navLinks = [
   { href: "/", labelKey: "overview", id: "home" },
   { href: "/map", labelKey: "map", id: "map" },
+  { href: "/build", labelKey: "build", id: "build" },
 ];
 
 const footerGroups = [
@@ -13,6 +14,7 @@ const footerGroups = [
     titleKey: "project",
     links: [
       { href: "/map", labelKey: "map", namespace: "common" },
+      { href: "/build", labelKey: "buildGuide", namespace: "common" },
       { href: "https://github.com/serber/air360", labelKey: "github", namespace: "common" },
       { href: "/privacy", labelKey: "privacyPolicy", namespace: "common" },
     ],

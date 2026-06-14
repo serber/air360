@@ -5,12 +5,14 @@
     "themeToggle": "Переключить тему",
     "localeToggle": "Переключить язык",
     "map": "Карта",
+    "buildGuide": "Сборка",
     "github": "GitHub",
     "privacyPolicy": "Политика конфиденциальности"
   },
   "nav": {
     "overview": "Обзор",
-    "map": "Карта"
+    "map": "Карта",
+    "build": "Сборка"
   },
   "footer": {
     "project": "Проект",
@@ -22,6 +24,309 @@
     "titleLine2": "созданная людьми.",
     "lead": "Air360 собирает данные с датчиков, которые участники проекта устанавливают у себя дома, на работе и в городе. Соберите свой датчик, подключите его — и он появится на общей карте.",
     "exploreMap": "Открыть карту"
+  },
+  "build": {
+    "backToHome": "← На главную",
+    "crumb": "СБОРКА",
+    "title": "Сборка устройства",
+    "assemblyTitle": "Два способа собрать Air360",
+    "assemblyBody": "Устройство можно собрать через Air360 shield-плату или напрямую на ESP32-S3. Shield снижает риск ошибок в проводке; прямое подключение подходит для макета, отладки и кастомных корпусов.",
+    "options": [
+      {
+        "id": "shield",
+        "label": "Вариант 1",
+        "title": "Сборка через shield-плату",
+        "body": "Shield разводит питание и сигнальные линии на понятные разъемы. Это основной пользовательский путь для повторяемой сборки.",
+        "notes": [
+          "Закажите плату по Gerber-файлам или через проект на OSHWLab.",
+          "Сверяйте ревизию платы с этой инструкцией перед пайкой.",
+          "После сборки датчики подключаются к подписанным разъемам shield-платы."
+        ],
+        "links": [
+          {
+            "href": "https://github.com/serber/air360/raw/refs/heads/main/docs/hardware/Gerber_Air360-Shield_PCB_Air360_2026-06-05.zip",
+            "label": "Скачать Gerber"
+          },
+          {
+            "href": "https://oshwlab.com/serber2006/air360",
+            "label": "Открыть OSHWLab"
+          }
+        ],
+        "ctaState": "рекомендуется"
+      },
+      {
+        "id": "direct",
+        "label": "Вариант 2",
+        "title": "Прямое подключение к ESP32-S3",
+        "body": "Подключайте датчики к GPIO напрямую по таблице ниже. Такой вариант требует аккуратной разводки питания, земли и общих шин.",
+        "notes": [
+          "Для нескольких I2C-устройств нужна разветвленная I2C-шина или отдельный хаб.",
+          "Ищите модуль по запросу \"I2C hub\" на AliExpress, Amazon или аналогичных площадках.",
+          "Все сигнальные линии должны быть совместимы с 3.3 В логикой ESP32-S3.",
+          "UART1 по умолчанию делят GPS и cellular modem, поэтому одновременно используйте разные UART-порты."
+        ],
+        "ctaState": "для макета"
+      }
+    ],
+    "shieldTitle": "Вариант 1: сборка через shield-плату",
+    "shieldBody": "Shield-плата ставится поверх ESP32-S3 и выводит питание, I2C, UART и дополнительные линии на разъемы. Ниже — базовые компоненты, которые нужны для сборки платы.",
+    "shieldImageTopAlt": "Air360 shield-плата, вид сверху",
+    "shieldImageSolderedAlt": "Air360 shield-плата после пайки",
+    "componentColumn": "Компонент",
+    "quantityColumn": "Кол-во",
+    "useColumn": "Назначение",
+    "searchColumn": "Ключевые слова для поиска",
+    "shieldParts": [
+      {
+        "component": "DS1023-1x22S21, разъем штыревой 1x22, шаг 2.54 мм",
+        "quantity": "2 шт",
+        "use": "Разъемы для установки shield-платы на ESP32-S3.",
+        "search": "DS1023-1x22S21 female header 2.54mm"
+      },
+      {
+        "component": "Single row male 2.54 mm breakable pin header",
+        "quantity": "1 рейка или по месту",
+        "use": "Штыревые разъемы для вспомогательных выводов и перемычек.",
+        "search": "2.54mm single row breakable male pin header"
+      },
+      {
+        "component": "DC-005, разъем питания DC barrel jack 5.5x2.1 мм, PCB mount",
+        "quantity": "1 шт",
+        "use": "Вход питания постоянного тока на shield-плате.",
+        "search": "DC-005 5.5x2.1mm PCB mount DC power jack"
+      },
+      {
+        "component": "JST ZH 1.5 mm, 4-pin / 5-pin connector set",
+        "quantity": "по необходимости",
+        "use": "Опциональные разъемы для подключения SPS30 и SCD30 кабелем.",
+        "search": "JST ZH 1.5mm 4 pin 5 pin connector housing crimp terminal"
+      },
+      {
+        "component": "KF301-5.0-2P, клеммник 2-pin 5.0 мм",
+        "quantity": "1 шт, если используется INA219",
+        "use": "Винтовой разъем для цепи измерения питания через INA219.",
+        "search": "KF301-5.0-2P 2 pin 5.0mm screw terminal block"
+      },
+      {
+        "component": "0 Ω resistor / 0R jumper",
+        "quantity": "1 шт, если INA219 не используется",
+        "use": "Перемычка вместо цепи INA219, чтобы собрать питание без датчика тока.",
+        "search": "0 ohm resistor 0R jumper"
+      }
+    ],
+    "directTitle": "Вариант 2: прямое подключение к ESP32-S3",
+    "directBody": "Таблица ниже повторяет текущие дефолтные назначения firmware. В веб-интерфейсе некоторые UART и GPIO датчики можно переназначить, но для первой сборки лучше начать с этих значений.",
+    "directNotes": [
+      "I2C: все I2C-датчики сидят на SDA=GPIO8 и SCL=GPIO9.",
+      "GPIO/analog датчики выбирают один из GPIO4, GPIO5 или GPIO6."
+    ],
+    "sensorColumn": "Датчик",
+    "transportColumn": "Интерфейс",
+    "pinsColumn": "Пины ESP32-S3",
+    "noteColumn": "Примечание",
+    "wiringRows": [
+      {
+        "sensors": [
+          "AHT30",
+          "BME280",
+          "BME680",
+          "SHT3X",
+          "SHT4X",
+          "HTU2X",
+          "SCD30",
+          "VEML7700",
+          "OPT3001",
+          "SPS30",
+          "INA219"
+        ],
+        "transport": "I2C",
+        "pins": "SDA=GPIO8, SCL=GPIO9",
+        "note": "Для нескольких модулей используйте общую I2C-шину; адреса датчиков должны не конфликтовать."
+      },
+      {
+        "sensors": [
+          "SDS011",
+          "PMSX003",
+          "MH-Z19B"
+        ],
+        "transport": "UART2 по умолчанию, 9600 baud",
+        "pins": "RX=GPIO16, TX=GPIO15; можно выбрать UART1 RX=GPIO18, TX=GPIO17",
+        "note": "TX датчика подключается к RX ESP32-S3, RX датчика к TX ESP32-S3."
+      },
+      {
+        "sensors": [
+          "GPS (NMEA)"
+        ],
+        "transport": "UART1 по умолчанию, 9600 baud",
+        "pins": "RX=GPIO18, TX=GPIO17; можно выбрать UART2 RX=GPIO16, TX=GPIO15",
+        "note": "UART1 конфликтует с SIM7600E по дефолтным пинам."
+      },
+      {
+        "sensors": [
+          "DHT11",
+          "DHT22",
+          "DS18B20"
+        ],
+        "transport": "GPIO",
+        "pins": "GPIO4, GPIO5 или GPIO6",
+        "note": "Выберите один доступный пин в настройках датчика."
+      },
+      {
+        "sensors": [
+          "PPD42NS"
+        ],
+        "transport": "GPIO",
+        "pins": "P1/yellow signal на GPIO4 по умолчанию; можно GPIO5 или GPIO6",
+        "note": "Нужно 3.3 В-safe согласование уровня сигнала."
+      },
+      {
+        "sensors": [
+          "SIM7600E / cellular modem"
+        ],
+        "transport": "UART1, 115200 baud",
+        "pins": "RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21",
+        "note": "RESET не подключен по умолчанию; GPS на UART1 одновременно не используйте."
+      }
+    ],
+    "enclosureTitle": "Корпус: экран Стивенсона",
+    "enclosureBody": "Для наружной установки можно напечатать корпус в формате экрана Стивенсона. Он закрывает устройство от прямого солнца и осадков, но оставляет вентиляцию для датчиков.",
+    "enclosureLink": "Открыть модель на Printables",
+    "enclosureImageAlt": "Air360 в корпусе экрана Стивенсона",
+    "compatibilityTitle": "Совместимость с Sensor.Community",
+    "compatibilityBody": "Air360 firmware сохраняет обратную совместимость с Sensor.Community: устройство может отправлять данные на legacy endpoint Sensor.Community через тот же short device ID, который регистрируется на devices.sensor.community. Air360 API при этом остается более широким форматом и принимает все текущие типы сенсоров.",
+    "compatibilitySensorColumn": "Сенсор / группа",
+    "compatibilitySensorCommunityColumn": "Sensor.Community",
+    "compatibilityAir360Column": "Air360 API",
+    "compatibilityRows": [
+      {
+        "sensor": "BME280, BME680",
+        "sensorCommunity": "Да: температура, влажность, давление; gas resistance не отправляется",
+        "air360Api": "Да: все значения сенсора в typed JSON batch"
+      },
+      {
+        "sensor": "DHT11, DHT22, HTU2X, SHT3X, SHT4X",
+        "sensorCommunity": "Да: температура и влажность",
+        "air360Api": "Да: все значения сенсора"
+      },
+      {
+        "sensor": "DS18B20",
+        "sensorCommunity": "Да: температура",
+        "air360Api": "Да"
+      },
+      {
+        "sensor": "SCD30",
+        "sensorCommunity": "Да: температура, влажность, CO2",
+        "air360Api": "Да"
+      },
+      {
+        "sensor": "SPS30",
+        "sensorCommunity": "Да: PM1.0, PM2.5, PM4.0, PM10, number concentration bins, typical particle size",
+        "air360Api": "Да"
+      },
+      {
+        "sensor": "SDS011",
+        "sensorCommunity": "Да: PM2.5 и PM10",
+        "air360Api": "Да"
+      },
+      {
+        "sensor": "PMSX003",
+        "sensorCommunity": "Частично: PM1.0, PM2.5, PM10; particle-count bins не отправляются",
+        "air360Api": "Да: PM и particle-count значения"
+      },
+      {
+        "sensor": "GPS (NMEA)",
+        "sensorCommunity": "Частично: latitude, longitude, altitude; satellites/speed/course/HDOP не отправляются",
+        "air360Api": "Да: все GPS значения"
+      },
+      {
+        "sensor": "AHT30, VEML7700, OPT3001, PPD42NS, INA219, MH-Z19B",
+        "sensorCommunity": "Нет: Sensor.Community adapter пропускает эти типы",
+        "air360Api": "Да: все значения проходят без sensor-type фильтра"
+      }
+    ],
+    "differencesTitle": "Чем Air360 firmware отличается",
+    "differencesBody": "Прошивка не ломает Sensor.Community flow, но добавляет возможности, которые не укладываются в старый upload format.",
+    "differenceItems": [
+      {
+        "title": "Sensor.Community остается доступен",
+        "body": "Можно продолжать регистрировать устройство на devices.sensor.community и отправлять совместимые измерения в их API."
+      },
+      {
+        "title": "Air360 API принимает все сенсоры",
+        "body": "Нативный backend получает один typed JSON batch с sensor_type, kind и timestamp, включая значения, которых нет в legacy Sensor.Community mapping."
+      },
+      {
+        "title": "Cellular modem из коробки",
+        "body": "SIM7600 и другие esp-modem типы управляются отдельным cellular runtime: PPP, reconnect backoff, PWRKEY/SLEEP GPIO и диагностика в web UI."
+      },
+      {
+        "title": "Питание и расширенные сенсоры",
+        "body": "INA219, VEML7700/OPT3001, PPD42NS, MH-Z19B и другие датчики доступны в firmware и Air360 API, даже если Sensor.Community их не принимает."
+      },
+      {
+        "title": "Локальный web UI",
+        "body": "Настройка Wi-Fi, cellular, sensor configuration, upload backends, OTA и diagnostics доступны через веб-интерфейс устройства."
+      },
+      {
+        "title": "Несколько backend uploads",
+        "body": "Кроме Sensor.Community поддерживаются Air360 API, Custom Upload и InfluxDB, с отдельной конфигурацией и статусом доставки."
+      }
+    ],
+    "firmwareTitle": "Прошивка устройства",
+    "firmwareBody": "Самый простой способ начать — прошить готовый merged-образ full.bin через браузерный инструмент ESP Flash. После первой загрузки устройство поднимает Wi-Fi точку доступа для настройки.",
+    "firmwarePanelTitle": "Прошить, подключиться к setup AP, затем открыть устройство в браузере",
+    "firmwareReleaseLink": "Открыть релизы Air360",
+    "espFlashLink": "Открыть ESP Flash",
+    "firmwareAccess": [
+      {
+        "label": "Setup Wi-Fi",
+        "value": "air360",
+        "note": "Имя точки доступа после чистой прошивки."
+      },
+      {
+        "label": "Пароль AP",
+        "value": "air360password",
+        "note": "Пароль точки доступа по умолчанию."
+      },
+      {
+        "label": "Адрес устройства",
+        "value": "http://air360.local/ или http://192.168.4.1/",
+        "note": "Веб-интерфейс можно открыть по имени устройства или по IP-адресу."
+      }
+    ],
+    "firmwareSteps": [
+      {
+        "title": "Скачайте full.bin",
+        "body": "Откройте релизы Air360 и скачайте актуальный файл full.bin. Это полный образ прошивки для первичной записи устройства."
+      },
+      {
+        "title": "Подключите ESP32-S3 по USB",
+        "body": "Откройте espflash.app, выберите serial-порт платы и укажите скачанный full.bin. Если порт не появился, проверьте кабель и режим загрузки платы."
+      },
+      {
+        "title": "Запустите прошивку",
+        "body": "Начните запись и дождитесь перезагрузки. После чистой прошивки устройство поднимет setup AP с SSID air360."
+      },
+      {
+        "title": "Настройте Wi-Fi",
+        "body": "Подключитесь к сети air360 с паролем air360password, откройте http://192.168.4.1/config и сохраните SSID/пароль вашей сети."
+      },
+      {
+        "title": "Проверьте запуск",
+        "body": "После подключения к вашей сети откройте http://air360.local/ или IP-адрес устройства из роутера и проверьте Overview page."
+      },
+      {
+        "title": "Продолжайте настройку",
+        "body": "После прошивки переходите к настройке датчиков и backend uploads в веб-интерфейсе устройства."
+      }
+    ],
+    "firmwareDeviceImageAlt": "Страница Device в веб-интерфейсе Air360 firmware",
+    "firmwareOverviewImageAlt": "Страница Overview в веб-интерфейсе Air360 firmware",
+    "firmwareSensorsImageAlt": "Страница Sensors в веб-интерфейсе Air360 firmware",
+    "firmwareBackendsImageAlt": "Страница Backends в веб-интерфейсе Air360 firmware",
+    "firmwareDocsTitle": "Подробная документация",
+    "firmwareDocsBody": "Для настройки веб-интерфейса, датчиков, backend uploads, диагностики и OTA используйте полный пользовательский гайд firmware.",
+    "firmwareDocsLink": "Открыть firmware user guide"
   },
   "stats": {
     "activeDevices": "Активные устройства",

@@ -9,8 +9,8 @@ Accepted. Implemented in `portal/`.
 Build the Air360 portal as a Next.js 16 application with public pages: a home
 page, a map page showing devices as pins with latest-reading popups, a device
 detail page with sensor charts for selectable time periods, a placeholder build
-guide, and a privacy page. All device data is public; no authentication is
-required for the current portal.
+guide that now starts with device assembly paths, and a privacy page. All device
+data is public; no authentication is required for the current portal.
 
 ## Context
 
@@ -40,6 +40,7 @@ for visualizing device data.
 |-------|---------|
 | `/` | Public portal home page |
 | `/map` | World map with active device pins and optional offline-device layer |
+| `/build` | Device assembly guide with shield-board and direct ESP32-S3 wiring paths |
 | `/devices/:public_id` | Device detail page with sensor charts |
 | `/privacy` | Privacy policy |
 
@@ -96,7 +97,8 @@ Data-only metrics use a neutral marker color. Device freshness from
 stale devices remain visible without consuming the selected metric color
 channel. Dense device areas use compact clusters with capped visual size;
 cluster labels show the average value for the selected metric, cluster fill
-color is based on that average value, and individual circular markers scale with
+color is based on that average value, and marker and cluster labels round
+displayed values to the nearest tenth. Individual circular markers scale with
 map zoom. Map status, the selected metric legend, and the metric selector are
 placed in left-side overlays. The metric selector is presented as a compact
 Air360 layer-chip control; the detailed metric legends and freshness indicators

@@ -28,6 +28,8 @@ The portal currently covers public read-only project and device pages:
 - public home page at `/`
 - map page at `/map` with active devices from `GET /v1/devices` and optional
   offline devices from `GET /v1/devices/offline`
+- build guide page at `/build` with shield-board and direct ESP32-S3 wiring
+  paths, including default firmware pin assignments for direct sensor wiring
 - privacy page at `/privacy` using the shared portal shell and document layout
 - device popup with latest readings grouped by sensor type
 - device popup shows a country flag when `geo_country_code` is present in the
@@ -61,6 +63,8 @@ The portal currently covers public read-only project and device pages:
 - compact clusters for dense areas, with capped cluster sizes and circular
   marker sizes changing by map zoom level
 - cluster labels show the average value for the currently selected metric
+- marker and cluster labels round displayed measurement values to the nearest
+  tenth
 - map status, metric legend, and metric selector are placed in left-side
   overlays
 - the map page uses the shared portal shell and an Air360 layer-chip control for
@@ -78,6 +82,9 @@ The portal currently covers public read-only project and device pages:
   live-data preview blocks
 - home-page summary counters loaded from `GET /v1/stats` instead of hard-coded
   values
+- public `/build` page that starts the user-facing device assembly guide with
+  two paths: using the Air360 shield board or wiring sensors directly to
+  ESP32-S3 pins
 
 Potential future account flows remain out of scope for the current portal
 implementation.
@@ -149,7 +156,7 @@ default portal flow uses same-origin `/v1/*` requests.
 - `backend/` already exists as a separate Fastify service
 - `firmware/` already exists as the device-side implementation
 - `portal/` exists as a `Next.js` project with a public home page, public map,
-  privacy page, and device pages
+  build guide, privacy page, and device pages
 - the public home, map, device detail, and privacy pages use reusable `air-*`
   global style primitives and shared shell primitives from
   `portal/src/components/PortalShell.tsx`

@@ -28,6 +28,8 @@
 # Build artifacts and directories
 **/build/
 build/
+!portal/src/app/build/
+!portal/src/app/build/page.tsx
 *.o
 *.a
 *.out

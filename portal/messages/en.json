@@ -5,12 +5,14 @@
     "themeToggle": "Toggle theme",
     "localeToggle": "Switch language",
     "map": "Map",
+    "buildGuide": "Build guide",
     "github": "GitHub",
     "privacyPolicy": "Privacy policy"
   },
   "nav": {
     "overview": "Overview",
-    "map": "Map"
+    "map": "Map",
+    "build": "Build"
   },
   "footer": {
     "project": "Project",
@@ -22,6 +24,309 @@
     "titleLine2": "built by people.",
     "lead": "Air360 collects data from sensors installed by project contributors at home, at work, and around the city. Build your own sensor, connect it, and it will appear on the shared map.",
     "exploreMap": "Explore the map"
+  },
+  "build": {
+    "backToHome": "← Back to home",
+    "crumb": "BUILD",
+    "title": "Device assembly",
+    "assemblyTitle": "Two ways to build Air360",
+    "assemblyBody": "You can assemble the device with the Air360 shield board or wire sensors directly to the ESP32-S3. The shield reduces wiring mistakes; direct wiring is useful for prototypes, debugging, and custom enclosures.",
+    "options": [
+      {
+        "id": "shield",
+        "label": "Option 1",
+        "title": "Build with the shield board",
+        "body": "The shield breaks power and signal lines out to labeled connectors. This is the primary user path for repeatable builds.",
+        "notes": [
+          "Order the board from Gerber files or from the OSHWLab project.",
+          "Check the board revision against this guide before soldering.",
+          "After assembly, sensors connect to the labeled shield connectors."
+        ],
+        "links": [
+          {
+            "href": "https://github.com/serber/air360/raw/refs/heads/main/docs/hardware/Gerber_Air360-Shield_PCB_Air360_2026-06-05.zip",
+            "label": "Download Gerber"
+          },
+          {
+            "href": "https://oshwlab.com/serber2006/air360",
+            "label": "Open OSHWLab"
+          }
+        ],
+        "ctaState": "recommended"
+      },
+      {
+        "id": "direct",
+        "label": "Option 2",
+        "title": "Wire directly to ESP32-S3",
+        "body": "Connect sensors to GPIOs directly using the table below. This path requires careful power, ground, and shared-bus wiring.",
+        "notes": [
+          "For multiple I2C devices, use a branched I2C bus or a dedicated hub.",
+          "Search for \"I2C hub\" on AliExpress, Amazon, or similar marketplaces.",
+          "All signal lines must be compatible with ESP32-S3 3.3 V logic.",
+          "UART1 is shared by GPS and the cellular modem by default, so use separate UART ports if both are installed."
+        ],
+        "ctaState": "prototype"
+      }
+    ],
+    "shieldTitle": "Option 1: build with the shield board",
+    "shieldBody": "The shield board sits on top of the ESP32-S3 and breaks power, I2C, UART, and auxiliary lines out to connectors. These are the baseline parts needed to assemble the board.",
+    "shieldImageTopAlt": "Air360 shield board top view",
+    "shieldImageSolderedAlt": "Air360 shield board after soldering",
+    "componentColumn": "Component",
+    "quantityColumn": "Qty",
+    "useColumn": "Use",
+    "searchColumn": "Search keywords",
+    "shieldParts": [
+      {
+        "component": "DS1023-1x22S21, 1x22 female socket header, 2.54 mm pitch",
+        "quantity": "2 pcs",
+        "use": "Headers for mounting the shield board onto the ESP32-S3.",
+        "search": "DS1023-1x22S21 female header 2.54mm"
+      },
+      {
+        "component": "Single row male 2.54 mm breakable pin header",
+        "quantity": "1 strip or as needed",
+        "use": "Male pin headers for auxiliary pins and jumpers.",
+        "search": "2.54mm single row breakable male pin header"
+      },
+      {
+        "component": "DC-005, 5.5x2.1 mm PCB-mount DC barrel jack",
+        "quantity": "1 pc",
+        "use": "DC power input on the shield board.",
+        "search": "DC-005 5.5x2.1mm PCB mount DC power jack"
+      },
+      {
+        "component": "JST ZH 1.5 mm, 4-pin / 5-pin connector set",
+        "quantity": "as needed",
+        "use": "Optional cable connectors for SPS30 and SCD30.",
+        "search": "JST ZH 1.5mm 4 pin 5 pin connector housing crimp terminal"
+      },
+      {
+        "component": "KF301-5.0-2P, 2-pin 5.0 mm screw terminal block",
+        "quantity": "1 pc if INA219 is used",
+        "use": "Screw terminal for the INA219 power measurement path.",
+        "search": "KF301-5.0-2P 2 pin 5.0mm screw terminal block"
+      },
+      {
+        "component": "0 Ω resistor / 0R jumper",
+        "quantity": "1 pc if INA219 is not used",
+        "use": "Jumper in place of the INA219 path when current sensing is not installed.",
+        "search": "0 ohm resistor 0R jumper"
+      }
+    ],
+    "directTitle": "Option 2: direct wiring to ESP32-S3",
+    "directBody": "The table below follows the current firmware defaults. Some UART and GPIO sensors can be reassigned in the device web UI, but these values are the best starting point for a first build.",
+    "directNotes": [
+      "I2C: all I2C sensors share SDA=GPIO8 and SCL=GPIO9.",
+      "GPIO and analog sensors use one of GPIO4, GPIO5, or GPIO6."
+    ],
+    "sensorColumn": "Sensor",
+    "transportColumn": "Interface",
+    "pinsColumn": "ESP32-S3 pins",
+    "noteColumn": "Note",
+    "wiringRows": [
+      {
+        "sensors": [
+          "AHT30",
+          "BME280",
+          "BME680",
+          "SHT3X",
+          "SHT4X",
+          "HTU2X",
+          "SCD30",
+          "VEML7700",
+          "OPT3001",
+          "SPS30",
+          "INA219"
+        ],
+        "transport": "I2C",
+        "pins": "SDA=GPIO8, SCL=GPIO9",
+        "note": "Use one shared I2C bus for multiple modules; sensor addresses must not conflict."
+      },
+      {
+        "sensors": [
+          "SDS011",
+          "PMSX003",
+          "MH-Z19B"
+        ],
+        "transport": "UART2 by default, 9600 baud",
+        "pins": "RX=GPIO16, TX=GPIO15; UART1 RX=GPIO18, TX=GPIO17 is selectable",
+        "note": "Sensor TX goes to ESP32-S3 RX; sensor RX goes to ESP32-S3 TX."
+      },
+      {
+        "sensors": [
+          "GPS (NMEA)"
+        ],
+        "transport": "UART1 by default, 9600 baud",
+        "pins": "RX=GPIO18, TX=GPIO17; UART2 RX=GPIO16, TX=GPIO15 is selectable",
+        "note": "UART1 conflicts with the SIM7600E default pins."
+      },
+      {
+        "sensors": [
+          "DHT11",
+          "DHT22",
+          "DS18B20"
+        ],
+        "transport": "GPIO",
+        "pins": "GPIO4, GPIO5, or GPIO6",
+        "note": "Select one available pin in the sensor settings."
+      },
+      {
+        "sensors": [
+          "PPD42NS"
+        ],
+        "transport": "GPIO",
+        "pins": "P1/yellow signal to GPIO4 by default; GPIO5 or GPIO6 selectable",
+        "note": "Requires 3.3 V-safe signal level shifting."
+      },
+      {
+        "sensors": [
+          "SIM7600E / cellular modem"
+        ],
+        "transport": "UART1, 115200 baud",
+        "pins": "RX=GPIO18, TX=GPIO17, PWRKEY=GPIO12, SLEEP/DTR=GPIO21",
+        "note": "RESET is not wired by default; do not use GPS on UART1 at the same time."
+      }
+    ],
+    "enclosureTitle": "Enclosure: Stevenson screen",
+    "enclosureBody": "For outdoor installation, you can 3D-print a Stevenson-screen-style enclosure. It shields the device from direct sun and rain while keeping airflow around the sensors.",
+    "enclosureLink": "Open model on Printables",
+    "enclosureImageAlt": "Air360 in a Stevenson screen enclosure",
+    "compatibilityTitle": "Sensor.Community compatibility",
+    "compatibilityBody": "Air360 firmware keeps backward compatibility with Sensor.Community: the device can still upload to the legacy Sensor.Community endpoint using the same short device ID registered on devices.sensor.community. Air360 API is broader and accepts every current sensor type.",
+    "compatibilitySensorColumn": "Sensor / group",
+    "compatibilitySensorCommunityColumn": "Sensor.Community",
+    "compatibilityAir360Column": "Air360 API",
+    "compatibilityRows": [
+      {
+        "sensor": "BME280, BME680",
+        "sensorCommunity": "Yes: temperature, humidity, pressure; gas resistance is skipped",
+        "air360Api": "Yes: all sensor values in a typed JSON batch"
+      },
+      {
+        "sensor": "DHT11, DHT22, HTU2X, SHT3X, SHT4X",
+        "sensorCommunity": "Yes: temperature and humidity",
+        "air360Api": "Yes: all sensor values"
+      },
+      {
+        "sensor": "DS18B20",
+        "sensorCommunity": "Yes: temperature",
+        "air360Api": "Yes"
+      },
+      {
+        "sensor": "SCD30",
+        "sensorCommunity": "Yes: temperature, humidity, CO2",
+        "air360Api": "Yes"
+      },
+      {
+        "sensor": "SPS30",
+        "sensorCommunity": "Yes: PM1.0, PM2.5, PM4.0, PM10, number concentration bins, typical particle size",
+        "air360Api": "Yes"
+      },
+      {
+        "sensor": "SDS011",
+        "sensorCommunity": "Yes: PM2.5 and PM10",
+        "air360Api": "Yes"
+      },
+      {
+        "sensor": "PMSX003",
+        "sensorCommunity": "Partial: PM1.0, PM2.5, PM10; particle-count bins are skipped",
+        "air360Api": "Yes: PM and particle-count values"
+      },
+      {
+        "sensor": "GPS (NMEA)",
+        "sensorCommunity": "Partial: latitude, longitude, altitude; satellites/speed/course/HDOP are skipped",
+        "air360Api": "Yes: all GPS values"
+      },
+      {
+        "sensor": "AHT30, VEML7700, OPT3001, PPD42NS, INA219, MH-Z19B",
+        "sensorCommunity": "No: the Sensor.Community adapter skips these types",
+        "air360Api": "Yes: all values pass through without sensor-type filtering"
+      }
+    ],
+    "differencesTitle": "What makes Air360 firmware different",
+    "differencesBody": "The firmware keeps the Sensor.Community flow working, but adds capabilities that do not fit the older upload format.",
+    "differenceItems": [
+      {
+        "title": "Sensor.Community stays available",
+        "body": "You can still register the device on devices.sensor.community and upload compatible measurements to their API."
+      },
+      {
+        "title": "Air360 API accepts every sensor",
+        "body": "The native backend receives one typed JSON batch with sensor_type, kind, and timestamp, including values that have no legacy Sensor.Community mapping."
+      },
+      {
+        "title": "Cellular modem out of the box",
+        "body": "SIM7600 and other esp-modem types are managed by a dedicated cellular runtime: PPP, reconnect backoff, PWRKEY/SLEEP GPIO, and diagnostics in the web UI."
+      },
+      {
+        "title": "Power and extended sensors",
+        "body": "INA219, VEML7700/OPT3001, PPD42NS, MH-Z19B, and other sensors are available in firmware and Air360 API even when Sensor.Community does not accept them."
+      },
+      {
+        "title": "Local web UI",
+        "body": "Wi-Fi, cellular, sensor configuration, upload backends, OTA, and diagnostics are available through the device web interface."
+      },
+      {
+        "title": "Multiple backend uploads",
+        "body": "In addition to Sensor.Community, the firmware supports Air360 API, Custom Upload, and InfluxDB, each with separate configuration and delivery status."
+      }
+    ],
+    "firmwareTitle": "Flashing the device",
+    "firmwareBody": "The easiest way to start is to flash the ready-made merged full.bin image with the browser-based ESP Flash tool. After first boot, the device starts a Wi-Fi setup access point.",
+    "firmwarePanelTitle": "Flash, connect to setup AP, then open the device in a browser",
+    "firmwareReleaseLink": "Open Air360 releases",
+    "espFlashLink": "Open ESP Flash",
+    "firmwareAccess": [
+      {
+        "label": "Setup Wi-Fi",
+        "value": "air360",
+        "note": "Access point name after a clean flash."
+      },
+      {
+        "label": "AP password",
+        "value": "air360password",
+        "note": "Default setup access point password."
+      },
+      {
+        "label": "Device URL",
+        "value": "http://air360.local/ or http://192.168.4.1/",
+        "note": "Open the device web interface by hostname or by IP address."
+      }
+    ],
+    "firmwareSteps": [
+      {
+        "title": "Download full.bin",
+        "body": "Open the Air360 releases and download the current full.bin file. This is the complete image for first-time device flashing."
+      },
+      {
+        "title": "Connect ESP32-S3 by USB",
+        "body": "Open espflash.app, select the board serial port, and choose the downloaded full.bin. If the port is missing, check the cable and the board boot mode."
+      },
+      {
+        "title": "Start flashing",
+        "body": "Write the image and wait for the device to reboot. After a clean flash, the device starts setup AP mode with SSID air360."
+      },
+      {
+        "title": "Configure Wi-Fi",
+        "body": "Connect to air360 with password air360password, open http://192.168.4.1/config, and save your network SSID and password."
+      },
+      {
+        "title": "Verify startup",
+        "body": "After the device joins your network, open http://air360.local/ or the device IP address from your router and check the Overview page."
+      },
+      {
+        "title": "Continue setup",
+        "body": "After flashing, configure sensors and backend uploads in the device web interface."
+      }
+    ],
+    "firmwareDeviceImageAlt": "Device page in the Air360 firmware web interface",
+    "firmwareOverviewImageAlt": "Overview page in the Air360 firmware web interface",
+    "firmwareSensorsImageAlt": "Sensors page in the Air360 firmware web interface",
+    "firmwareBackendsImageAlt": "Backends page in the Air360 firmware web interface",
+    "firmwareDocsTitle": "Detailed documentation",
+    "firmwareDocsBody": "For web UI setup, sensors, backend uploads, diagnostics, and OTA, use the full firmware user guide.",
+    "firmwareDocsLink": "Open firmware user guide"
   },
   "stats": {
     "activeDevices": "Active devices",
