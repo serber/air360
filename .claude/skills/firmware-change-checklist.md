@@ -18,7 +18,7 @@ Use this skill when the user asks to:
 
 Focus on:
 
-- `firmware/AGENTS.md`
+- `firmware/CLAUDE.md`
 - `docs/firmware/change-impact-map.md`
 - `docs/firmware/configuration-reference.md`
 - the specific subsystem docs related to the change

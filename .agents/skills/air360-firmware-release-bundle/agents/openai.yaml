@@ -1,4 +1,0 @@
-interface:
-  display_name: "Air360 Release Bundle"
-  short_description: "Package tag-based firmware releases"
-  default_prompt: "Use $air360-firmware-release-bundle to create a release bundle from the latest git tag and generated release notes."

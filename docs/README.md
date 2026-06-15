@@ -15,10 +15,10 @@ Top-level index for all documentation in this repository. For project-level cont
 
 | Area | Start here |
 |------|------------|
-| Repository-wide work | [`../AGENTS.md`](../AGENTS.md) |
-| Firmware work | [`../firmware/AGENTS.md`](../firmware/AGENTS.md) |
-| Backend work | [`../backend/AGENTS.md`](../backend/AGENTS.md) |
-| Portal work | [`../portal/AGENTS.md`](../portal/AGENTS.md) |
+| Repository-wide work | [`../CLAUDE.md`](../CLAUDE.md) |
+| Firmware work | [`../firmware/CLAUDE.md`](../firmware/CLAUDE.md) |
+| Backend work | [`../backend/CLAUDE.md`](../backend/CLAUDE.md) |
+| Portal work | [`../portal/CLAUDE.md`](../portal/CLAUDE.md) |
 
 ## Source-of-truth hierarchy
 

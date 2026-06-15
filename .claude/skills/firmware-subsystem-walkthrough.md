@@ -18,14 +18,14 @@ Use this skill when the user asks to:
 
 Focus on firmware implementation docs and code:
 
-- `firmware/AGENTS.md`
+- `firmware/CLAUDE.md`
 - `docs/firmware/*.md`
 - `firmware/main/src/**`
 - `firmware/main/include/air360/**`
 
 ## Workflow
 
-1. Read the task route in `firmware/AGENTS.md` or `docs/firmware/README.md`.
+1. Read the task route in `firmware/CLAUDE.md` or `docs/firmware/README.md`.
 2. Open the matching subsystem document.
 3. Open the code files listed in that document's `Source of truth in code` section.
 4. Summarize ownership boundaries, runtime flow, and likely co-change files.

@@ -60,7 +60,7 @@ npm run start
 Portal documentation is stored in `../docs/portal/`.
 
 Ubuntu setup and deployment notes are in `../docs/portal/ubuntu-deployment.md`.
-Portal-local AI agent guidance is in `AGENTS.md`.
+Portal-local AI agent guidance is in `CLAUDE.md`.
 
 ## Notes
 

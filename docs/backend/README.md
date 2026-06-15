@@ -22,7 +22,7 @@ behavior against `/backend`.
 
 | Document | Purpose |
 |----------|---------|
-| [../../backend/AGENTS.md](../../backend/AGENTS.md) | Backend-local working contract for AI agents |
+| [../../backend/CLAUDE.md](../../backend/CLAUDE.md) | Backend-local working contract for AI agents |
 | [adr/README.md](adr/README.md) | Backend architecture decision records |
 | [backend-stack-decision.md](backend-stack-decision.md) | Backend-only stack direction and scaffold boundaries |
 | [backend-ubuntu-deployment-guide.md](backend-ubuntu-deployment-guide.md) | Standalone Ubuntu deployment guide |

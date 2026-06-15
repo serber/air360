@@ -19,7 +19,7 @@ Use this skill when the user asks to:
 Focus on:
 
 - `firmware/`
-- `firmware/AGENTS.md`
+- `firmware/CLAUDE.md`
 - `firmware/README.md`
 - `docs/firmware/`
 
@@ -27,7 +27,7 @@ Treat `firmware/` as the implementation source of truth.
 
 ## Workflow
 
-1. Read `AGENTS.md` and `firmware/AGENTS.md`.
+1. Read `CLAUDE.md` and `firmware/CLAUDE.md`.
 2. Read `docs/firmware/README.md` and `docs/firmware/change-impact-map.md`.
 3. Inventory the affected source files under `firmware/main/`.
 4. Check whether the matching docs point at the right code and describe current behavior.

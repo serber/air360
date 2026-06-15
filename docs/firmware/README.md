@@ -17,8 +17,8 @@ This is the top-level navigation map for firmware implementation documentation. 
 
 ## Read next
 
-- [../../AGENTS.md](../../AGENTS.md)
-- [../../firmware/AGENTS.md](../../firmware/AGENTS.md)
+- [../../CLAUDE.md](../../CLAUDE.md)
+- [../../firmware/CLAUDE.md](../../firmware/CLAUDE.md)
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 
 Documentation for the Air360 firmware — an ESP32-S3 air quality monitoring device built on ESP-IDF 6.x and FreeRTOS.
