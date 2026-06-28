@@ -48,6 +48,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Add or change a sensor driver | [sensors/adding-new-sensor.md](sensors/adding-new-sensor.md) | [sensors/supported-sensors.md](sensors/supported-sensors.md) + [transport-binding.md](transport-binding.md) |
 | Change web routes or forms | [web-ui.md](web-ui.md) | [configuration-reference.md](configuration-reference.md) |
 | Change upload behavior | [measurement-pipeline.md](measurement-pipeline.md) | [upload-adapters.md](upload-adapters.md) + [upload-transport.md](upload-transport.md) |
+| Change OTA update behavior | [ota.md](ota.md) | [adr/implemented-ota-firmware-update-adr.md](adr/implemented-ota-firmware-update-adr.md) |
 | Estimate doc fallout before editing | [change-impact-map.md](change-impact-map.md) | [doc-template.md](doc-template.md) |
 
 ---
@@ -92,27 +93,29 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 
 ### Sensor drivers
 
-| Document | Sensor | Transport | Measurements |
-|----------|--------|-----------|--------------|
-| [sensors/aht30.md](sensors/aht30.md) | AHT30 | I2C `0x38` | Temperature, humidity |
-| [sensors/bme280.md](sensors/bme280.md) | BME280 | I2C `0x76` | Temperature, humidity, pressure |
-| [sensors/bme680.md](sensors/bme680.md) | BME680 | I2C `0x77` | Temperature, humidity, pressure, gas resistance |
-| [sensors/sps30.md](sensors/sps30.md) | SPS30 | I2C `0x69` | PM1.0–PM10.0, particle number concentrations, typical particle size |
-| [sensors/sds011.md](sensors/sds011.md) | SDS011 | UART2 default; UART1 selectable | PM2.5, PM10 |
-| [sensors/pmsx003.md](sensors/pmsx003.md) | PMSX003 | UART2 default; UART1 selectable | PM1.0, PM2.5, PM10, particle counts |
-| [sensors/ppd42ns.md](sensors/ppd42ns.md) | PPD42NS | GPIO | Dust concentration estimate, low pulse occupancy |
-| [sensors/scd30.md](sensors/scd30.md) | SCD30 | I2C `0x61` | CO₂, temperature, humidity |
-| [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | I2C `0x10` | Illuminance |
-| [sensors/opt3001.md](sensors/opt3001.md) | OPT3001 | I2C `0x44` / `0x45` / `0x46` / `0x47` | Illuminance |
-| [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | I2C `0x40` | Temperature, humidity |
-| [sensors/sht3x.md](sensors/sht3x.md) | SHT3X | I2C `0x44` / `0x45` | Temperature, humidity |
-| [sensors/sht4x.md](sensors/sht4x.md) | SHT4X | I2C `0x44` | Temperature, humidity |
-| [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | UART1 default; UART2 selectable | Latitude, longitude, altitude, speed, satellites, HDOP |
-| [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | GPIO | Temperature, humidity |
-| [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | GPIO (1-Wire) | Temperature |
-| [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Analog (ADC) | Raw ADC count, voltage |
-| [sensors/ina219.md](sensors/ina219.md) | INA219 | I2C `0x40` | Bus voltage, current, power |
-| [sensors/mhz19b.md](sensors/mhz19b.md) | MH-Z19B | UART2 default; UART1 selectable | CO2 |
+Transport bindings and addresses are canonical in [sensors/supported-sensors.md](sensors/supported-sensors.md#current-support-matrix); this index lists each driver's doc and the measurements it produces.
+
+| Document | Sensor | Measurements |
+|----------|--------|--------------|
+| [sensors/aht30.md](sensors/aht30.md) | AHT30 | Temperature, humidity |
+| [sensors/bme280.md](sensors/bme280.md) | BME280 | Temperature, humidity, pressure |
+| [sensors/bme680.md](sensors/bme680.md) | BME680 | Temperature, humidity, pressure, gas resistance |
+| [sensors/sps30.md](sensors/sps30.md) | SPS30 | PM1.0–PM10.0, particle number concentrations, typical particle size |
+| [sensors/sds011.md](sensors/sds011.md) | SDS011 | PM2.5, PM10 |
+| [sensors/pmsx003.md](sensors/pmsx003.md) | PMSX003 | PM1.0, PM2.5, PM10, particle counts |
+| [sensors/ppd42ns.md](sensors/ppd42ns.md) | PPD42NS | Dust concentration estimate, low pulse occupancy |
+| [sensors/scd30.md](sensors/scd30.md) | SCD30 | CO₂, temperature, humidity |
+| [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | Illuminance |
+| [sensors/opt3001.md](sensors/opt3001.md) | OPT3001 | Illuminance |
+| [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | Temperature, humidity |
+| [sensors/sht3x.md](sensors/sht3x.md) | SHT3X | Temperature, humidity |
+| [sensors/sht4x.md](sensors/sht4x.md) | SHT4X | Temperature, humidity |
+| [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | Latitude, longitude, altitude, speed, satellites, HDOP |
+| [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | Temperature, humidity |
+| [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | Temperature |
+| [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Raw ADC count, voltage |
+| [sensors/ina219.md](sensors/ina219.md) | INA219 | Bus voltage, current, power |
+| [sensors/mhz19b.md](sensors/mhz19b.md) | MH-Z19B | CO2 |
 
 ---
 
@@ -131,6 +134,14 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | [measurement-pipeline.md](measurement-pipeline.md) | Sensor polling → queue → upload window → batch assembly → acknowledge/restore |
 | [upload-adapters.md](upload-adapters.md) | Sensor.Community, Air360 API, Custom Upload, and InfluxDB adapters: request format, grouping, response classification |
 | [upload-transport.md](upload-transport.md) | HTTP execution layer: `esp_http_client` configuration, TLS, response struct |
+
+---
+
+## OTA firmware update
+
+| Document | Description |
+|----------|-------------|
+| [ota.md](ota.md) | Over-the-air update: streaming write session, OTA HTTP endpoints, deferred reboot, rollback and first-boot confirmation |
 
 ---
 

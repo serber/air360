@@ -8,6 +8,8 @@ Implemented. Keep this document aligned with the current NVS blob layouts and ke
 
 This document explains the persistent storage schema used by the firmware, including namespaces, keys, blob layouts, schema guards, and reset behavior.
 
+This is the **binary-layout** view of persisted config. For field-level semantics, defaults, ranges, and save-time validation of the same structs, see [configuration-reference.md](configuration-reference.md); field tables here are intentionally limited to byte layout and schema guards to avoid duplicating those rules.
+
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`

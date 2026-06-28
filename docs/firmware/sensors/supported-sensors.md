@@ -22,6 +22,8 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 
 ## Current support matrix
 
+This matrix is the **canonical source** for per-sensor transport bindings and allowed addresses/pins. The firmware README sensor index and the per-sensor constraints table in [../configuration-reference.md](../configuration-reference.md) deliberately do not repeat these binding values — they link here instead, so addresses live in one place.
+
 | Sensor type | Transport | Default binding | Allowed binding values | Detail doc |
 |-------------|-----------|-----------------|------------------------|------------|
 | `AHT30` | I2C | Bus 0, address `0x38` | I2C `0x38` | [aht30.md](aht30.md) |
