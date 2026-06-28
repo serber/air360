@@ -166,6 +166,9 @@ struct SensorCardViewModel {
     bool show_gpio_pin_select = false;
     std::string gpio_options_html;
     bool enabled = false;
+    bool show_calibration = false;
+    bool calibration_enabled = false;
+    std::string calibration_label;
 };
 
 enum class SensorCategory : std::uint8_t {
@@ -1613,6 +1616,20 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
     const bool has_transport =
         card.show_i2c_address_input || card.show_uart_port_select || card.show_gpio_pin_select;
 
+    // Startup-calibration checkbox — only rendered for sensor types whose
+    // descriptor advertises supports_startup_calibration (e.g. SCD30 -> ASC).
+    std::string calibration_field_block;
+    if (card.show_calibration) {
+        calibration_field_block += "<label class='checkbox' style='margin-top:12px'>";
+        calibration_field_block += "<input type='checkbox' name='startup_calibration' value='1'";
+        if (card.calibration_enabled) {
+            calibration_field_block += " checked";
+        }
+        calibration_field_block += "><span class='checkbox__label'>";
+        calibration_field_block += htmlEscape(card.calibration_label);
+        calibration_field_block += "</span></label>";
+    }
+
     return renderTemplate(
         WebTemplateKey::kSensorCard,
         WebTemplateBindings{
@@ -1628,6 +1645,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
             {"UART_FIELD_BLOCK", uart_field_block},
             {"GPIO_FIELD_BLOCK", gpio_field_block},
             {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
+            {"CALIBRATION_FIELD_BLOCK", calibration_field_block},
         });
 }
 
@@ -1915,6 +1933,14 @@ SensorsPageViewModel buildSensorsPageViewModel(
             card.defaults_hint = sensorDefaultsHint(*descriptor);
             card.show_i2c_address_input = descriptor->supports_i2c;
             card.show_uart_port_select = descriptor->supports_uart;
+            card.show_calibration = descriptor->supports_startup_calibration;
+            if (card.show_calibration) {
+                card.calibration_enabled = record.startup_calibration != 0U;
+                card.calibration_label =
+                    descriptor->calibration_label != nullptr
+                        ? descriptor->calibration_label
+                        : "Calibrate at startup";
+            }
         }
         if (card.show_i2c_address_input) {
             card.i2c_address_value = formatI2cAddress(record.i2c_address);

@@ -278,6 +278,15 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         record.sensor_type = descriptor->type;
         record.poll_interval_ms = static_cast<std::uint32_t>(poll_interval_ms);
 
+        // Startup-calibration checkbox. Only honored for sensor types that
+        // advertise the capability; an unchecked checkbox submits no value, so
+        // an absent/"!= 1" value clears it. For SCD30 this toggles ASC.
+        record.startup_calibration =
+            (descriptor->supports_startup_calibration &&
+             findFormValue(fields, "startup_calibration") == "1")
+                ? 1U
+                : 0U;
+
         record.transport_kind = inferredTransportKind(*descriptor);
         switch (record.transport_kind) {
             case TransportKind::kI2c:

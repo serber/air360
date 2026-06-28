@@ -30,6 +30,7 @@
           <input class='input' id='poll_interval_ms_{{SENSOR_ID}}' name='poll_interval_ms' inputmode='numeric' min='30000' max='1800000' step='1000' value='{{POLL_INTERVAL_MS}}'>
         </label>
       </div>
+      {{CALIBRATION_FIELD_BLOCK}}
     </form>
     <form id='sensor-delete-{{SENSOR_ID}}' method='POST' action='/sensors' data-confirm='Remove this sensor?'>
       <input type='hidden' name='action' value='delete'>

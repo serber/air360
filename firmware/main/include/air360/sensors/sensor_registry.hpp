@@ -67,6 +67,14 @@ struct SensorDescriptor {
     std::uint8_t allowed_gpio_pin_count;
     SensorValidationFn validate;
     SensorDriverFactory create_driver;
+    // Startup calibration capability. When true, the web UI shows a calibration
+    // checkbox for this sensor type and the driver acts on
+    // SensorRecord::startup_calibration inside init(). calibration_label is the
+    // UI label for that checkbox. Any calibration tied to this flag MUST be
+    // idempotent because init()/re-init() can run on every boot. SCD30 maps the
+    // flag to enabling/disabling automatic self-calibration (ASC).
+    bool supports_startup_calibration = false;
+    const char* calibration_label = nullptr;
 };
 
 inline std::int16_t firstAllowedGpioPin(const SensorDescriptor& descriptor) {

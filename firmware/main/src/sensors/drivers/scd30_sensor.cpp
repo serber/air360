@@ -82,6 +82,25 @@ esp_err_t Scd30Sensor::init(const SensorRecord& record, const SensorDriverContex
         return err;
     }
 
+    // Apply the configured automatic self-calibration (ASC) state. ASC is the
+    // SCD30's interpretation of SensorRecord::startup_calibration and is the
+    // recommended mode for permanently powered outdoor units with regular fresh
+    // air. The write is idempotent, so re-asserting it on every init keeps the
+    // firmware config authoritative even if the sensor is swapped. A failure is
+    // non-fatal: the sensor still measures, just without the requested ASC
+    // state, so we log and continue instead of failing init.
+    const bool asc_enabled = record_.startup_calibration != 0U;
+    if (esp_err_t asc_err = scd30_set_automatic_self_calibration(&device_, asc_enabled);
+        asc_err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Failed to set SCD30 ASC to %s: %s",
+            asc_enabled ? "enabled" : "disabled",
+            esp_err_to_name(asc_err));
+    } else {
+        ESP_LOGI(kTag, "SCD30 ASC %s", asc_enabled ? "enabled" : "disabled");
+    }
+
     measurement_running_ = true;
     initialized_ = true;
     setError("Waiting for first SCD30 sample.");

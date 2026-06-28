@@ -22,6 +22,8 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 
 ## Current support matrix
 
+This matrix is the **canonical source** for per-sensor transport bindings and allowed addresses/pins. The firmware README sensor index and the per-sensor constraints table in [../configuration-reference.md](../configuration-reference.md) deliberately do not repeat these binding values — they link here instead, so addresses live in one place.
+
 | Sensor type | Transport | Default binding | Allowed binding values | Detail doc |
 |-------------|-----------|-----------------|------------------------|------------|
 | `AHT30` | I2C | Bus 0, address `0x38` | I2C `0x38` | [aht30.md](aht30.md) |
@@ -44,6 +46,10 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 | `ME3-NO2` | Analog / ADC | First allowed pin, currently GPIO4 | GPIO4/5/6 | [me3_no2.md](me3_no2.md) |
 | `INA219` | I2C | Bus 0, address `0x40` | I2C `0x40`, `0x41`, `0x44`, `0x45` | [ina219.md](ina219.md) |
 | `MH-Z19B` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [mhz19b.md](mhz19b.md) |
+
+## Startup calibration capability
+
+A sensor descriptor may set `supports_startup_calibration`, which exposes a per-sensor calibration checkbox in the web UI (`SensorRecord::startup_calibration`). The driver acts on the flag inside `init()`, so the action must be idempotent. The only sensor with this capability today is `SCD30`, where it enables/disables automatic self-calibration (ASC) — see [scd30.md](scd30.md#automatic-self-calibration-asc).
 
 ## Peripheral note
 

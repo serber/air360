@@ -22,7 +22,7 @@ struct SensorRecord {
     std::uint8_t i2c_bus_id = 0U;
     std::uint8_t i2c_address = 0x00U;
     std::uint8_t uart_port_id = 1U;
-    std::uint8_t reserved0 = 0U;
+    std::uint8_t startup_calibration = 0U;  // was reserved0; 1=run driver startup calibration (SCD30: ASC)
     std::int16_t analog_gpio_pin = -1;
     std::int16_t uart_rx_gpio_pin = -1;
     std::int16_t uart_tx_gpio_pin = -1;
