@@ -188,10 +188,98 @@
         "note": "RESET is not wired by default; do not use GPS on UART1 at the same time."
       }
     ],
-    "enclosureTitle": "Enclosure: Stevenson screen",
+    "sensorGuideTitle": "Choose your sensors",
+  "sensorGuideBody": "Pick one or more sensors based on what you want to monitor. Sensors can be combined freely; values go to the Air360 API, and compatible values also go to Sensor.Community.",
+  "sensorGuideNameColumn": "Sensor",
+  "sensorGuideMeasuresColumn": "Measures",
+  "sensorGuideWhyColumn": "Why you'd want it",
+  "sensorGuideGroups": [
+    {
+      "category": "Climate",
+      "sensors": [
+        { "name": "BME280", "measures": "Temperature, humidity, pressure", "why": "Compact all-in-one climate sensor; good for indoor and outdoor baseline monitoring." },
+        { "name": "BME680", "measures": "Temperature, humidity, pressure, gas resistance (VOC)", "why": "Same as BME280 with a gas sensor that estimates indoor air quality and volatile organic compounds." },
+        { "name": "AHT30", "measures": "Temperature, humidity", "why": "Accurate and low-cost; a reliable upgrade over DHT22 with I2C connectivity." },
+        { "name": "SHT3X", "measures": "Temperature, humidity", "why": "High-accuracy sensor; more consistent than AHT30 across wide temperature ranges." },
+        { "name": "SHT4X", "measures": "Temperature, humidity", "why": "Improved successor to SHT3X with higher accuracy in humid environments." },
+        { "name": "HTU2X", "measures": "Temperature, humidity", "why": "Budget option; lower accuracy than SHT series but widely available." },
+        { "name": "DHT11", "measures": "Temperature, humidity", "why": "Entry-level sensor with limited range (0–50 °C, 20–90 %RH); suitable for learning or quick tests." },
+        { "name": "DHT22", "measures": "Temperature, humidity", "why": "Better range and accuracy than DHT11; common first sensor for prototypes." },
+        { "name": "DS18B20", "measures": "Temperature", "why": "Waterproof probe; designed for outdoor, soil, or liquid temperature measurement." }
+      ]
+    },
+    {
+      "category": "Particulate matter",
+      "sensors": [
+        { "name": "SPS30", "measures": "PM1.0, PM2.5, PM4.0, PM10, particle count, typical particle size", "why": "Most complete PM sensor in the lineup; recommended for outdoor air quality stations." },
+        { "name": "SDS011", "measures": "PM2.5, PM10", "why": "Affordable laser sensor; popular for city and roadside air monitoring." },
+        { "name": "PMSX003 (PMS5003 / PMS7003)", "measures": "PM1.0, PM2.5, PM10, particle count bins", "why": "Widely available compact sensor; good balance of cost and data completeness." },
+        { "name": "PPD42NS", "measures": "Particle count (coarse)", "why": "Basic optical sensor; lower accuracy; GPIO-based, no shared bus required." }
+      ]
+    },
+    {
+      "category": "CO₂ and gas",
+      "sensors": [
+        { "name": "SCD30", "measures": "CO₂, temperature, humidity", "why": "NDIR CO₂ sensor; accurate and stable; recommended for ventilation and indoor air quality monitoring." },
+        { "name": "MH-Z19B", "measures": "CO₂", "why": "NDIR CO₂ via UART; compact and common for home automation projects." }
+      ]
+    },
+    {
+      "category": "Light",
+      "sensors": [
+        { "name": "VEML7700", "measures": "Illuminance (lux)", "why": "Measures ambient light level; useful for daylight tracking or controlling light-dependent devices." },
+        { "name": "OPT3001", "measures": "Illuminance (lux)", "why": "Alternative to VEML7700 with a slightly different spectral response; same use cases." }
+      ]
+    },
+    {
+      "category": "Power monitoring",
+      "sensors": [
+        { "name": "INA219", "measures": "DC current, voltage, power", "why": "Monitors the device's own power consumption; useful for solar-powered or battery-backed setups." }
+      ]
+    }
+  ],
+  "sensorGuideGpsTitle": "GPS — location tagging",
+  "sensorGuideGpsBody": "A GPS module (any NMEA-compatible receiver via UART) adds geographic coordinates to every measurement batch. Use it for fixed outdoor stations where you want precise coordinates attached to each reading, or for mobile setups mounted on a vehicle or carried as a portable unit.",
+  "sensorGuideCellularTitle": "Cellular modem — connectivity without Wi-Fi",
+  "sensorGuideCellularBody": "A cellular modem lets the device upload data over a SIM card with no Wi-Fi required. Supported models: SIM7600 (default), SIM7070, SIM7000, BG96, EC20, SIM800, and Generic (any AT-command modem via esp-modem). This is the right choice for rooftop stations, remote field installations, or any location where a stable Wi-Fi connection is not available.",
+  "enclosureTitle": "Enclosure: Stevenson screen",
     "enclosureBody": "For outdoor installation, you can 3D-print a Stevenson-screen-style enclosure. It shields the device from direct sun and rain while keeping airflow around the sensors.",
     "enclosureLink": "Open model on Printables",
     "enclosureImageAlt": "Air360 in a Stevenson screen enclosure",
+    "powerTitle": "Powering the device",
+    "powerBody": "Air360 runs on 5 V. Choose whichever supply suits your installation.",
+    "powerOptions": [
+      {
+        "id": "mains",
+        "label": "Option 1",
+        "title": "Mains power (5 V adapter)",
+        "body": "Connect any 5 V USB power adapter. Two connection points are available depending on your build.",
+        "notes": [
+          "Via the USB-C port on the ESP32-S3 — works for both direct-wiring and shield builds.",
+          "Via the DC-005 barrel jack (5.5 × 2.1 mm) on the shield board."
+        ]
+      },
+      {
+        "id": "solar",
+        "label": "Option 2",
+        "title": "Solar panel with MPPT charger",
+        "body": "For off-grid and outdoor deployments. The setup uses a custom MPPT module based on the CN3722 that charges a battery from a solar panel and supplies regulated 5 V to the device via power-path switching — the device stays on at night and on overcast days.",
+        "notes": [
+          "3D-printable solar panel mount and MPPT module enclosure are on Printables — assembly instructions and a link to the PCB are on the same page.",
+          "Read the full CN3722 article before sourcing components — values depend on your battery chemistry and cell count."
+        ],
+        "links": [
+          {
+            "href": "https://www.printables.com/model/1490965-solar-panel-mount",
+            "label": "Solar mount on Printables"
+          },
+          {
+            "href": "https://www.maltepoeggel.de/?site=solar-mppt-cn3722",
+            "label": "CN3722 MPPT article"
+          }
+        ]
+      }
+    ],
     "compatibilityTitle": "Sensor.Community compatibility",
     "compatibilityBody": "Air360 firmware keeps backward compatibility with Sensor.Community: the device can still upload to the legacy Sensor.Community endpoint using the same short device ID registered on devices.sensor.community. Air360 API is broader and accepts every current sensor type.",
     "compatibilitySensorColumn": "Sensor / group",
@@ -297,33 +385,71 @@
     "firmwareSteps": [
       {
         "title": "Download full.bin",
-        "body": "Open the Air360 releases and download the current full.bin file. This is the complete image for first-time device flashing."
+        "body": "Open Air360 releases and download the current full.bin. This is the complete merged image for first-time flashing."
       },
       {
-        "title": "Connect ESP32-S3 by USB",
-        "body": "Open espflash.app, select the board serial port, and choose the downloaded full.bin. If the port is missing, check the cable and the board boot mode."
+        "title": "Flash via USB",
+        "body": "Open espflash.app, connect the ESP32-S3 by USB, select the serial port and the full.bin file, then start flashing. Wait for the process to finish."
       },
       {
-        "title": "Start flashing",
-        "body": "Write the image and wait for the device to reboot. After a clean flash, the device starts setup AP mode with SSID air360."
+        "title": "First boot — setup AP",
+        "body": "The device reboots. The LED turns pink — it is in setup AP mode. Connect your phone or laptop to the air360 Wi-Fi network (password: air360password)."
       },
       {
         "title": "Configure Wi-Fi",
-        "body": "Connect to air360 with password air360password, open http://192.168.4.1/config, and save your network SSID and password."
+        "body": "A setup page opens automatically after connecting to the AP. Select your Wi-Fi network from the list, enter the password, and tap Save."
       },
       {
-        "title": "Verify startup",
-        "body": "After the device joins your network, open http://air360.local/ or the device IP address from your router and check the Overview page."
+        "title": "Verify connection",
+        "body": "The device reboots and joins your network. Green LED = connected. Pink LED = connection failed — check the password and try again."
       },
       {
-        "title": "Continue setup",
-        "body": "After flashing, configure sensors and backend uploads in the device web interface."
+        "title": "Open the device",
+        "body": "Go to http://air360.local or http://192.168.4.1 in your browser to configure sensors and upload backends."
       }
     ],
-    "firmwareDeviceImageAlt": "Device page in the Air360 firmware web interface",
-    "firmwareOverviewImageAlt": "Overview page in the Air360 firmware web interface",
-    "firmwareSensorsImageAlt": "Sensors page in the Air360 firmware web interface",
-    "firmwareBackendsImageAlt": "Backends page in the Air360 firmware web interface",
+    "firmwareLedTitle": "LED indicator reference",
+    "firmwareLedColorColumn": "Color",
+    "firmwareLedMeaningColumn": "Meaning",
+    "firmwareLedColors": [
+      { "color": "Blue", "meaning": "Booting." },
+      { "color": "Pink", "meaning": "Setup AP mode — no Wi-Fi configured, or connection to Wi-Fi failed." },
+      { "color": "Green", "meaning": "Connected to Wi-Fi (station mode)." },
+      { "color": "Red", "meaning": "Fatal boot error — check serial logs." }
+    ],
+    "uiGuideTitle": "Device web interface",
+    "uiGuideBody": "After the device joins your Wi-Fi network, open http://air360.local or the device IP in a browser. The interface has four sections.",
+    "uiSections": [
+      {
+        "id": "overview",
+        "title": "Overview",
+        "body": "A read-only dashboard showing device health, network mode, IP address, uptime, and current time. Sensor readings and backend upload results — last status and upload time — are listed here. This is the first page to check when something does not look right.",
+        "imageAlt": "Overview page in the Air360 firmware web interface"
+      },
+      {
+        "id": "device",
+        "title": "Device",
+        "body": "Network and device settings: Wi-Fi credentials, device name, static IP, cellular modem (APN, modem type, credentials), BLE advertising, and Wi-Fi power save. The firmware update card at the bottom of this page lets you upload a new .bin file directly from the browser without USB access.",
+        "imageAlt": "Device page in the Air360 firmware web interface"
+      },
+      {
+        "id": "sensors",
+        "title": "Sensors",
+        "body": "Add, configure, and remove sensors. For each sensor you choose the model, poll interval, and connection (I2C address, UART port, or GPIO pin). Current state and latest readings are shown on the sensor card. In most cases changes apply immediately without a reboot.",
+        "imageAlt": "Sensors page in the Air360 firmware web interface"
+      },
+      {
+        "id": "backends",
+        "title": "Backends",
+        "body": "Configure where measurements are uploaded: Sensor.Community, Air360 API, Custom Upload, or InfluxDB. Each backend can be enabled or disabled independently. Set the upload interval and see the last upload result per backend.",
+        "notes": [
+          "Sensor.Community: the device's Sensor ID is shown on this page. Register it at devices.sensor.community/sensors to link the device to your Sensor.Community account and start seeing measurements on the map.",
+          "Air360 API: air360.ru does not require registration. The device authenticates with an Upload secret — generate it on first setup and save it somewhere safe. If you reflash the device, reuse the same secret so your measurement history stays linked to the device.",
+          "Air360 API: device coordinates are required before uploads begin. Use the map picker or enter latitude and longitude manually. Adding altitude above sea level is optional but recommended — it improves atmospheric pressure accuracy for stations at elevation."
+        ],
+        "imageAlt": "Backends page in the Air360 firmware web interface"
+      }
+    ],
     "firmwareDocsTitle": "Detailed documentation",
     "firmwareDocsBody": "For web UI setup, sensors, backend uploads, diagnostics, and OTA, use the full firmware user guide.",
     "firmwareDocsLink": "Open firmware user guide"

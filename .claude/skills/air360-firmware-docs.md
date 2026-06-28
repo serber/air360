@@ -30,7 +30,7 @@ Treat `firmware/` as the firmware project root.
 
 Relevant files include:
 
-- `firmware/AGENTS.md`
+- `firmware/CLAUDE.md`
 - `firmware/CMakeLists.txt`
 - `firmware/main/CMakeLists.txt`
 - `firmware/main/Kconfig.projbuild`
@@ -64,8 +64,8 @@ When this skill is used, produce firmware documentation that helps a developer:
 
 Check:
 
-- `AGENTS.md`
-- `firmware/AGENTS.md`
+- `CLAUDE.md`
+- `firmware/CLAUDE.md`
 
 Respect repository-wide rules before writing firmware docs.
 

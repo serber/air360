@@ -35,7 +35,7 @@ The older planning documents in `docs/` still matter, but they should be read as
 ├── docs/
 ├── firmware/
 ├── portal/
-├── AGENTS.md
+├── CLAUDE.md
 ├── LICENSE
 └── README.md
 ```
@@ -48,7 +48,7 @@ The older planning documents in `docs/` still matter, but they should be read as
   Native Air360 API backend in TypeScript/Fastify.
 - `portal/`
   Next.js portal application.
-- `AGENTS.md`
+- `CLAUDE.md`
   Repository-level guidance. In particular, it separates design context in `docs/` from implementation truth in `firmware/`.
 
 ## Documentation Map
@@ -76,7 +76,7 @@ Start here depending on what you need.
 - Sensor.Community opportunity roadmap:
   [docs/ecosystem/sensor-community-opportunity-roadmap.md](docs/ecosystem/sensor-community-opportunity-roadmap.md)
 - Firmware release-packaging skill:
-  [.agents/skills/air360-firmware-release-bundle/](.agents/skills/air360-firmware-release-bundle/)
+  [.claude/skills/air360-firmware-release-bundle/](.claude/skills/air360-firmware-release-bundle/)
 - Backend documentation map:
   [docs/backend/README.md](docs/backend/README.md)
 - Portal documentation map:
@@ -138,7 +138,7 @@ If you need to work on device behavior:
 If you need to publish a firmware beta or stable build:
 
 1. Read [firmware/README.md](firmware/README.md) for the release packaging workflow
-2. Use [.agents/skills/air360-firmware-release-bundle/](.agents/skills/air360-firmware-release-bundle/) to generate the versioned release bundle from `firmware/build/`
+2. Use [.claude/skills/air360-firmware-release-bundle/](.claude/skills/air360-firmware-release-bundle/) to generate the versioned release bundle from `firmware/build/`
 
 If you need to operate or provision a device rather than change firmware code:
 
@@ -159,12 +159,12 @@ If you need repository context first:
 
 If you need backend work:
 
-1. Read [backend/AGENTS.md](backend/AGENTS.md)
+1. Read [backend/CLAUDE.md](backend/CLAUDE.md)
 2. Read [docs/backend/README.md](docs/backend/README.md)
 
 If you need portal work:
 
-1. Read [portal/AGENTS.md](portal/AGENTS.md)
+1. Read [portal/CLAUDE.md](portal/CLAUDE.md)
 2. Read [portal/README.md](portal/README.md)
 3. Read [docs/portal/README.md](docs/portal/README.md)
 

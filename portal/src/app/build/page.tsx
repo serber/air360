@@ -37,10 +37,9 @@ type FirmwareStep = {
   body: string;
 };
 
-type FirmwareAccess = {
-  label: string;
-  value: string;
-  note: string;
+type FirmwareLedColor = {
+  color: string;
+  meaning: string;
 };
 
 type CompatibilityRow = {
@@ -54,16 +53,54 @@ type DifferenceItem = {
   body: string;
 };
 
+type UiSection = {
+  id: string;
+  title: string;
+  body: string;
+  notes?: string[];
+  imageAlt: string;
+};
+
+type SensorGuideEntry = {
+  name: string;
+  measures: string;
+  why: string;
+};
+
+type SensorGuideGroup = {
+  category: string;
+  sensors: SensorGuideEntry[];
+};
+
+type PowerOption = {
+  id: string;
+  label: string;
+  title: string;
+  body: string;
+  notes: string[];
+  links?: Array<{ href: string; label: string }>;
+};
+
 export default function BuildGuide() {
   const t = useTranslations("build");
   const options = t.raw("options") as BuildOption[];
   const shieldParts = t.raw("shieldParts") as ShieldPart[];
   const wiringRows = t.raw("wiringRows") as WiringRow[];
   const directNotes = t.raw("directNotes") as string[];
-  const firmwareAccess = t.raw("firmwareAccess") as FirmwareAccess[];
   const firmwareSteps = t.raw("firmwareSteps") as FirmwareStep[];
+  const firmwareLedColors = t.raw("firmwareLedColors") as FirmwareLedColor[];
   const compatibilityRows = t.raw("compatibilityRows") as CompatibilityRow[];
   const differenceItems = t.raw("differenceItems") as DifferenceItem[];
+  const sensorGuideGroups = t.raw("sensorGuideGroups") as SensorGuideGroup[];
+  const uiSections = t.raw("uiSections") as UiSection[];
+  const powerOptions = t.raw("powerOptions") as PowerOption[];
+
+  const uiSectionImages: Record<string, string> = {
+    overview: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_overview.png?raw=true",
+    device: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_device.png?raw=true",
+    sensors: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_sensors.png?raw=true",
+    backends: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_backends.png?raw=true",
+  };
 
   return (
     <div className="air-page">
@@ -203,6 +240,47 @@ export default function BuildGuide() {
                 </div>
               </section>
 
+              <section>
+                <h2>{t("sensorGuideTitle")}</h2>
+                <p>{t("sensorGuideBody")}</p>
+
+                <div className="air-wiring-table-wrap">
+                  <table className="air-wiring-table">
+                    <thead>
+                      <tr>
+                        <th>{t("sensorGuideNameColumn")}</th>
+                        <th>{t("sensorGuideMeasuresColumn")}</th>
+                        <th>{t("sensorGuideWhyColumn")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sensorGuideGroups.flatMap((group) => [
+                        <tr className="air-sensor-category-row" key={`cat-${group.category}`}>
+                          <td colSpan={3}>{group.category}</td>
+                        </tr>,
+                        ...group.sensors.map((sensor) => (
+                          <tr key={sensor.name}>
+                            <td>{sensor.name}</td>
+                            <td>{sensor.measures}</td>
+                            <td>{sensor.why}</td>
+                          </tr>
+                        )),
+                      ])}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="air-sensor-callout">
+                  <h3>{t("sensorGuideGpsTitle")}</h3>
+                  <p>{t("sensorGuideGpsBody")}</p>
+                </div>
+
+                <div className="air-sensor-callout">
+                  <h3>{t("sensorGuideCellularTitle")}</h3>
+                  <p>{t("sensorGuideCellularBody")}</p>
+                </div>
+              </section>
+
               <section className="air-firmware-section">
                 <h2>{t("firmwareTitle")}</h2>
                 <p>{t("firmwareBody")}</p>
@@ -227,24 +305,6 @@ export default function BuildGuide() {
                   </a>
                 </div>
 
-                <div className="air-firmware-panel">
-                  <div className="air-firmware-panel-head">
-                    <div>
-                      <h3>{t("firmwarePanelTitle")}</h3>
-                    </div>
-                  </div>
-
-                  <div className="air-firmware-access-grid">
-                    {firmwareAccess.map((item) => (
-                      <div className="air-firmware-access-card" key={item.label}>
-                        <span>{item.label}</span>
-                        <b>{item.value}</b>
-                        <p>{item.note}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="air-firmware-step-grid">
                   {firmwareSteps.map((step, index) => (
                     <div className="air-firmware-step" key={step.title}>
@@ -255,26 +315,52 @@ export default function BuildGuide() {
                   ))}
                 </div>
 
-                <BuildImagePreview
-                  images={[
-                    {
-                      alt: t("firmwareOverviewImageAlt"),
-                      src: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_overview.png?raw=true",
-                    },
-                    {
-                      alt: t("firmwareDeviceImageAlt"),
-                      src: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_device.png?raw=true",
-                    },
-                    {
-                      alt: t("firmwareSensorsImageAlt"),
-                      src: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_sensors.png?raw=true",
-                    },
-                    {
-                      alt: t("firmwareBackendsImageAlt"),
-                      src: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_backends.png?raw=true",
-                    },
-                  ]}
-                />
+                <h3 className="air-firmware-led-heading">{t("firmwareLedTitle")}</h3>
+                <div className="air-wiring-table-wrap">
+                  <table className="air-wiring-table">
+                    <thead>
+                      <tr>
+                        <th>{t("firmwareLedColorColumn")}</th>
+                        <th>{t("firmwareLedMeaningColumn")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {firmwareLedColors.map((row) => (
+                        <tr key={row.color}>
+                          <td>{row.color}</td>
+                          <td>{row.meaning}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section>
+                <h2>{t("uiGuideTitle")}</h2>
+                <p>{t("uiGuideBody")}</p>
+
+                {uiSections.map((section) => (
+                  <div className="air-ui-section" key={section.id}>
+                    <h3>{section.title}</h3>
+                    <p>{section.body}</p>
+                    {section.notes?.length ? (
+                      <div className="air-ui-section-notes">
+                        {section.notes.map((note) => (
+                          <p className="air-sensor-callout" key={note}>{note}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                    <BuildImagePreview
+                      images={[
+                        {
+                          alt: section.imageAlt,
+                          src: uiSectionImages[section.id] ?? "",
+                        },
+                      ]}
+                    />
+                  </div>
+                ))}
               </section>
 
               <section>
@@ -316,6 +402,45 @@ export default function BuildGuide() {
                     },
                   ]}
                 />
+              </section>
+
+              <section>
+                <h2>{t("powerTitle")}</h2>
+                <p>{t("powerBody")}</p>
+                <div className="air-build-option-grid">
+                  {powerOptions.map((opt) => (
+                    <div className="air-build-option" key={opt.id}>
+                      <div className="air-build-option-head">
+                        <span className="air-tag">{opt.label}</span>
+                      </div>
+                      <h3>{opt.title}</h3>
+                      <p>{opt.body}</p>
+                      {opt.notes.length ? (
+                        <ul className="air-build-option-list">
+                          {opt.notes.map((note) => (
+                            <li key={note}>{note}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {opt.links?.length ? (
+                        <div className="air-build-link-list">
+                          {opt.links.map((link) => (
+                            <a
+                              className="air-btn air-btn-brand"
+                              href={link.href}
+                              key={link.href}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              {link.label}
+                              <ArrowIcon />
+                            </a>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
               </section>
 
               <section>

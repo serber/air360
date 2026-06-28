@@ -2,7 +2,7 @@
 
 This directory contains the ESP-IDF firmware project for Air360.
 
-For AI-agent task routing and co-change expectations inside this directory, start with [AGENTS.md](AGENTS.md).
+For AI-agent task routing and co-change expectations inside this directory, start with [CLAUDE.md](CLAUDE.md).
 
 The current implementation targets `esp32s3` on ESP-IDF 6.x. It boots a C++20 application, initializes NVS and the ESP-IDF network core, loads or creates persisted device, cellular, sensor, and backend configuration, resolves whether the device should run in station mode or setup AP mode, synchronizes UTC time through SNTP when station uplink is available, exposes local HTTP endpoints at `/`, `/diagnostics`, `/config`, `/sensors`, and `/backends`, runs background sensor, upload, Wi-Fi worker, cellular, and BLE tasks as needed, and serves embedded UI assets from `/assets/*`.
 
@@ -10,7 +10,7 @@ Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/)
 
 If you need an end-user walkthrough for setup AP onboarding and the station-mode web UI, start with [`../docs/firmware/user-guide.md`](../docs/firmware/user-guide.md).
 
-If you need to package a GitHub-release-ready firmware bundle from the current `build/` outputs, use the repo-local skill at [`../.agents/skills/air360-firmware-release-bundle/`](../.agents/skills/air360-firmware-release-bundle/).
+If you need to package a GitHub-release-ready firmware bundle from the current `build/` outputs, use the repo-local skill at [`../.claude/skills/air360-firmware-release-bundle/`](../.claude/skills/air360-firmware-release-bundle/).
 
 ## Project Structure
 
@@ -237,7 +237,7 @@ To package the current build for a GitHub beta or stable release, use the repo-l
 
 ```bash
 cd firmware
-python3 .agents/skills/air360-firmware-release-bundle/scripts/create_release_bundle.py v0.1-beta.1
+python3 .claude/skills/air360-firmware-release-bundle/scripts/create_release_bundle.py v0.1-beta.1
 ```
 
 The script reads the current `build/` outputs and creates a versioned bundle under `release/air360-v<commit>/` with:

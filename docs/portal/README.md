@@ -16,7 +16,7 @@ actual `portal/` codebase.
 
 | Document | Purpose |
 |----------|---------|
-| [../../portal/AGENTS.md](../../portal/AGENTS.md) | Portal-local working contract for AI agents |
+| [../../portal/CLAUDE.md](../../portal/CLAUDE.md) | Portal-local working contract for AI agents |
 | [../../portal/README.md](../../portal/README.md) | Source directory entry point and commands |
 | [adr/README.md](adr/README.md) | Portal architecture decision records |
 | [ubuntu-deployment.md](ubuntu-deployment.md) | Ubuntu deployment guide |
