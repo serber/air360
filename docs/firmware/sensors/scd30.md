@@ -39,6 +39,7 @@ Optical CO₂ sensor (NDIR) with temperature and humidity from Sensirion.
    ```
 5. Apply the interval via `scd30_set_measurement_interval()`
 6. Start continuous measurement via `scd30_trigger_continuous_measurement(altitude=0)`
+7. Apply the configured automatic self-calibration (ASC) state via `scd30_set_automatic_self_calibration()` from `SensorRecord::startup_calibration` (see [Automatic self-calibration](#automatic-self-calibration-asc))
 
 After initialization `last_error_` is set to `"Waiting for first SCD30 sample."` — this is expected, not a fault condition.
 
@@ -65,6 +66,16 @@ Each poll cycle:
 - Altitude is hardcoded to 0 m. The SCD30 can use altitude for pressure compensation — for accurate CO₂ readings at significant elevation this would require a code change.
 - The first few readings after power-on may be unstable. NDIR sensors require a warm-up period.
 - If reading the data-ready flag or the measurement itself returns an error, `initialized_` is reset.
+
+## Automatic self-calibration (ASC)
+
+The SCD30 is the first sensor to use the generic per-sensor `startup_calibration` flag (see [configuration-reference.md](../configuration-reference.md#sensorrecord-fields) and [nvs.md](../nvs.md)). Its descriptor sets `supports_startup_calibration = true` with the UI label "Automatic self-calibration (ASC)", so the web UI shows a calibration checkbox on the SCD30 card.
+
+Behavior:
+
+- When the checkbox is enabled, `init()` calls `scd30_set_automatic_self_calibration(dev, true)`; when disabled it calls it with `false`. The state is re-asserted on every `init()`/re-init, which is idempotent and keeps the firmware config authoritative even if the sensor is swapped.
+- A failure to set ASC is **non-fatal**: it is logged as a warning and initialization continues, so the sensor still measures (just without the requested ASC state).
+- ASC is the recommended mode for **permanently powered outdoor units with regular fresh-air exposure** (~400 ppm baseline). It needs roughly **7 days of continuous operation** to converge, and it calibrates incorrectly in environments that never return to outdoor CO₂ levels (e.g. greenhouses, continuously occupied rooms) — use FRC there instead. FRC (one-shot forced recalibration to a reference value) is **not** wired to this flag because it must not re-run on every boot; it would need a separate one-shot mechanism.
 
 ## Recommended poll interval
 

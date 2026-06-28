@@ -448,8 +448,8 @@ bool validatePmsx003Record(const SensorRecord& record, std::string& error) {
 }
 
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
-// Size computed for ESP32 (32-bit, 4-byte pointers): 23 fields, 60 bytes with padding.
-static_assert(sizeof(SensorDescriptor) == 60U,
+// Size computed for ESP32 (32-bit, 4-byte pointers): 25 fields, 68 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 68U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
 constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
@@ -552,6 +552,8 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateScd30Record,
         .create_driver            = &createScd30Sensor,
+        .supports_startup_calibration = true,
+        .calibration_label        = "Automatic self-calibration (ASC)",
     },
     {
         .type                     = SensorType::kVeml7700,

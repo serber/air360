@@ -181,7 +181,7 @@ struct SensorRecord {
     uint8_t      i2c_bus_id;       // always 0 in current hardware
     uint8_t      i2c_address;      // 7-bit I2C address
     uint8_t      uart_port_id;     // UART_NUM_1 or UART_NUM_2
-    uint8_t      reserved0;
+    uint8_t      startup_calibration; // was reserved0; 0/1, driver-defined startup calibration (SCD30: ASC)
     int16_t      analog_gpio_pin;  // -1 if unused
     int16_t      uart_rx_gpio_pin; // -1 if unused
     int16_t      uart_tx_gpio_pin; // -1 if unused
@@ -191,6 +191,8 @@ struct SensorRecord {
 ```
 
 `analog_gpio_pin` stores the selected GPIO for GPIO-backed and analog-backed sensors. The allowed values are not Kconfig fields; they come from the selected sensor descriptor's `allowed_gpio_pins` list.
+
+`startup_calibration` reuses the former `reserved0` byte, so `record_size` and the schema version are unchanged and previously stored configs load unmodified (the byte was zero, i.e. calibration off). The field is a generic, driver-interpreted flag: a sensor driver acts on it inside `init()` only when its descriptor sets `supports_startup_calibration`. For SCD30 it enables/disables automatic self-calibration (ASC). Drivers must treat the action as idempotent because `init()` can run on every boot and on re-init.
 
 ### `SensorType` enum values
 

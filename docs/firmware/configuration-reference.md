@@ -215,6 +215,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `uart_tx_gpio_pin` | `int16_t` | Selected UART binding | UART sensors only; must match the selected UART port binding |
 | `uart_baud_rate` | `uint32_t` | `9600` | UART sensors: 1 200–115 200 |
 | `analog_gpio_pin` | `int16_t` | First descriptor allowed pin | GPIO/analog sensors only; must be one of the descriptor's allowed GPIO pins |
+| `startup_calibration` | `uint8_t` | `0` | 0 or 1; only meaningful for sensor types whose descriptor sets `supports_startup_calibration` (currently SCD30, where it toggles ASC). Reuses the former `reserved0` byte. |
 
 ### Per-sensor constraints
 
@@ -224,7 +225,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 30 000 ms | — |
 | BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 30 000 ms | — |
 | SPS30 | I2C | Bus 0, `0x69` | `0x69` | 30 000 ms | — |
-| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | — |
+| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | `startup_calibration` toggles automatic self-calibration (ASC) |
 | VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 30 000 ms | — |
 | OPT3001 | I2C | Bus 0, `0x44` | `0x44`, `0x45`, `0x46`, `0x47` | 30 000 ms | ADDR strap selects address |
 | HTU2X | I2C | Bus 0, `0x40` | `0x40` | 30 000 ms | — |

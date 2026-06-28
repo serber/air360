@@ -45,6 +45,10 @@ This is the concise support matrix for the current Air360 firmware. It is intend
 | `INA219` | I2C | Bus 0, address `0x40` | I2C `0x40`, `0x41`, `0x44`, `0x45` | [ina219.md](ina219.md) |
 | `MH-Z19B` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [mhz19b.md](mhz19b.md) |
 
+## Startup calibration capability
+
+A sensor descriptor may set `supports_startup_calibration`, which exposes a per-sensor calibration checkbox in the web UI (`SensorRecord::startup_calibration`). The driver acts on the flag inside `init()`, so the action must be idempotent. The only sensor with this capability today is `SCD30`, where it enables/disables automatic self-calibration (ASC) — see [scd30.md](scd30.md#automatic-self-calibration-asc).
+
 ## Peripheral note
 
 The cellular modem is documented alongside sensors because it shares hardware and configuration context, but it is not registered through the sensor pipeline. See [sim7600e.md](sim7600e.md) for the SIM7600E reference wiring and [../cellular-manager.md](../cellular-manager.md) for configurable modem runtime behavior.
