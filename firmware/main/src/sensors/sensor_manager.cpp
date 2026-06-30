@@ -31,6 +31,11 @@ constexpr std::uint32_t kSensorFailureStopThreshold = 16U;
 // Soft poll failures retry after at most 5 s to absorb short bus glitches
 // without tearing down a driver that was otherwise healthy.
 constexpr std::uint64_t kSoftPollRetryDelayMs = 5000U;
+// While a one-shot maintenance action is running, poll its sensor at least this
+// often so the driver's state machine advances independently of the (possibly
+// much longer) configured poll interval. Without this, a time-based action like
+// SCD30 FRC could never accumulate its warm-up window on a slow-polling sensor.
+constexpr std::uint64_t kMaintenanceActivePollIntervalMs = 5000U;
 // 250 ms loop cadence is fast enough for 1 s retry granularity while keeping
 // the manager mostly idle between scheduled sensor actions.
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
@@ -147,6 +152,10 @@ SensorManager::SensorManager() {
 
 void SensorManager::setMeasurementStore(MeasurementStore& measurement_store) {
     measurement_store_ = &measurement_store;
+}
+
+void SensorManager::setMaintenanceActionClearedHandler(MaintenanceActionClearedFn handler) {
+    maintenance_action_cleared_handler_ = std::move(handler);
 }
 
 esp_err_t SensorManager::applyConfig(const SensorConfigList& config) {
@@ -426,6 +435,8 @@ void SensorManager::taskMain() {
             SensorDriver* driver = nullptr;
             SensorRecord record{};
             bool needs_init = false;
+            bool clear_pending_action = false;
+            std::uint32_t cleared_action_sensor_id = 0U;
 
             lock();
             if (index < sensors_.size()) {
@@ -494,6 +505,34 @@ void SensorManager::taskMain() {
                 sensor.runtime.last_error = driver_status;
                 sensor.next_action_time_ms =
                     now_ms + (needs_init ? 0U : effective_poll_ms);
+
+                // Surface live maintenance-action progress, keep a running action
+                // polling fast enough to advance, and clear a pending one-shot
+                // action once its driver state machine finishes. The NVS write is
+                // deferred until after the lock is released.
+                sensor.runtime.maintenance_status = driver->maintenanceStatus();
+                const MaintenanceActionState ma_state = driver->maintenanceActionState();
+                if (ma_state == MaintenanceActionState::kRunning) {
+                    sensor.next_action_time_ms =
+                        now_ms + std::min<std::uint64_t>(
+                                     needs_init ? 0U : effective_poll_ms,
+                                     kMaintenanceActivePollIntervalMs);
+                } else if (!needs_init && (ma_state == MaintenanceActionState::kCompleted ||
+                                           ma_state == MaintenanceActionState::kFailed)) {
+                    sensor.record.pending_maintenance_action =
+                        static_cast<std::uint8_t>(MaintenanceActionKind::kNone);
+                    cleared_action_sensor_id = sensor.record.id;
+                    clear_pending_action = true;
+                    driver->acknowledgeMaintenanceAction();
+                    ESP_LOGI(
+                        kTag,
+                        "Sensor #%" PRIu32 " (%s) maintenance action %s: %s",
+                        sensor.runtime.id,
+                        sensor.runtime.type_key.c_str(),
+                        ma_state == MaintenanceActionState::kCompleted ? "completed"
+                                                                       : "failed",
+                        sensor.runtime.maintenance_status.c_str());
+                }
             } else {
                 sensor.runtime.state = classifyFailureState(op_err);
                 sensor.runtime.last_error = last_error;
@@ -553,6 +592,13 @@ void SensorManager::taskMain() {
                     sensor.next_init_allowed_ms);
             }
             unlock();
+
+            // Persist the cleared one-shot maintenance action outside the lock
+            // so next boot does not re-run it. The handler must not re-enter the
+            // manager.
+            if (clear_pending_action && maintenance_action_cleared_handler_) {
+                maintenance_action_cleared_handler_(cleared_action_sensor_id);
+            }
         }
 
         // The notification count only wakes the polling loop; no per-notification state is encoded.

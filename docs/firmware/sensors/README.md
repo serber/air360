@@ -18,11 +18,12 @@ This document is the detailed sensor documentation index and hardware reference 
 
 - [supported-sensors.md](supported-sensors.md)
 - [adding-new-sensor.md](adding-new-sensor.md)
+- [maintenance-actions.md](maintenance-actions.md)
 - [../transport-binding.md](../transport-binding.md)
 
 Reference index for every sensor driver implemented in `firmware/main/src/sensors/drivers/`.
 
-Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [adding-new-sensor.md](adding-new-sensor.md) for the implementation checklist.
+Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [adding-new-sensor.md](adding-new-sensor.md) for the implementation checklist. One-shot sensor maintenance actions (SCD30 FRC, SPS30 fan cleaning) share the mechanism in [maintenance-actions.md](maintenance-actions.md).
 
 ## Sensor Index
 

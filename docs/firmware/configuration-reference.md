@@ -218,6 +218,7 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `uart_baud_rate` | `uint32_t` | `9600` | UART sensors: 1 200–115 200 |
 | `analog_gpio_pin` | `int16_t` | First descriptor allowed pin | GPIO/analog sensors only; must be one of the descriptor's allowed GPIO pins |
 | `startup_calibration` | `uint8_t` | `0` | 0 or 1; only meaningful for sensor types whose descriptor sets `supports_startup_calibration` (currently SCD30, where it toggles ASC). Reuses the former `reserved0` byte. |
+| `pending_maintenance_action` | `uint8_t` | `0` | `MaintenanceActionKind` (0=none); a one-shot action run once after the next boot, then cleared. Validated against the sensor's advertised actions (SCD30: FRC; SPS30: fan clean). Carved from the former `reserved1` padding. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md). |
 
 ### Per-sensor constraints
 
@@ -225,7 +226,8 @@ Per-sensor transport bindings and allowed addresses/pins are canonical in [senso
 
 | Sensor | Sensor-specific note |
 |--------|----------------------|
-| SCD30 | `startup_calibration` toggles automatic self-calibration (ASC) |
+| SCD30 | `startup_calibration` toggles automatic self-calibration (ASC); `pending_maintenance_action` can schedule a one-shot forced recalibration (FRC) for the next boot |
+| SPS30 | `pending_maintenance_action` can schedule a one-shot fan cleaning for the next boot |
 | SDS011 | Baud rate must be 9600 |
 | PMSX003 | Baud rate must be 9600 |
 | MH-Z19B | Baud rate must be 9600 |

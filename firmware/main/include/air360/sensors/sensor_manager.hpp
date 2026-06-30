@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -37,6 +38,9 @@ struct SensorRuntimeInfo {
     // Used to size the warmup window before declaring "no first sample yet" a fault.
     std::uint64_t initialized_at_uptime_ms = 0U;
     std::string last_error;
+    // Live progress of a one-shot maintenance action, surfaced on the web UI
+    // (e.g. "FRC: warming up (45s/120s)"); empty when no action is in progress.
+    std::string maintenance_status;
 };
 
 class SensorManager {
@@ -47,7 +51,14 @@ class SensorManager {
     SensorManager(SensorManager&&) = delete;
     SensorManager& operator=(SensorManager&&) = delete;
 
+    // Invoked (from the manager task) with a sensor id after a one-shot
+    // maintenance action reaches a terminal state, so the owner can clear the
+    // pending action from the persisted config (run-once). Must not call back
+    // into the manager. Set once at boot before applyConfig.
+    using MaintenanceActionClearedFn = std::function<void(std::uint32_t sensor_id)>;
+
     void setMeasurementStore(MeasurementStore& measurement_store);
+    void setMaintenanceActionClearedHandler(MaintenanceActionClearedFn handler);
     [[nodiscard]] esp_err_t applyConfig(const SensorConfigList& config);
     [[nodiscard]] esp_err_t stop();
 
@@ -88,6 +99,7 @@ class SensorManager {
     I2cBusManager i2c_bus_manager_;
     UartPortManager uart_port_manager_;
     MeasurementStore* measurement_store_ = nullptr;
+    MaintenanceActionClearedFn maintenance_action_cleared_handler_;
 };
 
 }  // namespace air360

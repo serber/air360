@@ -37,9 +37,10 @@ Optical CO₂ sensor (NDIR) with temperature and humidity from Sensirion.
    interval_s = (poll_interval_ms + 999) / 1000
    interval_s = clamp(interval_s, 3, 1799)
    ```
-5. Apply the interval via `scd30_set_measurement_interval()`
+5. Apply the interval via `scd30_set_measurement_interval()` — forced to the fastest accepted rate (3 s) instead when an FRC maintenance action is armed (see [Forced recalibration](#forced-recalibration-frc))
 6. Start continuous measurement via `scd30_trigger_continuous_measurement(altitude=0)`
 7. Apply the configured automatic self-calibration (ASC) state via `scd30_set_automatic_self_calibration()` from `SensorRecord::startup_calibration` (see [Automatic self-calibration](#automatic-self-calibration-asc))
+8. Arm the forced-recalibration (FRC) maintenance action when `SensorRecord::pending_maintenance_action` requests it (see [Forced recalibration](#forced-recalibration-frc))
 
 After initialization `last_error_` is set to `"Waiting for first SCD30 sample."` — this is expected, not a fault condition.
 
@@ -75,7 +76,20 @@ Behavior:
 
 - When the checkbox is enabled, `init()` calls `scd30_set_automatic_self_calibration(dev, true)`; when disabled it calls it with `false`. The state is re-asserted on every `init()`/re-init, which is idempotent and keeps the firmware config authoritative even if the sensor is swapped.
 - A failure to set ASC is **non-fatal**: it is logged as a warning and initialization continues, so the sensor still measures (just without the requested ASC state).
-- ASC is the recommended mode for **permanently powered outdoor units with regular fresh-air exposure** (~400 ppm baseline). It needs roughly **7 days of continuous operation** to converge, and it calibrates incorrectly in environments that never return to outdoor CO₂ levels (e.g. greenhouses, continuously occupied rooms) — use FRC there instead. FRC (one-shot forced recalibration to a reference value) is **not** wired to this flag because it must not re-run on every boot; it would need a separate one-shot mechanism.
+- ASC is the recommended mode for **permanently powered outdoor units with regular fresh-air exposure** (~400 ppm baseline). It needs roughly **7 days of continuous operation** to converge, and it calibrates incorrectly in environments that never return to outdoor CO₂ levels (e.g. greenhouses, continuously occupied rooms) — use FRC there instead.
+- ASC (a persistent mode) and FRC (a one-shot action) are **not** mutually exclusive: you can schedule an FRC for the next boot and still run with ASC enabled afterwards. FRC supersedes earlier ASC corrections and is wired through the separate one-shot maintenance-action mechanism described below, so it does not re-run on every boot.
+
+## Forced recalibration (FRC)
+
+The SCD30 advertises a one-shot **forced recalibration** maintenance action (`MaintenanceActionKind::kForcedRecalibration`, UI key `frc`). It maps to `SensorRecord::pending_maintenance_action` and runs once after the next boot via the shared mechanism in [maintenance-actions.md](maintenance-actions.md). Use it to immediately correct sensor drift when a known reference concentration is available, rather than waiting ~7 days for ASC to converge.
+
+Behavior:
+
+- When armed, `init()` forces the measurement interval to **3 s** (instead of the poll-derived interval) — the datasheet asks for a ~2 s rate before FRC, but the esp-idf-lib driver rejects intervals ≤ 2 s (`CHECK_ARG: interval > 2`), so 3 s is the fastest accepted floor.
+- The state machine in `poll()` waits for **≥ 120 s elapsed** *and* **≥ 20 fresh samples**, then issues `scd30_set_forced_recalibration_value(dev, 400)` against a **400 ppm fresh-air reference** (matching the outdoor-unit use case). The reference is fixed in firmware.
+- On success the action reports `kCompleted` ("FRC complete (400 ppm reference)"); on command error or a **300 s timeout** without enough samples it reports `kFailed`. Either terminal state restores the configured measurement interval and is non-fatal — the sensor keeps measuring.
+- `SensorManager` then clears `pending_maintenance_action` and re-saves the config, so FRC does not re-run. A reboot mid-warm-up simply restarts it (at-least-once).
+- **Operator note:** place the unit in stable fresh outdoor air (~400 ppm) before the FRC boot. Recalibrating against a non-400 ppm environment will bias all subsequent readings.
 
 ## Recommended poll interval
 

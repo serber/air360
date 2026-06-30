@@ -149,6 +149,16 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
     logHttpHandlerWatermark();
 
+    // With no un-applied edits, the staged buffer must mirror the live config.
+    // Re-sync it here so firmware-owned changes the operator did not make —
+    // notably a one-shot maintenance action the sensor manager cleared after it
+    // ran — are reflected in the form (the selector returns to "None") instead
+    // of lingering as a stale, re-appliable value. Skipped while edits are
+    // pending so the operator's unsaved selections are preserved.
+    if (!server->has_pending_sensor_changes_) {
+        server->staged_sensor_config_ = *server->sensor_config_list_;
+    }
+
     const auto respond = [&](const std::string& notice, bool error) {
         return sendHtmlResponse(
             request,
@@ -286,6 +296,18 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
              findFormValue(fields, "startup_calibration") == "1")
                 ? 1U
                 : 0U;
+
+        // One-shot maintenance action to run on the next boot. Only honored for
+        // sensor types that advertise the selected action; "none"/unknown clears
+        // it. SensorManager clears the byte again once the action completes.
+        const std::string maintenance_action_key =
+            findFormValue(fields, "maintenance_action");
+        const MaintenanceActionDescriptor* maintenance_action =
+            findMaintenanceActionByKey(*descriptor, maintenance_action_key);
+        record.pending_maintenance_action =
+            maintenance_action != nullptr
+                ? static_cast<std::uint8_t>(maintenance_action->kind)
+                : static_cast<std::uint8_t>(MaintenanceActionKind::kNone);
 
         record.transport_kind = inferredTransportKind(*descriptor);
         switch (record.transport_kind) {

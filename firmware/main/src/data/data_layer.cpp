@@ -1,5 +1,7 @@
 #include "air360/data/data_layer.hpp"
 
+#include <cinttypes>
+
 #include "air360/config_load_status.hpp"
 #include "air360/network/network_layer.hpp"
 #include "air360/platform/platform_layer.hpp"
@@ -65,6 +67,29 @@ void DataLayer::bootSensors(PlatformLayer& platform, StatusService& status_servi
         sensor_defaults_written ? "yes" : "no");
 
     sensor_manager_.setMeasurementStore(measurement_store_);
+    // Clear a one-shot maintenance action from the persisted config once its
+    // driver state machine reports completion, so it runs only on this boot.
+    // Runs in the sensor manager task; touches only DataLayer-owned config + NVS
+    // and never re-enters the manager.
+    sensor_manager_.setMaintenanceActionClearedHandler(
+        [this](std::uint32_t sensor_id) {
+            SensorRecord* record = findSensorRecordById(sensor_config_list_, sensor_id);
+            if (record == nullptr ||
+                record->pending_maintenance_action ==
+                    static_cast<std::uint8_t>(MaintenanceActionKind::kNone)) {
+                return;
+            }
+            record->pending_maintenance_action =
+                static_cast<std::uint8_t>(MaintenanceActionKind::kNone);
+            const esp_err_t save_err = sensor_config_repository_.save(sensor_config_list_);
+            if (save_err != ESP_OK) {
+                ESP_LOGW(
+                    kTag,
+                    "Failed to persist cleared maintenance action for sensor #%" PRIu32 ": %s",
+                    sensor_id,
+                    esp_err_to_name(save_err));
+            }
+        });
     const esp_err_t sensor_apply_err = sensor_manager_.applyConfig(sensor_config_list_);
     if (sensor_apply_err != ESP_OK) {
         ESP_LOGW(

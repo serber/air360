@@ -188,13 +188,16 @@ struct SensorRecord {
     int16_t      uart_rx_gpio_pin; // -1 if unused
     int16_t      uart_tx_gpio_pin; // -1 if unused
     uint32_t     uart_baud_rate;   // 1200–115200
-    uint8_t      reserved1[12];
+    uint8_t      pending_maintenance_action; // MaintenanceActionKind; 0=none, run-once
+    uint8_t      reserved1[11];
 };
 ```
 
 `analog_gpio_pin` stores the selected GPIO for GPIO-backed and analog-backed sensors. The allowed values are not Kconfig fields; they come from the selected sensor descriptor's `allowed_gpio_pins` list.
 
 `startup_calibration` reuses the former `reserved0` byte, so `record_size` and the schema version are unchanged and previously stored configs load unmodified (the byte was zero, i.e. calibration off). The field is a generic, driver-interpreted flag: a sensor driver acts on it inside `init()` only when its descriptor sets `supports_startup_calibration`. For SCD30 it enables/disables automatic self-calibration (ASC). Drivers must treat the action as idempotent because `init()` can run on every boot and on re-init.
+
+`pending_maintenance_action` carves one byte out of the former `reserved1` padding (now `reserved1[11]`), so `record_size` and the schema version are again unchanged and older configs load with the byte zero (no action). It holds a `MaintenanceActionKind` value (`0` = none) describing a **one-shot** action to run after the next boot — distinct from the persistent `startup_calibration` mode. A driver arms it in `init()` when its descriptor advertises the action, executes it as a non-blocking state machine in `poll()`, and on completion `SensorManager` clears the byte back to `0` and re-saves the config, so it runs only once. A mid-action reboot re-runs it (at-least-once). See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 
 ### `SensorType` enum values
 

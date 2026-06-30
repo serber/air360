@@ -37,6 +37,7 @@ Laser particulate matter (PM) sensor from Sensirion. Measures mass and number co
 5. Initialize the SPS30 library via `sps30_init()`
 6. Start continuous measurement via `sps30_start_measurement(SPS30_OUTPUT_FORMAT_OUTPUT_FORMAT_FLOAT)`
 7. If measurement start fails: execute `sps30_wake_up_sequence()` and retry
+8. Arm the fan-cleaning maintenance action when `SensorRecord::pending_maintenance_action` requests it (see [Fan cleaning](#fan-cleaning))
 
 ## Polling
 
@@ -66,6 +67,15 @@ Each poll cycle:
 - **Wake-up sequence** — if the first measurement start fails (sensor may be in sleep mode after a reset), the driver automatically executes a wake-up sequence and retries. This is handled only during initialization.
 - Sensirion error codes are mapped to ESP error codes: `CRC_ERROR` → `ESP_ERR_INVALID_RESPONSE`, `I2C_BUS_ERROR` → `ESP_FAIL`.
 - Output format is hardcoded to float.
+
+## Fan cleaning
+
+The SPS30 advertises a one-shot **fan cleaning** maintenance action (`MaintenanceActionKind::kFanClean`, UI key `fan_clean`). It maps to `SensorRecord::pending_maintenance_action` and runs once after the next boot via the shared mechanism in [maintenance-actions.md](maintenance-actions.md). Periodic fan cleaning blows accumulated dust off the optics and is recommended for long-running deployments.
+
+Behavior:
+
+- When armed, the `poll()` state machine issues `sps30_start_fan_cleaning()` on the first poll after init, then waits **~12 s** (the blow-out runs autonomously for ~10 s) before reporting `kCompleted`. A command error reports `kFailed`. Both terminal states are non-fatal — the sensor keeps measuring (readings during the spin-up are noisy and should be ignored).
+- `SensorManager` then clears `pending_maintenance_action` and re-saves the config, so cleaning does not re-run. A reboot mid-cleaning simply restarts it (at-least-once; harmless to repeat).
 
 ## HAL adapter
 

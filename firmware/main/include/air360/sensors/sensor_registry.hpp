@@ -28,6 +28,15 @@ struct SensorUartPortBinding {
     std::int16_t tx_gpio_pin;
 };
 
+// A single one-shot maintenance action a sensor type advertises. key is the
+// stable form/JSON token (matches maintenanceActionKey()); label is the UI text
+// for the "run on next boot" selector. The driver implements the action.
+struct MaintenanceActionDescriptor {
+    MaintenanceActionKind kind;
+    const char* key;
+    const char* label;
+};
+
 inline constexpr std::array<SensorUartPortBinding, kMaxUartPortsPerSensor>
     kSensorUartPortBindings{{
         {1U, 18, 17},
@@ -75,10 +84,45 @@ struct SensorDescriptor {
     // flag to enabling/disabling automatic self-calibration (ASC).
     bool supports_startup_calibration = false;
     const char* calibration_label = nullptr;
+    // One-shot maintenance actions this sensor supports, run once after boot and
+    // then cleared (run-once). The web UI offers them in a "run on next boot"
+    // selector; the driver implements each as a non-blocking poll() state
+    // machine. Stored as a pointer to a static constexpr array to keep the
+    // descriptor small. Distinct from the persistent startup_calibration mode.
+    const MaintenanceActionDescriptor* maintenance_actions = nullptr;
+    std::uint8_t maintenance_action_count = 0U;
 };
 
 inline std::int16_t firstAllowedGpioPin(const SensorDescriptor& descriptor) {
     return descriptor.allowed_gpio_pin_count > 0U ? descriptor.allowed_gpio_pins[0] : -1;
+}
+
+// Looks up a maintenance action by its stable key (form/JSON token). Returns
+// nullptr when the sensor does not advertise an action with that key.
+inline const MaintenanceActionDescriptor* findMaintenanceActionByKey(
+    const SensorDescriptor& descriptor, const std::string& key) {
+    for (std::uint8_t index = 0U; index < descriptor.maintenance_action_count; ++index) {
+        if (key == descriptor.maintenance_actions[index].key) {
+            return &descriptor.maintenance_actions[index];
+        }
+    }
+    return nullptr;
+}
+
+// True when the sensor advertises an action whose kind matches the persisted
+// pending_maintenance_action byte (0/kNone always passes as "nothing pending").
+inline bool sensorSupportsMaintenanceActionValue(
+    const SensorDescriptor& descriptor, std::uint8_t pending_action) {
+    if (pending_action == static_cast<std::uint8_t>(MaintenanceActionKind::kNone)) {
+        return true;
+    }
+    for (std::uint8_t index = 0U; index < descriptor.maintenance_action_count; ++index) {
+        if (static_cast<std::uint8_t>(descriptor.maintenance_actions[index].kind) ==
+            pending_action) {
+            return true;
+        }
+    }
+    return false;
 }
 
 class SensorRegistry {

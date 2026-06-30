@@ -51,6 +51,17 @@ This matrix is the **canonical source** for per-sensor transport bindings and al
 
 A sensor descriptor may set `supports_startup_calibration`, which exposes a per-sensor calibration checkbox in the web UI (`SensorRecord::startup_calibration`). The driver acts on the flag inside `init()`, so the action must be idempotent. The only sensor with this capability today is `SCD30`, where it enables/disables automatic self-calibration (ASC) — see [scd30.md](scd30.md#automatic-self-calibration-asc).
 
+## One-shot maintenance actions
+
+A sensor descriptor may advertise one-shot **maintenance actions** (`maintenance_actions` / `maintenance_action_count`), which expose a "run on next boot" selector in the web UI (`SensorRecord::pending_maintenance_action`). Unlike `startup_calibration`, the action runs **once** after the next boot and is then cleared from NVS by `SensorManager`. Drivers implement each action as a non-blocking `poll()` state machine. Sensors with actions today:
+
+| Sensor | Action | Effect |
+|--------|--------|--------|
+| SCD30 | Forced recalibration (FRC) | Warms up at a 2 s rate, then recalibrates to a 400 ppm fresh-air reference — see [scd30.md](scd30.md#forced-recalibration-frc) |
+| SPS30 | Fan cleaning | Runs the ~10 s fan blow-out — see [sps30.md](sps30.md#fan-cleaning) |
+
+See [maintenance-actions.md](maintenance-actions.md) for the shared mechanism.
+
 ## Peripheral note
 
 The cellular modem is documented alongside sensors because it shares hardware and configuration context, but it is not registered through the sensor pipeline. See [sim7600e.md](sim7600e.md) for the SIM7600E reference wiring and [../cellular-manager.md](../cellular-manager.md) for configurable modem runtime behavior.

@@ -128,7 +128,7 @@ Each individual check (`time_synced`, `sensors_reporting`, `uplink_available`, `
 
 **Backends section** — one row per configured backend showing type, enabled state, last upload result, and last upload time.
 
-**Sensors section** — one row per configured sensor showing sensor type, runtime state, transport summary, and the latest reading values.
+**Sensors section** — one row per configured sensor showing sensor type, runtime state, transport summary, and the latest reading values. When a one-shot maintenance action is in progress (or finished) the row shows a `Maintenance: <status>` line (e.g. `FRC: warming up (45s/120s)`); the same string is exposed as `maintenance_status` on each sensor object in the Raw Status JSON. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 
 ---
 
@@ -142,7 +142,7 @@ The page currently shows:
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error, cellular reconnect counters, consecutive cellular failures, and PWRKEY cycle count
 - **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
-- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, and `next_retry_ms`.
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, `next_retry_ms`, and `maintenance_status`.
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.
@@ -241,6 +241,7 @@ For single-sensor categories, the "Add sensor" form is hidden if the category al
 - Status block: transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`), poll interval, queued sample count, consecutive failure count, and next retry uptime when backing off; latest reading values
 - Edit form (model selector, poll interval, I2C address selector, UART port selector, or GPIO pin selector)
 - Calibration checkbox, rendered server-side only for sensor types whose descriptor sets `supports_startup_calibration` (currently SCD30, labelled "Automatic self-calibration (ASC)"). It maps to the `startup_calibration` field; the driver applies it on the next `init()`. Unlike the transport selectors this control is not JS-toggled by the model selector — it is only present when the rendered sensor already advertises the capability, so calibration on a freshly added sensor is enabled by saving the sensor first and then ticking the checkbox on its card.
+- "Run on next boot" maintenance-action selector (`maintenance_action`), rendered server-side only for sensor types whose descriptor advertises one-shot maintenance actions (SCD30 → forced recalibration; SPS30 → fan cleaning). It maps to the `pending_maintenance_action` field. The action runs once after the next apply/reboot and is then cleared automatically, so the selector returns to "None"; live progress (e.g. "FRC: warming up (45s/120s)") is shown as a hint beneath the selector. Like the calibration checkbox it is present only when the rendered sensor already advertises the capability. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 - Sensors are always expanded; there is no collapse/expand toggle
 
 **Model selector behaviour** — when the sensor type is changed within a form, JavaScript updates the visible I2C address selector, UART port selector, or GPIO pin selector to match the new sensor's transport type. I2C address, UART port, and GPIO pin options come from the selected sensor descriptor; the current binding is preserved when it is still valid, otherwise the descriptor default or first allowed GPIO pin is selected. The UART selector shows the RX/TX pins for the selected UART port.
@@ -256,6 +257,8 @@ For single-sensor categories, the "Add sensor" form is hidden if the category al
 | `discard` | Resets staged config to last saved config |
 
 Category uniqueness is enforced at stage time — staging a second sensor in a single-sensor category returns an error.
+
+When there are no pending staged changes, `handleSensors()` re-syncs the staged buffer from the live config on each request. This reflects firmware-owned changes the operator did not make — in particular a one-shot maintenance action the sensor manager cleared after it ran — so the "Run on next boot" selector returns to "None" instead of lingering as a stale, re-appliable value. The re-sync is skipped while edits are pending so unsaved selections are preserved.
 
 ---
 

@@ -71,6 +71,19 @@ struct SensorDriverContext {
     UartPortManager* uart_port_manager = nullptr;
 };
 
+// Lifecycle of a one-shot maintenance action driven by a driver's poll() state
+// machine. The manager reads it after each successful poll:
+//   kIdle      - no action armed (default for drivers without actions)
+//   kRunning   - action in progress; keep polling, do not clear it yet
+//   kCompleted - finished successfully; manager clears it from NVS (run-once)
+//   kFailed    - the driver gave up; manager clears it from NVS and logs
+enum class MaintenanceActionState : std::uint8_t {
+    kIdle = 0U,
+    kRunning = 1U,
+    kCompleted = 2U,
+    kFailed = 3U,
+};
+
 class SensorDriver {
   public:
     virtual ~SensorDriver() = default;
@@ -82,6 +95,22 @@ class SensorDriver {
     virtual esp_err_t poll() = 0;
     virtual SensorMeasurement latestMeasurement() const = 0;
     virtual std::string lastError() const { return last_error_; }
+
+    // One-shot maintenance action hooks. Drivers that advertise actions in the
+    // registry arm the pending SensorRecord::pending_maintenance_action inside
+    // init() and advance a non-blocking state machine in poll(). Drivers
+    // without actions inherit the no-op defaults below.
+    //
+    // The manager polls maintenanceActionState() after each successful poll();
+    // on kCompleted/kFailed it clears the action from NVS and calls
+    // acknowledgeMaintenanceAction() so the driver returns to kIdle and does not
+    // re-report. maintenanceStatus() is a short human-readable progress string
+    // surfaced on the web UI ("FRC: warming up (45s/120s)").
+    virtual MaintenanceActionState maintenanceActionState() const {
+        return MaintenanceActionState::kIdle;
+    }
+    virtual std::string maintenanceStatus() const { return {}; }
+    virtual void acknowledgeMaintenanceAction() {}
 
     std::uint32_t softFailCount() const { return soft_fail_policy_.soft_fails; }
 

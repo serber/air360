@@ -50,6 +50,30 @@ enum class SensorRuntimeState : std::uint8_t {
     kFailed = 7U,
 };
 
+// One-shot maintenance actions that can be scheduled against a sensor and run
+// exactly once after the next boot, then cleared from NVS (run-once). The
+// persisted SensorRecord stores the pending kind's underlying value; the driver
+// executes it as a non-blocking state machine in poll() and reports completion
+// so the manager can clear it. Distinct from the persistent
+// startup_calibration/ASC mode. See docs/firmware/sensors/maintenance-actions.md.
+enum class MaintenanceActionKind : std::uint8_t {
+    kNone = 0U,
+    kForcedRecalibration = 1U,  // SCD30: FRC against a fresh-air 400 ppm reference
+    kFanClean = 2U,             // SPS30: ~10 s fan-cleaning blow-out
+};
+
+inline const char* maintenanceActionKey(MaintenanceActionKind kind) {
+    switch (kind) {
+        case MaintenanceActionKind::kForcedRecalibration:
+            return "frc";
+        case MaintenanceActionKind::kFanClean:
+            return "fan_clean";
+        case MaintenanceActionKind::kNone:
+        default:
+            return "none";
+    }
+}
+
 inline const char* transportKindKey(TransportKind kind) {
     switch (kind) {
         case TransportKind::kI2c:

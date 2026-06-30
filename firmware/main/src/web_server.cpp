@@ -169,6 +169,9 @@ struct SensorCardViewModel {
     bool show_calibration = false;
     bool calibration_enabled = false;
     std::string calibration_label;
+    bool show_maintenance_action = false;
+    std::string maintenance_action_options_html;
+    std::string maintenance_status;
 };
 
 enum class SensorCategory : std::uint8_t {
@@ -951,6 +954,32 @@ std::string sensorTypeOptionHtml(const SensorDescriptor& descriptor, bool select
     return html;
 }
 
+// Builds the <option> list for the per-sensor "run on next boot" maintenance
+// action selector: a leading "None" plus one option per advertised action, with
+// the currently-pending action pre-selected.
+std::string maintenanceActionOptionsHtml(
+    const SensorDescriptor& descriptor, std::uint8_t pending_action) {
+    std::string html;
+    html += "<option value='none'";
+    if (pending_action == static_cast<std::uint8_t>(MaintenanceActionKind::kNone)) {
+        html += " selected";
+    }
+    html += ">None</option>";
+    for (std::uint8_t index = 0U; index < descriptor.maintenance_action_count; ++index) {
+        const MaintenanceActionDescriptor& action = descriptor.maintenance_actions[index];
+        html += "<option value='";
+        html += htmlEscape(action.key);
+        html += "'";
+        if (static_cast<std::uint8_t>(action.kind) == pending_action) {
+            html += " selected";
+        }
+        html += ">";
+        html += htmlEscape(action.label);
+        html += "</option>";
+    }
+    return html;
+}
+
 std::string formatStatusTime(std::int64_t unix_ms, std::uint64_t uptime_ms) {
     if (unix_ms > 0) {
         const std::time_t seconds = static_cast<std::time_t>(unix_ms / 1000LL);
@@ -1547,9 +1576,15 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
     runtime_state_chip += htmlEscape(state);
     runtime_state_chip += "</span>";
 
-    // Status block (error + latest reading, shown above form when non-empty)
+    // Status block (maintenance action + error + latest reading, shown above
+    // form when non-empty)
     std::string status_inner;
     status_inner.reserve(256U);
+    if (!card.maintenance_status.empty()) {
+        status_inner += "<p>Maintenance: <code>";
+        status_inner += htmlEscape(card.maintenance_status);
+        status_inner += "</code></p>";
+    }
     if (!card.runtime_error.empty()) {
         status_inner += "<p>Error: <code>";
         status_inner += htmlEscape(card.runtime_error);
@@ -1630,6 +1665,23 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
         calibration_field_block += "</span></label>";
     }
 
+    // One-shot maintenance action selector — only rendered for sensor types whose
+    // descriptor advertises maintenance actions (e.g. SCD30 -> FRC, SP30 -> fan
+    // clean). Runs once on next boot, then clears itself.
+    std::string maintenance_action_field_block;
+    if (card.show_maintenance_action) {
+        maintenance_action_field_block += "<label class='field' style='margin-top:12px'>";
+        maintenance_action_field_block += "<span class='field-label'>Run on next boot</span>";
+        maintenance_action_field_block += "<select class='select' name='maintenance_action'>";
+        maintenance_action_field_block += card.maintenance_action_options_html;
+        maintenance_action_field_block += "</select>";
+        // Live progress is surfaced prominently in the status block above the
+        // form; keep just a static description here.
+        maintenance_action_field_block +=
+            "<span class='field-hint'>Runs once on next boot, then clears.</span>";
+        maintenance_action_field_block += "</label>";
+    }
+
     return renderTemplate(
         WebTemplateKey::kSensorCard,
         WebTemplateBindings{
@@ -1646,6 +1698,7 @@ std::string renderSensorCard(const SensorCardViewModel& card) {
             {"GPIO_FIELD_BLOCK", gpio_field_block},
             {"POLL_INTERVAL_MS", std::to_string(card.poll_interval_ms)},
             {"CALIBRATION_FIELD_BLOCK", calibration_field_block},
+            {"MAINTENANCE_ACTION_FIELD_BLOCK", maintenance_action_field_block},
         });
 }
 
@@ -1905,6 +1958,7 @@ SensorsPageViewModel buildSensorsPageViewModel(
             card.runtime_error = runtime_info->last_error;
             card.failures = runtime_info->failures;
             card.next_retry_ms = runtime_info->next_retry_ms;
+            card.maintenance_status = runtime_info->maintenance_status;
         }
         card.queued_sample_count = measurement_runtime.queued_sample_count;
         if (!measurement_runtime.measurement.empty()) {
@@ -1940,6 +1994,11 @@ SensorsPageViewModel buildSensorsPageViewModel(
                     descriptor->calibration_label != nullptr
                         ? descriptor->calibration_label
                         : "Calibrate at startup";
+            }
+            card.show_maintenance_action = descriptor->maintenance_action_count > 0U;
+            if (card.show_maintenance_action) {
+                card.maintenance_action_options_html =
+                    maintenanceActionOptionsHtml(*descriptor, record.pending_maintenance_action);
             }
         }
         if (card.show_i2c_address_input) {

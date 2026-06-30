@@ -447,9 +447,19 @@ bool validatePmsx003Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+// One-shot maintenance actions advertised per sensor type. Kept as file-scope
+// constexpr arrays so SensorDescriptor only stores a pointer + count.
+constexpr std::array<MaintenanceActionDescriptor, 1U> kScd30MaintenanceActions{{
+    {MaintenanceActionKind::kForcedRecalibration, "frc",
+     "Forced recalibration (FRC) at next boot"},
+}};
+constexpr std::array<MaintenanceActionDescriptor, 1U> kSps30MaintenanceActions{{
+    {MaintenanceActionKind::kFanClean, "fan_clean", "Fan cleaning at next boot"},
+}};
+
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
-// Size computed for ESP32 (32-bit, 4-byte pointers): 25 fields, 68 bytes with padding.
-static_assert(sizeof(SensorDescriptor) == 68U,
+// Size computed for ESP32 (32-bit, 4-byte pointers): 27 fields, 76 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 76U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
 constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
@@ -527,6 +537,8 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateSps30Record,
         .create_driver            = &createSps30Sensor,
+        .maintenance_actions      = kSps30MaintenanceActions.data(),
+        .maintenance_action_count = static_cast<std::uint8_t>(kSps30MaintenanceActions.size()),
     },
     {
         .type                     = SensorType::kScd30,
@@ -554,6 +566,8 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .create_driver            = &createScd30Sensor,
         .supports_startup_calibration = true,
         .calibration_label        = "Automatic self-calibration (ASC)",
+        .maintenance_actions      = kScd30MaintenanceActions.data(),
+        .maintenance_action_count = static_cast<std::uint8_t>(kScd30MaintenanceActions.size()),
     },
     {
         .type                     = SensorType::kVeml7700,
@@ -1018,6 +1032,11 @@ bool SensorRegistry::validateRecord(const SensorRecord& record, std::string& err
     }
 
     if (descriptor->validate != nullptr && !descriptor->validate(record, error)) {
+        return false;
+    }
+
+    if (!sensorSupportsMaintenanceActionValue(*descriptor, record.pending_maintenance_action)) {
+        error = "Selected maintenance action is not supported for this sensor.";
         return false;
     }
 
