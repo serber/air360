@@ -30,6 +30,8 @@ The script creates:
 
 The requested version string such as `v0.1-beta.1` or `v0.1` is used inside `release-notes.md`. File and bundle names are derived from the build commit-style project version from `build/project_description.json`.
 
+`release-notes.md` follows a fixed template: a top-level `# Release Notes` heading, a one-paragraph factual summary, and a `## Highlights` section. Highlights are the non-merge commit subjects between the previous tag and the release ref (the tag matching the build's `project_version` when it exists, otherwise `HEAD`). When the range is empty, the notes read as a stabilization release. The summary states only what is verifiable from git — add any editorial notes (testing duration, sign-off) by hand before publishing.
+
 ## Command
 
 Run from the repository root (`air360/`):
