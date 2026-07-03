@@ -224,6 +224,7 @@ struct SensorRecord {
 | 18 | PPD42NS |
 | 19 | PMSX003 |
 | 20 | OPT3001 |
+| 21 | BMP390 |
 
 ### `TransportKind` enum values
 

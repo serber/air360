@@ -100,6 +100,7 @@ Transport bindings and addresses are canonical in [sensors/supported-sensors.md]
 | [sensors/aht30.md](sensors/aht30.md) | AHT30 | Temperature, humidity |
 | [sensors/bme280.md](sensors/bme280.md) | BME280 | Temperature, humidity, pressure |
 | [sensors/bme680.md](sensors/bme680.md) | BME680 | Temperature, humidity, pressure, gas resistance |
+| [sensors/bmp390.md](sensors/bmp390.md) | BMP390 | Temperature, pressure |
 | [sensors/sps30.md](sensors/sps30.md) | SPS30 | PM1.0–PM10.0, particle number concentrations, typical particle size |
 | [sensors/sds011.md](sensors/sds011.md) | SDS011 | PM2.5, PM10 |
 | [sensors/pmsx003.md](sensors/pmsx003.md) | PMSX003 | PM1.0, PM2.5, PM10, particle counts |

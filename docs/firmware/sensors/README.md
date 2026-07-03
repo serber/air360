@@ -32,6 +32,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [aht30.md](aht30.md) | AHT30 | I2C | Bus 0, `0x38`, SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity |
 | [bme280.md](bme280.md) | BME280 | I2C | Bus 0, `0x76` (alt `0x77`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity, pressure |
 | [bme680.md](bme680.md) | BME680 | I2C | Bus 0, `0x77` (alt `0x76`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity, pressure, gas resistance |
+| [bmp390.md](bmp390.md) | BMP390 | I2C | Bus 0, `0x77` (alt `0x76`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, pressure |
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
 | [sps30.md](sps30.md) | SPS30 | I2C | Bus 0, `0x69`, SDA=`GPIO8`, SCL=`GPIO9` | PM1.0-PM10.0 mass and number concentrations, typical particle size |
 | [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
@@ -102,6 +103,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Accuracy | Humidity `+-3 %RH`; pressure `+-0.6 hPa` absolute / `+-0.12 hPa` relative; temperature `+-0.5 deg C` at `25 deg C`, `+-1.0 deg C` over `0..65 deg C`; gas sensor deviation `+-15 %` |
 | Maximum current | Up to `18 mA` peak when the gas hotplate starts; up to `13 mA` during heater operation |
 | Reference links | [Bosch datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf) |
+
+### BMP390
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Bosch Sensortec |
+| Air360 measurements | Temperature, pressure |
+| Declared service life | Not stated as a numeric lifetime in the public Bosch datasheet; Bosch documents long-term stability instead |
+| Operating temperature | `-40..85 deg C` (`0..65 deg C` full accuracy for pressure) |
+| Supply voltage | `VDD 1.65..3.6 V`, `VDDIO 1.15..3.6 V` |
+| Accuracy | Pressure `+-3 Pa` relative / `+-50 Pa` absolute; temperature `+-0.5 deg C` |
+| Maximum current | `~3.2 uA` at 1 Hz forced-mode sampling; peaks well under `1 mA` during conversion |
+| Reference links | [Bosch datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp390-ds002.pdf) |
 
 ### HTU2X
 

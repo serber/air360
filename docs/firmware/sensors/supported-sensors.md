@@ -29,6 +29,7 @@ This matrix is the **canonical source** for per-sensor transport bindings and al
 | `AHT30` | I2C | Bus 0, address `0x38` | I2C `0x38` | [aht30.md](aht30.md) |
 | `BME280` | I2C | Bus 0, address `0x76` | I2C `0x76`, `0x77` | [bme280.md](bme280.md) |
 | `BME680` | I2C | Bus 0, address `0x77` | I2C `0x76`, `0x77` | [bme680.md](bme680.md) |
+| `BMP390` | I2C | Bus 0, address `0x77` | I2C `0x76`, `0x77` | [bmp390.md](bmp390.md) |
 | `SCD30` | I2C | Bus 0, address `0x61` | I2C `0x61` | [scd30.md](scd30.md) |
 | `SPS30` | I2C | Bus 0, address `0x69` | I2C `0x69` | [sps30.md](sps30.md) |
 | `SDS011` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [sds011.md](sds011.md) |

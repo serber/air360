@@ -8,6 +8,7 @@
 #include "air360/sensors/drivers/aht30_sensor.hpp"
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 #include "air360/sensors/drivers/bme680_sensor.hpp"
+#include "air360/sensors/drivers/bmp390_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
 #include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
@@ -403,6 +404,19 @@ bool validateAht30Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateBmp390Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "BMP390 currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -462,7 +476,7 @@ constexpr std::array<MaintenanceActionDescriptor, 1U> kSps30MaintenanceActions{{
 static_assert(sizeof(SensorDescriptor) == 76U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 21U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -918,6 +932,31 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateAht30Record,
         .create_driver            = &createAht30Sensor,
+    },
+    {
+        .type                     = SensorType::kBmp390,
+        .type_key                 = "bmp390",
+        .display_name             = "BMP390",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x77U,
+        .allowed_i2c_addresses    = {0x76U, 0x77U},
+        .allowed_i2c_address_count = 2U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateBmp390Record,
+        .create_driver            = &createBmp390Sensor,
     },
     {
         .type                     = SensorType::kMe3No2,
