@@ -1,13 +1,13 @@
 ---
 name: air360-firmware-release-bundle
-description: Create a GitHub-release-ready firmware bundle for the Air360 ESP-IDF project from the current `firmware/build` outputs. Use when preparing a beta or stable firmware release and you need a deterministic package under `firmware/release/` with a versioned bundle folder, an uncompressed merged `full` image, `split` images, release-note markdown, and a split zip archive.
+description: Create a GitHub-release-ready firmware bundle for the Air360 ESP-IDF project from the current `firmware/build` outputs. Use when preparing a beta or stable firmware release and you need a deterministic package under `firmware/release/` with a versioned bundle folder, an uncompressed merged `full` image for serial flashing, an `ota` application image for OTA updates, `split` images, release-note markdown, and a split zip archive.
 ---
 
 # Air360 Firmware Release Bundle
 
 ## Overview
 
-Create a deterministic release bundle for the current Air360 firmware build. The skill packages the already-built ESP-IDF artifacts from `firmware/build` into a versioned folder under `firmware/release/`, generates a merged image, copies split images, creates `full/split` zip archives, and writes release notes.
+Create a deterministic release bundle for the current Air360 firmware build. The skill packages the already-built ESP-IDF artifacts from `firmware/build` into a versioned folder under `firmware/release/`: a merged image for serial flashing, the application image for OTA updates, the split images (zipped), and release notes.
 
 ## Workflow
 
@@ -21,7 +21,8 @@ Create a deterministic release bundle for the current Air360 firmware build. The
 The script creates:
 
 - `firmware/release/air360-v<project_version>/`
-- `air360-v194e0b6-esp32s3-16mb-full.bin` — merged single image at the bundle root, shipped uncompressed (already one flashable file)
+- `air360-v194e0b6-esp32s3-16mb-full.bin` — merged single image at the bundle root, shipped uncompressed. **Serial flashing only** (write to `0x0` with esptool). It starts with the bootloader, so it is **not** OTA-flashable — pushing it over OTA fails with `ESP_ERR_OTA_VALIDATE_FAILED`.
+- `air360-v194e0b6-esp32s3-16mb-ota.bin` — the application image only, copied from the build's app artifact. **This is the file to use for OTA updates.**
 - `split/` with `bootloader.bin`, `partition-table.bin`, `ota_data_initial.bin`, `air360_firmware.bin`, and `flash-offsets.txt`
 - `air360-v194e0b6-esp32s3-16mb-split.zip`
 - `release-notes.md`
@@ -55,6 +56,7 @@ Before trusting the bundle, confirm that:
 - `build/project_description.json` exists
 - the four required split binaries exist
 - the merged `-full.bin` was created at the bundle root
+- the `-ota.bin` application image was created at the bundle root
 - the split zip archive was created
 - `release-notes.md` mentions the requested version
 

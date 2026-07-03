@@ -105,6 +105,26 @@ def flash_size_slug(flash_size: str) -> str:
     return flash_size.strip().lower()
 
 
+def resolve_app_image(flasher_args: dict, project_description: dict) -> str:
+    """Return the build-relative path of the application image.
+
+    This is the only OTA-flashable artifact: the merged full image starts with
+    the bootloader at 0x0, so it fails esp_ota validation. Prefer the explicit
+    ``app`` entry in flasher_args.json; fall back to the flash file whose base
+    name matches the project name.
+    """
+    app = flasher_args.get("app")
+    if isinstance(app, dict) and app.get("file"):
+        return app["file"]
+    project_name = project_description.get("project_name")
+    if project_name:
+        candidate = f"{project_name}.bin"
+        for relpath in flasher_args["flash_files"].values():
+            if Path(relpath).name == candidate:
+                return relpath
+    raise SystemExit("Could not identify the application image for OTA in flasher_args.json")
+
+
 def choose_esptool_command() -> list[str]:
     candidates: list[list[str]] = []
 
@@ -285,6 +305,14 @@ def main() -> int:
     merged_bin = bundle_dir / f"{artifact_base}-full.bin"
     split_zip = bundle_dir / f"{artifact_base}-split.zip"
 
+    # The application image is the only OTA-flashable artifact. Copy it to the
+    # bundle root under an explicit -ota name so it is not confused with the
+    # merged -full image (which fails esp_ota validation).
+    app_source = build_dir / resolve_app_image(flasher_args, project_description)
+    require_file(app_source)
+    ota_bin = bundle_dir / f"{artifact_base}-ota.bin"
+    shutil.copy2(app_source, ota_bin)
+
     esptool_command = choose_esptool_command()
     merge_command = esptool_command + [
         "--chip",
@@ -318,6 +346,7 @@ def main() -> int:
 
     checksum_files = [
         merged_bin,
+        ota_bin,
         split_dir / "bootloader.bin",
         split_dir / "partition-table.bin",
         split_dir / "ota_data_initial.bin",
@@ -327,7 +356,8 @@ def main() -> int:
     write_checksums(bundle_dir / "sha256sums.txt", checksum_files, bundle_dir)
 
     print(f"Created release bundle: {bundle_dir}")
-    print(f"Merged image: {merged_bin}")
+    print(f"Merged image (serial flash to 0x0): {merged_bin}")
+    print(f"OTA image (app only): {ota_bin}")
     print(f"Split zip: {split_zip}")
     print(f"Release notes: {bundle_dir / 'release-notes.md'}")
     return 0
