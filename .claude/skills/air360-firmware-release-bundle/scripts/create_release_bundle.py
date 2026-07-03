@@ -259,12 +259,10 @@ def main() -> int:
 
     bundle_prefix = normalize_prefix(project_version)
     bundle_dir = release_root / bundle_prefix
-    full_dir = bundle_dir / "full"
     split_dir = bundle_dir / "split"
 
     if bundle_dir.exists():
         shutil.rmtree(bundle_dir)
-    full_dir.mkdir(parents=True, exist_ok=True)
     split_dir.mkdir(parents=True, exist_ok=True)
 
     for relpath in flash_files.values():
@@ -282,8 +280,9 @@ def main() -> int:
     )
 
     artifact_base = f"{bundle_prefix}-{target}-{flash_size_slug(flash_size)}"
-    merged_bin = full_dir / f"{artifact_base}-full.bin"
-    full_zip = bundle_dir / f"{artifact_base}-full.zip"
+    # The merged full image is a single flashable file, so it ships uncompressed
+    # at the bundle root; only the multi-file split set is zipped.
+    merged_bin = bundle_dir / f"{artifact_base}-full.bin"
     split_zip = bundle_dir / f"{artifact_base}-split.zip"
 
     esptool_command = choose_esptool_command()
@@ -307,7 +306,6 @@ def main() -> int:
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 
-    zip_directory(full_dir, full_zip)
     zip_directory(split_dir, split_zip)
 
     highlights, previous_ref = collect_highlights(repo_root, project_version)
@@ -324,14 +322,12 @@ def main() -> int:
         split_dir / "partition-table.bin",
         split_dir / "ota_data_initial.bin",
         split_dir / "air360_firmware.bin",
-        full_zip,
         split_zip,
     ]
     write_checksums(bundle_dir / "sha256sums.txt", checksum_files, bundle_dir)
 
     print(f"Created release bundle: {bundle_dir}")
     print(f"Merged image: {merged_bin}")
-    print(f"Full zip: {full_zip}")
     print(f"Split zip: {split_zip}")
     print(f"Release notes: {bundle_dir / 'release-notes.md'}")
     return 0

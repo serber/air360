@@ -1,6 +1,6 @@
 ---
 name: air360-firmware-release-bundle
-description: Create a GitHub-release-ready firmware bundle for the Air360 ESP-IDF project from the current `firmware/build` outputs. Use when preparing a beta or stable firmware release and you need a deterministic package under `firmware/release/` with a versioned bundle folder, merged `full` image, `split` images, release-note markdown, and `full/split` zip archives.
+description: Create a GitHub-release-ready firmware bundle for the Air360 ESP-IDF project from the current `firmware/build` outputs. Use when preparing a beta or stable firmware release and you need a deterministic package under `firmware/release/` with a versioned bundle folder, an uncompressed merged `full` image, `split` images, release-note markdown, and a split zip archive.
 ---
 
 # Air360 Firmware Release Bundle
@@ -21,9 +21,8 @@ Create a deterministic release bundle for the current Air360 firmware build. The
 The script creates:
 
 - `firmware/release/air360-v<project_version>/`
-- `full/` with a merged image named like `air360-v194e0b6-esp32s3-16mb-full.bin`
+- `air360-v194e0b6-esp32s3-16mb-full.bin` — merged single image at the bundle root, shipped uncompressed (already one flashable file)
 - `split/` with `bootloader.bin`, `partition-table.bin`, `ota_data_initial.bin`, `air360_firmware.bin`, and `flash-offsets.txt`
-- `air360-v194e0b6-esp32s3-16mb-full.zip`
 - `air360-v194e0b6-esp32s3-16mb-split.zip`
 - `release-notes.md`
 - `sha256sums.txt`
@@ -55,7 +54,8 @@ Before trusting the bundle, confirm that:
 - `build/flasher_args.json` exists
 - `build/project_description.json` exists
 - the four required split binaries exist
-- both zip archives were created
+- the merged `-full.bin` was created at the bundle root
+- the split zip archive was created
 - `release-notes.md` mentions the requested version
 
 ## scripts/
