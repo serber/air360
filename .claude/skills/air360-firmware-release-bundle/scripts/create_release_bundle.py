@@ -55,6 +55,43 @@ def require_file(path: Path) -> None:
         raise SystemExit(f"Required file not found: {path}")
 
 
+def git_output(repo_root: Path, args: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def collect_highlights(repo_root: Path, project_version: str) -> tuple[list[str], str | None]:
+    """Return (highlights, previous_ref) from commit history.
+
+    Highlights are the non-merge commit subjects between the previous tag and the
+    release ref. The release ref is the tag matching project_version when it
+    exists (so notes are stable regardless of the current checkout), otherwise
+    HEAD.
+    """
+    tagged = git_output(
+        repo_root, ["rev-parse", "--verify", "--quiet", f"refs/tags/{project_version}"]
+    )
+    current_ref = project_version if tagged else "HEAD"
+    previous_ref = git_output(repo_root, ["describe", "--tags", "--abbrev=0", f"{current_ref}^"])
+    rev_range = f"{previous_ref}..{current_ref}" if previous_ref else current_ref
+    log = git_output(repo_root, ["log", "--no-merges", "--pretty=%s", rev_range])
+    if not log:
+        return [], previous_ref
+    highlights = [line.strip() for line in log.splitlines() if line.strip()]
+    return highlights, previous_ref
+
+
 def normalize_prefix(project_version: str) -> str:
     version = project_version.strip()
     if not version:
@@ -152,68 +189,47 @@ def write_checksums(path: Path, files: Iterable[Path], bundle_dir: Path) -> None
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def format_highlights(highlights: list[str]) -> str:
+    if not highlights:
+        return "- No functional code changes - this is a stabilization release."
+    return "\n".join(f"- {item}" for item in highlights)
+
+
+def build_summary(requested_version: str, highlights: list[str], previous_ref: str | None) -> str:
+    """A one-paragraph factual intro. Adapts to whether the release has changes.
+
+    Kept intentionally neutral: it states what is verifiable from git and leaves
+    editorial claims (test duration, sign-off) for a human to add.
+    """
+    if not highlights:
+        if previous_ref:
+            return (
+                f"This release promotes `{previous_ref}` to `{requested_version}` with no "
+                f"functional firmware changes: it is the same firmware, published as a "
+                f"stable release."
+            )
+        return f"This release publishes Air360 firmware `{requested_version}`."
+    change_word = "change" if len(highlights) == 1 else "changes"
+    since = f" since `{previous_ref}`" if previous_ref else ""
+    return (
+        f"This release publishes Air360 firmware `{requested_version}`, bundling "
+        f"{len(highlights)} {change_word}{since}. See the highlights below."
+    )
+
+
 def write_release_notes(
     path: Path,
     requested_version: str,
-    bundle_prefix: str,
-    target: str,
-    flash_size: str,
-    full_zip: Path,
-    split_zip: Path,
+    highlights: list[str],
+    previous_ref: str | None,
 ) -> None:
-    notes = f"""## Air360 Firmware {requested_version}
+    notes = f"""# Release Notes
 
-Pre-release firmware build for Air360 on {target.upper()}.
+{build_summary(requested_version, highlights, previous_ref)}
 
-### Status
+## Highlights
 
-This bundle was generated from the current local firmware build.
-Use it for GitHub Release publication and real-device testing.
-
-### Hardware Target
-
-- {target.upper()}
-- {flash_size} flash
-
-### Recommended Asset
-
-For most users, upload and recommend:
-
-- `{full_zip.name}`
-
-Advanced/manual flashing bundle:
-
-- `{split_zip.name}`
-
-### Bundle Prefix
-
-- `{bundle_prefix}`
-
-### Included Sensor Support
-
-- Climate: `BME280`, `BME680`
-- Temperature / Humidity: `DHT11`, `DHT22`
-- Air Quality: `ENS160`
-- Particulate Matter: `SPS30`
-- Location: `GPS (NMEA)`
-- Gas: `ME3-NO2`
-
-### Known Limitations
-
-- beta quality; behavior may still change
-- no OTA update flow yet
-- local auth is not enabled yet
-- sensor changes still require `Apply and reboot`
-
-### Feedback
-
-When reporting issues, include:
-
-- connected sensors
-- backend used
-- `/status` output
-- `boot_count`
-- `reset_reason` and `reset_reason_label`
+{format_highlights(highlights)}
 """
     path.write_text(notes, encoding="utf-8")
 
@@ -294,14 +310,12 @@ def main() -> int:
     zip_directory(full_dir, full_zip)
     zip_directory(split_dir, split_zip)
 
+    highlights, previous_ref = collect_highlights(repo_root, project_version)
     write_release_notes(
         bundle_dir / "release-notes.md",
         requested_version=args.requested_version,
-        bundle_prefix=bundle_prefix,
-        target=target,
-        flash_size=flash_size,
-        full_zip=full_zip,
-        split_zip=split_zip,
+        highlights=highlights,
+        previous_ref=previous_ref,
     )
 
     checksum_files = [
