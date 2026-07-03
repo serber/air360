@@ -97,6 +97,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 |-------------|-----------|-------|---------------------------|
 | BME280 | I2C | 11 | Sent as climate data |
 | BME680 | I2C | 11 | Sent as climate data; gas resistance is skipped |
+| BMP390 | I2C | 11 | Sent as temperature + pressure |
 | SHT3X | I2C | 7 | Sent as temperature + humidity |
 | SHT4X | I2C | 7 | Sent as temperature + humidity |
 | HTU2X | I2C | 7 | Sent as temperature + humidity |
@@ -119,7 +120,7 @@ Sensors not in this table produce no request. If the batch contains only unsuppo
 
 Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordatavalues` array:
 
-**BME280 / BME680 (pin 11):**
+**BME280 / BME680 / BMP390 (pin 11):**
 
 | ValueKind | value_type |
 |-----------|-----------|
@@ -127,6 +128,8 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 | `kPressureHpa` | `"pressure"` |
 | `kHumidityPercent` | `"humidity"` |
 | `kGasResistanceOhms` | skipped |
+
+BMP390 has no humidity or gas channel, so it emits only `temperature` and `pressure`.
 
 **DHT11 / DHT22 (pin 7):**
 

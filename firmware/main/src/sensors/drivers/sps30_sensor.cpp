@@ -23,6 +23,14 @@ constexpr char kTag[] = "air360.sensor.sps30";
 // SPS30 runs happily on standard-mode I2C; 100 kHz matches the vendor examples
 // and keeps the shared bus conservative for mixed-sensor deployments.
 constexpr std::uint32_t kSps30I2cSpeedHz = 100000U;
+// The fan-cleaning blow-out runs autonomously for ~10 s; we wait a little longer
+// before declaring the one-shot maintenance action complete so the fan has spun
+// back down before normal measurements are trusted again.
+constexpr std::uint64_t kFanCleanDurationMs = 12'000U;
+
+std::uint64_t nowMilliseconds() {
+    return static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
+}
 
 esp_err_t mapResultToEspErr(std::int16_t result) {
     switch (result) {
@@ -69,6 +77,8 @@ void Sps30Sensor::teardown() {
     }
     initialized_ = false;
     soft_fail_policy_.onPollOk();
+    fan_clean_state_ = MaintenanceActionState::kIdle;
+    fan_clean_issued_ = false;
 }
 
 SensorType Sps30Sensor::type() const {
@@ -119,6 +129,23 @@ esp_err_t Sps30Sensor::init(
         if (start_err != ESP_OK) {
             return start_err;
         }
+    }
+
+    // Arm (or disarm) the fan-cleaning one-shot maintenance action. Re-arming on
+    // every init keeps run-once at-least-once semantics across a mid-action
+    // reboot until the manager clears the pending action.
+    const bool fan_clean_armed =
+        record_.pending_maintenance_action ==
+        static_cast<std::uint8_t>(MaintenanceActionKind::kFanClean);
+    if (fan_clean_armed) {
+        fan_clean_state_ = MaintenanceActionState::kRunning;
+        fan_clean_issued_ = false;
+        fan_clean_started_ms_ = 0U;
+        fan_clean_status_ = "Fan cleaning: queued";
+        ESP_LOGI(kTag, "SPS30 fan cleaning armed; will run once after first poll");
+    } else {
+        fan_clean_state_ = MaintenanceActionState::kIdle;
+        fan_clean_status_.clear();
     }
 
     initialized_ = true;
@@ -176,11 +203,57 @@ esp_err_t Sps30Sensor::poll() {
     measurement_.addValue(SensorValueKind::kNc10_0PerCm3, nc_10p0);
     measurement_.addValue(SensorValueKind::kTypicalParticleSizeUm, typical_particle_size);
     notePollSuccess();
+    stepFanCleaning();
     return ESP_OK;
+}
+
+void Sps30Sensor::stepFanCleaning() {
+    if (fan_clean_state_ != MaintenanceActionState::kRunning) {
+        return;
+    }
+
+    if (!fan_clean_issued_) {
+        const std::int16_t result = [&]() {
+            SensirionI2cContextGuard hal_guard(&device_);
+            return sps30_start_fan_cleaning();
+        }();
+        if (result != NO_ERROR) {
+            fan_clean_state_ = MaintenanceActionState::kFailed;
+            fan_clean_status_ =
+                std::string("Fan cleaning failed: ") + describeResult(result);
+            ESP_LOGW(kTag, "SPS30 fan cleaning command failed: %s", describeResult(result).c_str());
+            return;
+        }
+        fan_clean_issued_ = true;
+        fan_clean_started_ms_ = nowMilliseconds();
+        fan_clean_status_ = "Fan cleaning: running";
+        ESP_LOGI(kTag, "SPS30 fan cleaning started");
+        return;
+    }
+
+    if (nowMilliseconds() - fan_clean_started_ms_ >= kFanCleanDurationMs) {
+        fan_clean_state_ = MaintenanceActionState::kCompleted;
+        fan_clean_status_ = "Fan cleaning complete";
+        ESP_LOGI(kTag, "SPS30 fan cleaning complete");
+    }
 }
 
 SensorMeasurement Sps30Sensor::latestMeasurement() const {
     return measurement_;
+}
+
+MaintenanceActionState Sps30Sensor::maintenanceActionState() const {
+    return fan_clean_state_;
+}
+
+std::string Sps30Sensor::maintenanceStatus() const {
+    return fan_clean_status_;
+}
+
+void Sps30Sensor::acknowledgeMaintenanceAction() {
+    // Manager has recorded the result and cleared the pending action from NVS;
+    // return to idle so it is not re-reported. Keep the status string for the UI.
+    fan_clean_state_ = MaintenanceActionState::kIdle;
 }
 
 esp_err_t Sps30Sensor::startMeasurement() {

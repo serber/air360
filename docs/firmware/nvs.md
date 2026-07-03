@@ -8,6 +8,8 @@ Implemented. Keep this document aligned with the current NVS blob layouts and ke
 
 This document explains the persistent storage schema used by the firmware, including namespaces, keys, blob layouts, schema guards, and reset behavior.
 
+This is the **binary-layout** view of persisted config. For field-level semantics, defaults, ranges, and save-time validation of the same structs, see [configuration-reference.md](configuration-reference.md); field tables here are intentionally limited to byte layout and schema guards to avoid duplicating those rules.
+
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`
@@ -181,16 +183,21 @@ struct SensorRecord {
     uint8_t      i2c_bus_id;       // always 0 in current hardware
     uint8_t      i2c_address;      // 7-bit I2C address
     uint8_t      uart_port_id;     // UART_NUM_1 or UART_NUM_2
-    uint8_t      reserved0;
+    uint8_t      startup_calibration; // was reserved0; 0/1, driver-defined startup calibration (SCD30: ASC)
     int16_t      analog_gpio_pin;  // -1 if unused
     int16_t      uart_rx_gpio_pin; // -1 if unused
     int16_t      uart_tx_gpio_pin; // -1 if unused
     uint32_t     uart_baud_rate;   // 1200–115200
-    uint8_t      reserved1[12];
+    uint8_t      pending_maintenance_action; // MaintenanceActionKind; 0=none, run-once
+    uint8_t      reserved1[11];
 };
 ```
 
 `analog_gpio_pin` stores the selected GPIO for GPIO-backed and analog-backed sensors. The allowed values are not Kconfig fields; they come from the selected sensor descriptor's `allowed_gpio_pins` list.
+
+`startup_calibration` reuses the former `reserved0` byte, so `record_size` and the schema version are unchanged and previously stored configs load unmodified (the byte was zero, i.e. calibration off). The field is a generic, driver-interpreted flag: a sensor driver acts on it inside `init()` only when its descriptor sets `supports_startup_calibration`. For SCD30 it enables/disables automatic self-calibration (ASC). Drivers must treat the action as idempotent because `init()` can run on every boot and on re-init.
+
+`pending_maintenance_action` carves one byte out of the former `reserved1` padding (now `reserved1[11]`), so `record_size` and the schema version are again unchanged and older configs load with the byte zero (no action). It holds a `MaintenanceActionKind` value (`0` = none) describing a **one-shot** action to run after the next boot — distinct from the persistent `startup_calibration` mode. A driver arms it in `init()` when its descriptor advertises the action, executes it as a non-blocking state machine in `poll()`, and on completion `SensorManager` clears the byte back to `0` and re-saves the config, so it runs only once. A mid-action reboot re-runs it (at-least-once). See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 
 ### `SensorType` enum values
 
@@ -217,6 +224,7 @@ struct SensorRecord {
 | 18 | PPD42NS |
 | 19 | PMSX003 |
 | 20 | OPT3001 |
+| 21 | BMP390 |
 
 ### `TransportKind` enum values
 

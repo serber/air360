@@ -22,12 +22,17 @@ struct SensorRecord {
     std::uint8_t i2c_bus_id = 0U;
     std::uint8_t i2c_address = 0x00U;
     std::uint8_t uart_port_id = 1U;
-    std::uint8_t reserved0 = 0U;
+    std::uint8_t startup_calibration = 0U;  // was reserved0; 1=run driver startup calibration (SCD30: ASC)
     std::int16_t analog_gpio_pin = -1;
     std::int16_t uart_rx_gpio_pin = -1;
     std::int16_t uart_tx_gpio_pin = -1;
     std::uint32_t uart_baud_rate = 9600U;
-    std::uint8_t reserved1[12]{};
+    // Pending one-shot MaintenanceActionKind (underlying value); 0 = none. Run
+    // once after boot, then cleared back to 0 by SensorManager. Carved out of
+    // the former reserved1 padding, so sizeof(SensorRecord) and record_size are
+    // unchanged and no schema bump is needed.
+    std::uint8_t pending_maintenance_action = 0U;
+    std::uint8_t reserved1[11]{};
 };
 
 struct SensorConfigList {

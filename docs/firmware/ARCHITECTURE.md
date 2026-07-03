@@ -143,11 +143,23 @@ Modules are not event-driven at the application layer. Inter-module communicatio
 
 ### `App` — `app.cpp` / `app_main.cpp`
 
-Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, the 10-second maintenance loop, and the long-lived runtime graph as explicit fields. The single `App` instance is static in `app_main()`, keeping managers out of the 8 KB main task stack without hiding ownership in function-local statics.
+Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdog, the 10-second maintenance loop, and the `OtaService`. The long-lived subsystem graph is not owned directly by `App` but grouped under three boot-time facades — `PlatformLayer`, `NetworkLayer`, and `DataLayer` — which `App` owns as explicit fields. The single `App` instance is static in `app_main()`, keeping managers out of the 8 KB main task stack without hiding ownership in function-local statics.
 
 `App` is non-copyable/non-movable. Manager classes that own RTOS handles, callbacks, mutexes, or shared runtime state are also non-copyable/non-movable.
 
 **Log tag:** `air360.app`
+
+---
+
+### Boot-time facades — `platform/platform_layer.cpp`, `network/network_layer.cpp`, `data/data_layer.cpp`
+
+`App::run()` delegates each boot step to one of three layered facades that group the long-lived runtime objects by concern. They are booted in dependency order — `PlatformLayer` first (nothing depends on networking or sensors), then `NetworkLayer`, then `DataLayer` — and each higher layer reads from the lower ones. See the [startup sequence](#startup-sequence) table for which boot step each facade method handles.
+
+- **`PlatformLayer`** — owns identity and persistent device-level configuration: `BuildInfo`, `ConfigRepository` + `DeviceConfig`, and `Air360ApiCredentialRepository`. Boot step 4.
+- **`NetworkLayer`** — owns the uplink: `NetworkManager`, `CellularManager` + `CellularConfigRepository`, and the Wi-Fi debug-window timer. Boot steps 4b (cellular) and 7 (Wi-Fi/network-mode resolution). Layered above `PlatformLayer`, below `DataLayer`.
+- **`DataLayer`** — owns everything that produces or consumes measurements: the sensor pipeline (`SensorManager` etc.), `MeasurementStore`, the BLE advertiser, backend config, and `UploadManager`. Boot steps 5 (sensors + BLE), 6 (backend config), and 8 (uploads). Layered above both `PlatformLayer` and `NetworkLayer`.
+
+The individual managers each facade owns are documented in their own sections below.
 
 ---
 
@@ -624,10 +636,17 @@ Supported sensor types: BME280, BME680, DHT11/22, DS18B20, GPS, SPS30, SDS011, P
 HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 
 **esp_http_server configuration:**
-- Stack size: 10 KB
-- Max URI handlers: 14
+- Stack size: 16 KB (`kHttpdStackBytes`)
+- Max URI handlers: 24 (`kHttpServerMaxUriHandlers`)
 
-`web_server.cpp` owns `esp_http_server` startup, URI registration, and page rendering helpers. `main/src/web/web_runtime_routes.cpp` owns read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `/wifi-scan`, `/check-sntp`). `main/src/web/web_mutating_routes.cpp` owns config, sensor, and backend persistence/runtime-apply handlers. `main/src/web/web_server_helpers.cpp` contains shared form decoding, request-body limit handling, and chunked HTML response helpers.
+`web_server.cpp` owns `esp_http_server` startup, URI registration, and page rendering helpers. The route handlers are decomposed under `main/src/web/`:
+
+- `web_runtime_routes.cpp` — read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/api/gps-location`, `/assets/*`, `/favicon.ico`, `/wifi-scan`, `/check-sntp`).
+- `web_mutating_routes.cpp` — config, sensor, and backend persistence/runtime-apply handlers (`/config`, `/sensors`, `/backends`, `/backends/air360-upload-secret`), plus the deferred reboot task.
+- `web_ota_routes.cpp` — OTA upload, status, and rollback endpoints (see [OTA](ota.md)).
+- `web_form.cpp` — host-testable URL/form decoding.
+- `web_request_body.cpp` — `readRequestBodyWithRetries`, the size-limited request-body reader used by mutating handlers.
+- `web_server_helpers.cpp` — shared chunked HTML response helpers and other HTTP request/response support.
 
 **Registered routes:**
 
@@ -636,17 +655,23 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 | `GET /` | Overview page (HTML) |
 | `GET /diagnostics` | Diagnostics page (HTML with raw status JSON dump) |
 | `GET /logs/data` | Plain-text in-memory log buffer for the diagnostics page |
+| `GET /api/gps-location` | JSON latest GPS fix for the overview map |
 | `GET /config` | Device config page (HTML) |
 | `POST /config` | Save device and cellular config |
 | `GET /sensors` | Sensor management page (HTML) |
 | `POST /sensors` | Stage or apply sensor config |
 | `GET /backends` | Backend management page (HTML) |
 | `POST /backends` | Save backend config |
+| `POST /backends/air360-upload-secret` | Reset/restore the Air360 API upload secret |
+| `POST /ota` | Stream a firmware image to the next OTA slot |
+| `GET /ota/status` | JSON OTA progress/state snapshot |
+| `POST /ota/rollback` | Roll back to the previous OTA slot (requires `?confirm=yes`) |
 | `GET /wifi-scan` | JSON list of scanned SSIDs |
 | `POST /check-sntp` | JSON reachability check for the configured SNTP server |
 | `GET /assets/*` | Embedded CSS/JS assets |
+| `GET /favicon.ico` | Favicon |
 
-In **setup AP mode**: `/`, `/sensors`, and `/backends` redirect to `/config`. Navigation is restricted to the device section.
+The full route reference with request/response bodies lives in [web-ui.md](web-ui.md). In **setup AP mode**: `/`, `/sensors`, and `/backends` redirect to `/config`. Navigation is restricted to the device section.
 
 Sensor edits are staged in memory until the user explicitly clicks **Apply now**, which persists the staged list and rebuilds the sensor runtime without rebooting. Backend changes are persisted immediately.
 

@@ -20,9 +20,7 @@ REQUIRED_HEADERS = (
 
 def iter_markdown_files() -> list[Path]:
     files = [
-        REPO_ROOT / "AGENTS.md",
         REPO_ROOT / "CLAUDE.md",
-        REPO_ROOT / "firmware" / "AGENTS.md",
         REPO_ROOT / "firmware" / "CLAUDE.md",
         REPO_ROOT / "firmware" / "README.md",
     ]

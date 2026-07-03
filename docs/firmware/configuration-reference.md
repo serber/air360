@@ -8,6 +8,8 @@ Implemented. Keep this reference aligned with the current persisted config model
 
 This is the field-level reference for editable firmware configuration across device, sensor, backend, and cellular domains.
 
+This is the **semantics** view: defaults, ranges, and save-time validation. For the on-NVS binary layout, byte offsets, and schema-version guards of the same structs, see [nvs.md](nvs.md). The two are intentionally split to keep validation rules in one place and storage layout in the other.
+
 ## Source of truth in code
 
 - `firmware/main/src/config_repository.cpp`
@@ -215,31 +217,21 @@ The default sensor list is **empty** — no sensors are pre-configured at first 
 | `uart_tx_gpio_pin` | `int16_t` | Selected UART binding | UART sensors only; must match the selected UART port binding |
 | `uart_baud_rate` | `uint32_t` | `9600` | UART sensors: 1 200–115 200 |
 | `analog_gpio_pin` | `int16_t` | First descriptor allowed pin | GPIO/analog sensors only; must be one of the descriptor's allowed GPIO pins |
+| `startup_calibration` | `uint8_t` | `0` | 0 or 1; only meaningful for sensor types whose descriptor sets `supports_startup_calibration` (currently SCD30, where it toggles ASC). Reuses the former `reserved0` byte. |
+| `pending_maintenance_action` | `uint8_t` | `0` | `MaintenanceActionKind` (0=none); a one-shot action run once after the next boot, then cleared. Validated against the sensor's advertised actions (SCD30: FRC; SPS30: fan clean). Carved from the former `reserved1` padding. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md). |
 
 ### Per-sensor constraints
 
-| Sensor | Transport | Default binding | Allowed addresses / pins | Min poll interval | Notes |
-|--------|-----------|-----------------|--------------------------|------------------|-------|
-| AHT30 | I2C | Bus 0, `0x38` | `0x38` | 30 000 ms | Fixed address, no hardware selection |
-| BME280 | I2C | Bus 0, `0x76` | `0x76`, `0x77` | 30 000 ms | — |
-| BME680 | I2C | Bus 0, `0x77` | `0x76`, `0x77` | 30 000 ms | — |
-| SPS30 | I2C | Bus 0, `0x69` | `0x69` | 30 000 ms | — |
-| SCD30 | I2C | Bus 0, `0x61` | `0x61` | 30 000 ms | — |
-| VEML7700 | I2C | Bus 0, `0x10` | `0x10` | 30 000 ms | — |
-| OPT3001 | I2C | Bus 0, `0x44` | `0x44`, `0x45`, `0x46`, `0x47` | 30 000 ms | ADDR strap selects address |
-| HTU2X | I2C | Bus 0, `0x40` | `0x40` | 30 000 ms | — |
-| SHT3X | I2C | Bus 0, `0x44` | `0x44`, `0x45` | 30 000 ms | — |
-| SHT4X | I2C | Bus 0, `0x44` | `0x44` | 30 000 ms | — |
-| GPS (NMEA) | UART | UART1, RX=GPIO18, TX=GPIO17 | UART1 or UART2 | 30 000 ms | UART2 maps to RX=GPIO16, TX=GPIO15 |
-| SDS011 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
-| PMSX003 | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
-| PPD42NS | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | Use P1 through a 3.3 V-safe level shifter or divider |
-| DHT11 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
-| DHT22 | GPIO | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
-| DS18B20 | GPIO (1-Wire) | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | One device per pin only |
-| ME3-NO2 | Analog | First allowed pin, currently GPIO4 | GPIO4, GPIO5, GPIO6 | 30 000 ms | — |
-| INA219 | I2C | Bus 0, `0x40` | `0x40`, `0x41`, `0x44`, `0x45` | 30 000 ms | — |
-| MH-Z19B | UART | UART2, RX=GPIO16, TX=GPIO15 | UART1 or UART2 | 30 000 ms | Baud rate must be 9600 |
+Per-sensor transport bindings and allowed addresses/pins are canonical in [sensors/supported-sensors.md](sensors/supported-sensors.md#current-support-matrix) and are not repeated here. The minimum poll interval is `30000 ms` for every sensor (see the common rule below). This table lists only the **sensor-specific validation or behavior notes** that go beyond the binding matrix:
+
+| Sensor | Sensor-specific note |
+|--------|----------------------|
+| SCD30 | `startup_calibration` toggles automatic self-calibration (ASC); `pending_maintenance_action` can schedule a one-shot forced recalibration (FRC) for the next boot |
+| SPS30 | `pending_maintenance_action` can schedule a one-shot fan cleaning for the next boot |
+| SDS011 | Baud rate must be 9600 |
+| PMSX003 | Baud rate must be 9600 |
+| MH-Z19B | Baud rate must be 9600 |
+| DS18B20 | One device per GPIO pin only |
 
 The common validation rule `poll_interval_ms ∈ [30000, 1800000]` applies to all sensors. Stored configs outside this range are invalid. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
 

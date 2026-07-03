@@ -31,6 +31,7 @@ bool mapMeasurement(
     switch (point.sensor_type) {
         case SensorType::kBme280:
         case SensorType::kBme680:
+        case SensorType::kBmp390:
             out_pin = 11U;
             switch (point.value_kind) {
                 case SensorValueKind::kTemperatureC:

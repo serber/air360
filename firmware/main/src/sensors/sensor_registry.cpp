@@ -8,6 +8,7 @@
 #include "air360/sensors/drivers/aht30_sensor.hpp"
 #include "air360/sensors/drivers/bme280_sensor.hpp"
 #include "air360/sensors/drivers/bme680_sensor.hpp"
+#include "air360/sensors/drivers/bmp390_sensor.hpp"
 #include "air360/sensors/drivers/dht_sensor.hpp"
 #include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
@@ -403,6 +404,19 @@ bool validateAht30Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateBmp390Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "BMP390 currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -447,12 +461,22 @@ bool validatePmsx003Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+// One-shot maintenance actions advertised per sensor type. Kept as file-scope
+// constexpr arrays so SensorDescriptor only stores a pointer + count.
+constexpr std::array<MaintenanceActionDescriptor, 1U> kScd30MaintenanceActions{{
+    {MaintenanceActionKind::kForcedRecalibration, "frc",
+     "Forced recalibration (FRC) at next boot"},
+}};
+constexpr std::array<MaintenanceActionDescriptor, 1U> kSps30MaintenanceActions{{
+    {MaintenanceActionKind::kFanClean, "fan_clean", "Fan cleaning at next boot"},
+}};
+
 // Guard: fails if SensorDescriptor gains or loses fields, forcing registry updates.
-// Size computed for ESP32 (32-bit, 4-byte pointers): 23 fields, 60 bytes with padding.
-static_assert(sizeof(SensorDescriptor) == 60U,
+// Size computed for ESP32 (32-bit, 4-byte pointers): 27 fields, 76 bytes with padding.
+static_assert(sizeof(SensorDescriptor) == 76U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 21U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -527,6 +551,8 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateSps30Record,
         .create_driver            = &createSps30Sensor,
+        .maintenance_actions      = kSps30MaintenanceActions.data(),
+        .maintenance_action_count = static_cast<std::uint8_t>(kSps30MaintenanceActions.size()),
     },
     {
         .type                     = SensorType::kScd30,
@@ -552,6 +578,10 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateScd30Record,
         .create_driver            = &createScd30Sensor,
+        .supports_startup_calibration = true,
+        .calibration_label        = "Automatic self-calibration (ASC)",
+        .maintenance_actions      = kScd30MaintenanceActions.data(),
+        .maintenance_action_count = static_cast<std::uint8_t>(kScd30MaintenanceActions.size()),
     },
     {
         .type                     = SensorType::kVeml7700,
@@ -904,6 +934,31 @@ constexpr std::array<SensorDescriptor, 20U> kDescriptors{{
         .create_driver            = &createAht30Sensor,
     },
     {
+        .type                     = SensorType::kBmp390,
+        .type_key                 = "bmp390",
+        .display_name             = "BMP390",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x77U,
+        .allowed_i2c_addresses    = {0x76U, 0x77U},
+        .allowed_i2c_address_count = 2U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateBmp390Record,
+        .create_driver            = &createBmp390Sensor,
+    },
+    {
         .type                     = SensorType::kMe3No2,
         .type_key                 = "me3_no2",
         .display_name             = "ME3-NO2",
@@ -1016,6 +1071,11 @@ bool SensorRegistry::validateRecord(const SensorRecord& record, std::string& err
     }
 
     if (descriptor->validate != nullptr && !descriptor->validate(record, error)) {
+        return false;
+    }
+
+    if (!sensorSupportsMaintenanceActionValue(*descriptor, record.pending_maintenance_action)) {
+        error = "Selected maintenance action is not supported for this sensor.";
         return false;
     }
 

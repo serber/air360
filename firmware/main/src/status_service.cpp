@@ -1048,6 +1048,11 @@ std::string renderSensorOverviewBlock(
         // Error / diagnostic block
         std::string last_error_block;
         last_error_block.reserve(256U);
+        if (!sensor.maintenance_status.empty()) {
+            last_error_block += "<p class='muted'>Maintenance: ";
+            last_error_block += htmlEscape(sensor.maintenance_status);
+            last_error_block += "</p>";
+        }
         if (!sensor.last_error.empty()) {
             last_error_block += "<p class='muted'>";
             last_error_block += htmlEscape(sensor.last_error);
@@ -1602,6 +1607,7 @@ std::string buildStatusJsonDocument(
         json += ",\"illuminance_lux\":";
         json += jsonNumberOrNull(runtime.measurement, SensorValueKind::kIlluminanceLux);
         json += ",";
+        json += "\"maintenance_status\":\"" + jsonEscape(sensor.maintenance_status) + "\",";
         json += "\"last_error\":\"" + jsonEscape(sensor.last_error) + "\"";
         json += "}";
     }

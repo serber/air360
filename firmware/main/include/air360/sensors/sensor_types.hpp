@@ -29,6 +29,7 @@ enum class SensorType : std::uint8_t {
     kPpd42ns = 18U,
     kPmsx003 = 19U,
     kOpt3001 = 20U,
+    kBmp390 = 21U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -49,6 +50,30 @@ enum class SensorRuntimeState : std::uint8_t {
     kError = 6U,
     kFailed = 7U,
 };
+
+// One-shot maintenance actions that can be scheduled against a sensor and run
+// exactly once after the next boot, then cleared from NVS (run-once). The
+// persisted SensorRecord stores the pending kind's underlying value; the driver
+// executes it as a non-blocking state machine in poll() and reports completion
+// so the manager can clear it. Distinct from the persistent
+// startup_calibration/ASC mode. See docs/firmware/sensors/maintenance-actions.md.
+enum class MaintenanceActionKind : std::uint8_t {
+    kNone = 0U,
+    kForcedRecalibration = 1U,  // SCD30: FRC against a fresh-air 400 ppm reference
+    kFanClean = 2U,             // SPS30: ~10 s fan-cleaning blow-out
+};
+
+inline const char* maintenanceActionKey(MaintenanceActionKind kind) {
+    switch (kind) {
+        case MaintenanceActionKind::kForcedRecalibration:
+            return "frc";
+        case MaintenanceActionKind::kFanClean:
+            return "fan_clean";
+        case MaintenanceActionKind::kNone:
+        default:
+            return "none";
+    }
+}
 
 inline const char* transportKindKey(TransportKind kind) {
     switch (kind) {
@@ -401,6 +426,7 @@ inline const char* sensorTypeKey(SensorType type) {
         case SensorType::kPpd42ns:  return "ppd42ns";
         case SensorType::kPmsx003:  return "pmsx003";
         case SensorType::kOpt3001:  return "opt3001";
+        case SensorType::kBmp390:   return "bmp390";
         case SensorType::kUnknown:
         default:                    return "unknown";
     }
