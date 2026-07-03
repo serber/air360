@@ -105,6 +105,26 @@ def flash_size_slug(flash_size: str) -> str:
     return flash_size.strip().lower()
 
 
+def resolve_app_image(flasher_args: dict, project_description: dict) -> str:
+    """Return the build-relative path of the application image.
+
+    This is the only OTA-flashable artifact: the merged full image starts with
+    the bootloader at 0x0, so it fails esp_ota validation. Prefer the explicit
+    ``app`` entry in flasher_args.json; fall back to the flash file whose base
+    name matches the project name.
+    """
+    app = flasher_args.get("app")
+    if isinstance(app, dict) and app.get("file"):
+        return app["file"]
+    project_name = project_description.get("project_name")
+    if project_name:
+        candidate = f"{project_name}.bin"
+        for relpath in flasher_args["flash_files"].values():
+            if Path(relpath).name == candidate:
+                return relpath
+    raise SystemExit("Could not identify the application image for OTA in flasher_args.json")
+
+
 def choose_esptool_command() -> list[str]:
     candidates: list[list[str]] = []
 
@@ -230,6 +250,14 @@ def write_release_notes(
 ## Highlights
 
 {format_highlights(highlights)}
+
+## Flashing
+
+Pick the asset that matches how you flash:
+
+- **`*-full.bin`** — complete image (bootloader + partition table + app). Flash to offset `0x0` over USB/serial with esptool. Do **not** use this for OTA: it starts with the bootloader, so an OTA update fails with `ESP_ERR_OTA_VALIDATE_FAILED`.
+- **`*-ota.bin`** — application image only. Use this for over-the-air (OTA) updates.
+- **`*-split.zip`** — the individual bootloader / partition-table / ota_data / app binaries with their flash offsets, for manual or advanced serial flashing.
 """
     path.write_text(notes, encoding="utf-8")
 
@@ -259,12 +287,10 @@ def main() -> int:
 
     bundle_prefix = normalize_prefix(project_version)
     bundle_dir = release_root / bundle_prefix
-    full_dir = bundle_dir / "full"
     split_dir = bundle_dir / "split"
 
     if bundle_dir.exists():
         shutil.rmtree(bundle_dir)
-    full_dir.mkdir(parents=True, exist_ok=True)
     split_dir.mkdir(parents=True, exist_ok=True)
 
     for relpath in flash_files.values():
@@ -282,9 +308,18 @@ def main() -> int:
     )
 
     artifact_base = f"{bundle_prefix}-{target}-{flash_size_slug(flash_size)}"
-    merged_bin = full_dir / f"{artifact_base}-full.bin"
-    full_zip = bundle_dir / f"{artifact_base}-full.zip"
+    # The merged full image is a single flashable file, so it ships uncompressed
+    # at the bundle root; only the multi-file split set is zipped.
+    merged_bin = bundle_dir / f"{artifact_base}-full.bin"
     split_zip = bundle_dir / f"{artifact_base}-split.zip"
+
+    # The application image is the only OTA-flashable artifact. Copy it to the
+    # bundle root under an explicit -ota name so it is not confused with the
+    # merged -full image (which fails esp_ota validation).
+    app_source = build_dir / resolve_app_image(flasher_args, project_description)
+    require_file(app_source)
+    ota_bin = bundle_dir / f"{artifact_base}-ota.bin"
+    shutil.copy2(app_source, ota_bin)
 
     esptool_command = choose_esptool_command()
     merge_command = esptool_command + [
@@ -307,7 +342,6 @@ def main() -> int:
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 
-    zip_directory(full_dir, full_zip)
     zip_directory(split_dir, split_zip)
 
     highlights, previous_ref = collect_highlights(repo_root, project_version)
@@ -320,18 +354,18 @@ def main() -> int:
 
     checksum_files = [
         merged_bin,
+        ota_bin,
         split_dir / "bootloader.bin",
         split_dir / "partition-table.bin",
         split_dir / "ota_data_initial.bin",
         split_dir / "air360_firmware.bin",
-        full_zip,
         split_zip,
     ]
     write_checksums(bundle_dir / "sha256sums.txt", checksum_files, bundle_dir)
 
     print(f"Created release bundle: {bundle_dir}")
-    print(f"Merged image: {merged_bin}")
-    print(f"Full zip: {full_zip}")
+    print(f"Merged image (serial flash to 0x0): {merged_bin}")
+    print(f"OTA image (app only): {ota_bin}")
     print(f"Split zip: {split_zip}")
     print(f"Release notes: {bundle_dir / 'release-notes.md'}")
     return 0
