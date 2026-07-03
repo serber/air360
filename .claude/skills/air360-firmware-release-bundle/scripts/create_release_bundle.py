@@ -250,6 +250,14 @@ def write_release_notes(
 ## Highlights
 
 {format_highlights(highlights)}
+
+## Flashing
+
+Pick the asset that matches how you flash:
+
+- **`*-full.bin`** — complete image (bootloader + partition table + app). Flash to offset `0x0` over USB/serial with esptool. Do **not** use this for OTA: it starts with the bootloader, so an OTA update fails with `ESP_ERR_OTA_VALIDATE_FAILED`.
+- **`*-ota.bin`** — application image only. Use this for over-the-air (OTA) updates.
+- **`*-split.zip`** — the individual bootloader / partition-table / ota_data / app binaries with their flash offsets, for manual or advanced serial flashing.
 """
     path.write_text(notes, encoding="utf-8")
 
