@@ -6,11 +6,14 @@
 #include <limits>
 
 #include "driver/uart.h"
+#include "esp_log.h"
 #include "sdkconfig.h"
 
 namespace air360 {
 
 namespace {
+
+constexpr char kTag[] = "air360.sensor.i2c";
 
 // UART sensor traffic is RX-heavy. Short command writes can use the blocking
 // ESP-IDF TX path, so no TX ring buffer is reserved.
@@ -114,8 +117,35 @@ esp_err_t I2cBusManager::getMasterBusHandle(
     if (!resolvePins(bus_id, port, sda, scl)) {
         return ESP_ERR_NOT_SUPPORTED;
     }
-    // i2cdev already owns this port; borrow its underlying master bus handle.
-    return i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+
+    // i2cdev owns this port but installs the master bus lazily, on the first
+    // real transaction of an i2cdev-based driver. If no such driver has touched
+    // the bus yet (e.g. the AHT30/BMP390 is the only I2C sensor configured),
+    // there is no handle to borrow and ESP_ERR_INVALID_STATE comes back.
+    esp_err_t err = i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+    if (err != ESP_ERR_INVALID_STATE) {
+        return err;
+    }
+
+    // Force i2cdev to install the bus with the canonical pins so it stays the
+    // single bus owner. i2c_dev_check_present() runs i2c_setup_port() first,
+    // which creates the master bus; the probe of address 0 that follows is a
+    // side effect whose result does not matter here.
+    i2c_dev_t probe_dev{};
+    probe_dev.port = port;
+    probe_dev.cfg.sda_io_num = sda;
+    probe_dev.cfg.scl_io_num = scl;
+    probe_dev.cfg.sda_pullup_en = 1;
+    probe_dev.cfg.scl_pullup_en = 1;
+    // Only the bus-install side effect matters; a probe miss on address 0 is expected.
+    static_cast<void>(i2c_dev_check_present(&probe_dev));
+
+    err = i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(kTag, "I2C master bus on port %d is still unavailable: %s",
+                 static_cast<int>(port), esp_err_to_name(err));
+    }
+    return err;
 }
 
 // ── UartPortManager ──────────────────────────────────────────────────────────

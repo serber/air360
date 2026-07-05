@@ -86,12 +86,15 @@ Adding a second bus requires only adding an entry to `kBuses[]` in `transport_bi
 | `resolvePins(bus_id, out_port, out_sda, out_scl)` | Searches the stored bus list for `bus_id`. Returns `false` if the id is not configured on this build. |
 | `setupDevice(record, speed_hz, out_dev)` | Resolves pins for `record.i2c_bus_id`, fills all fields of `out_dev` (`port`, `addr`, `cfg`), and calls `i2c_dev_create_mutex()`. Used by drivers that manage a bare `i2c_dev_t` directly (SPS30, BME280). |
 | `getComponentBus(bus_id, out_handle)` | Returns an `i2c_bus_handle_t` that borrows the bus already initialised by `i2cdev`. Internally calls `i2c_bus_create()`, which detects the existing bus handle via `i2c_master_get_bus_handle()` and avoids creating a second master. Used by BME280. |
+| `getMasterBusHandle(bus_id, out_handle)` | Returns the raw `i2c_master_bus_handle_t` owned by `i2cdev`. If `i2cdev` has not installed the bus yet (no `i2cdev`-based driver has transacted), forces the lazy install first via `i2c_dev_check_present()` with the canonical pins, then borrows the handle. Used by drivers built directly on the new I2C master API (AHT30, BMP390). |
 
 The vendored SPS30 Sensirion C library still exposes global HAL hooks. SPS30 driver code must wrap every vendor call that may touch I2C in `SensirionI2cContextGuard`; the guard serializes the global HAL context with a static FreeRTOS mutex while the call is active.
 
 ### Bus ownership
 
-`i2cdev` owns the I2C master bus. It creates the bus on the first `i2c_dev_create_mutex()` call and reference-counts usage per port — the bus is torn down only when the last `i2c_dev_delete_mutex()` drops the ref-count to zero.
+`i2cdev` owns the I2C master bus. It installs the bus lazily — inside `i2c_setup_port()`, on the first actual transaction (read/write/probe) of an `i2cdev`-based device, not at `i2cdev_init()` or `i2c_dev_create_mutex()` time — and reference-counts usage per port; the bus is torn down only when the last `i2c_dev_delete_mutex()` drops the ref-count to zero.
+
+Because the install is lazy, `getMasterBusHandle()` cannot assume the bus already exists: when the only configured I2C sensors are new-master-API drivers (AHT30, BMP390), no `i2cdev` transaction ever runs. In that case it triggers the install itself by calling `i2c_dev_check_present()` on a throwaway `i2c_dev_t` carrying the canonical pins, then borrows the freshly created handle. `i2cdev` remains the sole bus owner either way.
 
 `getComponentBus()` produces a _borrowed_ handle: the `espressif__i2c_bus` component's `i2c_bus_create()` detects that the port is already acquired and returns a handle without calling `i2c_new_master_bus()` again. Callers must **not** call `i2c_bus_delete()` on this handle — doing so would destroy `i2cdev`'s bus.
 
