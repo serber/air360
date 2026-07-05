@@ -60,7 +60,7 @@ firmware/
 - `main/Kconfig.projbuild` — project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom 16 MB partition table (nvs, otadata, phy_init, ota_0, ota_1, storage)
-- `managed_components/` — ESP-IDF component manager dependencies (bme280, bme680, dht, ds18b20, scd30, sht3x, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus, i2c_bus)
+- `managed_components/` — ESP-IDF component manager dependencies (bmp280, bme680, dht, ds18b20, scd30, sht3x, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus)
 - `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
 
 ---
@@ -122,7 +122,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 
 | File | Sensor | Backend |
 |------|--------|---------|
-| `bme280_sensor.cpp` | BME280 | `espressif__bme280` (managed component) |
+| `bme280_sensor.cpp` | BME280 | `esp-idf-lib__bmp280` (managed component) |
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` (managed component) |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |

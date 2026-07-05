@@ -76,38 +76,6 @@ esp_err_t I2cBusManager::setupDevice(
     return i2c_dev_create_mutex(&out_dev);
 }
 
-esp_err_t I2cBusManager::getComponentBus(
-    std::uint8_t bus_id,
-    i2c_bus_handle_t& out_handle) const {
-    i2c_port_t port = I2C_NUM_0;
-    gpio_num_t sda = GPIO_NUM_NC;
-    gpio_num_t scl = GPIO_NUM_NC;
-    if (!resolvePins(bus_id, port, sda, scl)) {
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    // i2cdev already owns this bus. i2c_bus_create() detects the existing
-    // handle via i2c_master_get_bus_handle() and borrows it.
-    const BusConfig* bus_cfg = nullptr;
-    for (const BusConfig& bus : buses_) {
-        if (bus.id == bus_id) {
-            bus_cfg = &bus;
-            break;
-        }
-    }
-
-    i2c_config_t config{};
-    config.mode = I2C_MODE_MASTER;
-    config.sda_io_num = sda;
-    config.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    config.scl_io_num = scl;
-    config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    config.master.clk_speed = (bus_cfg != nullptr) ? bus_cfg->clock_hz : 100000U;
-
-    out_handle = i2c_bus_create(port, &config);
-    return out_handle != nullptr ? ESP_OK : ESP_FAIL;
-}
-
 esp_err_t I2cBusManager::getMasterBusHandle(
     std::uint8_t bus_id,
     i2c_master_bus_handle_t& out_handle) const {

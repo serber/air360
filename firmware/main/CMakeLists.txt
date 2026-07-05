@@ -97,8 +97,7 @@ idf_component_register(
         esp-idf-lib__veml7700
         espressif__aht30
         k0i05__esp_bmp390
-        espressif__bme280
-        espressif__i2c_bus
+        esp-idf-lib__bmp280
         espressif__ds18b20
         espressif__onewire_bus
         cinderblocks__esp_tinygpsplusplus

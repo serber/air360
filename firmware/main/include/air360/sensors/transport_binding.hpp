@@ -12,7 +12,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "i2c_bus.h"
 #include "i2cdev.h"
 
 #include "air360/sensors/bus_config.hpp"
@@ -44,17 +43,11 @@ class I2cBusManager {
         gpio_num_t& out_scl) const;
 
     // Populate out_dev from the sensor record and call i2c_dev_create_mutex().
-    // Used by drivers that manage their own i2c_dev_t directly (SPS30).
+    // Used by drivers that manage their own i2c_dev_t directly (OPT3001, SPS30).
     esp_err_t setupDevice(
         const SensorRecord& record,
         std::uint32_t speed_hz,
         i2c_dev_t& out_dev) const;
-
-    // Return an i2c_bus_handle_t that shares the bus already initialised by
-    // i2cdev. Used by components built on espressif__i2c_bus (BME280).
-    esp_err_t getComponentBus(
-        std::uint8_t bus_id,
-        i2c_bus_handle_t& out_handle) const;
 
     // Return the i2c_master_bus_handle_t for the bus owned by i2cdev.
     // If i2cdev has not lazily installed the bus yet (no i2cdev-based driver

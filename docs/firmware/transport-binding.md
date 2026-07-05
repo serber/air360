@@ -49,7 +49,7 @@ A thin coordination layer that owns the `i2cdev` subsystem lifecycle and central
 - Call `i2cdev_init()` once before any driver initialises.
 - Map logical bus IDs to ESP-IDF port numbers and GPIO pin numbers — the single authoritative source for `CONFIG_AIR360_I2C0_SDA/SCL_GPIO`.
 - Prepare `i2c_dev_t` descriptors for drivers that use `i2cdev` directly.
-- Supply an `i2c_bus_handle_t` for drivers that require the `espressif__i2c_bus` component.
+- Supply the raw `i2c_master_bus_handle_t` for drivers built on the new ESP-IDF I2C master API.
 
 ### Bus configuration
 
@@ -84,8 +84,7 @@ Adding a second bus requires only adding an entry to `kBuses[]` in `transport_bi
 |--------|-------------|
 | `init()` | Stores the bus list span and calls `i2cdev_init()`. Idempotent — safe to call on every `applyConfig()`. Must be called before any driver's `init()`. |
 | `resolvePins(bus_id, out_port, out_sda, out_scl)` | Searches the stored bus list for `bus_id`. Returns `false` if the id is not configured on this build. |
-| `setupDevice(record, speed_hz, out_dev)` | Resolves pins for `record.i2c_bus_id`, fills all fields of `out_dev` (`port`, `addr`, `cfg`), and calls `i2c_dev_create_mutex()`. Used by drivers that manage a bare `i2c_dev_t` directly (SPS30, BME280). |
-| `getComponentBus(bus_id, out_handle)` | Returns an `i2c_bus_handle_t` that borrows the bus already initialised by `i2cdev`. Internally calls `i2c_bus_create()`, which detects the existing bus handle via `i2c_master_get_bus_handle()` and avoids creating a second master. Used by BME280. |
+| `setupDevice(record, speed_hz, out_dev)` | Resolves pins for `record.i2c_bus_id`, fills all fields of `out_dev` (`port`, `addr`, `cfg`), and calls `i2c_dev_create_mutex()`. Used by drivers that manage a bare `i2c_dev_t` directly (OPT3001, SPS30). |
 | `getMasterBusHandle(bus_id, out_handle)` | Returns the raw `i2c_master_bus_handle_t` owned by `i2cdev`. If `i2cdev` has not installed the bus yet (no `i2cdev`-based driver has transacted), forces the lazy install first via `i2c_dev_check_present()` with the canonical pins, then borrows the handle. Used by drivers built directly on the new I2C master API (AHT30, BMP390). |
 
 The vendored SPS30 Sensirion C library still exposes global HAL hooks. SPS30 driver code must wrap every vendor call that may touch I2C in `SensirionI2cContextGuard`; the guard serializes the global HAL context with a static FreeRTOS mutex while the call is active.
@@ -96,7 +95,7 @@ The vendored SPS30 Sensirion C library still exposes global HAL hooks. SPS30 dri
 
 Because the install is lazy, `getMasterBusHandle()` cannot assume the bus already exists: when the only configured I2C sensors are new-master-API drivers (AHT30, BMP390), no `i2cdev` transaction ever runs. In that case it triggers the install itself by calling `i2c_dev_check_present()` on a throwaway `i2c_dev_t` carrying the canonical pins, then borrows the freshly created handle. `i2cdev` remains the sole bus owner either way.
 
-`getComponentBus()` produces a _borrowed_ handle: the `espressif__i2c_bus` component's `i2c_bus_create()` detects that the port is already acquired and returns a handle without calling `i2c_new_master_bus()` again. Callers must **not** call `i2c_bus_delete()` on this handle — doing so would destroy `i2cdev`'s bus.
+The handle returned by `getMasterBusHandle()` is _borrowed_: callers must not delete the master bus — only remove their own device from it (e.g. `bmp390_delete()`), leaving the bus to `i2cdev`.
 
 ---
 
