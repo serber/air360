@@ -22,6 +22,15 @@ New capabilities not present in the current firmware.
 - [`proposed-station-web-authentication-adr.md`](proposed-station-web-authentication-adr.md)
   Optional station-mode web UI authorization using HTTP Basic authentication.
 
+## Proposed — Technical debt
+
+Cleanups and hardening of existing mechanisms, sourced from code review.
+
+- [`proposed-i2c-master-bus-ownership-hardening-adr.md`](proposed-i2c-master-bus-ownership-hardening-adr.md)
+  Pin `esp-idf-lib/i2cdev` and make the borrowed master-bus-handle lifetime invariant explicit; borrowed handles (AHT30, BMP390) currently stay valid only because an upstream i2cdev bug keeps the bus-delete path unreachable.
+- [`proposed-sensor-driver-i2c-hygiene-adr.md`](proposed-sensor-driver-i2c-hygiene-adr.md)
+  Centralise I2C descriptor electrical policy in an `I2cBusManager` helper, share the Pa→hPa constant, remove write-only `record_` members, and log teardown failures consistently.
+
 ## Deferred — Production hardening
 
 Hardening ideas that are not the current first implementation direction.
