@@ -72,7 +72,9 @@ Sps30Sensor::~Sps30Sensor() {
 
 void Sps30Sensor::teardown() {
     if (device_initialized_) {
-        i2c_dev_delete_mutex(&device_);
+        if (esp_err_t err = i2c_dev_delete_mutex(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to delete SPS30 device mutex: %s", esp_err_to_name(err));
+        }
         device_initialized_ = false;
     }
     initialized_ = false;

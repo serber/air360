@@ -24,7 +24,6 @@ class Me3No2Sensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     SensorMeasurement measurement_{};
     adc_oneshot_unit_ctx_t* adc_handle_ = nullptr;
     adc_cali_scheme_t* cali_handle_ = nullptr;

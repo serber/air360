@@ -23,7 +23,6 @@ class Mhz19bSensor final : public SensorDriver {
     void teardown();
 
     mhz19b_dev_t device_{};
-    SensorRecord record_{};
     UartPortManager* uart_port_manager_ = nullptr;
     SensorMeasurement measurement_{};
 };

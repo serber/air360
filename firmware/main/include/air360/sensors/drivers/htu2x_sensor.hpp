@@ -22,7 +22,6 @@ class Htu2xSensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     i2c_dev_t device_{};
     bool descriptor_initialized_ = false;
     SensorMeasurement measurement_{};

@@ -20,8 +20,6 @@ constexpr char kTag[] = "air360.sensor.bme280";
 // BME280 traffic is tiny, so 100 kHz keeps the shared bus conservative with no
 // practical downside for multi-second environmental polling.
 constexpr std::uint32_t kBme280I2cSpeedHz = 100000U;
-// The component reports pressure in pascals; the pipeline stores hectopascals.
-constexpr float kPaPerHpa = 100.0F;
 // A forced T+P+H conversion at x1 oversampling finishes in under 10 ms; five
 // 10 ms waits bound the poll at 50 ms even if the sensor never deasserts busy.
 constexpr int kMeasureWaitAttempts = 5;
@@ -41,7 +39,6 @@ esp_err_t Bme280Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();
@@ -62,9 +59,7 @@ esp_err_t Bme280Sensor::init(
         return err;
     }
     descriptor_initialized_ = true;
-    device_.i2c_dev.cfg.master.clk_speed = kBme280I2cSpeedHz;
-    device_.i2c_dev.cfg.sda_pullup_en = 1;
-    device_.i2c_dev.cfg.scl_pullup_en = 1;
+    context.i2c_bus_manager->applyDescriptorDefaults(device_.i2c_dev, kBme280I2cSpeedHz);
 
     // Forced mode with x1 oversampling and no filter mirrors the profile used
     // before the esp-idf-lib migration: each poll triggers a one-shot
@@ -160,7 +155,9 @@ void Bme280Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
-        bmp280_free_desc(&device_);
+        if (esp_err_t err = bmp280_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free BME280 descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

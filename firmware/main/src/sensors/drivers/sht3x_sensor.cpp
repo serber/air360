@@ -31,7 +31,6 @@ SensorType Sht3xSensor::type() const {
 
 esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();
@@ -52,9 +51,7 @@ esp_err_t Sht3xSensor::init(const SensorRecord& record, const SensorDriverContex
         return err;
     }
     descriptor_initialized_ = true;
-    device_.i2c_dev.cfg.master.clk_speed = kSht3xI2cSpeedHz;
-    device_.i2c_dev.cfg.sda_pullup_en = 1;
-    device_.i2c_dev.cfg.scl_pullup_en = 1;
+    context.i2c_bus_manager->applyDescriptorDefaults(device_.i2c_dev, kSht3xI2cSpeedHz);
 
     err = sht3x_init(&device_);
     if (err != ESP_OK) {
@@ -110,7 +107,9 @@ void Sht3xSensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
-        sht3x_free_desc(&device_);
+        if (esp_err_t err = sht3x_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free SHT3X descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

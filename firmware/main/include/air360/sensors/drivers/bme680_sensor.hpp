@@ -22,7 +22,6 @@ class Bme680Sensor final : public SensorDriver {
     esp_err_t configureSensor();
     void teardown();
 
-    SensorRecord record_{};
     SensorMeasurement measurement_{};
     bme680_t device_{};
     bool descriptor_initialized_ = false;

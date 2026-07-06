@@ -29,7 +29,6 @@ SensorType Aht30Sensor::type() const {
 
 esp_err_t Aht30Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();

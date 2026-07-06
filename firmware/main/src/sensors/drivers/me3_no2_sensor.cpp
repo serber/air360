@@ -38,7 +38,6 @@ esp_err_t Me3No2Sensor::init(
     static_cast<void>(context);
 
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();

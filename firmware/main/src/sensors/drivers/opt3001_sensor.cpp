@@ -189,7 +189,9 @@ void Opt3001Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (dev_initialized_) {
-        i2c_dev_delete_mutex(&dev_);
+        if (esp_err_t err = i2c_dev_delete_mutex(&dev_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to delete OPT3001 device mutex: %s", esp_err_to_name(err));
+        }
     }
     std::memset(&dev_, 0, sizeof(dev_));
     dev_initialized_ = false;

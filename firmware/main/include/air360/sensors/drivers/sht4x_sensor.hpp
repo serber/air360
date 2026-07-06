@@ -22,7 +22,6 @@ class Sht4xSensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     sht4x_t device_{};
     bool descriptor_initialized_ = false;
     SensorMeasurement measurement_{};

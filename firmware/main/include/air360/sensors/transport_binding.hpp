@@ -49,6 +49,11 @@ class I2cBusManager {
         std::uint32_t speed_hz,
         i2c_dev_t& out_dev) const;
 
+    // Apply the shared electrical policy (device clock speed, internal
+    // pull-ups) to an i2cdev descriptor. The single author for per-device bus
+    // configuration — drivers call it right after a third-party *_init_desc().
+    void applyDescriptorDefaults(i2c_dev_t& dev, std::uint32_t speed_hz) const;
+
     // Return the i2c_master_bus_handle_t for the bus owned by i2cdev.
     // If i2cdev has not lazily installed the bus yet (no i2cdev-based driver
     // has transacted), triggers the install first so the handle always exists.

@@ -16,9 +16,6 @@ namespace {
 
 constexpr char kTag[] = "air360.sensor.bmp390";
 
-// The component reports pressure in pascals; the pipeline stores hectopascals.
-constexpr float kPaPerHpa = 100.0F;
-
 }  // namespace
 
 Bmp390Sensor::~Bmp390Sensor() {
@@ -31,7 +28,6 @@ SensorType Bmp390Sensor::type() const {
 
 esp_err_t Bmp390Sensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();

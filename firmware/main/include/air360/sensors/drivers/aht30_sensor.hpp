@@ -22,7 +22,6 @@ class Aht30Sensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     aht30_handle_t handle_ = nullptr;
     SensorMeasurement measurement_{};
 };

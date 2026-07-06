@@ -22,7 +22,6 @@ class Bme280Sensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     bmp280_t device_{};
     bool descriptor_initialized_ = false;
     SensorMeasurement measurement_{};

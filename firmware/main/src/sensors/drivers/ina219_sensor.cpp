@@ -51,7 +51,7 @@ esp_err_t Ina219Sensor::init(const SensorRecord& record, const SensorDriverConte
         return err;
     }
     descriptor_initialized_ = true;
-    device_.i2c_dev.cfg.master.clk_speed = kIna219I2cSpeedHz;
+    context.i2c_bus_manager->applyDescriptorDefaults(device_.i2c_dev, kIna219I2cSpeedHz);
 
     err = ina219_init(&device_);
     if (err != ESP_OK) {
@@ -131,7 +131,9 @@ void Ina219Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
-        ina219_free_desc(&device_);
+        if (esp_err_t err = ina219_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free INA219 descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

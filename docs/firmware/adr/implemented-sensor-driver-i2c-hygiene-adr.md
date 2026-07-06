@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed.
+Implemented.
+
+Notes from implementation: SCD30 keeps its `record_` member (it reads it for forced-recalibration handling) and keeps its library-default descriptor config (it never hand-wrote the three-line block, so `applyDescriptorDefaults()` was not introduced there). INA219 previously set only the clock speed; it now also enables internal pull-ups via the shared helper, which is a deliberate consistency change. AHT30's `aht30_delete()` returns `void`, so it has nothing to log in teardown. The dead `record_` member in `mhz19b_sensor.hpp` (declared, never even assigned) was removed as part of step 3.
 
 ## Decision Summary
 

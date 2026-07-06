@@ -30,7 +30,6 @@ esp_err_t Veml7700Sensor::init(
     const SensorRecord& record,
     const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();
@@ -53,9 +52,7 @@ esp_err_t Veml7700Sensor::init(
     }
 
     descriptor_initialized_ = true;
-    device_.cfg.master.clk_speed = kVeml7700I2cSpeedHz;
-    device_.cfg.sda_pullup_en = 1;
-    device_.cfg.scl_pullup_en = 1;
+    context.i2c_bus_manager->applyDescriptorDefaults(device_, kVeml7700I2cSpeedHz);
 
     err = veml7700_probe(&device_);
     if (err != ESP_OK) {
@@ -115,7 +112,9 @@ void Veml7700Sensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
-        veml7700_free_desc(&device_);
+        if (esp_err_t err = veml7700_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free VEML7700 descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

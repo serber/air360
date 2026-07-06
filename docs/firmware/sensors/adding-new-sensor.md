@@ -116,6 +116,8 @@ File: `firmware/main/src/sensors/drivers/mynewsensor_sensor.cpp`
 Key rules:
 
 - **I2C**: resolve bus pins via `context.i2c_bus_manager->resolvePins()` in `init()`.
+- **I2C descriptor defaults**: after a third-party `*_init_desc()`, apply the shared electrical policy with `context.i2c_bus_manager->applyDescriptorDefaults(descriptor, kMySensorI2cSpeedHz)` instead of setting `clk_speed`/pull-up fields by hand. Drivers built on `setupDevice()` get it automatically.
+- **Teardown logging**: if a release call in `teardown()` returns `esp_err_t` (`*_free_desc()`, `i2c_dev_delete_mutex()`, component `*_delete()`), log a non-`ESP_OK` result with `ESP_LOGW` under the driver's `kTag` — do not discard it silently.
 - **UART via library**: call the library's `xxx_init()` directly — do not go through `UartPortManager` if the library manages UART internally (as with `mhz19b`).
 - **UART via UartPortManager**: call `context.uart_port_manager->open()` in `init()` and `close()` in `reset()`.
 - **Warmup / not-ready states**: return `ESP_OK` with `last_error_` set to a short message — do not return an error code. Do not store a measurement during warmup.

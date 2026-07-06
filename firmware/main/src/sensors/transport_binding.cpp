@@ -19,6 +19,10 @@ constexpr char kTag[] = "air360.sensor.i2c";
 // ESP-IDF TX path, so no TX ring buffer is reserved.
 constexpr int kUartTxBufferSize = 0;
 
+// Speed applied to descriptors that never carry real sensor traffic, such as
+// the bus-install probe device. Matches the configured bus clock.
+constexpr std::uint32_t kDefaultDeviceSpeedHz = 100000U;
+
 constexpr BusConfig kBuses[] = {
     {
         .id       = 0U,
@@ -69,11 +73,15 @@ esp_err_t I2cBusManager::setupDevice(
     out_dev.addr = record.i2c_address;
     out_dev.cfg.sda_io_num = sda;
     out_dev.cfg.scl_io_num = scl;
-    out_dev.cfg.master.clk_speed = speed_hz;
-    out_dev.cfg.sda_pullup_en = 1;
-    out_dev.cfg.scl_pullup_en = 1;
+    applyDescriptorDefaults(out_dev, speed_hz);
 
     return i2c_dev_create_mutex(&out_dev);
+}
+
+void I2cBusManager::applyDescriptorDefaults(i2c_dev_t& dev, std::uint32_t speed_hz) const {
+    dev.cfg.master.clk_speed = speed_hz;
+    dev.cfg.sda_pullup_en = 1;
+    dev.cfg.scl_pullup_en = 1;
 }
 
 esp_err_t I2cBusManager::getMasterBusHandle(
@@ -103,8 +111,7 @@ esp_err_t I2cBusManager::getMasterBusHandle(
     probe_dev.port = port;
     probe_dev.cfg.sda_io_num = sda;
     probe_dev.cfg.scl_io_num = scl;
-    probe_dev.cfg.sda_pullup_en = 1;
-    probe_dev.cfg.scl_pullup_en = 1;
+    applyDescriptorDefaults(probe_dev, kDefaultDeviceSpeedHz);
     // Only the bus-install side effect matters; a probe miss on address 0 is expected.
     static_cast<void>(i2c_dev_check_present(&probe_dev));
 
