@@ -98,6 +98,8 @@ Because the install is lazy, `getMasterBusHandle()` cannot assume the bus alread
 
 The handle returned by `getMasterBusHandle()` is _borrowed_: callers must not delete the master bus — only remove their own device from it (e.g. `bmp390_delete()`), leaving the bus to `i2cdev`.
 
+Borrowed handles carry a lifetime invariant: they remain valid only while `i2cdev` never deletes the bus. `i2cdev` does not know about devices added directly with `i2c_master_bus_add_device()` (AHT30, BMP390) — its per-port `ref_count` tracks only `i2cdev`-registered devices. As of `i2cdev` 2.1.1 the bus-delete path in `i2c_dev_delete_mutex()` is unreachable due to an upstream bug (the function nulls `dev_handle` before the ref-count decrement checks it), so the bus survives removal of the last `i2cdev` device. The version is therefore pinned exactly in `firmware/main/idf_component.yml`, and any `i2cdev` upgrade must re-verify `i2c_dev_delete_mutex()` before merging. See [adr/implemented-i2c-master-bus-ownership-hardening-adr.md](adr/implemented-i2c-master-bus-ownership-hardening-adr.md).
+
 ---
 
 ## `UartPortManager`

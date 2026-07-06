@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed.
+Implemented (steps 1–3). Step 4 (migrating AHT30 off the borrowed handle) remains open as an optional, independently schedulable follow-up.
+
+Notes from implementation: the upstream bug was re-verified against the vendored `managed_components/esp-idf-lib__i2cdev/i2cdev.c` — `i2c_dev_delete_mutex()` nulls `dev->dev_handle` in its device-removal block before the ref-count decrement condition `dev->dev_handle != NULL` is evaluated, so the `i2c_del_master_bus()` path is confirmed unreachable in 2.1.1. The pin uses the exact form `"2.1.1"` (no caret) in `firmware/main/idf_component.yml`. The upgrade gate lives in the "Co-change expectations" section of `firmware/CLAUDE.md`.
 
 ## Decision Summary
 

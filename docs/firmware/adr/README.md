@@ -16,6 +16,8 @@ Decisions already present in the current firmware.
   OTA firmware update via the web UI using the ESP-IDF native `app_update` API with automatic rollback.
 - [`implemented-sensor-driver-i2c-hygiene-adr.md`](implemented-sensor-driver-i2c-hygiene-adr.md)
   Centralised I2C descriptor electrical policy (`applyDescriptorDefaults()`), shared Pa→hPa constant, removal of write-only `record_` members, and consistent teardown-failure logging.
+- [`implemented-i2c-master-bus-ownership-hardening-adr.md`](implemented-i2c-master-bus-ownership-hardening-adr.md)
+  Exact pin of `esp-idf-lib/i2cdev` 2.1.1, documented borrowed master-bus-handle lifetime invariant (AHT30, BMP390), and an upgrade gate requiring re-audit of `i2c_dev_delete_mutex()` before any i2cdev bump.
 
 ## Proposed — New features
 
@@ -23,13 +25,6 @@ New capabilities not present in the current firmware.
 
 - [`proposed-station-web-authentication-adr.md`](proposed-station-web-authentication-adr.md)
   Optional station-mode web UI authorization using HTTP Basic authentication.
-
-## Proposed — Technical debt
-
-Cleanups and hardening of existing mechanisms, sourced from code review.
-
-- [`proposed-i2c-master-bus-ownership-hardening-adr.md`](proposed-i2c-master-bus-ownership-hardening-adr.md)
-  Pin `esp-idf-lib/i2cdev` and make the borrowed master-bus-handle lifetime invariant explicit; borrowed handles (AHT30, BMP390) currently stay valid only because an upstream i2cdev bug keeps the bus-delete path unreachable.
 
 ## Deferred — Production hardening
 

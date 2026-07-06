@@ -84,6 +84,13 @@ void I2cBusManager::applyDescriptorDefaults(i2c_dev_t& dev, std::uint32_t speed_
     dev.cfg.scl_pullup_en = 1;
 }
 
+// Lifetime invariant: the returned handle is borrowed from i2cdev and remains
+// valid only while i2cdev never deletes the bus. As of i2cdev 2.1.1 (pinned in
+// idf_component.yml) the delete path in i2c_dev_delete_mutex() is unreachable:
+// upstream nulls dev->dev_handle before the ref-count decrement checks it, so
+// ref_count never drops to zero and i2c_del_master_bus() is never called. Any
+// i2cdev upgrade must re-verify this before merging — see
+// docs/firmware/adr/implemented-i2c-master-bus-ownership-hardening-adr.md.
 esp_err_t I2cBusManager::getMasterBusHandle(
     std::uint8_t bus_id,
     i2c_master_bus_handle_t& out_handle) const {

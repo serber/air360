@@ -116,7 +116,7 @@ dependencies:
       require: private
       version: '*'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32
@@ -475,6 +475,7 @@ direct_dependencies:
 - esp-idf-lib/bme680
 - esp-idf-lib/bmp280
 - esp-idf-lib/dht
+- esp-idf-lib/i2cdev
 - esp-idf-lib/ina219
 - esp-idf-lib/mhz19b
 - esp-idf-lib/scd30
@@ -490,6 +491,6 @@ direct_dependencies:
 - k0i05/esp_bmp390
 - nordesems/esp-captive-portal
 - petrovgp/esp-pms
-manifest_hash: dd869d9800820a2315b6c6123f306f299d10b391c33b7bc45afb19927e6ebd5a
+manifest_hash: f4f950a80226ebe847d0351db41b8435e633eeb1bfc4f589831ddd6887be2b7f
 target: esp32s3
 version: 3.0.0
