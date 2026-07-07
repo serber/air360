@@ -54,6 +54,7 @@ Run it verbatim from this directory.
 - If you add a sensor or transport option, review `../docs/firmware/sensors/README.md`, `../docs/firmware/sensors/supported-sensors.md`, `../docs/firmware/sensors/adding-new-sensor.md`, and `../docs/firmware/transport-binding.md`.
 - If you change queue, batching, or backend semantics, review `../docs/firmware/measurement-pipeline.md`, `../docs/firmware/upload-adapters.md`, and `../docs/firmware/upload-transport.md`.
 - **If you add a new FreeRTOS task**, subscribe it to the TWDT, add it to the table in `../docs/firmware/watchdog.md`, and update `../docs/firmware/startup-pipeline.md` if it is spawned during boot.
+- **If you bump `esp-idf-lib/i2cdev`** in `main/idf_component.yml`, re-read `i2c_dev_delete_mutex()` in the new version and confirm either (a) the master bus still survives removal of the last i2cdev device, or (b) the borrower drivers (AHT30, BMP390 — see `I2cBusManager::getMasterBusHandle()`) have been migrated off borrowed handles first. See `../docs/firmware/adr/implemented-i2c-master-bus-ownership-hardening-adr.md`.
 
 ## Verification checklist
 

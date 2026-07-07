@@ -287,7 +287,9 @@ void Scd30Sensor::teardown() {
             scd30_stop_continuous_measurement(&device_);
             measurement_running_ = false;
         }
-        scd30_free_desc(&device_);
+        if (esp_err_t err = scd30_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free SCD30 descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

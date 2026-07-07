@@ -108,6 +108,9 @@ struct BackendCardViewModel {
     std::string air360_map_url;
     std::string sensor_community_map_url;
     std::string air360_upload_secret_preview;
+    std::string opensensemap_sensebox_id;
+    std::string opensensemap_access_token;
+    std::string opensensemap_mapping_block;
     // Status:
     bool has_status = false;
     std::string state_key;
@@ -259,8 +262,16 @@ BackendsPageViewModel buildBackendsPageViewModel(
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
     const std::string& air360_upload_secret_preview,
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& opensensemap_mappings,
     const std::string& notice,
     bool error_notice);
+std::string renderOpenSenseMapMappingBlock(
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& mappings,
+    const std::string& backend_key);
 std::string renderSensorCard(const SensorCardViewModel& card);
 std::string renderSensorCategorySection(const SensorCategorySectionViewModel& section);
 SensorsPageViewModel buildSensorsPageViewModel(
@@ -1307,7 +1318,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "' type='number' step='any' min='-90' max='90' value='";
             endpoint_block += htmlEscape(card.latitude);
-            endpoint_block += "' placeholder='e.g. 55.7512' required></div>";
+            endpoint_block += "' placeholder='e.g. 55.7512' data-req-when-enabled required></div>";
             endpoint_block += "<div class='field'><label for='lon_";
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "'>Longitude</label>";
@@ -1317,7 +1328,7 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "' type='number' step='any' min='-180' max='180' value='";
             endpoint_block += htmlEscape(card.longitude);
-            endpoint_block += "' placeholder='e.g. 37.6173' required></div>";
+            endpoint_block += "' placeholder='e.g. 37.6173' data-req-when-enabled required></div>";
             endpoint_block += "<div class='field'><label for='alt_";
             endpoint_block += htmlEscape(card.backend_key);
             endpoint_block += "'>Altitude (m above sea level)</label>";
@@ -1399,6 +1410,63 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
             endpoint_block = renderEndpointFields(card);
             break;
 
+        case BackendType::kOpenSenseMap: {
+            https_block = renderHttpsCheckbox(card);
+            // Each option's value is the full host+path; on submit the server
+            // stores it verbatim. {sensebox_id} is substituted at request time.
+            const std::string current = card.host + card.path;
+            const std::string classic =
+                "api.opensensemap.org/boxes/{sensebox_id}/data";
+            const std::string nextgen =
+                "staging.opensensemap.org/api/boxes/{sensebox_id}/data";
+            endpoint_block += "<div class='field'><label for='platform_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Platform</label><select class='select' id='platform_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='platform_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'><option value='";
+            endpoint_block += htmlEscape(classic);
+            endpoint_block += current == classic ? "' selected" : "'";
+            endpoint_block += ">Classic (api.opensensemap.org)</option><option value='";
+            endpoint_block += htmlEscape(nextgen);
+            endpoint_block += current == nextgen ? "' selected" : "'";
+            endpoint_block += ">Next-gen (staging.opensensemap.org)</option></select></div>";
+            endpoint_block += "<span class='field-hint'>Classic hosts the existing openSenseMap "
+                "community (24-char hex box IDs). Next-gen (staging) is the new platform "
+                "(alphanumeric box IDs). Pick the platform your box was created on.</span>";
+            endpoint_block += "<div class='field'><label for='sensebox_id_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>senseBox ID</label><input class='input' id='sensebox_id_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='sensebox_id_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' maxlength='";
+            endpoint_block += std::to_string(kBackendSenseBoxIdCapacity - 1U);
+            endpoint_block += "' autocomplete='off' autocapitalize='off' spellcheck='false' ";
+            endpoint_block += "placeholder='e.g. 5e5dd6c4c7b3c9001a1e35a2' value='";
+            endpoint_block += htmlEscape(card.opensensemap_sensebox_id);
+            endpoint_block += "' data-req-when-enabled required></div>";
+            endpoint_block += "<span class='field-hint'>The box ID (from the box URL on opensensemap.org). "
+                "Measurements are posted with openSenseMap's canonical API, one value per mapped "
+                "box sensor (see Sensor mapping below).</span>";
+            endpoint_block += "<div class='field'><label for='access_token_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "'>Access token</label><input class='input' id='access_token_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' name='access_token_";
+            endpoint_block += htmlEscape(card.backend_key);
+            endpoint_block += "' maxlength='";
+            endpoint_block += std::to_string(kBackendAccessTokenCapacity - 1U);
+            endpoint_block += "' autocomplete='off' autocapitalize='off' spellcheck='false' value='";
+            endpoint_block += htmlEscape(card.opensensemap_access_token);
+            endpoint_block += "'></div>";
+            endpoint_block += "<span class='field-hint'>Optional. Needed only when the senseBox "
+                "has authentication enabled; copy it from the box security settings.</span>";
+            endpoint_block += card.opensensemap_mapping_block;
+            break;
+        }
+
         case BackendType::kInfluxDb:
             https_block = renderHttpsCheckbox(card);
             endpoint_block = renderEndpointFields(card);
@@ -1466,11 +1534,116 @@ std::string renderBackendCard(const BackendCardViewModel& card) {
         });
 }
 
+// Renders the openSenseMap sensor-ID mapping table: one input per distinct
+// live (sensor model, phenomenon) reading, plus the "Fetch sensors" control.
+// The device's live readings come from the measurement store (which value
+// kinds each sensor emits), joined to the sensor model via the runtime list.
+std::string renderOpenSenseMapMappingBlock(
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& mappings,
+    const std::string& backend_key) {
+    struct Reading {
+        SensorType sensor_type = SensorType::kUnknown;
+        SensorValueKind value_kind = SensorValueKind::kUnknown;
+        std::string type_name;
+    };
+
+    const auto runtime_sensors = sensor_manager.sensors();
+    const MeasurementStoreSnapshot snapshot = measurement_store.snapshot();
+
+    std::vector<Reading> readings;
+    for (const auto& entry : snapshot.measurements) {
+        SensorType sensor_type = SensorType::kUnknown;
+        std::string type_name;
+        for (const auto& info : runtime_sensors) {
+            if (info.id == entry.sensor_id) {
+                sensor_type = info.sensor_type;
+                type_name = info.type_name;
+                break;
+            }
+        }
+        if (sensor_type == SensorType::kUnknown) {
+            continue;
+        }
+        for (std::size_t index = 0; index < entry.measurement.value_count; ++index) {
+            const SensorValueKind kind = entry.measurement.values[index].kind;
+            bool exists = false;
+            for (const auto& reading : readings) {
+                if (reading.sensor_type == sensor_type && reading.value_kind == kind) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                readings.push_back({sensor_type, kind, type_name});
+            }
+        }
+    }
+
+    std::string block;
+    block += "<hr class='hr'>";
+    block += "<div class='osem-mapping' data-osem-mapping data-osem-backend-key='";
+    block += htmlEscape(backend_key);
+    block += "'>";
+    block += "<div class='field'><label>Sensor mapping</label>";
+    block += "<span class='field-hint'>Map each device reading to a sensor you created on "
+             "your openSenseMap box. Enter the 24-character sensor ID, or use "
+             "<em>Fetch sensors</em> to pull them from the box and match by name. Readings "
+             "left blank are not uploaded.</span></div>";
+    block += "<div class='field'><button class='btn' type='button' data-osem-fetch-sensors='";
+    block += htmlEscape(backend_key);
+    block += "'>Fetch sensors from openSenseMap</button> ";
+    block += "<span class='field-hint' data-osem-fetch-status></span></div>";
+
+    if (readings.empty()) {
+        block += "<span class='field-hint'>No sensor readings yet. Once your sensors have "
+                 "produced at least one sample, reload this page to map them.</span></div>";
+        return block;
+    }
+
+    for (const auto& reading : readings) {
+        const std::string field_name =
+            "osemmap-" + std::to_string(static_cast<unsigned>(reading.sensor_type)) + "-" +
+            std::to_string(static_cast<unsigned>(reading.value_kind));
+        const char* mapped =
+            findOpenSenseMapSensorId(mappings, reading.sensor_type, reading.value_kind);
+        std::string label = reading.type_name.empty()
+                                ? std::string(sensorTypeKey(reading.sensor_type))
+                                : reading.type_name;
+        label += " \xC2\xB7 ";  // middle dot
+        label += sensorValueKindLabel(reading.value_kind);
+
+        block += "<div class='field'><label for='";
+        block += htmlEscape(field_name);
+        block += "'>";
+        block += htmlEscape(label);
+        block += "</label><input class='input' id='";
+        block += htmlEscape(field_name);
+        block += "' name='";
+        block += htmlEscape(field_name);
+        block += "' maxlength='24' autocomplete='off' autocapitalize='off' spellcheck='false' ";
+        block += "data-osem-phenomenon='";
+        block += htmlEscape(sensorValueKindLabel(reading.value_kind));
+        block += "' data-osem-type-key='";
+        block += htmlEscape(sensorTypeKey(reading.sensor_type));
+        block += "' placeholder='24-character sensor ID' value='";
+        block += htmlEscape(mapped != nullptr ? std::string(mapped) : std::string());
+        block += "'></div>";
+    }
+
+    block += "</div>";
+    return block;
+}
+
 BackendsPageViewModel buildBackendsPageViewModel(
     const BackendConfigList& backend_config_list,
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
     const std::string& air360_upload_secret_preview,
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& opensensemap_mappings,
     const std::string& notice,
     bool error_notice) {
     BackendsPageViewModel model;
@@ -1538,6 +1711,26 @@ BackendsPageViewModel buildBackendsPageViewModel(
                 if (record->altitude_m != 0.0F) {
                     card.altitude_m = formatCoordinate(record->altitude_m);
                 }
+            }
+            if (record->backend_type == BackendType::kOpenSenseMap) {
+                card.opensensemap_sensebox_id = boundedCString(
+                    record->opensensemap_sensebox_id, kBackendSenseBoxIdCapacity);
+                card.opensensemap_access_token = boundedCString(
+                    record->opensensemap_access_token, kBackendAccessTokenCapacity);
+                if (!card.opensensemap_sensebox_id.empty()) {
+                    const std::size_t placeholder_pos = card.endpoint.find("{sensebox_id}");
+                    if (placeholder_pos != std::string::npos) {
+                        card.endpoint.replace(
+                            placeholder_pos,
+                            sizeof("{sensebox_id}") - 1U,
+                            card.opensensemap_sensebox_id);
+                    }
+                }
+                card.opensensemap_mapping_block = renderOpenSenseMapMappingBlock(
+                    sensor_manager,
+                    measurement_store,
+                    opensensemap_mappings,
+                    descriptor.backend_key);
             }
         } else {
             card.use_https = descriptor.defaults.protocol == BackendProtocol::kHttps;
@@ -2059,6 +2252,9 @@ std::string renderBackendsPage(
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
     const std::string& air360_upload_secret_preview,
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& opensensemap_mappings,
     const std::string& notice,
     bool error_notice) {
     const BackendsPageViewModel model =
@@ -2067,6 +2263,9 @@ std::string renderBackendsPage(
             upload_manager,
             build_info,
             air360_upload_secret_preview,
+            sensor_manager,
+            measurement_store,
+            opensensemap_mappings,
             notice,
             error_notice);
 
@@ -2333,6 +2532,9 @@ std::string renderBackendsPage(
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
     const std::string& air360_upload_secret_preview,
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& opensensemap_mappings,
     const std::string& notice,
     bool error_notice) {
     return ::air360::renderBackendsPage(
@@ -2340,6 +2542,9 @@ std::string renderBackendsPage(
         upload_manager,
         build_info,
         air360_upload_secret_preview,
+        sensor_manager,
+        measurement_store,
+        opensensemap_mappings,
         notice,
         error_notice);
 }
@@ -2373,6 +2578,7 @@ esp_err_t WebServer::start(
     MeasurementStore& measurement_store,
     BackendConfigRepository& backend_config_repository,
     Air360ApiCredentialRepository& air360_api_credentials,
+    OpenSenseMapMappingRepository& opensensemap_mappings,
     BackendConfigList& backend_config_list,
     UploadManager& upload_manager,
     CellularConfigRepository& cellular_config_repository,
@@ -2393,6 +2599,7 @@ esp_err_t WebServer::start(
     measurement_store_ = &measurement_store;
     backend_config_repository_ = &backend_config_repository;
     air360_api_credentials_ = &air360_api_credentials;
+    opensensemap_mapping_repository_ = &opensensemap_mappings;
     backend_config_list_ = &backend_config_list;
     upload_manager_ = &upload_manager;
     cellular_config_repository_ = &cellular_config_repository;
@@ -2563,6 +2770,17 @@ esp_err_t WebServer::start(
     air360_secret_uri.handler = &WebServer::handleAir360UploadSecret;
     air360_secret_uri.user_ctx = this;
     err = httpd_register_uri_handler(handle_, &air360_secret_uri);
+    if (err != ESP_OK) {
+        stop();
+        return err;
+    }
+
+    httpd_uri_t osem_box_sensors_uri{};
+    osem_box_sensors_uri.uri = "/api/opensensemap/box-sensors";
+    osem_box_sensors_uri.method = HTTP_GET;
+    osem_box_sensors_uri.handler = &WebServer::handleOpenSenseMapBoxSensors;
+    osem_box_sensors_uri.user_ctx = this;
+    err = httpd_register_uri_handler(handle_, &osem_box_sensors_uri);
     if (err != ESP_OK) {
         stop();
         return err;

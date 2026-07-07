@@ -35,7 +35,6 @@ SensorType Htu2xSensor::type() const {
 
 esp_err_t Htu2xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();
@@ -56,9 +55,7 @@ esp_err_t Htu2xSensor::init(const SensorRecord& record, const SensorDriverContex
         return err;
     }
     descriptor_initialized_ = true;
-    device_.cfg.master.clk_speed = kHtu2xI2cSpeedHz;
-    device_.cfg.sda_pullup_en = 1;
-    device_.cfg.scl_pullup_en = 1;
+    context.i2c_bus_manager->applyDescriptorDefaults(device_, kHtu2xI2cSpeedHz);
 
     // HTU21D-compatible parts may ignore the very first transaction right after boot.
     vTaskDelay(pdMS_TO_TICKS(kHtu2xStartupDelayMs));
@@ -117,7 +114,9 @@ void Htu2xSensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
-        si7021_free_desc(&device_);
+        if (esp_err_t err = si7021_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free HTU2X descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

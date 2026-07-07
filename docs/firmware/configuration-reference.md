@@ -243,17 +243,17 @@ GPIO and analog validation uses each sensor descriptor's `allowed_gpio_pins`. Th
 
 ## Backend configuration (`backend_cfg`)
 
-Struct: `BackendConfigList` holding up to 4 `BackendRecord` entries.
+Struct: `BackendConfigList` holding up to 5 `BackendRecord` entries.
 
 ### List-level fields
 
 | Field | Type | Default | Constraints |
 |-------|------|---------|-------------|
-| `backend_count` | `uint16_t` | `4` | 0–4 |
-| `next_backend_id` | `uint32_t` | `5` | Non-zero |
+| `backend_count` | `uint16_t` | `5` | 0–5 |
+| `next_backend_id` | `uint32_t` | `6` | Non-zero |
 | `upload_interval_ms` | `uint32_t` | `145 000` | 30 000–3 600 000 ms |
 
-Four backends are pre-configured by default — all **disabled**:
+Five backends are pre-configured by default — all **disabled**:
 
 | ID | Type | Display name | Enabled |
 |----|------|-------------|---------|
@@ -261,6 +261,7 @@ Four backends are pre-configured by default — all **disabled**:
 | 2 | Air360 API | `"Air360 API"` | `0` |
 | 3 | Custom Upload | `"Custom Upload"` | `0` |
 | 4 | InfluxDB | `"InfluxDB"` | `0` |
+| 5 | openSenseMap | `"openSenseMap"` | `0` |
 
 ### `BackendRecord` fields
 
@@ -280,6 +281,8 @@ Four backends are pre-configured by default — all **disabled**:
 | `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
 | `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
 | `altitude_m` | `float` | `0.0` | Air360 API only; metres above sea level; optional, `0.0` = not set |
+| `opensensemap_sensebox_id` | `char[32]` | `""` | openSenseMap only; 16–31 char alphanumeric box ID (classic hex ObjectId or next-gen cuid), required when enabled |
+| `opensensemap_access_token` | `char[72]` | `""` | openSenseMap only; optional box access token, printable non-space ASCII |
 
 Air360 API also stores its upload secret separately in the `air360_cred`
 namespace rather than inside `BackendRecord`. The secret is required when Air360
@@ -295,8 +298,9 @@ shown only as a masked preview after saving. Replacing it requires an explicit
 | Air360 API | `api.air360.ru` | `/v1/devices/{device_id}/batches/{batch_id}` | `443` | `1` |
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` |
+| openSenseMap | `api.opensensemap.org` | `/boxes/{sensebox_id}/data` | `443` | `1` |
 
-HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` and `InfluxDB` use the same common HTTP fields; `InfluxDB` also stores `measurement_name`. On save, an omitted port becomes the selected protocol default (`443` for HTTPS, `80` for HTTP). Generated request URLs omit the port when it is the selected protocol default.
+HTTP backends store host, path, port, and `use_https` separately in NVS. `Custom Upload` and `InfluxDB` expose editable host and path fields; `InfluxDB` also stores `measurement_name`. `openSenseMap` does not use free-text host/path: a `Platform` dropdown writes a fixed host/path pair — classic (`api.opensensemap.org`, `/boxes/...`) or next-gen (`staging.opensensemap.org`, `/api/boxes/...`) — and it also stores the senseBox ID and optional access token, substituting `{sensebox_id}` in the stored path at request time. Measurements are posted with openSenseMap's canonical API keyed by sensor ID; the per-reading reading→sensor-ID mapping is stored in the separate `osem_map` NVS blob (see [nvs.md](nvs.md)), not in the `BackendRecord`. `openSenseMap` has no port field; the port defaults from the HTTPS checkbox. On save, an omitted port becomes the selected protocol default (`443` for HTTPS, `80` for HTTP). Generated request URLs omit the port when it is the selected protocol default.
 
 The Air360 API latitude and longitude fields can be entered manually or selected on the Backends page map. The map only updates the same numeric fields that are submitted to `/backends`; no additional location state is persisted.
 
@@ -327,6 +331,12 @@ The Air360 API latitude and longitude fields can be entered manually or selected
 - If `enabled == 1`: host, path, port, and measurement name must be present and valid.
 - The path must start with `/`.
 - The port must be in range 1–65535.
+
+**openSenseMap:**
+- `host`, `path`, `opensensemap_sensebox_id`, and `opensensemap_access_token` must be null-terminated.
+- Host and path are not entered by hand — the `Platform` dropdown sets them to the classic or next-gen pair — so they are always valid when saved through the form.
+- If `enabled == 1`: the senseBox ID must be a 16–31 character alphanumeric box ID (covers both the classic hex ObjectId and the next-gen cuid); the access token, when present, must be printable non-space ASCII.
+- The access token is optional; when set it must contain only printable non-space ASCII (it travels in HTTP headers).
 
 **List-level:**
 - `upload_interval_ms` must be in range 30 000–3 600 000.

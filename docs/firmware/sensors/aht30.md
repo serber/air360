@@ -33,7 +33,7 @@ Temperature and humidity sensor from ASAIR (Aosong Electronics).
 1. Resolve the bus id via `context.i2c_bus_manager->getMasterBusHandle()` to obtain the `i2c_master_bus_handle_t`
 2. Create the sensor handle via `aht30_create()` with the resolved bus handle and the configured I2C address
 
-The AHT30 component uses the new ESP-IDF I2C master API. `getMasterBusHandle()` borrows the underlying handle already owned by `i2cdev` after `I2cBusManager::init()` runs.
+The AHT30 component uses the new ESP-IDF I2C master API. `getMasterBusHandle()` borrows the underlying handle owned by `i2cdev`, forcing `i2cdev`'s lazy bus install first when no `i2cdev`-based driver has transacted on the bus yet (see [transport-binding.md](../transport-binding.md)).
 
 ## Polling
 
@@ -54,7 +54,7 @@ The component internally sends the measurement trigger command (`0xAC 0x33 0x00`
 
 - The AHT30 has a single fixed I2C address (`0x38`). No address selection is available in hardware.
 - The driver uses the `espressif/aht30` managed component (v1.0.0).
-- The component requires `i2c_master_bus_handle_t` (new ESP-IDF I2C master API). The bus handle is obtained via `I2cBusManager::getMasterBusHandle()` which calls `i2c_master_get_bus_handle()` on the port already initialised by `i2cdev`.
+- The component requires `i2c_master_bus_handle_t` (new ESP-IDF I2C master API). The bus handle is obtained via `I2cBusManager::getMasterBusHandle()`, which installs the `i2cdev`-owned bus on demand if needed and borrows its handle.
 - If the measurement returns an error or NaN, the driver keeps short glitches local and marks the sensor for reinitialization after three consecutive poll failures.
 
 ## Recommended poll interval

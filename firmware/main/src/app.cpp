@@ -209,6 +209,7 @@ bool App::bootWebServer() {
             data_.measurementStore(),
             data_.backendConfigRepo(),
             platform_.air360Credentials(),
+            data_.openSenseMapMappings(),
             data_.backendConfigList(),
             data_.uploadManager(),
             network_.cellularConfigRepo(),

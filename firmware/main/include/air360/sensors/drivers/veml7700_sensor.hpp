@@ -22,7 +22,6 @@ class Veml7700Sensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     i2c_dev_t device_{};
     veml7700_config_t config_{};
     bool descriptor_initialized_ = false;

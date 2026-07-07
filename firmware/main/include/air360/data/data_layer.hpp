@@ -5,6 +5,7 @@
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/measurement_store.hpp"
+#include "air360/uploads/opensensemap_mapping_repository.hpp"
 #include "air360/uploads/upload_manager.hpp"
 
 namespace air360 {
@@ -46,6 +47,7 @@ class DataLayer {
     MeasurementStore&         measurementStore()    { return measurement_store_; }
     BackendConfigRepository&  backendConfigRepo()   { return backend_config_repository_; }
     BackendConfigList&        backendConfigList()   { return backend_config_list_; }
+    OpenSenseMapMappingRepository& openSenseMapMappings() { return opensensemap_mapping_repository_; }
     UploadManager&            uploadManager()       { return upload_manager_; }
     BleAdvertiser&            bleAdvertiser()       { return ble_advertiser_; }
 
@@ -56,6 +58,7 @@ class DataLayer {
     MeasurementStore        measurement_store_;
     BackendConfigRepository backend_config_repository_;
     BackendConfigList       backend_config_list_;
+    OpenSenseMapMappingRepository opensensemap_mapping_repository_;
     UploadManager           upload_manager_;
     BleAdvertiser           ble_advertiser_;
 };

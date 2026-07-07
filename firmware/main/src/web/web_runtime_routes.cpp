@@ -10,10 +10,13 @@
 #include "air360/sensors/sensor_types.hpp"
 #include "air360/string_utils.hpp"
 #include "air360/time_utils.hpp"
+#include "air360/uploads/backend_config.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/web_assets.hpp"
 #include "air360/web_server_internal.hpp"
+#include "esp_crt_bundle.h"
 #include "esp_err.h"
+#include "esp_http_client.h"
 
 namespace air360 {
 
@@ -36,6 +39,44 @@ std::string_view assetPathFromUri(const char* uri) {
         path = path.substr(0, query);
     }
     return path;
+}
+
+// Accumulates an openSenseMap box GET response body (capped) for the sensor
+// auto-map fetch. The browser parses the returned JSON to extract sensor IDs.
+struct BoxFetchCapture {
+    static constexpr std::size_t kMaxBytes = 8192U;
+    std::string body;
+    bool truncated = false;
+};
+
+esp_err_t boxFetchEventHandler(esp_http_client_event_t* event) {
+    if (event == nullptr || event->event_id != HTTP_EVENT_ON_DATA) {
+        return ESP_OK;
+    }
+    auto* capture = static_cast<BoxFetchCapture*>(event->user_data);
+    if (capture == nullptr || event->data == nullptr || event->data_len <= 0) {
+        return ESP_OK;
+    }
+    if (capture->body.size() >= BoxFetchCapture::kMaxBytes) {
+        capture->truncated = true;
+        return ESP_OK;
+    }
+    const std::size_t data_len = static_cast<std::size_t>(event->data_len);
+    const std::size_t available = BoxFetchCapture::kMaxBytes - capture->body.size();
+    const std::size_t copy_len = data_len < available ? data_len : available;
+    capture->body.append(static_cast<const char*>(event->data), copy_len);
+    if (copy_len < data_len) {
+        capture->truncated = true;
+    }
+    return ESP_OK;
+}
+
+esp_err_t sendBoxFetchError(httpd_req_t* request, const char* status, const std::string& message) {
+    httpd_resp_set_status(request, status);
+    std::string body = "{\"error\":\"";
+    body += jsonEscape(message);
+    body += "\"}";
+    return httpd_resp_sendstr(request, body.c_str());
 }
 
 esp_err_t sendAssetResponse(httpd_req_t* request, std::string_view asset_path) {
@@ -113,6 +154,94 @@ esp_err_t WebServer::handleAir360UploadSecret(httpd_req_t* request) {
     response += jsonEscape(secret);
     response += "\"}";
     return httpd_resp_sendstr(request, response.c_str());
+}
+
+esp_err_t WebServer::handleOpenSenseMapBoxSensors(httpd_req_t* request) {
+    auto* server = static_cast<WebServer*>(request->user_ctx);
+    httpd_resp_set_type(request, "application/json");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    web::logHttpHandlerWatermark();
+
+    const BackendRecord* record = server->backend_config_list_ != nullptr
+        ? findBackendRecordByType(*server->backend_config_list_, BackendType::kOpenSenseMap)
+        : nullptr;
+    if (record == nullptr) {
+        return sendBoxFetchError(
+            request, "400 Bad Request", "OpenSenseMap backend is not configured.");
+    }
+
+    const std::string box_id =
+        boundedCString(record->opensensemap_sensebox_id, kBackendSenseBoxIdCapacity);
+    if (!isValidOpenSenseMapBoxId(box_id)) {
+        return sendBoxFetchError(
+            request, "400 Bad Request", "Enter and save the senseBox ID first.");
+    }
+
+    // Derive the box resource URL from the stored ingest endpoint: substitute
+    // the box ID and drop the trailing "/data" measurements segment.
+    std::string url = buildBackendUrl(*record);
+    const std::size_t placeholder = url.find("{sensebox_id}");
+    if (placeholder != std::string::npos) {
+        url.replace(placeholder, sizeof("{sensebox_id}") - 1U, box_id);
+    }
+    const std::string kDataSuffix = "/data";
+    if (url.size() >= kDataSuffix.size() &&
+        url.compare(url.size() - kDataSuffix.size(), kDataSuffix.size(), kDataSuffix) == 0) {
+        url.erase(url.size() - kDataSuffix.size());
+    }
+
+    esp_http_client_config_t config{};
+    config.url = url.c_str();
+    config.method = HTTP_METHOD_GET;
+    config.timeout_ms = 15000;
+    config.disable_auto_redirect = true;
+    config.buffer_size = 2048;
+    config.buffer_size_tx = 1024;
+    config.keep_alive_enable = false;
+    config.addr_type = HTTP_ADDR_TYPE_INET;
+    config.crt_bundle_attach = esp_crt_bundle_attach;
+
+    BoxFetchCapture capture;
+    config.event_handler = boxFetchEventHandler;
+    config.user_data = &capture;
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (client == nullptr) {
+        return sendBoxFetchError(
+            request, "502 Bad Gateway", "Could not initialize the HTTP client.");
+    }
+
+    const std::string token =
+        boundedCString(record->opensensemap_access_token, kBackendAccessTokenCapacity);
+    if (!token.empty()) {
+        // Header set failures are non-fatal for a best-effort box fetch.
+        static_cast<void>(esp_http_client_set_header(client, "Authorization", token.c_str()));
+        static_cast<void>(
+            esp_http_client_set_header(client, "x-osem-device-api-key", token.c_str()));
+    }
+
+    const esp_err_t perform_err = esp_http_client_perform(client);
+    if (perform_err != ESP_OK) {
+        esp_http_client_cleanup(client);
+        return sendBoxFetchError(
+            request,
+            "502 Bad Gateway",
+            std::string("Box request failed: ") + esp_err_to_name(perform_err));
+    }
+
+    const int status_code = esp_http_client_get_status_code(client);
+    esp_http_client_cleanup(client);
+
+    if (status_code < 200 || status_code > 299) {
+        return sendBoxFetchError(
+            request,
+            "502 Bad Gateway",
+            std::string("openSenseMap returned HTTP ") + std::to_string(status_code) +
+                " (check the senseBox ID and access token).");
+    }
+
+    // Forward the box document verbatim; the browser extracts sensors[].
+    return httpd_resp_send(request, capture.body.data(), capture.body.size());
 }
 
 esp_err_t WebServer::handleWifiScan(httpd_req_t* request) {

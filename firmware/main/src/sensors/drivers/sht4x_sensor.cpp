@@ -31,7 +31,6 @@ SensorType Sht4xSensor::type() const {
 
 esp_err_t Sht4xSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
     teardown();
-    record_ = record;
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();
@@ -52,9 +51,7 @@ esp_err_t Sht4xSensor::init(const SensorRecord& record, const SensorDriverContex
         return err;
     }
     descriptor_initialized_ = true;
-    device_.i2c_dev.cfg.master.clk_speed = kSht4xI2cSpeedHz;
-    device_.i2c_dev.cfg.sda_pullup_en = 1;
-    device_.i2c_dev.cfg.scl_pullup_en = 1;
+    context.i2c_bus_manager->applyDescriptorDefaults(device_.i2c_dev, kSht4xI2cSpeedHz);
 
     device_.repeatability = SHT4X_HIGH;
     device_.heater = SHT4X_HEATER_OFF;
@@ -106,7 +103,9 @@ void Sht4xSensor::teardown() {
     initialized_ = false;
     soft_fail_policy_.onPollOk();
     if (descriptor_initialized_) {
-        sht4x_free_desc(&device_);
+        if (esp_err_t err = sht4x_free_desc(&device_); err != ESP_OK) {
+            ESP_LOGW(kTag, "Failed to free SHT4X descriptor: %s", esp_err_to_name(err));
+        }
         std::memset(&device_, 0, sizeof(device_));
         descriptor_initialized_ = false;
     }

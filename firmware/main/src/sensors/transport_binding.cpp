@@ -6,15 +6,22 @@
 #include <limits>
 
 #include "driver/uart.h"
+#include "esp_log.h"
 #include "sdkconfig.h"
 
 namespace air360 {
 
 namespace {
 
+constexpr char kTag[] = "air360.sensor.i2c";
+
 // UART sensor traffic is RX-heavy. Short command writes can use the blocking
 // ESP-IDF TX path, so no TX ring buffer is reserved.
 constexpr int kUartTxBufferSize = 0;
+
+// Speed applied to descriptors that never carry real sensor traffic, such as
+// the bus-install probe device. Matches the configured bus clock.
+constexpr std::uint32_t kDefaultDeviceSpeedHz = 100000U;
 
 constexpr BusConfig kBuses[] = {
     {
@@ -66,45 +73,24 @@ esp_err_t I2cBusManager::setupDevice(
     out_dev.addr = record.i2c_address;
     out_dev.cfg.sda_io_num = sda;
     out_dev.cfg.scl_io_num = scl;
-    out_dev.cfg.master.clk_speed = speed_hz;
-    out_dev.cfg.sda_pullup_en = 1;
-    out_dev.cfg.scl_pullup_en = 1;
+    applyDescriptorDefaults(out_dev, speed_hz);
 
     return i2c_dev_create_mutex(&out_dev);
 }
 
-esp_err_t I2cBusManager::getComponentBus(
-    std::uint8_t bus_id,
-    i2c_bus_handle_t& out_handle) const {
-    i2c_port_t port = I2C_NUM_0;
-    gpio_num_t sda = GPIO_NUM_NC;
-    gpio_num_t scl = GPIO_NUM_NC;
-    if (!resolvePins(bus_id, port, sda, scl)) {
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    // i2cdev already owns this bus. i2c_bus_create() detects the existing
-    // handle via i2c_master_get_bus_handle() and borrows it.
-    const BusConfig* bus_cfg = nullptr;
-    for (const BusConfig& bus : buses_) {
-        if (bus.id == bus_id) {
-            bus_cfg = &bus;
-            break;
-        }
-    }
-
-    i2c_config_t config{};
-    config.mode = I2C_MODE_MASTER;
-    config.sda_io_num = sda;
-    config.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    config.scl_io_num = scl;
-    config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    config.master.clk_speed = (bus_cfg != nullptr) ? bus_cfg->clock_hz : 100000U;
-
-    out_handle = i2c_bus_create(port, &config);
-    return out_handle != nullptr ? ESP_OK : ESP_FAIL;
+void I2cBusManager::applyDescriptorDefaults(i2c_dev_t& dev, std::uint32_t speed_hz) const {
+    dev.cfg.master.clk_speed = speed_hz;
+    dev.cfg.sda_pullup_en = 1;
+    dev.cfg.scl_pullup_en = 1;
 }
 
+// Lifetime invariant: the returned handle is borrowed from i2cdev and remains
+// valid only while i2cdev never deletes the bus. As of i2cdev 2.1.1 (pinned in
+// idf_component.yml) the delete path in i2c_dev_delete_mutex() is unreachable:
+// upstream nulls dev->dev_handle before the ref-count decrement checks it, so
+// ref_count never drops to zero and i2c_del_master_bus() is never called. Any
+// i2cdev upgrade must re-verify this before merging — see
+// docs/firmware/adr/implemented-i2c-master-bus-ownership-hardening-adr.md.
 esp_err_t I2cBusManager::getMasterBusHandle(
     std::uint8_t bus_id,
     i2c_master_bus_handle_t& out_handle) const {
@@ -114,8 +100,34 @@ esp_err_t I2cBusManager::getMasterBusHandle(
     if (!resolvePins(bus_id, port, sda, scl)) {
         return ESP_ERR_NOT_SUPPORTED;
     }
-    // i2cdev already owns this port; borrow its underlying master bus handle.
-    return i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+
+    // i2cdev owns this port but installs the master bus lazily, on the first
+    // real transaction of an i2cdev-based driver. If no such driver has touched
+    // the bus yet (e.g. the AHT30/BMP390 is the only I2C sensor configured),
+    // there is no handle to borrow and ESP_ERR_INVALID_STATE comes back.
+    esp_err_t err = i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+    if (err != ESP_ERR_INVALID_STATE) {
+        return err;
+    }
+
+    // Force i2cdev to install the bus with the canonical pins so it stays the
+    // single bus owner. i2c_dev_check_present() runs i2c_setup_port() first,
+    // which creates the master bus; the probe of address 0 that follows is a
+    // side effect whose result does not matter here.
+    i2c_dev_t probe_dev{};
+    probe_dev.port = port;
+    probe_dev.cfg.sda_io_num = sda;
+    probe_dev.cfg.scl_io_num = scl;
+    applyDescriptorDefaults(probe_dev, kDefaultDeviceSpeedHz);
+    // Only the bus-install side effect matters; a probe miss on address 0 is expected.
+    static_cast<void>(i2c_dev_check_present(&probe_dev));
+
+    err = i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(port), &out_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(kTag, "I2C master bus on port %d is still unavailable: %s",
+                 static_cast<int>(port), esp_err_to_name(err));
+    }
+    return err;
 }
 
 // ── UartPortManager ──────────────────────────────────────────────────────────

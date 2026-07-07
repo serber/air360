@@ -355,6 +355,8 @@ Currently implemented backends are:
   User-supplied protocol, host, path, and port
 - `InfluxDB`
   User-supplied protocol, host, path, port, credentials, and measurement name
+- `OpenSenseMap`
+  luftdaten-format ingestion with a classic/next-gen platform dropdown (default `https://api.opensensemap.org/boxes/{sensebox_id}/data?luftdaten=1`); the user picks the platform and supplies the senseBox ID and an optional box access token
 
 Backend selection and upload interval are configured through `/backends`. The built-in backends keep fixed host/path defaults; `Custom Upload` and `InfluxDB` are edited through the UI.
 

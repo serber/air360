@@ -451,6 +451,36 @@ Use this backend when you want the firmware to write sensor samples as Influx li
 
 The firmware sends one POST per upload cycle. The body contains multiple line protocol rows, one row per grouped sensor sample.
 
+### openSenseMap
+
+Use this backend to publish measurements to [opensensemap.org](https://opensensemap.org):
+
+1. Create an account on opensensemap.org and register a new senseBox. Add a
+   sensor for each measurement you want to publish (e.g. Temperature, Humidity,
+   PM2.5), choosing the unit that matches the device output (°C, %, hPa, µg/m³,
+   ppm, …). You will bind each of these box sensors to a device reading in
+   step 5.
+2. Copy the **senseBox ID** from the box overview (or from the box URL). The
+   classic platform uses a 24-character hex ID; the next-gen platform uses a
+   ~24-character alphanumeric ID.
+3. If the box has authentication enabled, also copy its **access token** from
+   the box security settings (it is required for such boxes).
+4. On the device, open **Backends**, enable **openSenseMap**, set the
+   **Platform** dropdown to match where you created the box — **Classic**
+   (`api.opensensemap.org`) or **Next-gen** (`staging.opensensemap.org`) — then
+   paste the senseBox ID (and the access token, if any).
+5. In the **Sensor mapping** section, bind each device reading to a box sensor.
+   The quickest way is to press **Fetch sensors from openSenseMap**: the device
+   pulls the box's sensors and fills in the sensor IDs by matching names. Fix any
+   unmatched rows by pasting the 24-character sensor ID by hand (from the box
+   page). Leave a reading blank to not publish it. Press **Save**.
+
+The firmware sends one POST per upload cycle using openSenseMap's canonical
+measurements API, one value per mapped box sensor. Any phenomenon you create a
+box sensor for — including CO2 — can be published, provided you map it. Only
+readings the device is currently producing appear in the mapping list, so let
+the sensors take at least one sample before mapping.
+
 ### Save behavior
 
 Backend settings are saved immediately when you press **Save** — there is no staged apply flow for backends.

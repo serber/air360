@@ -13,6 +13,7 @@
 #include "air360/sensors/sensor_registry.hpp"
 #include "air360/uploads/backend_config.hpp"
 #include "air360/uploads/measurement_store.hpp"
+#include "air360/uploads/opensensemap_mapping.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "air360/web_form.hpp"
 #include "esp_err.h"
@@ -75,6 +76,9 @@ std::string renderBackendsPage(
     const UploadManager& upload_manager,
     const BuildInfo& build_info,
     const std::string& air360_upload_secret_preview,
+    const SensorManager& sensor_manager,
+    const MeasurementStore& measurement_store,
+    const OpenSenseMapMappingTable& opensensemap_mappings,
     const std::string& notice,
     bool error_notice);
 std::string renderSensorsPage(

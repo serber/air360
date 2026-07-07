@@ -22,10 +22,12 @@ idf_component_register(
         "src/uploads/air360_api_credentials.cpp"
         "src/uploads/backend_config_repository.cpp"
         "src/uploads/backend_registry.cpp"
+        "src/uploads/opensensemap_mapping_repository.cpp"
         "src/uploads/adapters/air360_json_payload.cpp"
         "src/uploads/adapters/air360_api_uploader.cpp"
         "src/uploads/adapters/custom_upload_uploader.cpp"
         "src/uploads/adapters/influxdb_uploader.cpp"
+        "src/uploads/adapters/opensensemap_uploader.cpp"
         "src/uploads/adapters/sensor_community_uploader.cpp"
         "src/uploads/measurement_store.cpp"
         "src/uploads/upload_log_endpoint.cpp"
@@ -97,8 +99,7 @@ idf_component_register(
         esp-idf-lib__veml7700
         espressif__aht30
         k0i05__esp_bmp390
-        espressif__bme280
-        espressif__i2c_bus
+        esp-idf-lib__bmp280
         espressif__ds18b20
         espressif__onewire_bus
         cinderblocks__esp_tinygpsplusplus

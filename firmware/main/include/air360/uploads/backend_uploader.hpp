@@ -15,6 +15,7 @@
 namespace air360 {
 
 class UploadTransport;
+class OpenSenseMapMappingRepository;
 
 enum class UploadAttemptPhase : std::uint8_t {
     kUnknown = 0U,
@@ -60,6 +61,7 @@ using BackendWatchdogResetFn = void (*)(void* arg, const char* checkpoint);
 struct BackendDeliveryContext {
     const UploadTransport* http_transport = nullptr;
     const Air360ApiCredentialRepository* air360_credentials = nullptr;
+    const OpenSenseMapMappingRepository* opensensemap_mappings = nullptr;
     BackendStopRequestedFn stop_requested = nullptr;
     BackendWatchdogResetFn reset_watchdog = nullptr;
     void* callback_arg = nullptr;

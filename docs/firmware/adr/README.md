@@ -14,6 +14,10 @@ Decisions already present in the current firmware.
   Firmware-generated Air360 API upload secret with bearer authentication and user-saved reset recovery.
 - [`implemented-ota-firmware-update-adr.md`](implemented-ota-firmware-update-adr.md)
   OTA firmware update via the web UI using the ESP-IDF native `app_update` API with automatic rollback.
+- [`implemented-sensor-driver-i2c-hygiene-adr.md`](implemented-sensor-driver-i2c-hygiene-adr.md)
+  Centralised I2C descriptor electrical policy (`applyDescriptorDefaults()`), shared Pa→hPa constant, removal of write-only `record_` members, and consistent teardown-failure logging.
+- [`implemented-i2c-master-bus-ownership-hardening-adr.md`](implemented-i2c-master-bus-ownership-hardening-adr.md)
+  Exact pin of `esp-idf-lib/i2cdev` 2.1.1, documented borrowed master-bus-handle lifetime invariant (AHT30, BMP390), and an upgrade gate requiring re-audit of `i2c_dev_delete_mutex()` before any i2cdev bump.
 
 ## Proposed — New features
 

@@ -61,6 +61,7 @@ firmware/
 │   │       ├── measurement_store.cpp
 │   │       ├── air360_api_credentials.cpp
 │   │       ├── backend_config_repository.cpp
+│   │       ├── opensensemap_mapping_repository.cpp
 │   │       └── backend_registry.cpp
 │   ├── webui/                      Hand-authored HTML/CSS/JS assets embedded via EMBED_TXTFILES
 │   └── third_party/sps30/          Vendored Sensirion SPS30 C library
@@ -435,7 +436,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 
 | Driver file | Sensor | Managed component |
 |-------------|--------|-------------------|
-| `bme280_sensor.cpp` | BME280 | `espressif__bme280` |
+| `bme280_sensor.cpp` | BME280 | `esp-idf-lib__bmp280` |
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
@@ -491,7 +492,7 @@ struct MeasurementBatch {
 
 ### `BackendConfigRepository` — `uploads/backend_config_repository.cpp`
 
-Manages the `BackendConfigList` NVS blob (up to 4 backends).
+Manages the `BackendConfigList` NVS blob (up to 5 backends). Migrates stored schema v1 blobs (4 records, no openSenseMap fields) to v2 in place, preserving existing backend settings.
 
 **Per-backend config:**
 
@@ -503,6 +504,7 @@ Manages the `BackendConfigList` NVS blob (up to 4 backends).
 | host / path / port / use_https | shared HTTP endpoint fields |
 | username / password | optional Basic Auth fields |
 | measurement_name | InfluxDB measurement name |
+| opensensemap_sensebox_id / opensensemap_access_token | openSenseMap box ID and optional access token |
 | upload_interval_ms | 30 000–3 600 000 ms (default 145 000 ms) |
 
 **Log tag:** `air360.backend_cfg`
@@ -526,6 +528,7 @@ Static catalog of supported backend types. Each entry (`BackendDescriptor`) hold
 | Air360 API | `api.air360.ru` + `/v1/devices/{device_id}/batches/{batch_id}` |
 | Custom Upload | user-supplied protocol, host, path, and port |
 | InfluxDB | user-supplied protocol, host, path, and port plus measurement name |
+| openSenseMap | host/path from a classic/next-gen platform dropdown (default `api.opensensemap.org` + `/boxes/{sensebox_id}/data`); canonical API keyed by sensor ID via the `osem_map` mapping table |
 
 ---
 

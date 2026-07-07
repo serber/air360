@@ -34,6 +34,7 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 | `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository`; `/config` combined save |
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
+| `osem_map` | blob | `OpenSenseMapMappingTable` | `OpenSenseMapMappingRepository` |
 | `boot_count` | u32 | `uint32_t` | `ConfigRepository` |
 
 ---
@@ -240,18 +241,18 @@ struct SensorRecord {
 
 ## `backend_cfg` — `BackendConfigList`
 
-Upload backend configuration. Holds up to `kMaxConfiguredBackends` (4) backend records.
+Upload backend configuration. Holds up to `kMaxConfiguredBackends` (5) backend records.
 
 ```cpp
 struct BackendConfigList {
     uint32_t magic;              // 0x41333632
-    uint16_t schema_version;     // 1
+    uint16_t schema_version;     // 2
     uint16_t record_size;        // sizeof(BackendRecord)
     uint16_t backend_count;
     uint16_t reserved0;
     uint32_t next_backend_id;    // auto-increment counter
     uint32_t upload_interval_ms; // default: 145000 ms, range: 30000–3600000
-    BackendRecord backends[4];
+    BackendRecord backends[5];
 };
 ```
 
@@ -272,6 +273,8 @@ struct BackendRecord {
     float       latitude;               // Air360 API only
     float       longitude;             // Air360 API only
     float       altitude_m;            // Air360 API only; 0.0 = not set
+    char        opensensemap_sensebox_id[32];  // openSenseMap only (schema v2)
+    char        opensensemap_access_token[72]; // openSenseMap only (schema v2)
 };
 ```
 
@@ -284,6 +287,7 @@ struct BackendRecord {
 | 2 | Air360 API |
 | 3 | Custom Upload |
 | 4 | InfluxDB |
+| 5 | openSenseMap |
 
 ### Default endpoint settings
 
@@ -293,8 +297,13 @@ struct BackendRecord {
 | Air360 API | `api.air360.ru` | `/v1/devices/{device_id}/batches/{batch_id}` | `443` | `1` |
 | Custom Upload | `""` | `""` | `0` | `0` |
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
+| openSenseMap | `api.opensensemap.org` | `/boxes/{sensebox_id}/data` | `443` | `1` |
 
-HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` uses the same common HTTP fields as the built-in backends. `InfluxDB` also stores `measurement_name`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
+HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` and `InfluxDB` expose editable host/path; `InfluxDB` also stores `measurement_name`. `openSenseMap` stores host/path too, but they are written from a `Platform` dropdown (classic vs next-gen) rather than typed, plus `opensensemap_sensebox_id` and `opensensemap_access_token`. The per-reading openSenseMap sensor-ID mapping is stored in the separate `osem_map` blob, not in `BackendRecord`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
+
+### Schema v1 → v2 migration
+
+Schema v2 grew the record array from 4 to 5 entries and appended the two openSenseMap fields to `BackendRecord`. `BackendConfigRepository::loadOrCreate()` migrates a stored v1 blob in place: it validates the v1 header (`magic`, `schema_version == 1`, stored `record_size` no larger than the current record, blob size equal to the v1 layout), copies each stored record's `record_size` bytes into a zero-initialised v2 record, appends the default openSenseMap record, and saves the result back as v2. Existing backend settings survive the upgrade; only an unrecognisable blob is replaced with defaults.
 
 ---
 
@@ -323,6 +332,37 @@ ingest requests.
 
 ---
 
+## `osem_map` — `OpenSenseMapMappingTable`
+
+The openSenseMap adapter posts measurements with the canonical API, keyed by
+openSenseMap sensor ID. The device-side mapping from each Air360 reading to a box
+sensor ID is stored in its own blob (namespace `air360`, key `osem_map`) rather
+than inside `BackendRecord`, so it does not bloat the five-slot backend array.
+
+```c
+struct OpenSenseMapMapping {
+    SensorType      sensor_type;      // uint8
+    SensorValueKind value_kind;       // uint8
+    char            sensor_id[25];    // 24-char hex ObjectId + NUL
+};
+
+struct OpenSenseMapMappingTable {
+    uint32_t magic;          // 'OSEM'
+    uint16_t schema_version; // 1
+    uint16_t entry_count;    // 0..24
+    OpenSenseMapMapping entries[24];
+};
+```
+
+`OpenSenseMapMappingRepository` caches the table behind a mutex and writes
+through on save (like `air360_cred`). The web task saves it from the Backends
+form; the upload task loads it each cycle through
+`BackendDeliveryContext::opensensemap_mappings`. A missing or
+schema-incompatible blob loads as an empty table (no readings mapped, nothing
+uploaded) rather than being an error.
+
+---
+
 ## `boot_count` — `uint32_t`
 
 Incremented on every boot via `nvs_get_u32` / `nvs_set_u32`. If the key does not exist yet (first boot), starts from 0 and writes 1. Shown on the Overview page and included in the Diagnostics raw JSON dump.
@@ -342,7 +382,7 @@ All three blob repositories follow the same load pattern:
 7. If any field mismatches: write defaults, return.
 8. Return the loaded struct.
 
-There is no incremental migration. Any structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
+The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
 
 ---
 

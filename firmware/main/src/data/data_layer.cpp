@@ -145,7 +145,8 @@ void DataLayer::bootUploads(
         sensor_manager_,
         measurement_store_,
         network.networkManager(),
-        platform.air360Credentials());
+        platform.air360Credentials(),
+        opensensemap_mapping_repository_);
     const esp_err_t upload_apply_err = upload_manager_.applyConfig(backend_config_list_);
     if (upload_apply_err != ESP_OK) {
         ESP_LOGW(

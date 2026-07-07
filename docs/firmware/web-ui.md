@@ -52,7 +52,7 @@ The server starts during boot step 9/9. A startup failure is fatal — the boot 
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
-`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`, `/api/gps-location`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. OTA endpoints (`/ota`, `/ota/status`, `/ota/rollback`) live in `main/src/web/web_ota_routes.cpp` and dispatch through `OtaService`. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
+`WebServer::start()` in `web_server.cpp` owns HTTP server setup and URI registration. Read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/assets/*`, `GET /wifi-scan`, `POST /wifi-scan`, `/check-sntp`, `/api/gps-location`, `/api/opensensemap/box-sensors`) live in `main/src/web/web_runtime_routes.cpp`. Mutating config, sensor, and backend handlers live in `main/src/web/web_mutating_routes.cpp` with their persistence and runtime-apply flows. OTA endpoints (`/ota`, `/ota/status`, `/ota/rollback`) live in `main/src/web/web_ota_routes.cpp` and dispatch through `OtaService`. URL/form decoding lives in the host-testable `main/src/web/web_form.cpp`; HTTP request-body and response helpers live in `main/src/web/web_server_helpers.cpp`.
 
 **Response streaming**: all HTML page handlers use `web::sendHtmlResponse()` which sends the response body in 1 KB chunks via `httpd_resp_send_chunk`, avoiding the need for a contiguous HTTP transport buffer equal to the full page size.
 
@@ -76,6 +76,7 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 | `GET` / `POST` | `/sensors` | Sensor configuration page |
 | `GET` / `POST` | `/backends` | Backend configuration page |
 | `GET` | `/backends/air360-upload-secret` | Generate a new Air360 upload secret (JSON response) |
+| `GET` | `/api/opensensemap/box-sensors` | Proxy the configured openSenseMap box document for sensor auto-mapping (JSON) |
 | `GET` | `/api/gps-location` | Latest GPS coordinates from an active GPS sensor (JSON) |
 | `POST` | `/ota` | Streamed firmware upload (raw `application/octet-stream` body) |
 | `GET` | `/ota/status` | Current OTA state as JSON (used by the Device page progress UI and diagnostics) |
@@ -268,7 +269,7 @@ A single form containing upload settings and one card per backend type.
 
 **Upload settings panel** — `upload_interval_ms` numeric input (range 30 000–3 600 000 ms). Validated server-side.
 
-**Backend cards** — one card per registered backend (`Sensor.Community`, `Air360 API`, `Custom Upload`, `InfluxDB`):
+**Backend cards** — one card per registered backend, in registry order (`Air360 API`, `Sensor.Community`, `openSenseMap`, `Custom Upload`, `InfluxDB`):
 - Enabled checkbox — toggling it dims the card via JavaScript and disables the rest of the card controls until re-enabled.
 - Project links — Sensor.Community links to `https://sensor.community/`; Air360 API links to `https://github.com/serber/air360`.
 - Map links — when coordinates are saved, each card shows its own `Maps` link: the Air360 API card links to `https://air360.ru/map#15/<latitude>/<longitude>`; the Sensor.Community card links to `https://maps.sensor.community/#15/<latitude>/<longitude>`. Cards without saved coordinates show no map link.
@@ -279,6 +280,8 @@ A single form containing upload settings and one card per backend type.
 - `Air360 API` only: `Latitude` and `Longitude` numeric inputs (`step="any"`, required) plus an `Altitude (m above sea level)` numeric input (`step="any"`, optional; empty or `0` means not set), followed by an embedded OpenStreetMap/MapLibre picker. Clicking the map updates the latitude/longitude fields; editing those fields moves the map marker. The numeric fields remain the submitted source of truth and are persisted in the `BackendRecord`. Upload cycles are blocked until both latitude and longitude are non-zero. When the backends page loads, JavaScript calls `GET /api/gps-location`; if a GPS sensor has a fix, the coordinate fields are pre-filled automatically (when empty) or a **Use GPS** button appears in the map status area (when fields already have saved values).
 - `Air360 API` only: upload secret UI. When no secret is stored, the page shows an empty `Upload secret` textarea plus **Generate** button; the button calls `/backends/air360-upload-secret` and fills the textarea with a locally generated secret. When a secret already exists, the page shows `Configured` with a masked preview and keeps the replacement textarea hidden/disabled until the user presses **Change**.
 - Sensor.Community only: read-only **Sensor ID** display showing the device's `short_device_id`; users must register this value as their sensor ID in the sensor.community personal account.
+- `openSenseMap` only: a `Platform` dropdown (`Classic` → `api.opensensemap.org` + `/boxes/{sensebox_id}/data`; `Next-gen` → `staging.opensensemap.org` + `/api/boxes/{sensebox_id}/data`), a required `senseBox ID` text input (16–31 char alphanumeric box ID from the box URL), and an optional `Access token` text input (required for boxes with authentication enabled). There is no editable host/path or port field — the dropdown sets host and path, the `Use HTTPS` checkbox sets the protocol (and thus the default port 443/80), and `{sensebox_id}` in the path is substituted with the box ID at request time.
+- `openSenseMap` only: a **Sensor mapping** section. Measurements are posted with openSenseMap's canonical API keyed by sensor ID, so each device reading must be bound to a box sensor ID. The section renders one 24-character-hex input per **live** `(sensor model, phenomenon)` reading — the set is derived from the measurement store joined to the runtime sensor list, so a reading only appears once its sensor has produced at least one sample. Each input's field name is `osemmap-<sensor_type>-<value_kind>` (numeric enum values). A **Fetch sensors from openSenseMap** button calls `GET /api/opensensemap/box-sensors`; the returned box document's `sensors[]` are matched to each reading by `title`/`sensorType` and the sensor-ID inputs are pre-filled. Readings left blank are not uploaded. The mapping is persisted in the separate `osem_map` NVS blob, independent of the backend enabled state.
 - Upload status summary (last result, last upload timestamp).
 
 **Submit action:** `POST /backends`
@@ -287,6 +290,8 @@ A single form containing upload settings and one card per backend type.
 - Updates `Sensor.Community` and `Air360 API` by changing the stored protocol; host and path stay in dedicated config fields.
 - Validates and stores `Custom Upload` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`).
 - Validates and stores `InfluxDB` in the common backend HTTP fields (`host`, `path`, `port`, `use_https`, `username`, `password`) plus `measurement_name`.
+- Sets the `openSenseMap` host and path from the `Platform` dropdown (classic vs next-gen), and validates and stores the senseBox ID (16–31 char alphanumeric) and access token (printable non-space ASCII) in the `BackendRecord`; protocol comes from the HTTPS checkbox and the port defaults from it.
+- Parses the `osemmap-<sensor_type>-<value_kind>` inputs into the openSenseMap sensor-ID mapping table and saves it to the `osem_map` NVS blob via `OpenSenseMapMappingRepository`. Each non-empty value must be exactly 24 hexadecimal characters; blank inputs mean the reading is unmapped. This runs regardless of whether the openSenseMap backend is enabled.
 - Empty editable port fields save as the selected protocol default. Request URLs omit `:443` for HTTPS and `:80` for HTTP.
 - Saves to NVS and calls `UploadManager::applyConfig()` — normally takes effect immediately without a reboot. If the old upload task cannot stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 
@@ -424,6 +429,14 @@ This endpoint does not modify stored configuration. Use `POST /config` followed 
 ```
 
 The `/backends` page JavaScript calls this endpoint when the Air360 API card map initialises. If the returned coordinates are valid and the latitude/longitude inputs are empty (no saved location), the fields are auto-filled and the map marker is placed. If the inputs already hold saved values, a **Use GPS** button appears in the map status area; clicking it replaces the inputs with GPS coordinates and repositions the marker.
+
+---
+
+## Endpoint: `/api/opensensemap/box-sensors`
+
+`GET /api/opensensemap/box-sensors` supports the openSenseMap sensor auto-mapping button. The device server-side fetches the configured box document (`GET {scheme}://{host}/[api/]boxes/{sensebox_id}`, derived from the stored ingest endpoint by substituting the box ID and dropping the trailing `/data`), sending the box access token in `Authorization` and `x-osem-device-api-key` when configured. On success it forwards the box JSON **verbatim** (the browser extracts `sensors[]`); the device does not parse it.
+
+Errors are reported as `{ "error": "..." }` with a non-2xx status: `400` when the openSenseMap backend or senseBox ID is not configured, `502` when the upstream request fails or returns a non-2xx status (for example, a `useAuth` box with a missing/invalid token). The `/backends` page JavaScript matches each returned box sensor to a mapping input by `title` (against the phenomenon) and `sensorType` (against the sensor model) and pre-fills the sensor-ID fields.
 
 ---
 

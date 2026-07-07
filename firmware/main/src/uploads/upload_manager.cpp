@@ -62,13 +62,15 @@ void UploadManager::start(
     const SensorManager& sensor_manager,
     MeasurementStore& measurement_store,
     const NetworkManager& network_manager,
-    const Air360ApiCredentialRepository& air360_credentials) {
+    const Air360ApiCredentialRepository& air360_credentials,
+    const OpenSenseMapMappingRepository& opensensemap_mappings) {
     build_info_ = build_info;
     device_config_ = &device_config;
     sensor_manager_ = &sensor_manager;
     measurement_store_ = &measurement_store;
     network_manager_ = &network_manager;
     air360_credentials_ = &air360_credentials;
+    opensensemap_mappings_ = &opensensemap_mappings;
 }
 
 esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
@@ -383,6 +385,7 @@ void UploadManager::taskMain() {
                             BackendDeliveryContext delivery_context;
                             delivery_context.http_transport = &transport_;
                             delivery_context.air360_credentials = air360_credentials_;
+                            delivery_context.opensensemap_mappings = opensensemap_mappings_;
                             delivery_context.stop_requested = &UploadManager::deliveryStopRequested;
                             delivery_context.reset_watchdog = &UploadManager::deliveryWatchdogReset;
                             delivery_context.callback_arg = this;

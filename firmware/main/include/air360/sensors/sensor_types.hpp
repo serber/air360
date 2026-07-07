@@ -132,6 +132,10 @@ enum class SensorValueKind : std::uint8_t {
     kPc10Per0_1L = 38U,
 };
 
+// SensorValueKind::kPressureHpa stores hectopascals. Drivers whose components
+// report pascals divide by this constant before calling addValue().
+constexpr float kPaPerHpa = 100.0F;
+
 inline const char* sensorValueKindKey(SensorValueKind kind) {
     switch (kind) {
         case SensorValueKind::kTemperatureC:

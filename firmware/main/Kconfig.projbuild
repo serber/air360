@@ -58,6 +58,16 @@ config AIR360_MEASUREMENT_QUEUE_DEPTH
     range 32 2048
     default 256
 
+config AIR360_LOG_OPENSENSEMAP_HTTP
+    bool "Log openSenseMap request/response bodies"
+    default n
+    help
+        When enabled, the openSenseMap upload adapter logs the full request URL,
+        request body, and response body at WARN level (tag air360.upload.osem)
+        on every upload attempt. Use only for debugging openSenseMap integration
+        problems: the request body can be large and appears in plaintext in the
+        device log. Leave disabled in production builds.
+
 config AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS
     int "BLE payload refresh interval (ms)"
     range 1000 60000

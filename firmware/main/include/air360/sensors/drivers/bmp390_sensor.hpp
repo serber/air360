@@ -22,7 +22,6 @@ class Bmp390Sensor final : public SensorDriver {
   private:
     void teardown();
 
-    SensorRecord record_{};
     bmp390_handle_t handle_ = nullptr;
     SensorMeasurement measurement_{};
 };

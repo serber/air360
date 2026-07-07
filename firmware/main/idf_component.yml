@@ -1,4 +1,9 @@
 dependencies:
+  # Exact pin, load-bearing: borrowed master bus handles (AHT30, BMP390) stay
+  # valid only because i2cdev 2.1.1 never reaches its bus-delete path in
+  # i2c_dev_delete_mutex(). Bumping this version requires re-auditing that
+  # function first — see docs/firmware/adr/implemented-i2c-master-bus-ownership-hardening-adr.md.
+  esp-idf-lib/i2cdev: "2.1.1"
   espressif/esp_modem: ^1.1.0
   espressif/ds18b20: 0.3.1
   esp-idf-lib/scd30: 1.0.12
@@ -7,7 +12,7 @@ dependencies:
   esp-idf-lib/sht4x: 1.0.7
   esp-idf-lib/veml7700: 1.0.7
   esp-idf-lib/dht: 1.2.0
-  espressif/bme280: ^0.1.1
+  esp-idf-lib/bmp280: 1.0.7
   esp-idf-lib/bme680: ^1.0.7
   cinderblocks/esp_tinygpsplusplus: 1.1.1
   espressif/led_strip: ^3.0.0
