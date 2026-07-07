@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "air360/string_utils.hpp"
 #include "air360/uploads/backend_types.hpp"
@@ -12,6 +13,7 @@ namespace air360 {
 
 constexpr std::uint32_t kBackendConfigMagic = 0x41333632U;
 constexpr std::uint16_t kBackendConfigSchemaVersion = 1U;
+constexpr std::size_t kOpenSenseMapBoxIdLength = 24U;
 constexpr std::uint32_t kMinUploadIntervalMs = 30000U;
 constexpr std::uint32_t kMaxUploadIntervalMs = 3600000U;
 constexpr std::uint32_t kDefaultUploadIntervalMs = 145000U;
@@ -50,6 +52,10 @@ struct BackendRecord {
     float latitude   = 0.0F;
     float longitude  = 0.0F;
     float altitude_m = 0.0F;
+
+    // ── OpenSenseMap-specific (schema v2) ────────────────
+    char opensensemap_sensebox_id[kBackendSenseBoxIdCapacity]{};
+    char opensensemap_access_token[kBackendAccessTokenCapacity]{};
 };
 
 struct BackendConfigList {
@@ -64,6 +70,39 @@ struct BackendConfigList {
 };
 
 BackendConfigList makeDefaultBackendConfigList();
+
+// openSenseMap box IDs come in two shapes: the classic platform uses
+// 24-character hex MongoDB ObjectIds; the next-generation platform
+// (staging.opensensemap.org) uses ~24-character alphanumeric cuid strings.
+// Accept any alphanumeric ID of a plausible length so both work.
+[[nodiscard]] inline bool isValidOpenSenseMapBoxId(std::string_view value) {
+    if (value.size() < 16U || value.size() >= kBackendSenseBoxIdCapacity) {
+        return false;
+    }
+    for (const char ch : value) {
+        const bool is_alnum = (ch >= '0' && ch <= '9') ||
+                              (ch >= 'a' && ch <= 'z') ||
+                              (ch >= 'A' && ch <= 'Z');
+        if (!is_alnum) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The box access token travels in HTTP headers; accept any printable
+// non-space ASCII so future server-side token formats keep working.
+[[nodiscard]] inline bool isValidOpenSenseMapAccessToken(std::string_view value) {
+    if (value.size() >= kBackendAccessTokenCapacity) {
+        return false;
+    }
+    for (const char ch : value) {
+        if (ch <= 0x20 || ch >= 0x7F) {
+            return false;
+        }
+    }
+    return true;
+}
 
 inline constexpr std::uint16_t defaultBackendPort(BackendProtocol protocol) {
     switch (protocol) {

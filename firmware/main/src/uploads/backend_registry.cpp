@@ -8,6 +8,7 @@
 #include "air360/uploads/adapters/air360_api_uploader.hpp"
 #include "air360/uploads/adapters/custom_upload_uploader.hpp"
 #include "air360/uploads/adapters/influxdb_uploader.hpp"
+#include "air360/uploads/adapters/opensensemap_uploader.hpp"
 #include "air360/uploads/adapters/sensor_community_uploader.hpp"
 
 namespace air360 {
@@ -87,6 +88,32 @@ bool validateCustomUploadRecord(const BackendRecord& record, std::string& error)
     return validateHttpEndpoint(record, error);
 }
 
+bool validateOpenSenseMapRecord(const BackendRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (!validateHttpEndpoint(record, error)) {
+        return false;
+    }
+
+    if (!isNullTerminated(record.opensensemap_sensebox_id, kBackendSenseBoxIdCapacity) ||
+        !isValidOpenSenseMapBoxId(
+            boundedCString(record.opensensemap_sensebox_id, kBackendSenseBoxIdCapacity))) {
+        error = "OpenSenseMap senseBox ID must be a 16-31 character alphanumeric ID.";
+        return false;
+    }
+
+    if (!isNullTerminated(record.opensensemap_access_token, kBackendAccessTokenCapacity) ||
+        !isValidOpenSenseMapAccessToken(
+            boundedCString(record.opensensemap_access_token, kBackendAccessTokenCapacity))) {
+        error = "OpenSenseMap access token contains unsupported characters.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -110,7 +137,25 @@ static_assert(sizeof(BackendTypeDefaults) == 16U,
 static_assert(sizeof(BackendDescriptor) == 36U,
     "BackendDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
+// Order here drives the Backends page card order (the view model iterates the
+// descriptors). Records are always looked up by BackendType, so this order has
+// no bearing on persistence or upload behaviour.
+constexpr std::array<BackendDescriptor, 5U> kDescriptors{{
+    {
+        .type           = BackendType::kAir360Api,
+        .backend_key    = "air360_api",
+        .display_name   = kAir360DisplayName,
+        .defaults       = {
+            .host          = "api.air360.ru",
+            .path          = "/v1/devices/{device_id}/batches/{batch_id}",
+            .port          = 443U,
+            .protocol      = BackendProtocol::kHttps,
+            .host_is_fixed = true,
+            .path_is_fixed = true,
+        },
+        .validate        = &validateHttpBackendRecord,
+        .create_uploader = &createAir360ApiUploader,
+    },
     {
         .type           = BackendType::kSensorCommunity,
         .backend_key    = "sensor_community",
@@ -127,19 +172,25 @@ constexpr std::array<BackendDescriptor, 4U> kDescriptors{{
         .create_uploader = &createSensorCommunityUploader,
     },
     {
-        .type           = BackendType::kAir360Api,
-        .backend_key    = "air360_api",
-        .display_name   = kAir360DisplayName,
+        .type           = BackendType::kOpenSenseMap,
+        .backend_key    = "opensensemap",
+        .display_name   = "OpenSenseMap",
         .defaults       = {
-            .host          = "api.air360.ru",
-            .path          = "/v1/devices/{device_id}/batches/{batch_id}",
+            // Default = classic platform (the existing openSenseMap community).
+            // The Backends form offers a platform dropdown that rewrites host
+            // and path to the next-gen platform (staging.opensensemap.org, /api
+            // prefix) when selected. Both post the canonical measurements body
+            // (openSenseMap postNewMeasurements); {sensebox_id} is substituted
+            // at request time.
+            .host          = "api.opensensemap.org",
+            .path          = "/boxes/{sensebox_id}/data",
             .port          = 443U,
             .protocol      = BackendProtocol::kHttps,
             .host_is_fixed = true,
             .path_is_fixed = true,
         },
-        .validate        = &validateHttpBackendRecord,
-        .create_uploader = &createAir360ApiUploader,
+        .validate        = &validateOpenSenseMapRecord,
+        .create_uploader = &createOpenSenseMapUploader,
     },
     {
         .type           = BackendType::kCustomUpload,

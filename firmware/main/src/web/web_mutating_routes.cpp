@@ -395,6 +395,12 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
         loadAir360UploadSecretPreview(server->air360_api_credentials_);
 
     const auto respond = [&](const std::string& notice, bool error) {
+        OpenSenseMapMappingTable osem_mappings{};
+        if (server->opensensemap_mapping_repository_ != nullptr) {
+            // Rendering falls back to an empty mapping table on load failure; the
+            // failure surfaces separately when a save is attempted.
+            static_cast<void>(server->opensensemap_mapping_repository_->load(osem_mappings));
+        }
         return sendHtmlResponse(
             request,
             renderBackendsPage(
@@ -402,6 +408,9 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 *server->upload_manager_,
                 server->status_service_->buildInfo(),
                 air360_secret_preview,
+                *server->sensor_manager_,
+                *server->measurement_store_,
+                osem_mappings,
                 notice,
                 error));
     };
@@ -524,6 +533,39 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 break;
             }
 
+            case BackendType::kOpenSenseMap: {
+                // The Platform dropdown value is the full host+path; take it and
+                // split host from path at the first '/'.
+                const std::string endpoint =
+                    findFormValue(fields, (std::string("platform_") + key).c_str());
+                const std::size_t slash = endpoint.find('/');
+                copyString(record->host, sizeof(record->host),
+                    slash == std::string::npos ? endpoint : endpoint.substr(0, slash));
+                copyString(record->path, sizeof(record->path),
+                    slash == std::string::npos ? std::string() : endpoint.substr(slash));
+
+                const std::string sensebox_id = trimAsciiWhitespace(
+                    findFormValue(fields, (std::string("sensebox_id_") + key).c_str()));
+                if (!isValidOpenSenseMapBoxId(sensebox_id)) {
+                    return respond(
+                        "OpenSenseMap senseBox ID must be a 16-31 character alphanumeric box ID.",
+                        true);
+                }
+                copyString(record->opensensemap_sensebox_id,
+                    sizeof(record->opensensemap_sensebox_id), sensebox_id);
+
+                const std::string access_token = trimAsciiWhitespace(
+                    findFormValue(fields, (std::string("access_token_") + key).c_str()));
+                if (!isValidOpenSenseMapAccessToken(access_token)) {
+                    return respond(
+                        "OpenSenseMap access token is too long or contains unsupported characters.",
+                        true);
+                }
+                copyString(record->opensensemap_access_token,
+                    sizeof(record->opensensemap_access_token), access_token);
+                break;
+            }
+
             case BackendType::kInfluxDb: {
                 copyString(record->host, sizeof(record->host),
                     findFormValue(fields, (std::string("host_") + key).c_str()));
@@ -560,6 +602,85 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 true);
         }
         air360_secret_preview = loadAir360UploadSecretPreview(server->air360_api_credentials_);
+    }
+
+    // openSenseMap sensor-ID mappings are submitted as osemmap-<type>-<kind>
+    // fields (numeric SensorType/SensorValueKind values). They are parsed and
+    // persisted independently of the backend enabled state so a user can map
+    // readings before enabling the backend. The form only renders inputs for
+    // readings the device is currently emitting, so the submitted set is MERGED
+    // into the existing table: a submitted value updates or clears that reading,
+    // while a reading with no rendered input keeps its stored mapping.
+    if (server->opensensemap_mapping_repository_ != nullptr) {
+        OpenSenseMapMappingTable osem_table{};
+        // Start from the stored table; a load failure leaves it empty, which is
+        // acceptable since the merge only rewrites submitted readings.
+        static_cast<void>(server->opensensemap_mapping_repository_->load(osem_table));
+
+        const auto removeMapping = [&osem_table](SensorType type, SensorValueKind kind) {
+            for (std::size_t index = 0; index < osem_table.entry_count;) {
+                if (osem_table.entries[index].sensor_type == type &&
+                    osem_table.entries[index].value_kind == kind) {
+                    for (std::size_t next = index + 1U; next < osem_table.entry_count; ++next) {
+                        osem_table.entries[next - 1U] = osem_table.entries[next];
+                    }
+                    osem_table.entry_count--;
+                    osem_table.entries[osem_table.entry_count] = OpenSenseMapMapping{};
+                } else {
+                    ++index;
+                }
+            }
+        };
+
+        bool osem_touched = false;
+        for (const auto& field : fields) {
+            static constexpr char kMappingPrefix[] = "osemmap-";
+            if (field.first.rfind(kMappingPrefix, 0) != 0U) {
+                continue;
+            }
+            const std::string key = field.first.substr(sizeof(kMappingPrefix) - 1U);
+            const std::size_t dash = key.find('-');
+            if (dash == std::string::npos) {
+                continue;
+            }
+            unsigned long type_value = 0UL;
+            unsigned long kind_value = 0UL;
+            if (!parseUnsignedLong(key.substr(0, dash), type_value) ||
+                !parseUnsignedLong(key.substr(dash + 1U), kind_value) ||
+                type_value > 0xFFUL || kind_value > 0xFFUL) {
+                continue;
+            }
+            osem_touched = true;
+            const SensorType sensor_type = static_cast<SensorType>(type_value);
+            const SensorValueKind value_kind = static_cast<SensorValueKind>(kind_value);
+            const std::string value = trimAsciiWhitespace(field.second);
+            removeMapping(sensor_type, value_kind);
+            if (value.empty()) {
+                continue;  // reading intentionally left unmapped
+            }
+            if (!isValidOpenSenseMapSensorId(value)) {
+                return respond(
+                    "OpenSenseMap sensor IDs must be exactly 24 hexadecimal characters.", true);
+            }
+            if (osem_table.entry_count >= kMaxOpenSenseMapMappings) {
+                return respond("Too many openSenseMap sensor mappings.", true);
+            }
+            OpenSenseMapMapping& mapping = osem_table.entries[osem_table.entry_count++];
+            mapping.sensor_type = sensor_type;
+            mapping.value_kind = value_kind;
+            copyString(mapping.sensor_id, sizeof(mapping.sensor_id), value);
+        }
+
+        if (osem_touched) {
+            const esp_err_t osem_err =
+                server->opensensemap_mapping_repository_->save(osem_table);
+            if (osem_err != ESP_OK) {
+                return respond(
+                    std::string("Failed to save OpenSenseMap sensor mapping: ") +
+                        esp_err_to_name(osem_err),
+                    true);
+            }
+        }
     }
 
     const esp_err_t save_err = server->backend_config_repository_->save(updated);

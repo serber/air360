@@ -16,6 +16,7 @@
 #include "air360/uploads/backend_registry.hpp"
 #include "air360/uploads/measurement_batch.hpp"
 #include "air360/uploads/measurement_store.hpp"
+#include "air360/uploads/opensensemap_mapping_repository.hpp"
 #include "air360/uploads/upload_prune_policy.hpp"
 #include "air360/uploads/upload_transport.hpp"
 #include "esp_err.h"
@@ -76,7 +77,8 @@ class UploadManager {
         const SensorManager& sensor_manager,
         MeasurementStore& measurement_store,
         const NetworkManager& network_manager,
-        const Air360ApiCredentialRepository& air360_credentials);
+        const Air360ApiCredentialRepository& air360_credentials,
+        const OpenSenseMapMappingRepository& opensensemap_mappings);
     [[nodiscard]] esp_err_t applyConfig(const BackendConfigList& config);
     [[nodiscard]] esp_err_t stop();
 
@@ -127,6 +129,7 @@ class UploadManager {
     MeasurementStore* measurement_store_ = nullptr;
     const NetworkManager* network_manager_ = nullptr;
     const Air360ApiCredentialRepository* air360_credentials_ = nullptr;
+    const OpenSenseMapMappingRepository* opensensemap_mappings_ = nullptr;
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
     StaticEventGroup_t lifecycle_events_buffer_{};

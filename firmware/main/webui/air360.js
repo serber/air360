@@ -106,6 +106,45 @@
       return;
     }
 
+    // openSenseMap — fetch box sensors and auto-map by name
+    const osemFetchBtn = e.target.closest('[data-osem-fetch-sensors]');
+    if (osemFetchBtn) {
+      const wrap = osemFetchBtn.closest('[data-osem-mapping]');
+      const statusNode = wrap && wrap.querySelector('[data-osem-fetch-status]');
+      const setStatus = t => { if (statusNode) statusNode.textContent = t; };
+      osemFetchBtn.disabled = true;
+      setStatus('Fetching sensors…');
+      fetch('/api/opensensemap/box-sensors', { cache: 'no-store' })
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok) throw new Error((data && data.error) || 'Fetch failed.');
+          const sensors = Array.isArray(data.sensors) ? data.sensors : [];
+          if (!sensors.length) throw new Error('The box has no sensors.');
+          const inputs = wrap ? wrap.querySelectorAll('input[data-osem-phenomenon]') : [];
+          let matched = 0;
+          inputs.forEach(input => {
+            const phenom = (input.getAttribute('data-osem-phenomenon') || '').toLowerCase();
+            const typeKey = (input.getAttribute('data-osem-type-key') || '').toLowerCase();
+            // Prefer a sensor whose title matches the phenomenon AND whose
+            // sensorType matches our model; fall back to a title-only match.
+            let hit = sensors.find(s =>
+              (s.title || '').toLowerCase() === phenom &&
+              typeKey.indexOf((s.sensorType || '').toLowerCase()) !== -1 &&
+              (s.sensorType || '') !== '');
+            if (!hit) hit = sensors.find(s => (s.title || '').toLowerCase() === phenom);
+            if (hit && hit._id) {
+              input.value = hit._id;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              matched += 1;
+            }
+          });
+          setStatus('Matched ' + matched + ' of ' + inputs.length + ' readings. Review, then Save.');
+        })
+        .catch(err => setStatus(err.message || 'Fetch failed.'))
+        .finally(() => { osemFetchBtn.disabled = false; });
+      return;
+    }
+
     // Collapsible card headers
     const cardHead = e.target.closest('.card.collapsible > .card-header');
     if (cardHead) {
@@ -712,6 +751,18 @@
 
     function syncBackendCard(panel) {
       syncBackendProtocolPort(panel);
+      syncBackendRequired(panel);
+    }
+
+    // A disabled backend's fields must not block form submission. The server
+    // only validates enabled backends, so mirror that on the client: inputs
+    // marked data-req-when-enabled are only `required` while the card is on.
+    function syncBackendRequired(panel) {
+      const enabled = panel.querySelector('[data-backend-enabled-toggle]');
+      const on = enabled instanceof HTMLInputElement ? enabled.checked : true;
+      panel.querySelectorAll('[data-req-when-enabled]').forEach(input => {
+        input.required = on;
+      });
     }
 
     function syncBackendProtocolPort(panel) {
@@ -728,6 +779,8 @@
       syncBackendCard(panel);
       const httpsTog = panel.querySelector('[data-backend-https-toggle]');
       if (httpsTog instanceof HTMLInputElement) httpsTog.addEventListener('change', () => syncBackendProtocolPort(panel));
+      const enTog = panel.querySelector('[data-backend-enabled-toggle]');
+      if (enTog instanceof HTMLInputElement) enTog.addEventListener('change', () => syncBackendRequired(panel));
     }
 
     for (const container of document.querySelectorAll('[data-air360-location-map]')) {

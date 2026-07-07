@@ -14,6 +14,7 @@ This document covers the adapter-specific layer that turns Air360 measurements i
 - `firmware/main/src/uploads/adapters/air360_json_payload.cpp`
 - `firmware/main/src/uploads/adapters/custom_upload_uploader.cpp`
 - `firmware/main/src/uploads/adapters/influxdb_uploader.cpp`
+- `firmware/main/src/uploads/adapters/opensensemap_uploader.cpp`
 - `firmware/main/src/uploads/adapters/sensor_community_uploader.cpp`
 - `firmware/main/src/uploads/backend_registry.cpp`
 
@@ -23,7 +24,7 @@ This document covers the adapter-specific layer that turns Air360 measurements i
 - [measurement-pipeline.md](measurement-pipeline.md)
 - [configuration-reference.md](configuration-reference.md)
 
-This document describes the four backend upload adapters — how each backend delivers a measurement batch, how HTTP-backed adapters map payloads, and how protocol responses are interpreted.
+This document describes the five backend upload adapters — how each backend delivers a measurement batch, how HTTP-backed adapters map payloads, and how protocol responses are interpreted.
 
 ---
 
@@ -477,6 +478,70 @@ Any other HTTP status → `kHttpError`.
 
 ---
 
+## openSenseMap
+
+openSenseMap uses its **canonical measurements API** ([`postNewMeasurements`](https://docs.opensensemap.org/#api-Measurements-postNewMeasurements)) with an explicit device-side mapping from each Air360 reading to an openSenseMap sensor ID. This replaces the earlier luftdaten (`?luftdaten=1`) integration, which relied on fragile server-side `value_type` string matching and silently dropped phenomena the decoder did not recognise (CO2, illuminance, gas resistance, GPS). With explicit IDs, any phenomenon the user creates a box sensor for can be uploaded.
+
+### Endpoint
+
+```
+POST {scheme}://{host}{:port}{path}
+```
+
+- openSenseMap runs two platforms with different ingest URLs and box-ID formats. Rather than free-text host/path, the Backends form offers a **`Platform` dropdown** that rewrites host and path to a fixed pair:
+  - **Classic** (compiled-in default): host `api.opensensemap.org`, path `/boxes/{sensebox_id}/data`, box ID = 24-character hex ObjectId. Hosts the existing openSenseMap community.
+  - **Next-gen** (`staging.opensensemap.org` at time of writing): host `staging.opensensemap.org`, path `/api/boxes/{sensebox_id}/data`, box ID = ~24-character alphanumeric cuid.
+- Both post the same canonical body; only the host and the `/api` path prefix differ. `{sensebox_id}` in the stored path is replaced at request time with the configured senseBox ID.
+- There is no port field: the `Use HTTPS` checkbox sets the protocol, and the port defaults from it (`443`/`80`). The `:port` segment is included only when the configured port is not the protocol default.
+
+Set `CONFIG_AIR360_LOG_OPENSENSEMAP_HTTP=y` (Kconfig, default off) to log the request URL, request body, and response body at WARN under tag `air360.upload.osem` on every attempt.
+
+### Sensor-ID mapping
+
+Each Air360 reading is identified by its `(sensor_type, value_kind)` pair and bound to one openSenseMap sensor ID (a 24-character hex ObjectId) that the user created on the box. The mapping table is persisted in its own NVS blob (`air360/osem_map`) by `OpenSenseMapMappingRepository`, kept out of `BackendRecord` so it does not bloat the five-slot backend array. It is delivered to the adapter through `BackendDeliveryContext::opensensemap_mappings` (mirroring the Air360 credential repository). See `firmware/main/include/air360/uploads/opensensemap_mapping.hpp`.
+
+The Backends page renders one input per **live** `(sensor model, phenomenon)` reading — the set is derived from the measurement store (which value kinds each sensor currently emits), joined to the sensor model via the runtime sensor list. A **Fetch sensors from openSenseMap** button calls the device route `GET /api/opensensemap/box-sensors`, which server-side fetches the box document and returns it verbatim; the browser matches each box sensor to a reading by `title`/`sensorType` and pre-fills the sensor IDs (`WebServer::handleOpenSenseMapBoxSensors`). See [web-ui.md](web-ui.md).
+
+### One request per batch
+
+The adapter emits exactly **one POST per upload cycle**. Only mapped readings are included; a reading with no mapping is skipped. Because a box holds one sensor per ID, the batch collapses to the **latest value per sensor ID**; if two samples resolve to the same ID, the later point in the batch wins. The canonical object body carries no timestamps — the server stamps values at arrival time.
+
+Values use the shared per-kind precision from `formatSensorValue()`. Pressure is sent as-is in **hPa** (no Pa conversion): create the box's pressure sensor with a matching unit.
+
+If the batch contains no mapped points, `deliver()` returns `kNoData`.
+
+### Headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `User-Agent` | `{project_version}/{device_id}/{esp_mac_id}` |
+| `Authorization` | `<access_token>` when a token is configured |
+| `x-osem-device-api-key` | `<access_token>` when a token is configured |
+
+The access token is optional but required for boxes with authentication enabled (`useAuth`): such a box returns HTTP 401 when the token is missing or wrong. It is sent in both header forms because the API reads the raw token from `Authorization` while the airrohr-style ingest proxy expects `x-osem-device-api-key`.
+
+### Body format
+
+Canonical object body keyed by openSenseMap sensor ID:
+
+```json
+{
+  "d5e430f89c46057f5c627ff1": "24.1",
+  "5df42dc964b874b6e01c36de": "48.1"
+}
+```
+
+### Extra preconditions
+
+`deliver()` fails early with `kConfigError` if the senseBox ID is not a 16–31 character alphanumeric ID, the access token contains non-printable/space characters, or the mapping table cannot be loaded.
+
+### Success condition
+
+HTTP 200–208 (a successful canonical POST returns **201 Measurements saved in box**) → `kSuccess`. 401/403 and 404 produce hint messages pointing at the access token and senseBox ID respectively; 422 hints that a mapped sensor ID does not belong to the box; any non-2xx status → `kHttpError`.
+
+---
+
 ## Transport layer
 
 The current adapters are HTTP-backed and execute internal `UploadRequestSpec` objects with `UploadTransport::execute()`. This is no longer part of the cross-backend interface; it is the shared helper used by HTTP backends. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
@@ -509,13 +574,13 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 
 ## Comparison
 
-| Property | Sensor.Community | Air360 API | Custom Upload | InfluxDB |
-|----------|-----------------|------------|---------------|----------|
-| Method | POST | PUT | POST | POST |
-| Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch |
-| Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol |
-| Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags |
-| Authentication | None | Bearer upload secret | None | Optional Basic Auth |
-| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 |
-| Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 |
-| Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config |
+| Property | Sensor.Community | Air360 API | Custom Upload | InfluxDB | openSenseMap |
+|----------|-----------------|------------|---------------|----------|--------------|
+| Method | POST | PUT | POST | POST | POST |
+| Requests per cycle | One per supported sensor | One per batch | One per batch | One per batch | One per batch |
+| Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol | Canonical object keyed by openSenseMap sensor ID |
+| Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags | URL path: `/boxes/{sensebox_id}` |
+| Authentication | None | Bearer upload secret | None | Optional Basic Auth | Box access token (required when box `useAuth`) |
+| Supported sensors | BME280, BME680, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | Any reading the user maps to a box sensor ID |
+| Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 | 200–208 (canonical POST returns 201) |
+| Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config | Valid senseBox ID, mapping table loadable |

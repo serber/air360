@@ -5,13 +5,15 @@
 
 namespace air360 {
 
-constexpr std::size_t kMaxConfiguredBackends = 4U;
+constexpr std::size_t kMaxConfiguredBackends = 5U;
 constexpr std::size_t kBackendDisplayNameCapacity = 32U;
 constexpr std::size_t kBackendHostCapacity = 96U;
 constexpr std::size_t kBackendPathCapacity = 96U;
 constexpr std::size_t kBackendUsernameCapacity = 48U;
 constexpr std::size_t kBackendPasswordCapacity = 64U;
 constexpr std::size_t kBackendMeasurementCapacity = 32U;
+constexpr std::size_t kBackendSenseBoxIdCapacity = 32U;
+constexpr std::size_t kBackendAccessTokenCapacity = 72U;
 
 enum class BackendType : std::uint8_t {
     kUnknown = 0U,
@@ -19,6 +21,7 @@ enum class BackendType : std::uint8_t {
     kAir360Api = 2U,
     kCustomUpload = 3U,
     kInfluxDb = 4U,
+    kOpenSenseMap = 5U,
 };
 
 enum class BackendProtocol : std::uint8_t {
@@ -77,6 +80,8 @@ inline const char* backendTypeKey(BackendType type) {
             return "custom_upload";
         case BackendType::kInfluxDb:
             return "influxdb";
+        case BackendType::kOpenSenseMap:
+            return "opensensemap";
         case BackendType::kUnknown:
         default:
             return "unknown";

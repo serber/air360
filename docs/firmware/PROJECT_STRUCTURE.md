@@ -148,8 +148,9 @@ Headers: `main/include/air360/uploads/`
 Sources: `main/src/uploads/`
 
 - `measurement_store.cpp` — in-memory ring buffer (max `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH`, default 256 samples) with pending/inflight upload semantics
-- `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 4 backends)
+- `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 5 backends, schema v1→v2 migration)
 - `air360_api_credentials.cpp` — separate NVS-backed Air360 API upload secret storage and hash/generation helpers
+- `opensensemap_mapping_repository.cpp` — separate NVS-backed openSenseMap reading→sensor-ID mapping table (`osem_map` blob)
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
 - `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle and per-backend cursors
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
@@ -157,6 +158,7 @@ Sources: `main/src/uploads/`
 - `adapters/air360_api_uploader.cpp` — register with Air360 API and PUT signed-by-secret Air360 JSON to the configured backend host/path
 - `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied protocol/host/path/port endpoint
 - `adapters/influxdb_uploader.cpp` — POST Influx line protocol to a user-supplied host/path/port with optional Basic Auth
+- `adapters/opensensemap_uploader.cpp` — POST the canonical measurements body (object keyed by sensor ID) to openSenseMap (`/boxes/{sensebox_id}/data`), using the `osem_map` mapping table
 - `adapters/sensor_community_uploader.cpp` — POST to the configured Sensor.Community host/path
 
 ### Third-party sources

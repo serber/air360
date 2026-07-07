@@ -12,6 +12,7 @@
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/air360_api_credentials.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
+#include "air360/uploads/opensensemap_mapping_repository.hpp"
 #include "air360/uploads/upload_manager.hpp"
 #include "esp_err.h"
 #include "esp_http_server.h"
@@ -37,6 +38,7 @@ class WebServer {
         MeasurementStore& measurement_store,
         BackendConfigRepository& backend_config_repository,
         Air360ApiCredentialRepository& air360_api_credentials,
+        OpenSenseMapMappingRepository& opensensemap_mappings,
         BackendConfigList& backend_config_list,
         UploadManager& upload_manager,
         CellularConfigRepository& cellular_config_repository,
@@ -57,6 +59,7 @@ class WebServer {
     static esp_err_t handleCheckSntp(httpd_req_t* request);
     static esp_err_t handleSensors(httpd_req_t* request);
     static esp_err_t handleBackends(httpd_req_t* request);
+    static esp_err_t handleOpenSenseMapBoxSensors(httpd_req_t* request);
     static esp_err_t handleAir360UploadSecret(httpd_req_t* request);
     static esp_err_t handleGpsLocation(httpd_req_t* request);
     static esp_err_t handleOtaUpload(httpd_req_t* request);
@@ -74,6 +77,7 @@ class WebServer {
     MeasurementStore* measurement_store_ = nullptr;
     BackendConfigRepository* backend_config_repository_ = nullptr;
     Air360ApiCredentialRepository* air360_api_credentials_ = nullptr;
+    OpenSenseMapMappingRepository* opensensemap_mapping_repository_ = nullptr;
     BackendConfigList* backend_config_list_ = nullptr;
     UploadManager* upload_manager_ = nullptr;
     CellularConfigRepository* cellular_config_repository_ = nullptr;
