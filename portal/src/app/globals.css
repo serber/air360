@@ -2007,35 +2007,6 @@ svg {
   margin-top: 8px;
 }
 
-.air-difference-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 22px;
-}
-
-.air-difference-card {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 18px;
-}
-
-.air-difference-card h3 {
-  color: var(--ink);
-  font-family: var(--air-font-display);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.25;
-  margin: 0;
-}
-
-.air-difference-card p {
-  font-size: 13.5px;
-  line-height: 1.55;
-  margin-top: 10px;
-}
-
 .air-wiring-table-wrap {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -2205,8 +2176,7 @@ svg {
   .air-build-option-grid,
   .air-build-photo-grid,
   .air-firmware-access-grid,
-  .air-firmware-step-grid,
-  .air-difference-grid {
+  .air-firmware-step-grid {
     grid-template-columns: 1fr;
   }
 

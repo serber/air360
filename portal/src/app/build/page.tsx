@@ -48,11 +48,6 @@ type CompatibilityRow = {
   air360Api: string;
 };
 
-type DifferenceItem = {
-  title: string;
-  body: string;
-};
-
 type UiSection = {
   id: string;
   title: string;
@@ -81,6 +76,15 @@ type PowerOption = {
   links?: Array<{ href: string; label: string }>;
 };
 
+type BackendOption = {
+  id: string;
+  label: string;
+  title: string;
+  body: string;
+  notes: string[];
+  links?: Array<{ href: string; label: string }>;
+};
+
 export default function BuildGuide() {
   const t = useTranslations("build");
   const options = t.raw("options") as BuildOption[];
@@ -90,10 +94,10 @@ export default function BuildGuide() {
   const firmwareSteps = t.raw("firmwareSteps") as FirmwareStep[];
   const firmwareLedColors = t.raw("firmwareLedColors") as FirmwareLedColor[];
   const compatibilityRows = t.raw("compatibilityRows") as CompatibilityRow[];
-  const differenceItems = t.raw("differenceItems") as DifferenceItem[];
   const sensorGuideGroups = t.raw("sensorGuideGroups") as SensorGuideGroup[];
   const uiSections = t.raw("uiSections") as UiSection[];
   const powerOptions = t.raw("powerOptions") as PowerOption[];
+  const backendOptions = t.raw("backendsOptions") as BackendOption[];
 
   const uiSectionImages: Record<string, string> = {
     overview: "https://github.com/serber/air360/blob/main/docs/firmware/images/firmware_overview.png?raw=true",
@@ -364,6 +368,56 @@ export default function BuildGuide() {
               </section>
 
               <section>
+                <h2>{t("backendsTitle")}</h2>
+                <p>{t("backendsBody")}</p>
+                <div className="air-build-option-grid">
+                  {backendOptions.map((backend) => (
+                    <div className="air-build-option" key={backend.id}>
+                      <div className="air-build-option-head">
+                        <span className="air-tag">{backend.label}</span>
+                      </div>
+                      <h3>{backend.title}</h3>
+                      <p>{backend.body}</p>
+                      {backend.notes.length ? (
+                        <ul className="air-build-option-list">
+                          {backend.notes.map((note) => (
+                            <li key={note}>{note}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {backend.links?.length ? (
+                        <div className="air-build-link-list">
+                          {backend.links.map((link) =>
+                            link.href.startsWith("/") ? (
+                              <Link
+                                className="air-btn air-btn-brand"
+                                href={link.href}
+                                key={link.href}
+                              >
+                                {link.label}
+                                <ArrowIcon />
+                              </Link>
+                            ) : (
+                              <a
+                                className="air-btn air-btn-brand"
+                                href={link.href}
+                                key={link.href}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                {link.label}
+                                <ArrowIcon />
+                              </a>
+                            ),
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
                 <h2>{t("firmwareDocsTitle")}</h2>
                 <p>{t("firmwareDocsBody")}</p>
                 <div className="air-build-link-list air-build-link-list-inline">
@@ -465,19 +519,6 @@ export default function BuildGuide() {
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </section>
-
-              <section>
-                <h2>{t("differencesTitle")}</h2>
-                <p>{t("differencesBody")}</p>
-                <div className="air-difference-grid">
-                  {differenceItems.map((item) => (
-                    <div className="air-difference-card" key={item.title}>
-                      <h3>{item.title}</h3>
-                      <p>{item.body}</p>
-                    </div>
-                  ))}
                 </div>
               </section>
             </article>

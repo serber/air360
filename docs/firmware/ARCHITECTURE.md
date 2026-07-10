@@ -438,6 +438,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 |-------------|--------|-------------------|
 | `bme280_sensor.cpp` | BME280 | `esp-idf-lib__bmp280` |
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` |
+| `bmp390_sensor.cpp` | BMP390 | `k0i05__esp_bmp390` |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
 | `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` |

@@ -29,7 +29,10 @@ The portal currently covers public read-only project and device pages:
 - map page at `/map` with active devices from `GET /v1/devices` and optional
   offline devices from `GET /v1/devices/offline`
 - build guide page at `/build` with shield-board and direct ESP32-S3 wiring
-  paths, including default firmware pin assignments for direct sensor wiring
+  paths, including default firmware pin assignments for direct sensor wiring,
+  a sensor selection guide, and a "Where your measurements go" section that
+  describes the five upload backends in end-user language and links to
+  Sensor.Community, openSenseMap, and InfluxDB
 - privacy page at `/privacy` using the shared portal shell and document layout
 - device popup with latest readings grouped by sensor type
 - device popup shows a country flag when `geo_country_code` is present in the
@@ -84,7 +87,7 @@ The portal currently covers public read-only project and device pages:
   values
 - public `/build` page that starts the user-facing device assembly guide with
   two paths: using the Air360 shield board or wiring sensors directly to
-  ESP32-S3 pins
+  ESP32-S3 pins, and summarizes the five upload backends the firmware supports
 
 Potential future account flows remain out of scope for the current portal
 implementation.

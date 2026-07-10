@@ -124,6 +124,7 @@ Driver implementations under `main/src/sensors/drivers/`:
 |------|--------|---------|
 | `bme280_sensor.cpp` | BME280 | `esp-idf-lib__bmp280` (managed component) |
 | `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` (managed component) |
+| `bmp390_sensor.cpp` | BMP390 | `k0i05__esp_bmp390` (managed component) |
 | `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
 | `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` (managed component) |

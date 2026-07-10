@@ -21,6 +21,7 @@ export const sensorTypes = [
   "ppd42ns",
   "pmsx003",
   "opt3001",
+  "bmp390",
 ] as const;
 
 export type SensorType = (typeof sensorTypes)[number];
@@ -208,6 +209,7 @@ export function sensorLabel(sensorType: string): string {
   const labels: Record<SensorType, string> = {
     bme280: "BME280",
     bme680: "BME680",
+    bmp390: "BMP390",
     dht11: "DHT11",
     dht22: "DHT22",
     ds18b20: "DS18B20",

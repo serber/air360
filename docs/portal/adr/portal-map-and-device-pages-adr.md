@@ -40,7 +40,7 @@ for visualizing device data.
 |-------|---------|
 | `/` | Public portal home page |
 | `/map` | World map with active device pins and optional offline-device layer |
-| `/build` | Device assembly guide with shield-board and direct ESP32-S3 wiring paths |
+| `/build` | Device assembly guide with shield-board and direct ESP32-S3 wiring paths, plus the supported upload backends |
 | `/devices/:public_id` | Device detail page with sensor charts |
 | `/privacy` | Privacy policy |
 
