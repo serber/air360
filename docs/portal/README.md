@@ -102,7 +102,8 @@ The current working direction for the portal is:
 map rendering, and device detail pages with browser-only charting libraries.
 
 The map uses `maplibre-gl` with OpenStreetMap raster tiles and GeoJSON-backed
-device layers. The device detail page uses `recharts` for time-series charts.
+device layers. The device detail page uses `chart.js` for time-series charts,
+with `chartjs-adapter-date-fns` supplying the time-scale tick math.
 UI strings are loaded through `next-intl`; the current locales are `en` and
 `ru`, with messages stored in `portal/messages/en.json` and
 `portal/messages/ru.json`. The header language toggle stores the selected

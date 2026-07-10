@@ -1497,6 +1497,7 @@ svg {
 .air-chart-body {
   height: 320px;
   padding: 14px 14px 4px;
+  position: relative;
 }
 
 .air-chart-empty {

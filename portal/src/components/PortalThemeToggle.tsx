@@ -1,31 +1,8 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
-
-const STORAGE_KEY = "air360-theme";
-
-function getStoredTheme() {
-  if (typeof window === "undefined") {
-    return "light";
-  }
-
-  return window.localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
-}
-
-function subscribe(callback: () => void) {
-  window.addEventListener("storage", callback);
-  window.addEventListener("air360-theme-change", callback);
-
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener("air360-theme-change", callback);
-  };
-}
-
-function getServerTheme() {
-  return "light";
-}
+import { setPortalTheme, usePortalTheme } from "@/lib/theme";
 
 function MoonIcon() {
   return (
@@ -61,17 +38,14 @@ function SunIcon() {
 
 export function PortalThemeToggle() {
   const t = useTranslations("common");
-  const theme = useSyncExternalStore(subscribe, getStoredTheme, getServerTheme);
+  const theme = usePortalTheme();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
   function toggleTheme() {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem(STORAGE_KEY, nextTheme);
-    window.dispatchEvent(new Event("air360-theme-change"));
+    setPortalTheme(theme === "dark" ? "light" : "dark");
   }
 
   return (

@@ -172,7 +172,8 @@ needed if the browser should call a public API host directly.
 | Package | Purpose |
 |---------|---------|
 | `maplibre-gl` | WebGL map engine and GeoJSON device layers |
-| `recharts` | Time-series charts |
+| `chart.js` | Canvas time-series charts on the device detail page |
+| `chartjs-adapter-date-fns` | Time-scale tick generation for `chart.js` |
 
 ## Alternatives Considered
 
