@@ -130,6 +130,7 @@
           "AHT30",
           "BME280",
           "BME680",
+          "BMP390",
           "SHT3X",
           "SHT4X",
           "HTU2X",
@@ -199,6 +200,7 @@
       "sensors": [
         { "name": "BME280", "measures": "Temperature, humidity, pressure", "why": "Compact all-in-one climate sensor; good for indoor and outdoor baseline monitoring." },
         { "name": "BME680", "measures": "Temperature, humidity, pressure, gas resistance (VOC)", "why": "Same as BME280 with a gas sensor that estimates indoor air quality and volatile organic compounds." },
+        { "name": "BMP390", "measures": "Pressure, temperature", "why": "Precise barometer: it measures pressure and temperature, but not humidity. Choose it when pressure accuracy matters most." },
         { "name": "AHT30", "measures": "Temperature, humidity", "why": "Accurate and low-cost; a reliable upgrade over DHT22 with I2C connectivity." },
         { "name": "SHT3X", "measures": "Temperature, humidity", "why": "High-accuracy sensor; more consistent than AHT30 across wide temperature ranges." },
         { "name": "SHT4X", "measures": "Temperature, humidity", "why": "Improved successor to SHT3X with higher accuracy in humid environments." },
@@ -292,6 +294,11 @@
         "air360Api": "Yes: all sensor values in a typed JSON batch"
       },
       {
+        "sensor": "BMP390",
+        "sensorCommunity": "Yes: temperature and pressure",
+        "air360Api": "Yes"
+      },
+      {
         "sensor": "DHT11, DHT22, HTU2X, SHT3X, SHT4X",
         "sensorCommunity": "Yes: temperature and humidity",
         "air360Api": "Yes: all sensor values"
@@ -330,34 +337,6 @@
         "sensor": "AHT30, VEML7700, OPT3001, PPD42NS, INA219, MH-Z19B",
         "sensorCommunity": "No: the Sensor.Community adapter skips these types",
         "air360Api": "Yes: all values pass through without sensor-type filtering"
-      }
-    ],
-    "differencesTitle": "What makes Air360 firmware different",
-    "differencesBody": "The firmware keeps the Sensor.Community flow working, but adds capabilities that do not fit the older upload format.",
-    "differenceItems": [
-      {
-        "title": "Sensor.Community stays available",
-        "body": "You can still register the device on devices.sensor.community and upload compatible measurements to their API."
-      },
-      {
-        "title": "Air360 API accepts every sensor",
-        "body": "The native backend receives one typed JSON batch with sensor_type, kind, and timestamp, including values that have no legacy Sensor.Community mapping."
-      },
-      {
-        "title": "Cellular modem out of the box",
-        "body": "SIM7600 and other esp-modem types are managed by a dedicated cellular runtime: PPP, reconnect backoff, PWRKEY/SLEEP GPIO, and diagnostics in the web UI."
-      },
-      {
-        "title": "Power and extended sensors",
-        "body": "INA219, VEML7700/OPT3001, PPD42NS, MH-Z19B, and other sensors are available in firmware and Air360 API even when Sensor.Community does not accept them."
-      },
-      {
-        "title": "Local web UI",
-        "body": "Wi-Fi, cellular, sensor configuration, upload backends, OTA, and diagnostics are available through the device web interface."
-      },
-      {
-        "title": "Multiple backend uploads",
-        "body": "In addition to Sensor.Community, the firmware supports Air360 API, Custom Upload, and InfluxDB, each with separate configuration and delivery status."
       }
     ],
     "firmwareTitle": "Flashing the device",
@@ -441,7 +420,7 @@
       {
         "id": "backends",
         "title": "Backends",
-        "body": "Configure where measurements are uploaded: Sensor.Community, Air360 API, Custom Upload, or InfluxDB. Each backend can be enabled or disabled independently. Set the upload interval and see the last upload result per backend.",
+        "body": "Configure where measurements are uploaded: Air360, Sensor.Community, openSenseMap, InfluxDB, or Custom Upload. Each service is enabled or disabled independently. The same page sets the upload interval and shows the last upload result for every service.",
         "notes": [
           "Sensor.Community: the device's Sensor ID is shown on this page. Register it at devices.sensor.community/sensors to link the device to your Sensor.Community account and start seeing measurements on the map.",
           "Air360 API: air360.ru does not require registration. The device authenticates with an Upload secret — generate it on first setup and save it somewhere safe. If you reflash the device, reuse the same secret so your measurement history stays linked to the device.",
@@ -450,9 +429,83 @@
         "imageAlt": "Backends page in the Air360 firmware web interface"
       }
     ],
+    "backendsTitle": "Where your measurements go",
+    "backendsBody": "The device can send the same measurements to several services at once. Turn on the ones you want in the device web interface: each service has its own upload interval, and if one of them is temporarily unavailable, the others keep working.",
+    "backendsOptions": [
+      {
+        "id": "air360_api",
+        "label": "Our service",
+        "title": "Air360",
+        "body": "The project's own service. It accepts readings from every sensor, and your station shows up on the Air360 map right away.",
+        "notes": [
+          "No account required: during setup the device creates a secret key. Save it — if you reflash the device, the same key keeps your measurement history.",
+          "Set the device coordinates before uploads start. Altitude above sea level is optional, but it makes pressure readings more accurate."
+        ],
+        "links": [{ "href": "/map", "label": "Air360 map" }]
+      },
+      {
+        "id": "sensor_community",
+        "label": "Community",
+        "title": "Sensor.Community",
+        "body": "A worldwide network of volunteer air quality stations. Your readings join a public map that anyone can use.",
+        "notes": [
+          "Works with BME280, BME680, BMP390, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011 and PMSX003. Readings from other sensors are not sent.",
+          "Register the sensor number that the device shows you, and your station will appear on their map."
+        ],
+        "links": [
+          { "href": "https://sensor.community/", "label": "sensor.community" },
+          { "href": "https://devices.sensor.community/sensors", "label": "Register a sensor" }
+        ]
+      },
+      {
+        "id": "opensensemap",
+        "label": "Community",
+        "title": "openSenseMap",
+        "body": "An open platform for environmental data. There is no fixed list of measurements: you choose what your station publishes.",
+        "notes": [
+          "You can publish anything you add to your senseBox, including CO2, light level and GPS coordinates.",
+          "The device fetches the sensor list from your senseBox and fills in the settings for you, so there is nothing to match up by hand."
+        ],
+        "links": [{ "href": "https://opensensemap.org/", "label": "opensensemap.org" }]
+      },
+      {
+        "id": "influxdb",
+        "label": "Your own server",
+        "title": "InfluxDB",
+        "body": "A database for time-series data. Pick it if you want to keep the readings on your own machine and build charts in Grafana.",
+        "notes": [
+          "You provide the server address; a login and password are optional.",
+          "Readings from every sensor are sent, with nothing left out."
+        ],
+        "links": [{ "href": "https://www.influxdata.com/", "label": "influxdata.com" }]
+      },
+      {
+        "id": "custom_upload",
+        "label": "Your own server",
+        "title": "Custom Upload",
+        "body": "Sends the same data to any address you enter, so you can collect the readings on a server of your own.",
+        "notes": [
+          "No login is added: protect the address yourself.",
+          "Readings from every sensor are sent, with nothing left out."
+        ],
+        "links": [
+          {
+            "href": "https://github.com/serber/air360/blob/main/docs/firmware/upload-adapters.md",
+            "label": "Data format"
+          }
+        ]
+      }
+    ],
     "firmwareDocsTitle": "Detailed documentation",
     "firmwareDocsBody": "For web UI setup, sensors, backend uploads, diagnostics, and OTA, use the full firmware user guide.",
     "firmwareDocsLink": "Open firmware user guide"
+  },
+  "imagePreview": {
+    "close": "Close",
+    "next": "Next image",
+    "previous": "Previous image",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
   "stats": {
     "activeDevices": "Active devices",

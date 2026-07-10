@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import maplibregl from "maplibre-gl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { SensorChart, type ChartMeasurement } from "@/components/SensorChart";
@@ -57,14 +57,22 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
   }, [period, publicId]);
 
   const device = state.data?.device;
-  const byKind = state.data?.by_kind ?? [];
+  const byKind = state.data?.by_kind;
   const latest = state.data?.latest ?? [];
   const sensors = state.data?.sensors ?? [];
-  const chartMeasurements = buildChartMeasurements(byKind, {
-    pressureTitle: t("pressureTitle"),
-    seaLevel: t("seaLevel"),
-    station: t("station"),
-  });
+  const pressureTitle = t("pressureTitle");
+  const seaLevel = t("seaLevel");
+  const station = t("station");
+  // Stable identity keeps SensorChart from tearing down its canvas on every render.
+  const chartMeasurements = useMemo(
+    () =>
+      buildChartMeasurements(byKind ?? [], {
+        pressureTitle,
+        seaLevel,
+        station,
+      }),
+    [byKind, pressureTitle, seaLevel, station],
+  );
   const isStale = device ? isDeviceStale(device.last_seen_at) : true;
   const isLoading =
     state.status === "idle" || state.data === undefined || state.data.period !== period;
@@ -274,13 +282,11 @@ function buildPressureChart(
   const series: ChartMeasurement["series"] = [
     ...(seaLevelPressure?.series.map((item) => ({
       ...item,
-      chartKey: `${item.sensor_type}:pressure_hpa`,
       kind: "pressure_hpa",
       label: `${sensorLabel(item.sensor_type)} · ${labels.seaLevel}`,
     })) ?? []),
     ...(stationPressure?.series.map((item) => ({
       ...item,
-      chartKey: `${item.sensor_type}:pressure_hpa_raw`,
       kind: "pressure_hpa_raw",
       label: `${sensorLabel(item.sensor_type)} · ${labels.station}`,
     })) ?? []),

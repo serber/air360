@@ -21,6 +21,7 @@ export const sensorTypes = [
   "ppd42ns",
   "pmsx003",
   "opt3001",
+  "bmp390",
 ] as const;
 
 export type SensorType = (typeof sensorTypes)[number];
@@ -168,11 +169,11 @@ export function isDeviceStale(lastSeenAt: string, nowMs = Date.now()): boolean {
   return nowMs - lastSeen >= DEVICE_STALE_AFTER_MS;
 }
 
-export function formatChartTime(value: string): string {
+export function formatChartTime(value: string | number): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return String(value);
   }
 
   return new Intl.DateTimeFormat(undefined, {
@@ -184,7 +185,7 @@ export function formatChartTime(value: string): string {
 }
 
 export function formatValue(kind: string, value: number): string {
-  const unit = valueUnit(kind);
+  const unit = kindUnit(kind);
 
   return `${new Intl.NumberFormat(undefined, {
     maximumFractionDigits: Math.abs(value) >= 100 ? 0 : 2,
@@ -208,6 +209,7 @@ export function sensorLabel(sensorType: string): string {
   const labels: Record<SensorType, string> = {
     bme280: "BME280",
     bme680: "BME680",
+    bmp390: "BMP390",
     dht11: "DHT11",
     dht22: "DHT22",
     ds18b20: "DS18B20",
@@ -299,7 +301,7 @@ export function kindLabel(kind: string): string {
   );
 }
 
-function valueUnit(kind: string): string {
+export function kindUnit(kind: string): string {
   if (kind.endsWith("_c")) return "C";
   if (kind.endsWith("_percent")) return "%";
   if (kind.endsWith("_hpa")) return "hPa";

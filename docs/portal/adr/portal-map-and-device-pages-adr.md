@@ -40,7 +40,7 @@ for visualizing device data.
 |-------|---------|
 | `/` | Public portal home page |
 | `/map` | World map with active device pins and optional offline-device layer |
-| `/build` | Device assembly guide with shield-board and direct ESP32-S3 wiring paths |
+| `/build` | Device assembly guide with shield-board and direct ESP32-S3 wiring paths, plus the supported upload backends |
 | `/devices/:public_id` | Device detail page with sensor charts |
 | `/privacy` | Privacy policy |
 
@@ -172,7 +172,9 @@ needed if the browser should call a public API host directly.
 | Package | Purpose |
 |---------|---------|
 | `maplibre-gl` | WebGL map engine and GeoJSON device layers |
-| `recharts` | Time-series charts |
+| `chart.js` | Canvas time-series charts on the device detail page |
+| `chartjs-adapter-date-fns` | Time-scale tick generation for `chart.js` |
+| `yet-another-react-lightbox` | Zoomable image viewer for the build guide photos |
 
 ## Alternatives Considered
 

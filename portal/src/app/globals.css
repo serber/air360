@@ -1497,6 +1497,7 @@ svg {
 .air-chart-body {
   height: 320px;
   padding: 14px 14px 4px;
+  position: relative;
 }
 
 .air-chart-empty {
@@ -1849,44 +1850,6 @@ svg {
   width: 100%;
 }
 
-.air-image-preview {
-  align-items: center;
-  background: color-mix(in oklab, var(--ink) 72%, transparent);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 32px;
-  position: fixed;
-  z-index: 100;
-}
-
-.air-image-preview img {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  max-height: min(86vh, 980px);
-  max-width: min(92vw, 1280px);
-  object-fit: contain;
-  width: auto;
-}
-
-.air-image-preview-close {
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink);
-  display: inline-flex;
-  font-size: 24px;
-  height: 40px;
-  justify-content: center;
-  position: fixed;
-  right: 24px;
-  top: 24px;
-  width: 40px;
-  z-index: 101;
-}
-
 .air-firmware-section {
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--brand-soft) 74%, transparent), transparent 260px),
@@ -2004,35 +1967,6 @@ svg {
   grid-column: 2;
   line-height: 1.55;
   margin-top: 8px;
-}
-
-.air-difference-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 22px;
-}
-
-.air-difference-card {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 18px;
-}
-
-.air-difference-card h3 {
-  color: var(--ink);
-  font-family: var(--air-font-display);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.25;
-  margin: 0;
-}
-
-.air-difference-card p {
-  font-size: 13.5px;
-  line-height: 1.55;
-  margin-top: 10px;
 }
 
 .air-wiring-table-wrap {
@@ -2204,8 +2138,7 @@ svg {
   .air-build-option-grid,
   .air-build-photo-grid,
   .air-firmware-access-grid,
-  .air-firmware-step-grid,
-  .air-difference-grid {
+  .air-firmware-step-grid {
     grid-template-columns: 1fr;
   }
 
