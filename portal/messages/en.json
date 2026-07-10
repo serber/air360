@@ -500,6 +500,13 @@
     "firmwareDocsBody": "For web UI setup, sensors, backend uploads, diagnostics, and OTA, use the full firmware user guide.",
     "firmwareDocsLink": "Open firmware user guide"
   },
+  "imagePreview": {
+    "close": "Close",
+    "next": "Next image",
+    "previous": "Previous image",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  },
   "stats": {
     "activeDevices": "Active devices",
     "countries": "Countries",

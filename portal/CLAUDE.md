@@ -44,6 +44,7 @@ Local `/v1/*` requests are proxied by `next.config.ts` to `AIR360_API_BASE_URL`,
 - Theme store shared by the toggle and the charts: `src/lib/theme.ts`
 - Map UI: `src/components/DeviceMap.tsx`, `src/components/DeviceMapLoader.tsx`, `src/components/DevicePopup.tsx`
 - Device detail UI: `src/components/DeviceDetail.tsx`, `src/components/SensorChart.tsx`, `src/components/PeriodSelector.tsx`
+- Build guide UI: `src/app/build/page.tsx`, `src/components/BuildImagePreview.tsx`
 - API proxy: `next.config.ts`
 
 ## Implemented pages

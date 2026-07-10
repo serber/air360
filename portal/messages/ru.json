@@ -500,6 +500,13 @@
     "firmwareDocsBody": "Для настройки веб-интерфейса, датчиков, backend uploads, диагностики и OTA используйте полный пользовательский гайд firmware.",
     "firmwareDocsLink": "Открыть firmware user guide"
   },
+  "imagePreview": {
+    "close": "Закрыть",
+    "next": "Следующее изображение",
+    "previous": "Предыдущее изображение",
+    "zoomIn": "Приблизить",
+    "zoomOut": "Отдалить"
+  },
   "stats": {
     "activeDevices": "Активные устройства",
     "countries": "Страны",

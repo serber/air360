@@ -1850,44 +1850,6 @@ svg {
   width: 100%;
 }
 
-.air-image-preview {
-  align-items: center;
-  background: color-mix(in oklab, var(--ink) 72%, transparent);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 32px;
-  position: fixed;
-  z-index: 100;
-}
-
-.air-image-preview img {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  max-height: min(86vh, 980px);
-  max-width: min(92vw, 1280px);
-  object-fit: contain;
-  width: auto;
-}
-
-.air-image-preview-close {
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink);
-  display: inline-flex;
-  font-size: 24px;
-  height: 40px;
-  justify-content: center;
-  position: fixed;
-  right: 24px;
-  top: 24px;
-  width: 40px;
-  z-index: 101;
-}
-
 .air-firmware-section {
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--brand-soft) 74%, transparent), transparent 260px),

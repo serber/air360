@@ -174,6 +174,7 @@ needed if the browser should call a public API host directly.
 | `maplibre-gl` | WebGL map engine and GeoJSON device layers |
 | `chart.js` | Canvas time-series charts on the device detail page |
 | `chartjs-adapter-date-fns` | Time-scale tick generation for `chart.js` |
+| `yet-another-react-lightbox` | Zoomable image viewer for the build guide photos |
 
 ## Alternatives Considered
 
