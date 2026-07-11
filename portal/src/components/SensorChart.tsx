@@ -38,14 +38,18 @@ Chart.register(
 // Validated categorical palette: fixed slot order, never cycled through generated
 // hues. Both columns were checked against the portal panel surfaces (#ffffff and
 // #14191a) for the lightness band, chroma floor, CVD separation, and contrast.
+// Slots are ordered by hue so the first five are maximally separated: the two
+// greens (teal at slot 1, forest at slot 5) are kept apart, so grouped charts that
+// merge four or five kinds (PM mass fractions, number-concentration bins) never
+// place both greens on one chart and every line stays a distinct hue.
 const SERIES_COLORS: Record<PortalTheme, readonly string[]> = {
   light: [
     "#2a78d6",
     "#1baf7a",
     "#eda100",
-    "#008300",
-    "#4a3aa7",
     "#e34948",
+    "#4a3aa7",
+    "#008300",
     "#e87ba4",
     "#eb6834",
   ],
@@ -53,9 +57,9 @@ const SERIES_COLORS: Record<PortalTheme, readonly string[]> = {
     "#3987e5",
     "#199e70",
     "#c98500",
-    "#008300",
-    "#9085e9",
     "#e66767",
+    "#9085e9",
+    "#008300",
     "#d55181",
     "#d95926",
   ],

@@ -114,8 +114,17 @@ layer is enabled.
 with full TypeScript support, `ResponsiveContainer`, and composable `LineChart`
 primitives suited to time-series sensor data.
 
-The page shows one chart per measurement `kind`. Each chart can include one or
-more sensor series for that measurement type. The page also shows device
+The page shows one chart per measurement `kind`, and each chart can include one
+or more sensor series for that measurement type (two sensors reporting the same
+`kind` share a chart automatically). On top of that, a declarative chart-group
+layer in `src/lib/chart-groups.ts` merges *different* kinds that describe one
+physical quantity onto a single card: the two pressure references
+(`pressure_hpa` sea level and `pressure_hpa_raw` station), the PM mass fractions
+(`pm*_ug_m3`), the number-concentration bins (`nc*_per_cm3`), and the
+particle-count bins (`pc*_per_0_1l`). Each group entry lists the member kinds —
+which must share a unit — and an i18n title key under the `chartGroups`
+namespace; adding a group needs no render-code change. A group with only one
+member present falls back to a normal per-kind card. The page also shows device
 metadata, latest-reading cards, sensor metadata, and reverse-geocoded display
 fields returned by the backend.
 
@@ -165,6 +174,7 @@ needed if the browser should call a public API host directly.
 | `src/components/SensorChart.tsx` | Recharts `LineChart` wrapper per measurement kind |
 | `src/components/PeriodSelector.tsx` | Period toggle buttons |
 | `src/lib/api.ts` | API response types, fetch helper, labels, formatting |
+| `src/lib/chart-groups.ts` | Declarative metadata for merging related kinds onto one chart |
 | `src/lib/config.ts` | Shared portal config such as contact email |
 
 ### Dependencies
