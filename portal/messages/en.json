@@ -605,10 +605,13 @@
     "altitude": "Altitude",
     "hardware": "Hardware",
     "noSensors": "No sensors returned.",
-    "deviceLocationMap": "Device location map",
-    "pressureTitle": "Pressure",
-    "seaLevel": "Sea level",
-    "station": "Station"
+    "deviceLocationMap": "Device location map"
+  },
+  "chartGroups": {
+    "pressure": "Pressure",
+    "particulateMass": "Particulate matter",
+    "numberConcentration": "Number concentration",
+    "particleCounts": "Particle counts"
   },
   "chart": {
     "source": "Measurement",

@@ -605,10 +605,13 @@
     "altitude": "Высота",
     "hardware": "Сенсоры",
     "noSensors": "Сенсоры не вернулись.",
-    "deviceLocationMap": "Карта местоположения устройства",
-    "pressureTitle": "Давление",
-    "seaLevel": "Уровень моря",
-    "station": "На месте"
+    "deviceLocationMap": "Карта местоположения устройства"
+  },
+  "chartGroups": {
+    "pressure": "Давление",
+    "particulateMass": "Взвешенные частицы",
+    "numberConcentration": "Счётная концентрация",
+    "particleCounts": "Счёт частиц"
   },
   "chart": {
     "source": "Измерение",

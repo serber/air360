@@ -74,7 +74,10 @@ The portal currently covers public read-only project and device pages:
   measurement selection while keeping the implemented metric legends and
   freshness indicators unchanged
 - device detail page at `/devices/:public_id` with sensor charts from
-  `GET /v1/devices/:public_id/measurements?period=<period>`
+  `GET /v1/devices/:public_id/measurements?period=<period>`, one card per
+  measurement kind, with related kinds (pressure references, PM mass fractions,
+  particle number-concentration and count bins) merged onto shared cards via the
+  declarative chart-group metadata in `src/lib/chart-groups.ts`
 - latest-reading cards, sensor metadata, device coordinates, and reverse-geocoded
   display labels from the same measurement response
 - device detail pages use the shared portal shell, a current-reading strip,

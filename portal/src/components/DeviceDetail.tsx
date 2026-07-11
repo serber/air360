@@ -16,6 +16,7 @@ import {
   kindLabel,
   sensorLabel,
 } from "@/lib/api";
+import { CHART_GROUPS, buildGroupedChart } from "@/lib/chart-groups";
 import { MAP_STYLE } from "@/lib/map-style";
 
 type DeviceDetailProps = {
@@ -29,6 +30,7 @@ type LoadState =
 
 export function DeviceDetail({ publicId }: DeviceDetailProps) {
   const t = useTranslations("deviceDetail");
+  const tGroups = useTranslations("chartGroups");
   const [period, setPeriod] = useState<Period>("24h");
   const [state, setState] = useState<LoadState>({ status: "idle" });
 
@@ -60,18 +62,18 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
   const byKind = state.data?.by_kind;
   const latest = state.data?.latest ?? [];
   const sensors = state.data?.sensors ?? [];
-  const pressureTitle = t("pressureTitle");
-  const seaLevel = t("seaLevel");
-  const station = t("station");
-  // Stable identity keeps SensorChart from tearing down its canvas on every render.
-  const chartMeasurements = useMemo(
+  // Resolve each group's title once per locale so the memo below keeps a stable
+  // identity — SensorChart tears down its canvas whenever `measurement` changes.
+  const groupTitles = useMemo(
     () =>
-      buildChartMeasurements(byKind ?? [], {
-        pressureTitle,
-        seaLevel,
-        station,
-      }),
-    [byKind, pressureTitle, seaLevel, station],
+      Object.fromEntries(
+        CHART_GROUPS.map((group) => [group.titleKey, tGroups(group.titleKey)]),
+      ) as Record<string, string>,
+    [tGroups],
+  );
+  const chartMeasurements = useMemo(
+    () => buildChartMeasurements(byKind ?? [], groupTitles),
+    [byKind, groupTitles],
   );
   const isStale = device ? isDeviceStale(device.last_seen_at) : true;
   const isLoading =
@@ -232,71 +234,55 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
   );
 }
 
+/**
+ * Turns the backend's per-kind measurements into chart cards, merging kinds that
+ * a `CHART_GROUPS` entry declares as one physical quantity (PM mass fractions,
+ * number-concentration bins, particle counts, the two pressure references). Kinds
+ * with no group, and groups with only one member present, render one card each.
+ * Original `by_kind` order is preserved; a group takes the slot of its first
+ * present member.
+ */
 function buildChartMeasurements(
   measurements: KindMeasurements[],
-  labels: {
-    pressureTitle: string;
-    seaLevel: string;
-    station: string;
-  },
+  groupTitles: Record<string, string>,
 ): ChartMeasurement[] {
-  const seaLevelPressure = measurements.find(
-    (measurement) => measurement.kind === "pressure_hpa",
+  const byKind = new Map(measurements.map((m) => [m.kind, m]));
+  const groupOfKind = new Map(
+    CHART_GROUPS.flatMap((group) => group.kinds.map((kind) => [kind, group] as const)),
   );
-  const stationPressure = measurements.find(
-    (measurement) => measurement.kind === "pressure_hpa_raw",
-  );
-  const pressureKinds = new Set(["pressure_hpa", "pressure_hpa_raw"]);
-  const pressureChart =
-    seaLevelPressure || stationPressure
-      ? buildPressureChart(seaLevelPressure, stationPressure, labels)
-      : null;
+
   const charts: ChartMeasurement[] = [];
-  let pressureChartAdded = false;
+  const emittedGroups = new Set<string>();
 
   for (const measurement of measurements) {
-    if (pressureKinds.has(measurement.kind)) {
-      if (pressureChart && !pressureChartAdded) {
-        charts.push(pressureChart);
-        pressureChartAdded = true;
-      }
+    const group = groupOfKind.get(measurement.kind);
 
+    if (!group) {
+      charts.push(measurement);
       continue;
     }
 
-    charts.push(measurement);
+    if (emittedGroups.has(group.id)) {
+      continue;
+    }
+    emittedGroups.add(group.id);
+
+    const members = group.kinds
+      .map((kind) => byKind.get(kind))
+      .filter((member): member is KindMeasurements => member !== undefined);
+
+    // A lone member stays a normal per-kind card so its specific label survives.
+    if (members.length <= 1) {
+      if (members[0]) {
+        charts.push(members[0]);
+      }
+      continue;
+    }
+
+    charts.push(buildGroupedChart(group, members, groupTitles[group.titleKey]));
   }
 
   return charts;
-}
-
-function buildPressureChart(
-  seaLevelPressure: KindMeasurements | undefined,
-  stationPressure: KindMeasurements | undefined,
-  labels: {
-    pressureTitle: string;
-    seaLevel: string;
-    station: string;
-  },
-): ChartMeasurement {
-  const series: ChartMeasurement["series"] = [
-    ...(seaLevelPressure?.series.map((item) => ({
-      ...item,
-      kind: "pressure_hpa",
-      label: `${sensorLabel(item.sensor_type)} · ${labels.seaLevel}`,
-    })) ?? []),
-    ...(stationPressure?.series.map((item) => ({
-      ...item,
-      kind: "pressure_hpa_raw",
-      label: `${sensorLabel(item.sensor_type)} · ${labels.station}`,
-    })) ?? []),
-  ];
-
-  return {
-    kind: "pressure_hpa",
-    series,
-    title: labels.pressureTitle,
-  };
 }
 
 function DeviceStaticMap({
