@@ -1,10 +1,22 @@
 # Air360
 
-Air360 is a multi-part repository around an ESP32-S3 air-quality device, a modern ESP-IDF firmware for that device, a native Air360 backend API, and a separate web portal.
+Air360 is a **multi-target air-quality firmware** for an ESP32-S3 device: it reads a wide range of environmental sensors and uploads the same measurements to several services at once. Each upload target is enabled independently and has its own interval, so one device can publish to its own service, to a community network, and to your own database simultaneously — and if one target is unavailable, the others keep working.
 
-At the device level, the project is centered on a local-first firmware runtime with setup AP onboarding, station-mode web UI, configurable sensor support, and backend uploads. The repository also contains the beginning of the Air360 backend and portal that are intended to grow around that device runtime.
+Supported upload targets:
 
-Air360 is not a replacement for the Sensor.Community ecosystem in the sense of breaking compatibility with it. The current firmware keeps explicit compatibility with the Sensor.Community upload flow, so an Air360 device can still be registered on `devices.sensor.community` and upload measurements to the Sensor.Community endpoint while also supporting the native `Air360 API` backend.
+- **Air360 API** — the project's native backend and public map (this repository).
+- **Sensor.Community** — the volunteer global air-quality network.
+- **openSenseMap** — the open environmental-data platform.
+- **InfluxDB** — your own time-series database (for Grafana and self-hosting).
+- **Custom Upload** — any HTTP endpoint you control.
+
+This is the core of how Air360 positions itself: not as a walled-garden replacement for existing air-quality projects, but as a device that **interoperates** with them. Air360 keeps explicit compatibility with the Sensor.Community upload and registration flow (a device can still be registered on `devices.sensor.community`) and fetches your sensor mapping directly from openSenseMap — so you can join those ecosystems and Air360 at the same time, from one device.
+
+Around that firmware, the repository also grows a native Air360 backend API and a public web portal.
+
+**New to Air360?** The [build guide](docs/guide/README.md) walks through assembling, flashing, and configuring a device end to end.
+
+At the device level, the project is centered on a local-first firmware runtime with setup AP onboarding, a station-mode web UI, configurable sensor support, and the multi-target backend uploads described above.
 
 The repository intentionally separates:
 
@@ -19,7 +31,7 @@ When documentation and code disagree, treat the relevant implementation director
 
 Based on the current tree, the repository now contains more than the original firmware replacement effort:
 
-- an ESP-IDF firmware runtime for `esp32s3`
+- an ESP-IDF firmware runtime for `esp32s3` with multi-target measurement uploads (Air360 API, Sensor.Community, openSenseMap, InfluxDB, Custom Upload)
 - compatibility with the Sensor.Community upload endpoint and registration flow
 - a Fastify-based Air360 backend with device registration, authenticated persisted ingest, public device lists, and measurement history queries
 - a Next.js public portal application
@@ -55,6 +67,8 @@ The older planning documents in `docs/` still matter, but they should be read as
 
 Start here depending on what you need.
 
+- Build guide (assemble, flash, and configure a device):
+  [docs/guide/README.md](docs/guide/README.md)
 - Firmware documentation map (all subsystems):
   [docs/firmware/README.md](docs/firmware/README.md)
 - Firmware architecture overview:
@@ -69,8 +83,6 @@ Start here depending on what you need.
   [docs/firmware/sensors/README.md](docs/firmware/sensors/README.md)
 - Firmware measurement pipeline:
   [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md)
-- Firmware end-user manual:
-  [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
 - Firmware architecture decision records:
   [docs/firmware/adr/README.md](docs/firmware/adr/README.md)
 - Sensor.Community opportunity roadmap:
@@ -97,7 +109,7 @@ Current firmware implementation includes:
 - setup AP onboarding at `/config` with scanned SSID list from `/wifi-scan`
 - embedded frontend assets under `firmware/main/webui/`, served by the firmware at `/assets/*`
 - category-based sensor configuration, background polling, and bounded measurement queueing
-- backend upload support for `Sensor.Community` and `Air360 API`
+- multi-target backend upload support for `Air360 API`, `Sensor.Community`, `openSenseMap`, `InfluxDB`, and `Custom Upload`, each enabled independently with its own interval
 - `Sensor.Community` compatibility through the same device identity model exposed in the firmware UI as `Short ID`
 
 ### Backend
@@ -142,14 +154,14 @@ If you need to publish a firmware beta or stable build:
 
 If you need to operate or provision a device rather than change firmware code:
 
-1. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
+1. Read the [build guide](docs/guide/README.md) — assemble, flash, configure, and operate a device end to end
 2. For release binaries, flash the merged `full.bin` through `https://espflash.app/`
 3. Then use [firmware/README.md](firmware/README.md) only for build, flash, and implementation details
 
 If you need to understand the Sensor.Community overlap specifically:
 
 1. Read this file for the project-level compatibility statement
-2. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md) for the actual registration and backend setup flow
+2. Read the [backends guide](docs/guide/backends.md#sensorcommunity) for the actual registration and backend setup flow
 
 If you need repository context first:
 

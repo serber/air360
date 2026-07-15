@@ -8,7 +8,7 @@ The current implementation targets `esp32s3` on ESP-IDF 6.x. It boots a C++20 ap
 
 Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/).
 
-If you need an end-user walkthrough for setup AP onboarding and the station-mode web UI, start with [`../docs/firmware/user-guide.md`](../docs/firmware/user-guide.md).
+If you need an end-user walkthrough for assembly, flashing, setup AP onboarding, and the station-mode web UI, start with the [build guide](../docs/guide/README.md).
 
 If you need to package a GitHub-release-ready firmware bundle from the current `build/` outputs, use the repo-local skill at [`../.claude/skills/air360-firmware-release-bundle/`](../.claude/skills/air360-firmware-release-bundle/).
 
