@@ -40,6 +40,16 @@ A reference for every card on the Device settings page.
 - [BLE advertising](device-features.md#ble-advertising) — BTHome v2 for Home Assistant
 - [Firmware update](device-features.md#firmware-update) — over-the-air update from the browser
 
+### 4. [Firmware Features — Backends](backends.md)
+
+How to set up each upload target, field by field.
+
+- [Air360 API](backends.md#air360-api) — the project's own service and map
+- [Sensor.Community](backends.md#sensorcommunity) — the global volunteer network
+- [openSenseMap](backends.md#opensensemap) — open data platform with sensor mapping
+- [InfluxDB](backends.md#influxdb) — your own time-series database
+- [Custom Upload](backends.md#custom-upload) — any HTTP endpoint you control
+
 ## See also
 
 - [Firmware user guide](../firmware/user-guide.md) — full operational reference for the device firmware
