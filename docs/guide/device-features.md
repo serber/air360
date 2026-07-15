@@ -9,6 +9,30 @@ a device with broken Wi-Fi credentials can always be reconfigured or reflashed.
 
 ---
 
+## Identity
+
+A single **Device name** field (1–31 characters) that gives the device a
+human-readable identity across everything it touches.
+
+### What it does
+
+The name you set here appears in several places at once:
+
+- **On the local network (mDNS)** — the device is reachable at
+  `http://{device_name}.local` in station mode. The hostname is derived from the
+  name: it's lowercased, spaces and other non-alphanumeric characters become
+  `-`, and it falls back to `air360` if nothing usable remains. So "Balcony
+  Station" makes the device reachable at `http://balcony-station.local`.
+- **Setup access point name** — helps you tell devices apart when configuring
+  more than one.
+- **Upload payloads** — identifies the device to backends.
+- **Home Assistant** — the name shown for the BLE device (see BLE advertising).
+
+The name must not be empty. Changing it takes effect after the reboot that
+follows saving, since the mDNS hostname is set at network start.
+
+---
+
 ## Wi-Fi station
 
 Credentials for the device's primary Wi-Fi uplink — the network it joins to reach
@@ -55,3 +79,228 @@ Wi-Fi credentials are optional to have, but the device always needs a way in:
 
 The onboard LED reflects Wi-Fi state: **green** = connected in station mode,
 **pink** = setup AP mode (no credentials or a failed join).
+
+---
+
+## Wi-Fi power save
+
+A single toggle that lets the Wi-Fi radio sleep between beacons to cut idle power
+draw. Off by default.
+
+### What it does
+
+- **Off (default)** — the radio stays fully awake, giving the lowest upload
+  latency and the most responsive web interface.
+- **On** — enables modem sleep: the radio powers down between the router's DTIM
+  beacons and wakes just often enough to stay associated. This lowers average
+  current draw significantly (roughly **80–100 mA → 20–30 mA**) at the cost of
+  slightly higher upload and page-load latency.
+
+### When to use it
+
+- **Turn it on** for battery- or solar-powered installations, where cutting a few
+  tens of milliamps meaningfully extends runtime.
+- **Leave it off** for mains-powered stations, where responsiveness matters more
+  than power draw.
+
+Power save applies to **station mode only** — it has no effect on the setup
+access point, which always keeps its radio fully awake so setup stays snappy. The
+setting takes effect right after the device joins the network.
+
+---
+
+## Time (SNTP)
+
+Where the device gets its clock. The ESP32-S3 has no battery-backed real-time
+clock, so after every boot it synchronises the time over the network using SNTP.
+
+### What it does
+
+- **SNTP server** — the NTP server to sync from. Leave it empty to use the
+  default, `pool.ntp.org`; set your own (up to 63 characters) if you run a local
+  time server or prefer a specific pool.
+- **Check SNTP** — a button that tests reachability of the server you typed
+  right now and shows the result inline, without saving or rebooting. Use it to
+  confirm a custom server works before committing to it.
+
+Synchronisation runs over the station Wi-Fi connection and is not attempted in
+setup AP mode. The device clock runs in **UTC**.
+
+### Why it matters
+
+Accurate time is a hard requirement for uploading data — every measurement is
+timestamped, and the device will not queue or send anything until the clock is
+valid:
+
+- Before sync, sensors are still polled and live readings appear in the web
+  interface, but nothing accumulates in the upload queue.
+- Once sync succeeds, buffered and new measurements start flowing to the enabled
+  backends.
+
+If the server is briefly unreachable at boot, the device keeps retrying in the
+background while the connection is healthy, so it recovers on its own once the
+server responds.
+
+---
+
+## Static IP
+
+By default the device takes its address from the router by DHCP. This card lets
+you pin a fixed IPv4 address instead — useful when you want the device always
+reachable at the same address for port forwarding, bookmarks, or firewall rules.
+
+### What it does
+
+A switch reveals four fields when turned on:
+
+- **IP address** — the fixed address to claim (e.g. `192.168.1.100`).
+- **Subnet mask** — e.g. `255.255.255.0`.
+- **Gateway** — the router address (e.g. `192.168.1.1`).
+- **DNS server** — e.g. `8.8.8.8`; leave it empty to use the gateway as DNS.
+
+With the switch off, the device stays on DHCP and the fields are hidden.
+
+### Convenience
+
+When you enable static IP for the first time on a device that is currently
+connected via DHCP, the firmware **pre-fills the address, netmask, and gateway
+from the current lease** (and DNS if available). In most cases you can just flip
+the switch, tweak the last octet if you like, and save — no need to look up your
+network settings.
+
+Static IP applies to **station mode only**; the setup access point always keeps
+its fixed `192.168.4.1` address regardless of this setting.
+
+---
+
+## Mobile uplink
+
+Lets the device upload over a cellular modem and SIM card instead of Wi-Fi — the
+right choice for rooftop stations, remote field sites, and anywhere without a
+reliable Wi-Fi network. Turned off by default; a switch reveals the settings.
+
+### What it does
+
+When enabled, the cellular modem becomes the device's **primary uplink**. The
+fields:
+
+- **APN** — required; the access point name from your carrier (e.g. `internet`,
+  `hologram`).
+- **Username** / **Password** — carrier PPP credentials; leave empty if your SIM
+  doesn't need them. The password has a Show/Hide toggle.
+- **SIM PIN** — leave empty if the SIM has no PIN lock.
+- **Modem type** — the AT-command dialect used to drive the modem. Supported:
+  **SIM7600** (default), SIM7070, SIM7000, BG96, EC20, SIM800, and **Generic**
+  (any AT-command modem). Pick the one matching your hardware.
+- **Connectivity check host** — an IPv4 address the device pings after the
+  cellular link comes up to confirm it actually has internet (e.g. `8.8.8.8`).
+- **Wi-Fi debug window (seconds)** — see below.
+
+### Wi-Fi debug window
+
+Because cellular becomes the primary uplink, Wi-Fi would normally shut down after
+boot. The debug window keeps Wi-Fi active alongside cellular for a set number of
+seconds after each boot, so you still have a local way to reach the web interface
+and check on the device. Set it to `0` to disable and go cellular-only. Values up
+to 3600 seconds (one hour) are accepted.
+
+### Automatic recovery
+
+The modem link is self-healing: if the connection drops or the modem stops
+responding, the device reconnects on its own in the background. Persistent
+failures escalate gradually — a full modem re-init, then a hardware power-cycle
+of the modem, and only as a last resort a device reboot — so a temporary loss of
+signal or a stuck modem recovers without anyone touching the device. Carrier
+search and weak-signal periods are tolerated and don't trigger unnecessary
+power-cycling.
+
+Wiring and hardware notes for the default SIM7600E module are in the firmware
+docs.
+
+---
+
+## BLE advertising
+
+Broadcasts the current sensor readings over Bluetooth Low Energy so nearby
+devices — most notably **Home Assistant** — can pick them up locally, with no
+cloud and no network round-trip. Off by default; a switch reveals the setting.
+
+### What it does
+
+When enabled, the device continuously broadcasts its latest sensor values as
+**BTHome v2** advertisements. This is a passive, broadcast-only format:
+
+- **No pairing and no connection** — any nearby BLE scanner just receives the
+  data as it is broadcast.
+- The advertisement always reflects the **last valid reading**, so values are
+  available even when the device has no internet connection.
+- Wi-Fi and BLE run at the same time; keeping BLE on has a negligible effect on
+  uploads.
+
+### Advertising interval
+
+A dropdown sets how often the device broadcasts. Shorter intervals update faster
+but draw more power:
+
+| Interval | Good for |
+|----------|----------|
+| 100 ms | High-frequency scanning; highest power draw |
+| 300 ms | Fast updates |
+| **1 s (default)** | **Home Assistant and general use** |
+| 3 s | Power-constrained deployments |
+
+### Home Assistant
+
+BTHome v2 is auto-detected by Home Assistant's built-in Bluetooth integration.
+Once the device is advertising, it appears under **Settings → Devices &
+Services → Bluetooth** with its sensor values — add it, and no further setup is
+needed. The name shown matches the device's configured name.
+
+---
+
+## Firmware update
+
+Updates the firmware straight from the browser over Wi-Fi — no USB cable and no
+serial tool required. The card shows the version currently running and which slot
+the next install will target.
+
+### Which release file to use
+
+Every release publishes more than one image. Pick the one that matches how you're
+updating:
+
+- **Over the web (this card): use the `ota` image.** It contains just the
+  application and is written to the device's spare slot. This is the file to
+  upload here.
+- **Over USB with a flasher (e.g. ESP Flash): use the `full` image.** It is the
+  complete merged image (bootloader + partition table + application) meant for
+  first-time flashing and full recovery over a serial connection.
+
+Using the `full` image in the web updater will not work — the web path expects
+the application-only `ota` image.
+
+### How it works
+
+1. Choose the `ota` `.bin` file and press **Upload and install**. A progress bar
+   shows the transfer.
+2. The image is written to the **inactive slot** — the running firmware is left
+   untouched until the new image is ready.
+3. The device reboots into the new image.
+
+### Safety and rollback
+
+The update is fail-safe. The freshly installed image boots on trial first: only
+once the device comes all the way up does it mark the new firmware as good. If
+the new image fails to boot, the device **automatically rolls back** to the
+previous, known-working firmware — so a bad update can't brick the device. While
+an image is still on trial, the card shows a "pending verification" notice.
+
+Because the web updater is part of the setup page, it's reachable even over the
+setup access point — a device with broken Wi-Fi credentials can still be
+recovered by flashing new firmware from the browser.
+
+
+
+
+
+
