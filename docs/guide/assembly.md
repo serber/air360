@@ -1,9 +1,8 @@
-# Air360 Build Guide — Part 1: Hardware Assembly
+# Air360 Build Guide — Hardware Assembly
 
-This is the first part of the Air360 build guide. It covers the physical build:
-assembling the device, wiring sensors, choosing an enclosure, and powering the
-unit. Later parts will cover flashing the firmware, configuring the device, and
-sending data to a backend.
+This guide covers the physical build: assembling the device, wiring sensors,
+choosing an enclosure, and powering the unit. Once the hardware is ready,
+continue with [Firmware, Web Interface, and Backends](firmware-and-backends.md).
 
 ---
 
@@ -191,5 +190,4 @@ Links:
 
 ---
 
-*Part 1 of the build guide. Next parts (flashing the firmware, device
-configuration, and backends) will follow.*
+*Next: [Firmware, Web Interface, and Backends](firmware-and-backends.md).*
