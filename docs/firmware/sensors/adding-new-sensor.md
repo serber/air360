@@ -263,7 +263,8 @@ All seven locations are required:
 | `docs/firmware/nvs.md` | Row in the `SensorType` enum values table |
 | `docs/firmware/transport-binding.md` | Row in the UART assignments table (UART sensors only) |
 | `docs/firmware/configuration-reference.md` | Row in **Per-sensor constraints** |
-| `docs/firmware/user-guide.md` | Row in the sensor category table + row in the wiring table |
+| `docs/guide/sensors.md` | Row in the category table (and the one-per-category note if applicable), plus the I2C address table for I2C sensors |
+| `docs/guide/assembly.md` | Row in the wiring/pinout table and the "Choose your sensors" tables |
 
 ---
 

@@ -1,9 +1,8 @@
 # Air360 Build Guide
 
-An end-to-end guide to building, flashing, and configuring an Air360 device —
-from bare components to a station uploading air quality data.
-
-Follow the guides in order for a first build, or jump straight to a topic.
+An end-to-end guide to building, flashing, configuring, and running an Air360
+device — from bare components to a station uploading air quality data. Read it in
+order for a first build, or jump straight to a topic.
 
 ## Guides
 
@@ -50,7 +49,30 @@ How to set up each upload target, field by field.
 - [InfluxDB](backends.md#influxdb) — your own time-series database
 - [Custom Upload](backends.md#custom-upload) — any HTTP endpoint you control
 
+### 5. [Sensors Page](sensors.md)
+
+Adding and configuring sensors in the web UI.
+
+- [Categories](sensors.md#categories) — supported models and the one-per-category rule
+- [Connection per sensor](sensors.md#connection-per-sensor) — I2C address, UART port, GPIO pin
+- [Adding a sensor](sensors.md#adding-a-sensor) and [staging / Apply now](sensors.md#staging-and-applying-changes)
+
+### 6. [Monitoring & Diagnostics](monitoring.md)
+
+Checking a running device.
+
+- [Overview page](monitoring.md#overview-page) — health pill, uplink, connection, queue counts
+- [Diagnostics page](monitoring.md#diagnostics-page) — heap, fragmentation, PSRAM, raw status JSON
+
+### 7. [Troubleshooting & Reference](troubleshooting.md)
+
+When something isn't working.
+
+- [Finding the device](troubleshooting.md#finding-the-device-in-station-mode) — mDNS and IP fallback
+- [Time and upload timing](troubleshooting.md#time-synchronization-and-upload-timing) — why uploads don't start immediately
+- [Troubleshooting](troubleshooting.md#troubleshooting) — common problems and fixes
+- [Current limitations](troubleshooting.md#current-limitations)
+
 ## See also
 
-- [Firmware user guide](../firmware/user-guide.md) — full operational reference for the device firmware
 - [Firmware documentation index](../firmware/README.md) — implementation docs for contributors

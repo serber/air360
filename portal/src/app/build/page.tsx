@@ -423,7 +423,7 @@ export default function BuildGuide() {
                 <div className="air-build-link-list air-build-link-list-inline">
                   <a
                     className="air-btn air-btn-brand"
-                    href="https://github.com/serber/air360/blob/main/docs/firmware/user-guide.md"
+                    href="https://github.com/serber/air360/blob/main/docs/guide/README.md"
                     rel="noreferrer"
                     target="_blank"
                   >

@@ -59,6 +59,22 @@ Fields to fill:
   atmospheric-pressure accuracy for stations at elevation. Leave empty or `0` if
   you don't know it.
 
+The generated secret looks like `air360_us_v1_...`. After saving, the card shows
+**Configured** with a masked preview instead of the input.
+
+### Recovering after a device reset
+
+If the device NVS was erased (erase-flash or NVS loss) and you saved the original
+secret, you can restore the same device record:
+
+1. Enable **Air360 API** and enter the **same** latitude and longitude as before.
+2. Press **I already have an upload secret** to switch to paste mode.
+3. Paste the saved secret and press **Save**.
+
+The backend accepts the matching secret and restores the previous device record.
+If you lost the secret, a backend-side reset or a new device record is required.
+Use **Change** only when you deliberately want to replace a stored secret.
+
 ---
 
 ## Sensor.Community
@@ -159,3 +175,6 @@ exact JSON format the device sends is documented in the firmware
 ---
 
 Saving the Backends page normally takes effect immediately, without a reboot.
+
+If a backend won't upload — the secret is rejected, uploads never start, or a
+target stays in an error state — see [Troubleshooting](troubleshooting.md).

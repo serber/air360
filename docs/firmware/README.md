@@ -31,7 +31,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 
 | Document | Description |
 |----------|-------------|
-| [user-guide.md](user-guide.md) | End-user guide: flashing, first-time setup, web UI walkthrough |
+| [../guide/README.md](../guide/README.md) | End-user build guide: assembly, flashing, first-time setup, web UI, backends, troubleshooting |
 | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Directory layout, key source files, third-party components |
 | [change-impact-map.md](change-impact-map.md) | What else to review when a firmware file or subsystem changes |
 

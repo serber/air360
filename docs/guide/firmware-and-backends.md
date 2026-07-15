@@ -192,7 +192,9 @@ accepts every current sensor type.
 
 ---
 
-## Detailed documentation
+## Next steps
 
-For web UI setup, sensors, backend uploads, diagnostics, and OTA, see the full
-[firmware user guide](../firmware/user-guide.md).
+- [Sensors page](sensors.md) — add and configure sensors in the web UI
+- [Device settings](device-features.md) — every card on the Device page
+- [Monitoring & Diagnostics](monitoring.md) — the Overview dashboard and heap/diagnostics metrics
+- [Troubleshooting](troubleshooting.md) — uploads not starting, device stuck in setup AP, cellular not connecting, and more

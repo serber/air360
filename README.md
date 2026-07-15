@@ -83,8 +83,6 @@ Start here depending on what you need.
   [docs/firmware/sensors/README.md](docs/firmware/sensors/README.md)
 - Firmware measurement pipeline:
   [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md)
-- Firmware end-user manual:
-  [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
 - Firmware architecture decision records:
   [docs/firmware/adr/README.md](docs/firmware/adr/README.md)
 - Sensor.Community opportunity roadmap:
@@ -156,14 +154,14 @@ If you need to publish a firmware beta or stable build:
 
 If you need to operate or provision a device rather than change firmware code:
 
-1. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md)
+1. Read the [build guide](docs/guide/README.md) — assemble, flash, configure, and operate a device end to end
 2. For release binaries, flash the merged `full.bin` through `https://espflash.app/`
 3. Then use [firmware/README.md](firmware/README.md) only for build, flash, and implementation details
 
 If you need to understand the Sensor.Community overlap specifically:
 
 1. Read this file for the project-level compatibility statement
-2. Read [docs/firmware/user-guide.md](docs/firmware/user-guide.md) for the actual registration and backend setup flow
+2. Read the [backends guide](docs/guide/backends.md#sensorcommunity) for the actual registration and backend setup flow
 
 If you need repository context first:
 

@@ -99,6 +99,7 @@ Before reporting any task as done — regardless of type (code, docs, refactor, 
 
 ## Agent-oriented files
 
+- End-user build guide (assembly, flashing, web UI, backends, monitoring, troubleshooting): [`docs/guide/README.md`](docs/guide/README.md)
 - Firmware-local working contract: [`firmware/CLAUDE.md`](firmware/CLAUDE.md)
 - Backend-local working contract: [`backend/CLAUDE.md`](backend/CLAUDE.md)
 - Portal-local working contract: [`portal/CLAUDE.md`](portal/CLAUDE.md)
