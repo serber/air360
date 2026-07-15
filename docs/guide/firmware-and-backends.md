@@ -65,12 +65,16 @@ and current time. Sensor readings and backend upload results — last status and
 upload time — are listed here. This is the first page to check when something
 does not look right.
 
+![Overview page in the Air360 firmware web interface](../firmware/images/firmware_overview.png)
+
 ### Device
 
 Network and device settings: Wi-Fi credentials, device name, static IP, cellular
 modem (APN, modem type, credentials), BLE advertising, and Wi-Fi power save. The
 firmware update card at the bottom of this page lets you upload a new `.bin` file
 directly from the browser without USB access.
+
+![Device page in the Air360 firmware web interface](../firmware/images/firmware_device.png)
 
 ### Sensors
 
@@ -79,12 +83,16 @@ interval, and connection (I2C address, UART port, or GPIO pin). Current state an
 latest readings are shown on the sensor card. In most cases changes apply
 immediately without a reboot.
 
+![Sensors page in the Air360 firmware web interface](../firmware/images/firmware_sensors.png)
+
 ### Backends
 
 Configure where measurements are uploaded: Air360, Sensor.Community,
 openSenseMap, InfluxDB, or Custom Upload. Each service is enabled or disabled
 independently. The same page sets the upload interval and shows the last upload
 result for every service.
+
+![Backends page in the Air360 firmware web interface](../firmware/images/firmware_backends.png)
 
 - **Sensor.Community:** the device's Sensor ID is shown on this page. Register it
   at [devices.sensor.community/sensors](https://devices.sensor.community/sensors)
