@@ -174,17 +174,21 @@ on your build:
 ### Option 2: Solar panel with MPPT charger
 
 For off-grid and outdoor deployments. The setup uses a custom MPPT module based
-on the **CN3722** that charges a battery from a solar panel and supplies
-regulated 5 V to the device via power-path switching — the device stays on at
-night and on overcast days.
+on the **CN3722** that charges a battery from a solar panel and powers the
+device via power-path switching — the device stays on at night and on overcast
+days.
 
+- The reference build — 2S LiFePO4 battery, 1 A charge current, on-board NTC —
+  has its own page with a full BOM:
+  [Solar Power Module (CN3722)](solar-power-module.md).
+- For a different battery chemistry or cell count, read the full CN3722 article
+  before sourcing components — several values depend on the battery.
 - 3D-printable solar panel mount and MPPT module enclosure are on Printables;
   assembly instructions and a link to the PCB are on the same page.
-- Read the full CN3722 article before sourcing components — values depend on
-  your battery chemistry and cell count.
 
 Links:
 
+- [Solar Power Module (CN3722) build guide](solar-power-module.md)
 - [Solar mount on Printables](https://www.printables.com/model/1490965-solar-panel-mount)
 - [CN3722 MPPT article](https://www.maltepoeggel.de/?site=solar-mppt-cn3722)
 
