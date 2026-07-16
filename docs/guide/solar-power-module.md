@@ -11,6 +11,11 @@ the one used for the reference Air360 solar setup:
 - **Maximum charge current: 1 A** (0.4C for the 2500 mAh pack)
 - **Temperature sensing: on-board NTC** (no external probe)
 
+The charger board alone is **not** a complete solar power system. The full
+chain also needs a **2S LiFePO4 BMS** on the battery and a **5 V step-down
+module** on the output — see
+[Completing the power chain](#completing-the-power-chain-bms-and-5-v-step-down).
+
 If your setup differs — a different battery chemistry, cell count, or charge
 current — do not copy this BOM. Read the
 [original CN3722 MPPT article](https://www.maltepoeggel.de/?site=solar-mppt-cn3722)
@@ -144,8 +149,8 @@ the original article instead.
 | Ref | Connector | Function |
 |-----|-----------|----------|
 | K1 | Screw terminal, 5 mm | Solar panel input |
-| K2 | JST XH 2-pin | Battery (2S LiFePO4 pack) — observe polarity |
-| K3 | Screw terminal, 5 mm | Load output (power-path switched) |
+| K2 | JST XH 2-pin | Battery — connected **through the BMS**, observe polarity |
+| K3 | Screw terminal, 5 mm | Load output (power-path switched) — feeds the 5 V step-down |
 
 ## LED indicators
 
@@ -172,12 +177,70 @@ reference 20 W panel):
    flickering of both LEDs** — that transition is the MPP setpoint.
 3. Reconnect the actual panel.
 
-## Powering the Air360 from the module
+## Completing the power chain: BMS and 5 V step-down
+
+The CN3722 module only charges the battery and switches the load between panel
+and battery. Two more modules are required to make a working solar setup:
+
+```
+Solar panel 20 W ──▶ K1 ┌───────────────┐ K3 ──▶ LM2596 buck (5.0 V) ──▶ Air360
+                        │ CN3722 module │
+                        └───────┬───────┘
+                                │ K2
+                          2S LiFePO4 BMS
+                                │
+                   2× LiFePO4 26650, 2500 mAh (2S)
+```
+
+### Off-board parts
+
+| Part | Qty | Note |
+|------|-----|------|
+| Solar panel, 20 W (Vmp 18 V, Voc 21.6 V) | 1 | 36-cell "12 V" panel |
+| LiFePO4 26650 cell, 2500 mAh, unprotected | 2 | ROBITON LiFe26650 or similar |
+| 2S **LiFePO4** BMS / protection board | 1 | See requirements below |
+| LM2596 step-down module | 1 | Adjusted to 5.0 V |
+
+### Why the BMS is mandatory
+
+The cells in this build are unprotected, and the charger does not replace a
+protection board:
+
+- **No low-voltage disconnect.** The power path keeps feeding the load from the
+  battery at night; the CN3722 never cuts it off. A stretch of dark days would
+  drain the pack below the safe LiFePO4 floor and permanently damage it. The
+  BMS disconnects the load at the cell cutoff voltage.
+- **No per-cell monitoring.** The charger regulates only the pack total
+  (7.2 V). If the two cells drift apart, one can be overcharged while the pack
+  voltage still looks correct. The BMS watches each cell and balances them.
+
+Requirements when choosing the board:
+
+- It must be the **LiFePO4 variant** (overcharge cutoff ~3.6–3.8 V per cell,
+  discharge cutoff ~2.0–2.5 V per cell). Many listings sell Li-ion (4.2 V/cell)
+  and LiFePO4 versions of the same board — a Li-ion variant will **not**
+  protect LiFePO4 cells.
+- Any current rating from ~3 A up is fine for this build (1 A charge, well
+  under 1 A load).
+- Prefer a board with cell balancing.
+
+Wiring: the pack connects to the BMS battery terminals (B−, B+, and the BM
+balance tap at the junction between the two cells); the BMS output (P−/P+) goes
+to **K2** on the charger. Both charge and discharge then flow through the
+protection.
+
+### 5 V step-down (LM2596)
 
 The load output (K3) follows the battery rail — roughly 6.4–7.2 V for this
-pack, not 5 V. Add a small 5 V step-down (buck) converter between K3 and the
+pack, not 5 V. The reference build uses an **LM2596 module** between K3 and the
 device's 5 V input (USB-C or the shield's DC barrel jack — see
 [Powering the device](assembly.md#powering-the-device)).
+
+- **Set the output to 5.0 V with the trimmer before connecting the device** —
+  these modules ship at an arbitrary voltage.
+- The LM2596 is not the most efficient converter at light loads; if you want to
+  squeeze out extra dark-day runtime, a synchronous buck module (e.g. Mini-560)
+  is a drop-in improvement. For this pack and panel the LM2596 works fine.
 
 A 3D-printable solar panel mount that also houses the module is on Printables:
 
