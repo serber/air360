@@ -147,7 +147,13 @@ Create `/etc/air360-portal.env`:
 NODE_ENV=production
 PORT=3001
 NEXT_TELEMETRY_DISABLED=1
+CONTACT_EMAIL=contact@example.com
 ```
+
+`CONTACT_EMAIL` is shown on the `/privacy` page. Portal pages are dynamically
+rendered, so the value is read at request time from the service environment;
+after changing it, restart the service (`sudo systemctl restart air360-portal`)
+— no rebuild is required.
 
 Restrict permissions:
 

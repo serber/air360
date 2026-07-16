@@ -47,6 +47,14 @@ host directly:
 NEXT_PUBLIC_AIR360_API_BASE_URL=https://api.air360.ru
 ```
 
+The contact address shown on `/privacy` comes from `CONTACT_EMAIL`
+(`src/lib/config.ts`). Pages are dynamically rendered, so it is read from the
+server environment at request time; changing it only requires a server restart.
+
+```bash
+CONTACT_EMAIL=contact@example.com
+```
+
 ## Production
 
 Build and start the production server:
