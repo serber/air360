@@ -16,6 +16,7 @@ Building the physical device.
 - [Choose your sensors](assembly.md#choose-your-sensors) — what each sensor measures
 - [Enclosure: Stevenson screen](assembly.md#enclosure-stevenson-screen) — 3D-printable outdoor housing
 - [Powering the device](assembly.md#powering-the-device) — mains and solar options
+- [Solar Power Module (CN3722)](solar-power-module.md) — MPPT charger build: BOM, BMS and 5 V step-down, setup for the 2S LiFePO4 reference configuration
 
 ### 2. [Firmware, Web Interface, and Backends](firmware-and-backends.md)
 
