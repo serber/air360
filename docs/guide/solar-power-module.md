@@ -5,8 +5,10 @@ Air360 station off-grid. The board is Malte Pöggel's open **CN3722 MPPT solar
 charger** design; this page documents **one specific, tested configuration** —
 the one used for the reference Air360 solar setup:
 
-- **Battery: 2S LiFePO4** (two cells in series, 6.4 V nominal, 7.2 V charge voltage)
-- **Maximum charge current: 1 A**
+- **Battery: 2S LiFePO4** — two 26650 cells in series (2500 mAh, unprotected;
+  6.4 V nominal, 7.2 V charge voltage)
+- **Solar panel: 20 W** (Vmp 18 V, Voc 21.6 V)
+- **Maximum charge current: 1 A** (0.4C for the 2500 mAh pack)
 - **Temperature sensing: on-board NTC** (no external probe)
 
 If your setup differs — a different battery chemistry, cell count, or charge
@@ -66,7 +68,7 @@ match; the 1 % parts must stay 1 %.
 | R10 | 1 | 200 mΩ, 1 % | 2512 | Vishay RCWE2512R200FKEA |
 | R11 | 1 | 10 kΩ multiturn trimmer | 64W | Vishay M64W103KB40 |
 | R12 | 1 | 0 Ω | 0805 | Selects the on-board NTC (see below) |
-| R1, R5 | 2 | 2.7 kΩ, 5 % | 0805 | LED series resistors |
+| R1, R5 | 2 | 4.7 kΩ, 5 % | 0805 | LED series resistors — sized for the reference panel's Voc of 21.6 V (see [LED indicators](#led-indicators)) |
 | R3 | 1 | 3.9 kΩ, 5 % | 0805 | |
 | R4 | 1 | 120 Ω, 5 % | 0805 | |
 | R8 | 1 | 100 kΩ, 5 % | 0805 | |
@@ -99,9 +101,18 @@ spreadsheet from the original article.
 
 ### Charge current: R10 = 200 mΩ
 
-The current-sense resistor sets the maximum charge current to **1 A** — a good
-match for the small panels and the modest consumption of an Air360 station.
-Three other parts are sized to follow it:
+The current-sense resistor sets the maximum charge current to **1 A**. That
+value is chosen for the battery, not the panel:
+
+- 1 A is **0.4C** for the 2500 mAh pack — inside the gentle ≤ 0.5C range that
+  LiFePO4 cells prefer for daily solar cycling.
+- The pack is small (~16 Wh), so at ~7 W of charging it refills from empty in
+  about 2.5 sun-hours — even a short winter day is enough.
+- The 20 W panel could in theory push ~2.4 A into the battery (18 V × 1.11 A
+  stepped down to 7.2 V), but using that headroom would mean charging the cells
+  at 0.8C every day for no practical gain.
+
+Three other parts are sized to follow the 1 A limit:
 
 - **L1** — saturation current should be 1.5–2× the charge current; the
   CDRH125NP-330MC (Isat ≥ 2 A) covers 1 A with margin.
@@ -143,11 +154,17 @@ the original article instead.
   cutoff).
 - **Green (D3)** — battery fully charged.
 
+**Series resistor sizing (R1, R5):** the original design uses 2.7 kΩ, which is
+fine up to ~21 V of input. The reference panel's open-circuit voltage is
+21.6 V — and Voc rises further in cold weather (up to ~24 V below freezing),
+pushing an 0805 2.7 kΩ resistor past its 0.125 W rating. With this panel, fit
+**4.7 kΩ** instead; the LEDs stay clearly visible at ~4–5 mA.
+
 ## Setting the MPP voltage
 
 After assembly, the trimmer **R11** must be adjusted to the panel's maximum
-power point voltage (Vmp — printed on the panel label, typically ~18 V for a
-"12 V" panel):
+power point voltage (Vmp — printed on the panel label; **18 V** for the
+reference 20 W panel):
 
 1. Connect the battery, then connect a bench power supply in place of the panel,
    set to the panel's Vmp with a current limit below 1 A.
@@ -172,8 +189,7 @@ A 3D-printable solar panel mount that also houses the module is on Printables:
 
 Everything on this page assumes the 2S LiFePO4 / 1 A / on-board NTC
 configuration. For any other setup — Li-ion, single-cell, lead-acid, higher
-charge currents, external temperature probe, or panels above 21 V (the LED
-resistors R1/R5 need larger values there) — start from the
+charge currents, or an external temperature probe — start from the
 [original CN3722 MPPT article](https://www.maltepoeggel.de/?site=solar-mppt-cn3722),
 which covers the calculations and component tables for all supported
 configurations.
