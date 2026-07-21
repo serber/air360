@@ -1,5 +1,7 @@
 # Air360
 
+![Air360 device in a Stevenson screen](docs/hardware/air360_stevenson_screen.jpg)
+
 Air360 is a **multi-target air-quality firmware** for an ESP32-S3 device: it reads a wide range of environmental sensors and uploads the same measurements to several services at once. Each upload target is enabled independently and has its own interval, so one device can publish to its own service, to a community network, and to your own database simultaneously — and if one target is unavailable, the others keep working.
 
 Supported upload targets:
