@@ -30,6 +30,8 @@ enum class SensorType : std::uint8_t {
     kPmsx003 = 19U,
     kOpt3001 = 20U,
     kBmp390 = 21U,
+    kScd40 = 22U,
+    kScd41 = 23U,
 };
 
 enum class TransportKind : std::uint8_t {
@@ -431,6 +433,8 @@ inline const char* sensorTypeKey(SensorType type) {
         case SensorType::kPmsx003:  return "pmsx003";
         case SensorType::kOpt3001:  return "opt3001";
         case SensorType::kBmp390:   return "bmp390";
+        case SensorType::kScd40:    return "scd40";
+        case SensorType::kScd41:    return "scd41";
         case SensorType::kUnknown:
         default:                    return "unknown";
     }

@@ -369,6 +369,8 @@ Supported drivers confirmed by the current registry:
 - `BME280`
 - `BME680`
 - `SCD30`
+- `SCD40`
+- `SCD41`
 - `VEML7700`
 - `OPT3001`
 - `SPS30`
@@ -381,7 +383,7 @@ Supported drivers confirmed by the current registry:
 
 Current transport model by sensor type:
 
-- `BME280`, `BME680`, `SCD30`, `VEML7700`, `OPT3001`, `SPS30`
+- `BME280`, `BME680`, `SCD30`, `SCD40`, `SCD41`, `VEML7700`, `OPT3001`, `SPS30`
   I2C sensors on bus 0, with board wiring from `CONFIG_AIR360_I2C0_*`.
 - `SDS011`, `PMSX003`, `MH-Z19B`
   UART sensors on UART2 by default, with UART1 selectable.
@@ -405,6 +407,7 @@ Current default I2C addresses from the registry are:
 - `BME280`: `0x76`
 - `BME680`: `0x77`
 - `SCD30`: `0x61`
+- `SCD40` / `SCD41`: `0x62`
 - `VEML7700`: `0x10`
 - `OPT3001`: `0x44`
 - `SPS30`: `0x69`

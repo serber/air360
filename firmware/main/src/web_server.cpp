@@ -667,8 +667,10 @@ constexpr std::array<SensorType, 1U> kLocationSensorTypes{{
     SensorType::kGpsNmea,
 }};
 
-constexpr std::array<SensorType, 3U> kGasSensorTypes{{
+constexpr std::array<SensorType, 5U> kGasSensorTypes{{
     SensorType::kScd30,
+    SensorType::kScd40,
+    SensorType::kScd41,
     SensorType::kMe3No2,
     SensorType::kMhz19b,
 }};
@@ -757,6 +759,8 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kSht4x:
             return SensorCategory::kClimate;
         case SensorType::kScd30:
+        case SensorType::kScd40:
+        case SensorType::kScd41:
             return SensorCategory::kGas;
         case SensorType::kVeml7700:
         case SensorType::kOpt3001:

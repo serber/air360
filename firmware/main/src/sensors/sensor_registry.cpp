@@ -17,6 +17,7 @@
 #include "air360/sensors/drivers/pmsx003_sensor.hpp"
 #include "air360/sensors/drivers/ppd42ns_sensor.hpp"
 #include "air360/sensors/drivers/scd30_sensor.hpp"
+#include "air360/sensors/drivers/scd4x_sensor.hpp"
 #include "air360/sensors/drivers/sds011_sensor.hpp"
 #include "air360/sensors/drivers/sht3x_sensor.hpp"
 #include "air360/sensors/drivers/sht4x_sensor.hpp"
@@ -218,6 +219,27 @@ bool validateScd30Record(const SensorRecord& record, std::string& error) {
     }
 
     return true;
+}
+
+bool validateScd4xRecord(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "SCD4x currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateScd40Record(const SensorRecord& record, std::string& error) {
+    return validateScd4xRecord(record, error);
+}
+
+bool validateScd41Record(const SensorRecord& record, std::string& error) {
+    return validateScd4xRecord(record, error);
 }
 
 bool validateVeml7700Record(const SensorRecord& record, std::string& error) {
@@ -467,6 +489,14 @@ constexpr std::array<MaintenanceActionDescriptor, 1U> kScd30MaintenanceActions{{
     {MaintenanceActionKind::kForcedRecalibration, "frc",
      "Forced recalibration (FRC) at next boot"},
 }};
+constexpr std::array<MaintenanceActionDescriptor, 1U> kScd40MaintenanceActions{{
+    {MaintenanceActionKind::kForcedRecalibration, "frc",
+     "Forced recalibration (FRC) at next boot"},
+}};
+constexpr std::array<MaintenanceActionDescriptor, 1U> kScd41MaintenanceActions{{
+    {MaintenanceActionKind::kForcedRecalibration, "frc",
+     "Forced recalibration (FRC) at next boot"},
+}};
 constexpr std::array<MaintenanceActionDescriptor, 1U> kSps30MaintenanceActions{{
     {MaintenanceActionKind::kFanClean, "fan_clean", "Fan cleaning at next boot"},
 }};
@@ -476,7 +506,7 @@ constexpr std::array<MaintenanceActionDescriptor, 1U> kSps30MaintenanceActions{{
 static_assert(sizeof(SensorDescriptor) == 76U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 21U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 23U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -582,6 +612,64 @@ constexpr std::array<SensorDescriptor, 21U> kDescriptors{{
         .calibration_label        = "Automatic self-calibration (ASC)",
         .maintenance_actions      = kScd30MaintenanceActions.data(),
         .maintenance_action_count = static_cast<std::uint8_t>(kScd30MaintenanceActions.size()),
+    },
+    {
+        .type                     = SensorType::kScd40,
+        .type_key                 = "scd40",
+        .display_name             = "SCD40",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x62U,
+        .allowed_i2c_addresses    = {0x62U},
+        .allowed_i2c_address_count = 1U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateScd40Record,
+        .create_driver            = &createScd40Sensor,
+        .supports_startup_calibration = true,
+        .calibration_label        = "Automatic self-calibration (ASC)",
+        .maintenance_actions      = kScd40MaintenanceActions.data(),
+        .maintenance_action_count = static_cast<std::uint8_t>(kScd40MaintenanceActions.size()),
+    },
+    {
+        .type                     = SensorType::kScd41,
+        .type_key                 = "scd41",
+        .display_name             = "SCD41",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x62U,
+        .allowed_i2c_addresses    = {0x62U},
+        .allowed_i2c_address_count = 1U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateScd41Record,
+        .create_driver            = &createScd41Sensor,
+        .supports_startup_calibration = true,
+        .calibration_label        = "Automatic self-calibration (ASC)",
+        .maintenance_actions      = kScd41MaintenanceActions.data(),
+        .maintenance_action_count = static_cast<std::uint8_t>(kScd41MaintenanceActions.size()),
     },
     {
         .type                     = SensorType::kVeml7700,

@@ -204,6 +204,32 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.12
+  esp-idf-lib/scd4x:
+    component_hash: 75ce5e78e24eb0c1e601564f0ded14ea8d994de6e499c10b5f1700f557df8563
+    dependencies:
+    - name: esp-idf-lib/esp_idf_lib_helpers
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: esp-idf-lib/i2cdev
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32c2
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    - esp32c61
+    - esp32h2
+    - esp32p4
+    - esp32s2
+    - esp32s3
+    version: 1.0.8
   esp-idf-lib/sht3x:
     component_hash: f4f036c61678e78baf3ba6eeeb152de852cd1f34a4afcef664629ef60cb9a689
     dependencies:
@@ -479,6 +505,7 @@ direct_dependencies:
 - esp-idf-lib/ina219
 - esp-idf-lib/mhz19b
 - esp-idf-lib/scd30
+- esp-idf-lib/scd4x
 - esp-idf-lib/sht3x
 - esp-idf-lib/sht4x
 - esp-idf-lib/si7021
@@ -491,6 +518,6 @@ direct_dependencies:
 - k0i05/esp_bmp390
 - nordesems/esp-captive-portal
 - petrovgp/esp-pms
-manifest_hash: f4f950a80226ebe847d0351db41b8435e633eeb1bfc4f589831ddd6887be2b7f
+manifest_hash: 6a1e4b7bd9d86d530f039b0b3d81a635177a9f05943b0851189ae48075a86d9b
 target: esp32s3
 version: 3.0.0

@@ -184,7 +184,7 @@ struct SensorRecord {
     uint8_t      i2c_bus_id;       // always 0 in current hardware
     uint8_t      i2c_address;      // 7-bit I2C address
     uint8_t      uart_port_id;     // UART_NUM_1 or UART_NUM_2
-    uint8_t      startup_calibration; // was reserved0; 0/1, driver-defined startup calibration (SCD30: ASC)
+    uint8_t      startup_calibration; // was reserved0; 0/1, driver-defined startup calibration (SCD30/SCD40/SCD41: ASC)
     int16_t      analog_gpio_pin;  // -1 if unused
     int16_t      uart_rx_gpio_pin; // -1 if unused
     int16_t      uart_tx_gpio_pin; // -1 if unused
@@ -196,9 +196,9 @@ struct SensorRecord {
 
 `analog_gpio_pin` stores the selected GPIO for GPIO-backed and analog-backed sensors. The allowed values are not Kconfig fields; they come from the selected sensor descriptor's `allowed_gpio_pins` list.
 
-`startup_calibration` reuses the former `reserved0` byte, so `record_size` and the schema version are unchanged and previously stored configs load unmodified (the byte was zero, i.e. calibration off). The field is a generic, driver-interpreted flag: a sensor driver acts on it inside `init()` only when its descriptor sets `supports_startup_calibration`. For SCD30 it enables/disables automatic self-calibration (ASC). Drivers must treat the action as idempotent because `init()` can run on every boot and on re-init.
+`startup_calibration` reuses the former `reserved0` byte, so `record_size` and the schema version are unchanged and previously stored configs load unmodified (the byte was zero, i.e. calibration off). The field is a generic, driver-interpreted flag: a sensor driver acts on it inside `init()` only when its descriptor sets `supports_startup_calibration`. For SCD30, SCD40, and SCD41 it enables/disables automatic self-calibration (ASC). Drivers must treat the action as idempotent because `init()` can run on every boot and on re-init.
 
-`pending_maintenance_action` carves one byte out of the former `reserved1` padding (now `reserved1[11]`), so `record_size` and the schema version are again unchanged and older configs load with the byte zero (no action). It holds a `MaintenanceActionKind` value (`0` = none) describing a **one-shot** action to run after the next boot — distinct from the persistent `startup_calibration` mode. A driver arms it in `init()` when its descriptor advertises the action, executes it as a non-blocking state machine in `poll()`, and on completion `SensorManager` clears the byte back to `0` and re-saves the config, so it runs only once. A mid-action reboot re-runs it (at-least-once). See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
+`pending_maintenance_action` carves one byte out of the former `reserved1` padding (now `reserved1[11]`), so `record_size` and the schema version are again unchanged and older configs load with the byte zero (no action). It holds a `MaintenanceActionKind` value (`0` = none) describing a **one-shot** action to run after the next boot — distinct from the persistent `startup_calibration` mode. A driver arms it in `init()` when its descriptor advertises the action, executes it as a non-blocking state machine in `poll()`, and on completion `SensorManager` clears the byte back to `0` and re-saves the config, so it runs only once. A mid-action reboot re-runs it (at-least-once). SCD30, SCD40, and SCD41 advertise forced recalibration (FRC); SPS30 advertises fan cleaning. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 
 ### `SensorType` enum values
 
@@ -226,6 +226,8 @@ struct SensorRecord {
 | 19 | PMSX003 |
 | 20 | OPT3001 |
 | 21 | BMP390 |
+| 22 | SCD40 |
+| 23 | SCD41 |
 
 ### `TransportKind` enum values
 

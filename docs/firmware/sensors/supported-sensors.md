@@ -31,6 +31,8 @@ This matrix is the **canonical source** for per-sensor transport bindings and al
 | `BME680` | I2C | Bus 0, address `0x77` | I2C `0x76`, `0x77` | [bme680.md](bme680.md) |
 | `BMP390` | I2C | Bus 0, address `0x77` | I2C `0x76`, `0x77` | [bmp390.md](bmp390.md) |
 | `SCD30` | I2C | Bus 0, address `0x61` | I2C `0x61` | [scd30.md](scd30.md) |
+| `SCD40` | I2C | Bus 0, address `0x62` | I2C `0x62` | [scd4x.md](scd4x.md) |
+| `SCD41` | I2C | Bus 0, address `0x62` | I2C `0x62` | [scd4x.md](scd4x.md) |
 | `SPS30` | I2C | Bus 0, address `0x69` | I2C `0x69` | [sps30.md](sps30.md) |
 | `SDS011` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [sds011.md](sds011.md) |
 | `PMSX003` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [pmsx003.md](pmsx003.md) |
@@ -50,7 +52,7 @@ This matrix is the **canonical source** for per-sensor transport bindings and al
 
 ## Startup calibration capability
 
-A sensor descriptor may set `supports_startup_calibration`, which exposes a per-sensor calibration checkbox in the web UI (`SensorRecord::startup_calibration`). The driver acts on the flag inside `init()`, so the action must be idempotent. The only sensor with this capability today is `SCD30`, where it enables/disables automatic self-calibration (ASC) — see [scd30.md](scd30.md#automatic-self-calibration-asc).
+A sensor descriptor may set `supports_startup_calibration`, which exposes a per-sensor calibration checkbox in the web UI (`SensorRecord::startup_calibration`). The driver acts on the flag inside `init()`, so the action must be idempotent. The sensors with this capability today are `SCD30`, `SCD40`, and `SCD41`, where it enables/disables automatic self-calibration (ASC) — see [scd30.md](scd30.md#automatic-self-calibration-asc) and [scd4x.md](scd4x.md#automatic-self-calibration-asc).
 
 ## One-shot maintenance actions
 
@@ -59,6 +61,7 @@ A sensor descriptor may advertise one-shot **maintenance actions** (`maintenance
 | Sensor | Action | Effect |
 |--------|--------|--------|
 | SCD30 | Forced recalibration (FRC) | Warms up at a 2 s rate, then recalibrates to a 400 ppm fresh-air reference — see [scd30.md](scd30.md#forced-recalibration-frc) |
+| SCD40 / SCD41 | Forced recalibration (FRC) | Warms up at a ~5 s rate for 3 minutes, then recalibrates to a 400 ppm fresh-air reference — see [scd4x.md](scd4x.md#forced-recalibration-frc) |
 | SPS30 | Fan cleaning | Runs the ~10 s fan blow-out — see [sps30.md](sps30.md#fan-cleaning) |
 
 See [maintenance-actions.md](maintenance-actions.md) for the shared mechanism.
