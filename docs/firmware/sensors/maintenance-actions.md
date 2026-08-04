@@ -6,7 +6,7 @@ Implemented. Keep this document aligned with the maintenance-action mechanism in
 
 ## Scope
 
-This document covers the shared mechanism for **one-shot, run-once** sensor maintenance actions: how they are declared, persisted, scheduled from the web UI, executed by a driver, and cleared after completion. Per-action specifics live in the per-sensor docs (SCD30 FRC, SPS30 fan cleaning).
+This document covers the shared mechanism for **one-shot, run-once** sensor maintenance actions: how they are declared, persisted, scheduled from the web UI, executed by a driver, and cleared after completion. Per-action specifics live in the per-sensor docs (SCD30/SCD40/SCD41 FRC, SPS30 fan cleaning).
 
 ## Source of truth in code
 
@@ -15,13 +15,14 @@ This document covers the shared mechanism for **one-shot, run-once** sensor main
 - `firmware/main/include/air360/sensors/sensor_driver.hpp` — `MaintenanceActionState` and driver hooks
 - `firmware/main/src/sensors/sensor_manager.cpp` — completion detection and clearing
 - `firmware/main/src/data/data_layer.cpp` — NVS persistence handler
-- `firmware/main/src/sensors/drivers/scd30_sensor.cpp`, `sps30_sensor.cpp` — example actions
+- `firmware/main/src/sensors/drivers/scd30_sensor.cpp`, `scd4x_sensor.cpp`, `sps30_sensor.cpp` — example actions
 
 ## Read next
 
 - [README.md](README.md)
 - [supported-sensors.md](supported-sensors.md)
 - [scd30.md](scd30.md)
+- [scd4x.md](scd4x.md)
 - [sps30.md](sps30.md)
 - [../nvs.md](../nvs.md)
 
@@ -29,7 +30,7 @@ This document covers the shared mechanism for **one-shot, run-once** sensor main
 
 `startup_calibration` is a **persistent mode** — a driver re-asserts it on every `init()` (SCD30 ASC on/off). A maintenance action is the opposite: an operation an operator schedules to run **exactly once** after the next boot (e.g. a forced recalibration or a fan cleaning), after which it must not repeat. The two are independent and can be combined — for example, schedule an SCD30 FRC for the next boot while leaving ASC enabled.
 
-Some actions take **minutes** (SCD30 FRC needs ≥ 2 minutes of stable warm-up). Because all sensors share one watchdog-subscribed manager task, an action must **never block** `init()` or `poll()`. Each action is therefore a non-blocking state machine that advances one step per poll while normal measurements continue.
+Some actions take **minutes** (SCD30 FRC needs ≥ 2 minutes of stable warm-up; SCD40/SCD41 FRC needs ≥ 3 minutes). Because all sensors share one watchdog-subscribed manager task, an action must **never block** `init()` or `poll()`. Each action is therefore a non-blocking state machine that advances one step per poll while normal measurements continue.
 
 ## Data model
 

@@ -23,7 +23,7 @@ This document is the detailed sensor documentation index and hardware reference 
 
 Reference index for every sensor driver implemented in `firmware/main/src/sensors/drivers/`.
 
-Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [adding-new-sensor.md](adding-new-sensor.md) for the implementation checklist. One-shot sensor maintenance actions (SCD30 FRC, SPS30 fan cleaning) share the mechanism in [maintenance-actions.md](maintenance-actions.md).
+Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [adding-new-sensor.md](adding-new-sensor.md) for the implementation checklist. One-shot sensor maintenance actions (SCD30/SCD40/SCD41 FRC, SPS30 fan cleaning) share the mechanism in [maintenance-actions.md](maintenance-actions.md).
 
 ## Sensor Index
 
@@ -34,6 +34,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [bme680.md](bme680.md) | BME680 | I2C | Bus 0, `0x77` (alt `0x76`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, humidity, pressure, gas resistance |
 | [bmp390.md](bmp390.md) | BMP390 | I2C | Bus 0, `0x77` (alt `0x76`), SDA=`GPIO8`, SCL=`GPIO9` | Temperature, pressure |
 | [scd30.md](scd30.md) | SCD30 | I2C | Bus 0, `0x61`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
+| [scd4x.md](scd4x.md) | SCD40 / SCD41 | I2C | Bus 0, `0x62`, SDA=`GPIO8`, SCL=`GPIO9` | CO2, temperature, humidity |
 | [sps30.md](sps30.md) | SPS30 | I2C | Bus 0, `0x69`, SDA=`GPIO8`, SCL=`GPIO9` | PM1.0-PM10.0 mass and number concentrations, typical particle size |
 | [sds011.md](sds011.md) | SDS011 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM2.5 and PM10 mass concentrations |
 | [pmsx003.md](pmsx003.md) | PMSX003 | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | PM1.0, PM2.5, PM10, particle counts |
@@ -211,6 +212,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Accuracy | CO2 `+-(30 ppm + 3 %)`, humidity `+-3 %RH`, temperature `+-(0.4 deg C + 0.023 x (T - 25 deg C))` in `0..50 deg C` |
 | Maximum current | `75 mA` during measurement (`19 mA` average at one measurement per `2 s`) |
 | Reference links | [Sensirion SCD30 datasheet](https://sensirion.com/media/documents/4EAF6AF8/61652C3C/Sensirion_CO2_Sensors_SCD30_Datasheet.pdf) |
+
+### SCD40 / SCD41
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Sensirion |
+| Air360 measurements | CO2, temperature, humidity |
+| Declared service life | `10 years` |
+| Operating temperature | `-10..60 deg C` |
+| Supply voltage | `2.4..5.5 V` |
+| Accuracy | CO2 `+-(50 ppm + 5 %)` (SCD40), `+-(40 ppm + 5 %)` (SCD41), humidity `+-6 %RH`, temperature `+-0.8 deg C` |
+| Maximum current | Average `~18 mA` in periodic measurement mode, lower in low-power mode |
+| Reference links | [Sensirion SCD4x datasheet](https://sensirion.com/media/documents/48C4B7FB/64C134E7/Sensirion_SCD4x_Datasheet.pdf), [esp-idf-lib/scd4x](https://components.espressif.com/components/esp-idf-lib/scd4x) |
 
 ### VEML7700
 

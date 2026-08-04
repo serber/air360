@@ -70,7 +70,7 @@ the device web UI, but these are the best starting point for a first build.
 
 | Sensor(s) | Interface | ESP32-S3 pins | Note |
 |-----------|-----------|---------------|------|
-| AHT30, BME280, BME680, BMP390, SHT3X, SHT4X, HTU2X, SCD30, VEML7700, OPT3001, SPS30, INA219 | I2C | `SDA=GPIO8`, `SCL=GPIO9` | Use one shared I2C bus for multiple modules; sensor addresses must not conflict. |
+| AHT30, BME280, BME680, BMP390, SHT3X, SHT4X, HTU2X, SCD30, SCD40, SCD41, VEML7700, OPT3001, SPS30, INA219 | I2C | `SDA=GPIO8`, `SCL=GPIO9` | Use one shared I2C bus for multiple modules; sensor addresses must not conflict. |
 | SDS011, PMSX003, MH-Z19B | UART2 by default, 9600 baud | `RX=GPIO16`, `TX=GPIO15`; UART1 `RX=GPIO18`, `TX=GPIO17` is selectable | Sensor TX goes to ESP32-S3 RX; sensor RX goes to ESP32-S3 TX. |
 | GPS (NMEA) | UART1 by default, 9600 baud | `RX=GPIO18`, `TX=GPIO17`; UART2 `RX=GPIO16`, `TX=GPIO15` is selectable | UART1 conflicts with the SIM7600E default pins. |
 | DHT11, DHT22, DS18B20 | GPIO | `GPIO4`, `GPIO5`, or `GPIO6` | Select one available pin in the sensor settings. |
@@ -114,6 +114,8 @@ Sensor.Community.
 | Sensor | Measures | Why you'd want it |
 |--------|----------|-------------------|
 | SCD30 | CO₂, temperature, humidity | NDIR CO₂ sensor; accurate and stable; recommended for ventilation and indoor air quality. |
+| SCD40 | CO₂, temperature, humidity | Compact photoacoustic CO₂ sensor; lower cost and smaller footprint than SCD30. |
+| SCD41 | CO₂, temperature, humidity | Higher-accuracy variant of SCD40 with single-shot measurement support (not used by this firmware); good when board space is tight. |
 | MH-Z19B | CO₂ | NDIR CO₂ via UART; compact and common for home automation projects. |
 
 ### Light

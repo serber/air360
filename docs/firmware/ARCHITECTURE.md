@@ -358,6 +358,8 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | BME680 | I2C | 0x77 | 0x76, 0x77 | 30 s |
 | SPS30 | I2C | 0x69 | 0x69 | 30 s |
 | SCD30 | I2C | 0x61 | 0x61 | 30 s |
+| SCD40 | I2C | 0x62 | 0x62 | 30 s |
+| SCD41 | I2C | 0x62 | 0x62 | 30 s |
 | VEML7700 | I2C | 0x10 | 0x10 | 30 s |
 | OPT3001 | I2C | 0x44 | 0x44, 0x45, 0x46, 0x47 | 30 s |
 | HTU2X | I2C | 0x40 | 0x40 | 30 s |
@@ -443,6 +445,7 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
 | `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` |
 | `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` |
+| `scd4x_sensor.cpp` | SCD40, SCD41 | `esp-idf-lib__scd4x` |
 | `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` |
 | `opt3001_sensor.cpp` | OPT3001 | Air360 I2C register driver |
 | `htu2x_sensor.cpp` | HTU2X (Si7021) | `esp-idf-lib__si7021` |
@@ -816,7 +819,7 @@ Both OTA application slots are used at runtime: `OtaService` streams new images 
 - Bus 0: SDA=GPIO8, SCL=GPIO9
 - Clock: 100 kHz
 - Transfer timeout: 200 ms
-- Used by: BME280, BME680, SPS30, SCD30, VEML7700, OPT3001, HTU2X, SHT3X, SHT4X
+- Used by: BME280, BME680, SPS30, SCD30, SCD40, SCD41, VEML7700, OPT3001, HTU2X, SHT3X, SHT4X
 
 ### UART
 

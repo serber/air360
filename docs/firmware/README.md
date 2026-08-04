@@ -106,6 +106,7 @@ Transport bindings and addresses are canonical in [sensors/supported-sensors.md]
 | [sensors/pmsx003.md](sensors/pmsx003.md) | PMSX003 | PM1.0, PM2.5, PM10, particle counts |
 | [sensors/ppd42ns.md](sensors/ppd42ns.md) | PPD42NS | Dust concentration estimate, low pulse occupancy |
 | [sensors/scd30.md](sensors/scd30.md) | SCD30 | CO₂, temperature, humidity |
+| [sensors/scd4x.md](sensors/scd4x.md) | SCD40 / SCD41 | CO₂, temperature, humidity |
 | [sensors/veml7700.md](sensors/veml7700.md) | VEML7700 | Illuminance |
 | [sensors/opt3001.md](sensors/opt3001.md) | OPT3001 | Illuminance |
 | [sensors/htu2x.md](sensors/htu2x.md) | HTU2X | Temperature, humidity |

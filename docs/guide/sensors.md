@@ -17,7 +17,7 @@ configured sensor at a time, except Gas**, which allows more than one.
 | Climate | BME280, BME680, BMP390 |
 | Temperature & Humidity | AHT30, SHT3X, SHT4X, HTU2X, DHT11, DHT22 |
 | Temperature | DS18B20 |
-| CO₂ | SCD30 |
+| CO₂ | SCD30, SCD40, SCD41 |
 | Light | VEML7700, OPT3001 |
 | Particulate Matter | SPS30, SDS011, PMSX003 |
 | Dust Count | PPD42NS |
@@ -57,6 +57,7 @@ settings if your module differs.
 | HTU2X | `0x40` |
 | INA219 | `0x40` |
 | SCD30 | `0x61` |
+| SCD40 / SCD41 | `0x62` |
 | SPS30 | `0x69` |
 | VEML7700 | `0x10` |
 

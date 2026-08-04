@@ -3,6 +3,8 @@ export const sensorTypes = [
   "bme680",
   "sps30",
   "scd30",
+  "scd40",
+  "scd41",
   "veml7700",
   "gps_nmea",
   "dht11",
