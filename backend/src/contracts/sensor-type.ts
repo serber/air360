@@ -15,6 +15,7 @@ export const sensorTypes = [
   "ds18b20",
   "me3_no2",
   "ina219",
+  "ina226",
   "mhz19b",
   "sds011",
   "aht30",

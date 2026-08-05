@@ -23,7 +23,7 @@ configured sensor at a time, except Gas**, which allows more than one.
 | Dust Count | PPD42NS |
 | Location | GPS (NMEA) |
 | Gas | MH-Z19B |
-| Power Monitoring | INA219 |
+| Power Monitoring | INA219, INA226 |
 
 ## Connection per sensor
 
@@ -56,6 +56,7 @@ settings if your module differs.
 | OPT3001 | `0x44` |
 | HTU2X | `0x40` |
 | INA219 | `0x40` |
+| INA226 | `0x40` |
 | SCD30 | `0x61` |
 | SCD40 / SCD41 | `0x62` |
 | SPS30 | `0x69` |

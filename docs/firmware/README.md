@@ -117,6 +117,7 @@ Transport bindings and addresses are canonical in [sensors/supported-sensors.md]
 | [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | Temperature |
 | [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Raw ADC count, voltage |
 | [sensors/ina219.md](sensors/ina219.md) | INA219 | Bus voltage, current, power |
+| [sensors/ina226.md](sensors/ina226.md) | INA226 | Bus voltage, current, power |
 | [sensors/mhz19b.md](sensors/mhz19b.md) | MH-Z19B | CO2 |
 
 ---

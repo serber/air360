@@ -140,7 +140,8 @@
           "VEML7700",
           "OPT3001",
           "SPS30",
-          "INA219"
+          "INA219",
+          "INA226"
         ],
         "transport": "I2C",
         "pins": "SDA=GPIO8, SCL=GPIO9",
@@ -240,7 +241,8 @@
     {
       "category": "Power monitoring",
       "sensors": [
-        { "name": "INA219", "measures": "DC current, voltage, power", "why": "Monitors the device's own power consumption; useful for solar-powered or battery-backed setups." }
+        { "name": "INA219", "measures": "DC current, voltage, power", "why": "Monitors the device's own power consumption; useful for solar-powered or battery-backed setups." },
+        { "name": "INA226", "measures": "DC current, voltage, power", "why": "Higher-accuracy successor to INA219 with a wider bus voltage range (up to 36 V); same self-power-monitoring use case." }
       ]
     }
   ],
@@ -338,7 +340,7 @@
         "air360Api": "Yes: all GPS values"
       },
       {
-        "sensor": "AHT30, VEML7700, OPT3001, PPD42NS, INA219, MH-Z19B, SCD40, SCD41",
+        "sensor": "AHT30, VEML7700, OPT3001, PPD42NS, INA219, INA226, MH-Z19B, SCD40, SCD41",
         "sensorCommunity": "No: the Sensor.Community adapter skips these types",
         "air360Api": "Yes: all values pass through without sensor-type filtering"
       }

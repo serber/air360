@@ -188,7 +188,7 @@ accepts every current sensor type.
 | SDS011 | Yes: PM2.5 and PM10 | Yes |
 | PMSX003 | Partial: PM1.0, PM2.5, PM10; particle-count bins are skipped | Yes: PM and particle-count values |
 | GPS (NMEA) | Partial: latitude, longitude, altitude; satellites/speed/course/HDOP are skipped | Yes: all GPS values |
-| AHT30, VEML7700, OPT3001, PPD42NS, INA219, MH-Z19B, SCD40, SCD41 | No: the Sensor.Community adapter skips these types | Yes: all values pass through without sensor-type filtering |
+| AHT30, VEML7700, OPT3001, PPD42NS, INA219, INA226, MH-Z19B, SCD40, SCD41 | No: the Sensor.Community adapter skips these types | Yes: all values pass through without sensor-type filtering |
 
 ---
 

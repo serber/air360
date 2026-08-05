@@ -366,6 +366,7 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | SHT3X | I2C | 0x44 | 0x44, 0x45 | 30 s |
 | SHT4X | I2C | 0x44 | 0x44 | 30 s |
 | INA219 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 30 s |
+| INA226 | I2C | 0x40 | 0x40, 0x41, 0x44, 0x45 | 30 s |
 | GPS (NMEA) | UART | UART1 | UART1, UART2 | 30 s |
 | MH-Z19B | UART | UART2 | UART1, UART2 | 30 s |
 | SDS011 | UART | UART2 | UART1, UART2 | 30 s |

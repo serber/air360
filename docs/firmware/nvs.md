@@ -228,6 +228,7 @@ struct SensorRecord {
 | 21 | BMP390 |
 | 22 | SCD40 |
 | 23 | SCD41 |
+| 24 | INA226 |
 
 ### `TransportKind` enum values
 

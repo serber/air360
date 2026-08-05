@@ -48,6 +48,7 @@ This matrix is the **canonical source** for per-sensor transport bindings and al
 | `DS18B20` | GPIO / 1-Wire | First allowed pin, currently GPIO4 | GPIO4/5/6 | [ds18b20.md](ds18b20.md) |
 | `ME3-NO2` | Analog / ADC | First allowed pin, currently GPIO4 | GPIO4/5/6 | [me3_no2.md](me3_no2.md) |
 | `INA219` | I2C | Bus 0, address `0x40` | I2C `0x40`, `0x41`, `0x44`, `0x45` | [ina219.md](ina219.md) |
+| `INA226` | I2C | Bus 0, address `0x40` | I2C `0x40`, `0x41`, `0x44`, `0x45` | [ina226.md](ina226.md) |
 | `MH-Z19B` | UART | UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud | UART1 or UART2 | [mhz19b.md](mhz19b.md) |
 
 ## Startup calibration capability
