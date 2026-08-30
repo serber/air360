@@ -155,7 +155,7 @@ For outdoor installation, you can 3D-print a Stevenson-screen-style enclosure.
 It shields the device from direct sun and rain while keeping airflow around the
 sensors.
 
-- [Open the model on Printables](https://www.printables.com/model/1743061-air360-stevenson-screen-enclosure)
+- [Open the model on Printables](https://www.printables.com/model/1828531-air360-stevenson-screen-enclosure)
 
 ![Air360 in a Stevenson screen enclosure](../hardware/air360_stevenson_screen.jpg)
 
