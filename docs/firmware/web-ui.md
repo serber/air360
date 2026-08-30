@@ -233,7 +233,7 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 | Dust Count | PPD42NS | No |
 | Location | GPS (NMEA) | No |
 | Gas | SCD30, SCD40, SCD41, ME3-NO2, MH-Z19B | Yes |
-| Power | INA219 | No |
+| Power | INA219, INA226 | No |
 
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 

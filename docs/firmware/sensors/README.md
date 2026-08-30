@@ -49,6 +49,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
 | [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
 | [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
+| [ina226.md](ina226.md) | INA226 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
 | [mhz19b.md](mhz19b.md) | MH-Z19B | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | CO2 |
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
@@ -345,6 +346,19 @@ GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT
 | Accuracy | Voltage `0.5 %` full-scale; current accuracy depends on shunt resistor tolerance |
 | Maximum current | `1 mA` quiescent; shunt current limited by gain setting (±3.2 A with 100 mΩ shunt at `INA219_GAIN_0_125`) |
 | Reference links | [TI product page](https://www.ti.com/product/INA219), [TI datasheet](https://www.ti.com/lit/ds/symlink/ina219.pdf) |
+
+### INA226
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Texas Instruments |
+| Air360 measurements | Bus voltage, current, power |
+| Declared service life | Not stated in the public datasheet |
+| Operating temperature | `-40..125 deg C` |
+| Supply voltage | `2.7..5.5 V` |
+| Accuracy | Bus and shunt voltage gain error `0.02..0.10 %` full-scale; current accuracy additionally depends on shunt resistor tolerance |
+| Maximum current | `330 uA` typical quiescent; shunt voltage ADC full-scale is a fixed `+-81.92 mV`, limiting measurable current to ~`0.8 A` with a `100 mOhm` shunt |
+| Reference links | [TI product page](https://www.ti.com/product/INA226), [TI datasheet](https://www.ti.com/lit/ds/symlink/ina226.pdf) |
 
 ### MH-Z19B
 

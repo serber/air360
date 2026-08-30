@@ -161,6 +161,7 @@ bool mapMeasurement(
         case SensorType::kVeml7700:
         case SensorType::kOpt3001:
         case SensorType::kIna219:
+        case SensorType::kIna226:
         case SensorType::kMhz19b:
         case SensorType::kAht30:
         case SensorType::kPpd42ns:

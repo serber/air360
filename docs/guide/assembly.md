@@ -48,8 +48,8 @@ These are the baseline components needed to assemble the shield board.
 | Single row male 2.54 mm breakable pin header | 1 strip or as needed | Male pin headers for auxiliary pins and jumpers. | `2.54mm single row breakable male pin header` |
 | DC-005, 5.5×2.1 mm PCB-mount DC barrel jack | 1 pc | DC power input on the shield board. | `DC-005 5.5x2.1mm PCB mount DC power jack` |
 | JST ZH 1.5 mm, 4-pin / 5-pin connector set | as needed | Optional cable connectors for SPS30 and SCD30. | `JST ZH 1.5mm 4 pin 5 pin connector housing crimp terminal` |
-| KF301-5.0-2P, 2-pin 5.0 mm screw terminal block | 1 pc if INA219 is used | Screw terminal for the INA219 power measurement path. | `KF301-5.0-2P 2 pin 5.0mm screw terminal block` |
-| 0 Ω resistor / 0R jumper | 1 pc if INA219 is not used | Jumper in place of the INA219 path when current sensing is not installed. | `0 ohm resistor 0R jumper` |
+| KF301-5.0-2P, 2-pin 5.0 mm screw terminal block | 1 pc if INA219 or INA226 is used | Screw terminal for the INA219/INA226 power measurement path. | `KF301-5.0-2P 2 pin 5.0mm screw terminal block` |
+| 0 Ω resistor / 0R jumper | 1 pc if neither INA219 nor INA226 is used | Jumper in place of the INA219/INA226 path when current sensing is not installed. | `0 ohm resistor 0R jumper` |
 
 ---
 
@@ -70,7 +70,7 @@ the device web UI, but these are the best starting point for a first build.
 
 | Sensor(s) | Interface | ESP32-S3 pins | Note |
 |-----------|-----------|---------------|------|
-| AHT30, BME280, BME680, BMP390, SHT3X, SHT4X, HTU2X, SCD30, SCD40, SCD41, VEML7700, OPT3001, SPS30, INA219 | I2C | `SDA=GPIO8`, `SCL=GPIO9` | Use one shared I2C bus for multiple modules; sensor addresses must not conflict. |
+| AHT30, BME280, BME680, BMP390, SHT3X, SHT4X, HTU2X, SCD30, SCD40, SCD41, VEML7700, OPT3001, SPS30, INA219, INA226 | I2C | `SDA=GPIO8`, `SCL=GPIO9` | Use one shared I2C bus for multiple modules; sensor addresses must not conflict. |
 | SDS011, PMSX003, MH-Z19B | UART2 by default, 9600 baud | `RX=GPIO16`, `TX=GPIO15`; UART1 `RX=GPIO18`, `TX=GPIO17` is selectable | Sensor TX goes to ESP32-S3 RX; sensor RX goes to ESP32-S3 TX. |
 | GPS (NMEA) | UART1 by default, 9600 baud | `RX=GPIO18`, `TX=GPIO17`; UART2 `RX=GPIO16`, `TX=GPIO15` is selectable | UART1 conflicts with the SIM7600E default pins. |
 | DHT11, DHT22, DS18B20 | GPIO | `GPIO4`, `GPIO5`, or `GPIO6` | Select one available pin in the sensor settings. |
@@ -130,6 +130,7 @@ Sensor.Community.
 | Sensor | Measures | Why you'd want it |
 |--------|----------|-------------------|
 | INA219 | DC current, voltage, power | Monitors the device's own power consumption; useful for solar-powered or battery-backed setups. |
+| INA226 | DC current, voltage, power | Higher-accuracy successor to INA219 with a wider bus voltage range (up to 36 V); same self-power-monitoring use case. |
 
 ### GPS — location tagging
 
@@ -154,7 +155,7 @@ For outdoor installation, you can 3D-print a Stevenson-screen-style enclosure.
 It shields the device from direct sun and rain while keeping airflow around the
 sensors.
 
-- [Open the model on Printables](https://www.printables.com/model/1743061-air360-stevenson-screen-enclosure)
+- [Open the model on Printables](https://www.printables.com/model/1828531-air360-stevenson-screen-enclosure)
 
 ![Air360 in a Stevenson screen enclosure](../hardware/air360_stevenson_screen.jpg)
 

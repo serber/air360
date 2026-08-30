@@ -46,6 +46,7 @@ idf_component_register(
         "src/sensors/drivers/gps_nmea_sensor.cpp"
         "src/sensors/drivers/htu2x_sensor.cpp"
         "src/sensors/drivers/ina219_sensor.cpp"
+        "src/sensors/drivers/ina226_sensor.cpp"
         "src/sensors/drivers/mhz19b_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/opt3001_sensor.cpp"
@@ -101,6 +102,7 @@ idf_component_register(
         esp-idf-lib__veml7700
         espressif__aht30
         k0i05__esp_bmp390
+        k0i05__esp_ina226
         esp-idf-lib__bmp280
         espressif__ds18b20
         espressif__onewire_bus
