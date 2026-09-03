@@ -144,6 +144,15 @@ void NetworkLayer::bootWifi(PlatformLayer& platform, StatusService& status_servi
                 const esp_err_t ap_err = network_manager_.startLabAp(config);
                 if (ap_err != ESP_OK) {
                     ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
+                    // Without the AP nothing would ever retry the station;
+                    // fall back to the plain reconnect backoff loop.
+                    const esp_err_t recovery_err = network_manager_.scheduleStationRecovery();
+                    if (recovery_err != ESP_OK) {
+                        ESP_LOGE(
+                            kTag,
+                            "Station recovery could not be scheduled: %s",
+                            esp_err_to_name(recovery_err));
+                    }
                 }
             }
         } else {

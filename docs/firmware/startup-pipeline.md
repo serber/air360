@@ -256,7 +256,7 @@ cellular_config.enabled != 0?
 - Creates Wi-Fi STA netif
 - Ensures persistent WIFI/IP event handlers and recovery timers are registered
 - Sets the DHCP hostname from `device_name` (lowercased, alphanumeric)
-- Starts Wi-Fi and waits for an IP address (up to 15 seconds), resetting the watchdog while waiting
+- Starts Wi-Fi and waits for an IP address (up to 15 seconds), resetting the watchdog while waiting; a fast disconnect inside that window triggers another `esp_wifi_connect()` after 1 s while at least 3 s of the window remain
 - On success: calls `synchronizeTime()` — polls SNTP for up to 15 seconds, resetting the watchdog
 
 **`startLabAp(config)`:**
@@ -414,6 +414,6 @@ I (air360.ota) Marked running image valid (rollback cancelled)   (only after a f
 | Cellular task creation fails | 8 | Warning logged, boot continues without cellular uplink |
 | Station join fails (Wi-Fi mode) | 9 | Falls back to Lab AP mode |
 | Station join fails (cellular mode) | 9 | Warning logged, Wi-Fi skipped, cellular is still primary uplink |
-| Lab AP start fails | 9 | Warning logged, device runs without network access |
+| Lab AP start fails | 9 | Warning logged; with stored station credentials `scheduleStationRecovery()` arms the station reconnect backoff so the upstream network is still retried |
 | Upload task creation fails | 11 | All backend states set to `kError`, boot continues without uploads |
 | Web server start fails | 12 | Red LED, `run()` returns, device halts |

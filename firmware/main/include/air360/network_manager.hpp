@@ -93,6 +93,10 @@ class NetworkManager {
     [[nodiscard]] esp_err_t startLabAp(const DeviceConfig& config);
     [[nodiscard]] esp_err_t stopStation();
     void requestStopStation();
+    // Arms the station reconnect backoff without a setup AP, for callers whose
+    // setup-AP fallback failed. Requires stored station credentials and an
+    // initialised Wi-Fi runtime; otherwise ESP_ERR_INVALID_STATE.
+    [[nodiscard]] esp_err_t scheduleStationRecovery();
     // Called by CellularManager when the PPP session comes up or drops.
     // Updates cellular_ip in NetworkState and affects uplinkStatus().
     void setCellularStatus(bool ppp_connected, const char* ip_address);
@@ -106,6 +110,10 @@ class NetworkManager {
     std::int64_t currentUnixMilliseconds() const;
 
   private:
+    // Bumps the reconnect attempt counter, publishes the backoff state, and
+    // arms the reconnect timer. Returns the delay in milliseconds.
+    std::uint32_t armReconnectBackoff();
+
     enum class ConnectAttemptKind : std::uint8_t {
         kInitial = 0U,
         kRuntimeReconnect,
