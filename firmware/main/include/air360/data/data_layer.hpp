@@ -31,7 +31,7 @@ class DataLayer {
     // Only kBeforeNetwork sensors (power monitors) start polling here; every
     // other sensor is parked so it adds no current draw before the radios
     // come up. BLE does not start here either.
-    void bootSensors(PlatformLayer& platform, StatusService& status_service);
+    void bootSensors(StatusService& status_service);
 
     // Boot step 6/12: load backend config (uploads do not start yet).
     void bootBackends(StatusService& status_service);

@@ -94,7 +94,7 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | Step | Action | Fatal? | Implemented in | Side effect |
 |------|--------|--------|----------------|-------------|
 | pre | Install log buffer; init RGB LED (GPIO48 WS2812) | No | `App::bootInstrumentation` | LED turns blue |
-| 1/12 | Arm task watchdog (30 s, panic on timeout) | No | `App::bootSystem` | Main task subscribed to TWDT |
+| 1/12 | Subscribe main task to the task watchdog (TWDT) | No | `App::bootSystem` | Main task subscribed to the sdkconfig-initialised TWDT (5 s, warn only) |
 | 2/12 | Initialize NVS (`nvs_flash_init`) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
 | 3/12 | Initialize network core (`netif` + event loop) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
 | 4/12 | Load or create `device_cfg` | No | `PlatformLayer::boot` | `boot_count` incremented; `StatusService` updated |
@@ -126,10 +126,9 @@ The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via th
 
 `esp_task_wdt_add(nullptr)` subscribes the main task to the Task Watchdog Timer (TWDT).
 
-- Timeout: **30 seconds**
-- Panic on timeout: **enabled** (triggers `esp_system_abort`, device reboots via panic handler)
-- If TWDT was already initialized by ESP-IDF (from `sdkconfig`), the call simply attaches to it
-- If TWDT is not pre-initialized, the firmware initializes it with the parameters above
+- ESP-IDF initialises the TWDT before `app_main()` (`CONFIG_ESP_TASK_WDT_INIT=y`), so the call attaches to the existing watchdog. Effective parameters come from `sdkconfig`: timeout **5 seconds** (`CONFIG_ESP_TASK_WDT_TIMEOUT_S=5`), panic on timeout **disabled** (`CONFIG_ESP_TASK_WDT_PANIC` unset) — a starved task produces a `task_wdt` warning with the task name, not a reboot
+- The fallback path in `initWatchdog()` (30 s, panic enabled) runs only when the TWDT is not pre-initialised, which the current `sdkconfig` never does
+- The boot log prints the effective values: `TWDT: app_main subscribed (5 s, warn only)`
 
 The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `cellular`, `air360_ble`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
 
@@ -346,7 +345,7 @@ The loop has four responsibilities:
 - **SNTP retry** — if the device is in station mode but time sync has not succeeded yet, it retries every 10 seconds
 - **Network state refresh** — keeps `StatusService` in sync with the current Wi-Fi network state so the web UI reflects live uplink status
 - **Cellular state refresh** — keeps `StatusService` in sync with the current cellular state (PPP IP, RSSI, ping result)
-- **Watchdog feed** — resets the TWDT on every iteration; the 30-second timeout gives a comfortable margin above the 10-second sleep
+- **Watchdog feed** — resets the TWDT after every 3 s slice of the 10 s sleep (`kRuntimeMaintenanceSliceMs`), keeping each gap under the 5 s timeout
 
 The main task runs at the default FreeRTOS task priority and stays alive for the lifetime of the firmware.
 

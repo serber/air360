@@ -104,6 +104,16 @@ original being re-entered.
 - **If you lost it:** the existing backend record can't be recovered without a
   backend-side reset — contact the backend operator, then generate a new secret.
 
+### After a firmware update the device is back in setup AP mode
+
+Firmware releases that change the layout of the stored device settings (the
+power-gate fields were added this way) do not migrate the old record. On the
+first boot of such a release the device discards `device_cfg`, starts the setup
+AP, and every Device page setting — Wi-Fi credentials, device name, static IP,
+BLE, power gate — must be entered again. Sensor, backend, and cellular settings
+are stored separately and survive. The release notes say when a release resets
+device settings; plan the update for a moment when you can reach the setup AP.
+
 ### Moving the device to a different Wi-Fi network
 
 Open **Device**, update the SSID and password, and press **Save and reboot**.

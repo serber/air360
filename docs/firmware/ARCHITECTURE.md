@@ -79,7 +79,7 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 | Step | Action | Implemented in | Notes |
 |------|--------|----------------|-------|
 | pre | Log buffer + RGB LED init | `App::bootInstrumentation` | WS2812 on GPIO48 - blue while booting |
-| 1 | Watchdog arm | `App::bootSystem` | 30-second timeout, panic enabled |
+| 1 | Watchdog arm | `App::bootSystem` | Subscribes to the sdkconfig TWDT: 5 s timeout, warn only |
 | 2 | NVS flash init | `App::bootSystem` | Auto-erase on partition mismatch |
 | 3 | Network core init | `App::bootSystem` | `esp_netif_init()`, default event loop |
 | 4 | Device config load/create | `PlatformLayer::boot` | NVS namespace `air360`, key `device_cfg`; boot counter increment |
@@ -94,7 +94,7 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 
 The order is power-aware: nothing but the low-current power monitors draws current before the power gate decides whether the supply can carry the radios; the modem and Wi-Fi are brought up only after that, and BLE plus every other sensor start only after the uplink decision. See [startup-pipeline.md](startup-pipeline.md#sensor-startup-phases) and [power-gate.md](power-gate.md).
 
-After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of panic-rebooting on a 30-second cycle.
+After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of spamming `task_wdt` warnings every 5 seconds.
 
 Full startup order with dependencies:
 

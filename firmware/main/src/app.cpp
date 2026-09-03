@@ -14,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+#include "sdkconfig.h"
 
 namespace air360 {
 
@@ -68,7 +69,9 @@ esp_err_t initRgbLed() {
 }
 
 esp_err_t initWatchdog() {
-    // ESP-IDF may pre-initialize TWDT from sdkconfig before app_main().
+    // ESP-IDF pre-initializes TWDT from sdkconfig before app_main()
+    // (CONFIG_ESP_TASK_WDT_INIT=y, CONFIG_ESP_TASK_WDT_TIMEOUT_S), so the
+    // subscribe below normally succeeds and the fallback init is never reached.
     esp_err_t err = esp_task_wdt_add(nullptr);
     if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
         return ESP_OK;
@@ -143,7 +146,7 @@ void App::run() {
     // monitors) run before the radios; the modem, Wi-Fi, BLE, and every other
     // sensor start afterwards so a weak supply is not hit by all loads at once.
     platform_.boot(status_service_);
-    data_.bootSensors(platform_, status_service_);
+    data_.bootSensors(status_service_);
     data_.bootBackends(status_service_);
     bootPowerGate();
     network_.bootCellular(platform_, status_service_);
@@ -182,7 +185,16 @@ bool App::bootSystem() {
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
     } else {
-        ESP_LOGI(kTag, "TWDT: app_main subscribed (30 s, panic enabled)");
+#ifdef CONFIG_ESP_TASK_WDT_PANIC
+        constexpr const char* kWdtOnTimeout = "panic";
+#else
+        constexpr const char* kWdtOnTimeout = "warn only";
+#endif
+        ESP_LOGI(
+            kTag,
+            "TWDT: app_main subscribed (%d s, %s)",
+            CONFIG_ESP_TASK_WDT_TIMEOUT_S,
+            kWdtOnTimeout);
     }
     status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
 

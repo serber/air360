@@ -111,7 +111,8 @@ class NetworkManager {
 
   private:
     // Bumps the reconnect attempt counter, publishes the backoff state, and
-    // arms the reconnect timer. Returns the delay in milliseconds.
+    // arms the reconnect timer. No-op when the timer is already armed (the
+    // disconnect handler got there first). Returns the delay in milliseconds.
     std::uint32_t armReconnectBackoff();
 
     enum class ConnectAttemptKind : std::uint8_t {

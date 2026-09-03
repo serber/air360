@@ -48,6 +48,16 @@ enum class SensorStartupPhase : std::uint8_t {
     kAfterNetwork = 1U,
 };
 
+inline const char* sensorStartupPhaseKey(SensorStartupPhase phase) {
+    switch (phase) {
+        case SensorStartupPhase::kBeforeNetwork:
+            return "before_network";
+        case SensorStartupPhase::kAfterNetwork:
+        default:
+            return "after_network";
+    }
+}
+
 inline constexpr std::array<SensorUartPortBinding, kMaxUartPortsPerSensor>
     kSensorUartPortBindings{{
         {1U, 18, 17},

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cinttypes>
+#include <cmath>
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
@@ -1228,15 +1229,10 @@ ConfigPageViewModel buildConfigPageViewModel(
         model.power_monitor_reading_html = "Latest bus voltage from ";
         model.power_monitor_reading_html += htmlEscape(sensorTypeKey(record.sensor_type));
         model.power_monitor_reading_html += " #" + std::to_string(record.id) + ": ";
-        if (voltage != nullptr) {
-            char voltage_buffer[16];
-            std::snprintf(
-                voltage_buffer,
-                sizeof(voltage_buffer),
-                "%.0f",
-                static_cast<double>(voltage->value));
+        if (voltage != nullptr && std::isfinite(voltage->value)) {
             model.power_monitor_reading_html += "<code>";
-            model.power_monitor_reading_html += voltage_buffer;
+            model.power_monitor_reading_html +=
+                std::to_string(static_cast<long>(std::lround(voltage->value)));
             model.power_monitor_reading_html += " mV</code>";
         } else {
             model.power_monitor_reading_html += "no reading yet";

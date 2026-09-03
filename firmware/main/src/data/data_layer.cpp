@@ -37,7 +37,7 @@ DataLayer::DataLayer()
     : sensor_config_list_(makeDefaultSensorConfigList()),
       backend_config_list_(makeDefaultBackendConfigList()) {}
 
-void DataLayer::bootSensors(PlatformLayer& platform, StatusService& status_service) {
+void DataLayer::bootSensors(StatusService& status_service) {
     sensor_config_list_ = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;
     bool sensor_defaults_written = false;

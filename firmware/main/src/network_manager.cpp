@@ -576,6 +576,7 @@ void NetworkManager::handleWifiEvent(
             bool schedule_reconnect = false;
             bool schedule_setup_ap_retry = false;
             std::uint32_t reconnect_delay_ms = 0U;
+            std::uint32_t reconnect_attempt_count = 0U;
 
             manager->lock();
             const bool was_connected = manager->state_.station_connected;
@@ -603,6 +604,7 @@ void NetworkManager::handleWifiEvent(
                         (was_connected || context.reconnect_cycle_active)) {
                         context.reconnect_cycle_active = true;
                         manager->state_.reconnect_attempt_count += 1U;
+                        reconnect_attempt_count = manager->state_.reconnect_attempt_count;
                         reconnect_delay_ms =
                             reconnectDelayMs(manager->state_.reconnect_attempt_count);
                         manager->state_.reconnect_backoff_active = true;
@@ -634,12 +636,14 @@ void NetworkManager::handleWifiEvent(
             if (!ignore_disconnect) {
                 if (schedule_reconnect) {
                     armTimer(context.reconnect_timer, reconnect_delay_ms);
+                    // Log from locals only: this runs on the event task, which
+                    // must not re-take the manager mutex or copy state strings.
                     ESP_LOGW(
                         kTag,
-                        "Station disconnected: %s (%" PRId32 "), reconnect attempt %lu in %" PRIu32 " ms",
+                        "Station disconnected: %s (%" PRId32 "), reconnect attempt %" PRIu32 " in %" PRIu32 " ms",
                         disconnectReasonLabel(reason),
                         reason,
-                        static_cast<unsigned long>(manager->state().reconnect_attempt_count),
+                        reconnect_attempt_count,
                         reconnect_delay_ms);
                 } else if (schedule_setup_ap_retry) {
                     armTimer(context.setup_ap_retry_timer, kSetupApRetryDelayMs);
@@ -1138,15 +1142,13 @@ esp_err_t NetworkManager::attemptStationConnect(
             ESP_LOGW(kTag, "esp_wifi_stop after STA failure failed: %s", esp_err_to_name(stop_err));
         }
         // A disconnect that landed inside the intentional-stop guard window is
-        // not scheduled by the event handler. Without this the recovery loop
-        // would end here with a stale "backoff active" state and no timer.
-        if (kind == ConnectAttemptKind::kRuntimeReconnect &&
-            context.reconnect_timer != nullptr &&
-            xTimerIsTimerActive(context.reconnect_timer) == pdFALSE) {
+        // not scheduled by the event handler; armReconnectBackoff() keeps the
+        // loop alive in that case and is a no-op when the handler already armed.
+        if (kind == ConnectAttemptKind::kRuntimeReconnect) {
             const std::uint32_t delay_ms = armReconnectBackoff();
             ESP_LOGW(
                 kTag,
-                "Runtime reconnect failed without a scheduled retry; next attempt in %" PRIu32 " ms",
+                "Runtime reconnect failed; next attempt in %" PRIu32 " ms",
                 delay_ms);
         }
     } else if (context.setup_ap_retry_timer != nullptr &&
@@ -1169,6 +1171,16 @@ esp_err_t NetworkManager::attemptStationConnect(
 std::uint32_t NetworkManager::armReconnectBackoff() {
     RuntimeContext& context = runtime_;
     const std::uint64_t now_ms = air360::uptimeMilliseconds();
+
+    // Already scheduled (normally by the disconnect handler): do not bump the
+    // attempt counter a second time, just report the pending delay.
+    if (context.reconnect_timer != nullptr &&
+        xTimerIsTimerActive(context.reconnect_timer) == pdTRUE) {
+        lock();
+        const std::uint64_t next_ms = state_.next_reconnect_uptime_ms;
+        unlock();
+        return next_ms > now_ms ? static_cast<std::uint32_t>(next_ms - now_ms) : 0U;
+    }
 
     lock();
     context.reconnect_cycle_active = true;

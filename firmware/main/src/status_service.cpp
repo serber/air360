@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <vector>
@@ -266,18 +267,15 @@ std::string currentUtcDateTimeLabel() {
 }
 
 std::string renderPowerGateJson(const PowerGateDecision& gate) {
-    char voltage_buffer[16] = "0";
-    std::snprintf(
-        voltage_buffer,
-        sizeof(voltage_buffer),
-        "%.0f",
-        static_cast<double>(gate.voltage_mv));
+    const std::string voltage_json =
+        gate.has_voltage && std::isfinite(gate.voltage_mv) ? formatFloat(gate.voltage_mv, 0)
+                                                           : std::string("null");
     std::string json = "{";
     json += "\"enabled\":" + std::string(gate.enabled ? "true" : "false") + ",";
     json += "\"outcome\":\"" + jsonEscape(powerGateOutcomeKey(gate.outcome)) + "\",";
     json += "\"threshold_mv\":" + std::to_string(gate.threshold_mv) + ",";
     json += "\"has_voltage\":" + std::string(gate.has_voltage ? "true" : "false") + ",";
-    json += "\"voltage_mv\":" + std::string(voltage_buffer) + ",";
+    json += "\"voltage_mv\":" + voltage_json + ",";
     json += "\"sensor_id\":" + std::to_string(gate.sensor_id) + ",";
     json += "\"wait_ms\":" + std::to_string(gate.wait_ms) + ",";
     json += "\"prior_sleeps\":" + std::to_string(gate.prior_sleeps) + ",";
@@ -1234,17 +1232,12 @@ std::string renderConnectionBlock(
     // page always passed (or skipped) the gate, so the row explains why.
     if (power_gate.enabled) {
         std::string gate_val;
-        char voltage_buffer[16] = "";
-        std::snprintf(
-            voltage_buffer,
-            sizeof(voltage_buffer),
-            "%.0f",
-            static_cast<double>(power_gate.voltage_mv));
+        const std::string voltage_text = formatFloat(power_gate.voltage_mv, 0);
         switch (power_gate.outcome) {
             case PowerGateOutcome::kPassed:
                 gate_val = "<span class='chip ok'><span class='dot'></span>Passed</span>";
                 gate_val += "<span class='mono-meta'>";
-                gate_val += voltage_buffer;
+                gate_val += voltage_text;
                 gate_val += " mV &ge; " + std::to_string(power_gate.threshold_mv) + " mV";
                 break;
             case PowerGateOutcome::kNoSample:
@@ -1663,6 +1656,7 @@ std::string buildStatusJsonDocument(
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
         json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
+        json += "\"startup_phase\":\"" + jsonEscape(sensorStartupPhaseKey(sensor.startup_phase)) + "\",";
         json += "\"failures\":" + std::to_string(sensor.failures) + ",";
         json += "\"soft_fails\":" + std::to_string(sensor.soft_fails) + ",";
         json += "\"next_retry_ms\":" + std::to_string(sensor.next_retry_ms) + ",";
