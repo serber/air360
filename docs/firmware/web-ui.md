@@ -48,7 +48,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | mDNS name | `{device_name}.local` (station mode only) |
 | Stack overflow | `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y`; `vApplicationStackOverflowHook` logs and reboots |
 
-The server starts during boot step 9/9. A startup failure is fatal — the boot LED is set to the error state.
+The server starts during boot step 11/11. A startup failure is fatal — the boot LED is set to the error state.
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
@@ -238,7 +238,7 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 
 **Per-sensor card** — each configured sensor shows:
-- Display name and runtime state chip (`kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`) in the card header alongside **Save** and **Remove** buttons
+- Display name and runtime state chip (`kDeferred`, `kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`) in the card header alongside **Save** and **Remove** buttons
 - Status block: transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`), poll interval, queued sample count, consecutive failure count, and next retry uptime when backing off; latest reading values
 - Edit form (model selector, poll interval, I2C address selector, UART port selector, or GPIO pin selector)
 - Calibration checkbox, rendered server-side only for sensor types whose descriptor sets `supports_startup_calibration` (currently SCD30, SCD40, and SCD41, labelled "Automatic self-calibration (ASC)"). It maps to the `startup_calibration` field; the driver applies it on the next `init()`. Unlike the transport selectors this control is not JS-toggled by the model selector — it is only present when the rendered sensor already advertises the capability, so calibration on a freshly added sensor is enabled by saving the sensor first and then ticking the checkbox on its card.

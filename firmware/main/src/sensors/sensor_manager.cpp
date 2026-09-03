@@ -39,10 +39,11 @@ constexpr std::uint64_t kMaintenanceActivePollIntervalMs = 5000U;
 // 250 ms loop cadence is fast enough for 1 s retry granularity while keeping
 // the manager mostly idle between scheduled sensor actions.
 constexpr TickType_t kManagerLoopDelay = pdMS_TO_TICKS(250);
-// Immediately after task start, sensors are polled at this interval so the
-// device reaches a healthy (measured) state quickly. Readings taken during
-// warmup are NOT queued for upload — they only update the latest-measurement
-// snapshot used by the status page and diagnostics.
+// For the first kWarmupDurationMs after a sensor becomes eligible (task start
+// for kBeforeNetwork sensors, the after-network release for the rest) it is
+// polled at this interval so the device reaches a healthy (measured) state
+// quickly. Readings taken during warmup are NOT queued for upload — they only
+// update the latest-measurement snapshot used by the status page and diagnostics.
 constexpr std::uint64_t kWarmupDurationMs = 60'000U;
 constexpr std::uint64_t kWarmupPollIntervalMs = 5'000U;
 // 6 KB covers the driver registry walk plus per-sensor error formatting.
@@ -186,6 +187,8 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     const SensorConfigList& config) {
     SensorRegistry registry;
     const std::uint64_t now_ms = uptimeMilliseconds();
+    const bool after_network_released =
+        after_network_released_.load(std::memory_order_acquire);
     std::vector<ManagedSensor> sensors;
     std::vector<ClaimedUartBinding> claimed_uart_bindings;
     sensors.reserve(config.sensor_count);
@@ -208,6 +211,12 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
             descriptor != nullptr ? descriptor->display_name : std::string("Unknown sensor");
         managed.runtime.binding_summary = bindingSummary(record);
         managed.runtime.poll_interval_ms = record.poll_interval_ms;
+        managed.runtime.startup_phase = descriptor != nullptr
+                                            ? descriptor->startup_phase
+                                            : SensorStartupPhase::kAfterNetwork;
+        const bool phase_open =
+            managed.runtime.startup_phase == SensorStartupPhase::kBeforeNetwork ||
+            after_network_released;
 
         if (!managed.runtime.enabled) {
             managed.runtime.state = SensorRuntimeState::kDisabled;
@@ -242,11 +251,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                     managed.runtime.state = SensorRuntimeState::kError;
                     managed.runtime.last_error = "Failed to allocate sensor driver.";
                 } else {
-                    managed.driver_ready = false;
-                    managed.runtime.state = SensorRuntimeState::kConfigured;
-                    managed.runtime.last_error.clear();
-                    managed.next_init_allowed_ms = now_ms;
-                    managed.next_action_time_ms = now_ms;
+                    markDriverPending(managed, phase_open, now_ms);
                 }
             }
         } else {
@@ -255,11 +260,7 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
                 managed.runtime.state = SensorRuntimeState::kError;
                 managed.runtime.last_error = "Failed to allocate sensor driver.";
             } else {
-                managed.driver_ready = false;
-                managed.runtime.state = SensorRuntimeState::kConfigured;
-                managed.runtime.last_error.clear();
-                managed.next_init_allowed_ms = now_ms;
-                managed.next_action_time_ms = now_ms;
+                markDriverPending(managed, phase_open, now_ms);
             }
         }
 
@@ -267,6 +268,59 @@ std::vector<SensorManager::ManagedSensor> SensorManager::buildManagedSensors(
     }
 
     return sensors;
+}
+
+void SensorManager::markDriverPending(
+    ManagedSensor& managed,
+    bool phase_open,
+    std::uint64_t now_ms) {
+    managed.driver_ready = false;
+    managed.runtime.last_error.clear();
+    if (phase_open) {
+        managed.runtime.state = SensorRuntimeState::kConfigured;
+        managed.next_init_allowed_ms = now_ms;
+        managed.next_action_time_ms = now_ms;
+        managed.eligible_since_ms = now_ms;
+    } else {
+        // Parked until releaseAfterNetworkPhase(); the task skips sensors whose
+        // eligible_since_ms is still 0.
+        managed.runtime.state = SensorRuntimeState::kDeferred;
+        managed.next_init_allowed_ms = 0U;
+        managed.next_action_time_ms = 0U;
+        managed.eligible_since_ms = 0U;
+    }
+}
+
+void SensorManager::releaseAfterNetworkPhase() {
+    const std::uint64_t now_ms = uptimeMilliseconds();
+    std::size_t released = 0U;
+
+    lock();
+    after_network_released_.store(true, std::memory_order_release);
+    for (auto& sensor : sensors_) {
+        if (sensor.driver == nullptr || sensor.eligible_since_ms != 0U) {
+            continue;
+        }
+        sensor.eligible_since_ms = now_ms;
+        sensor.next_init_allowed_ms = now_ms;
+        sensor.next_action_time_ms = now_ms;
+        sensor.runtime.state = SensorRuntimeState::kConfigured;
+        ++released;
+    }
+    const TaskHandle_t task = task_;
+    unlock();
+
+    ESP_LOGI(
+        kTag,
+        "After-network phase released: %u sensor(s) start now; warmup polling at %" PRIu64
+        " ms for %" PRIu64 " ms per sensor",
+        static_cast<unsigned>(released),
+        kWarmupPollIntervalMs,
+        kWarmupDurationMs);
+    if (released > 0U && task != nullptr) {
+        // Wake the polling loop early; the notification carries no state.
+        xTaskNotifyGive(task);
+    }
 }
 
 esp_err_t SensorManager::stop() {
@@ -403,13 +457,12 @@ void SensorManager::taskMain() {
     esp_task_wdt_add(nullptr);
     ESP_LOGI(kTag, "TWDT: air360_sensor subscribed");
 
-    const std::uint64_t task_start_ms = uptimeMilliseconds();
     ESP_LOGI(kTag,
-        "Warmup: polling at %" PRIu64 " ms for first %" PRIu64 " ms; readings not queued",
+        "Warmup: each sensor polls at %" PRIu64 " ms for its first %" PRIu64
+        " ms after release; warmup readings not queued",
         kWarmupPollIntervalMs, kWarmupDurationMs);
 
     const SensorDriverContext driver_context{&i2c_bus_manager_, &uart_port_manager_};
-    bool warmup_active = true;
 
     for (;;) {
         if (stopRequested()) {
@@ -417,11 +470,6 @@ void SensorManager::taskMain() {
         }
 
         const std::uint64_t now_ms = uptimeMilliseconds();
-        const bool in_warmup = (now_ms - task_start_ms) < kWarmupDurationMs;
-        if (warmup_active && !in_warmup) {
-            warmup_active = false;
-            ESP_LOGI(kTag, "Warmup complete; reverting to configured poll intervals");
-        }
 
         lock();
         const std::size_t sensor_count = sensors_.size();
@@ -435,18 +483,23 @@ void SensorManager::taskMain() {
             SensorDriver* driver = nullptr;
             SensorRecord record{};
             bool needs_init = false;
+            bool in_warmup = false;
             bool clear_pending_action = false;
             std::uint32_t cleared_action_sensor_id = 0U;
 
             lock();
             if (index < sensors_.size()) {
                 auto& sensor = sensors_[index];
+                // eligible_since_ms == 0 means the sensor is parked in its
+                // startup phase (kDeferred) and must not touch the bus yet.
                 if (sensor.runtime.enabled && sensor.driver != nullptr &&
+                    sensor.eligible_since_ms != 0U &&
                     sensor.runtime.state != SensorRuntimeState::kFailed &&
                     now_ms >= sensor.next_action_time_ms) {
                     driver = sensor.driver.get();
                     record = sensor.record;
                     needs_init = !sensor.driver_ready;
+                    in_warmup = (now_ms - sensor.eligible_since_ms) < kWarmupDurationMs;
                 }
             }
             unlock();

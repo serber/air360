@@ -488,6 +488,10 @@ CheckState evaluateSensorCheck(
             return CheckState::kFailed;
         case SensorRuntimeState::kDisabled:
             return CheckState::kSkipped;
+        case SensorRuntimeState::kDeferred:
+            // Parked until the after-network startup phase opens; its warmup
+            // window has not started yet.
+            return CheckState::kPending;
         case SensorRuntimeState::kConfigured:
         case SensorRuntimeState::kInitialized:
         case SensorRuntimeState::kPolling:
@@ -1024,6 +1028,7 @@ std::string renderSensorOverviewBlock(
                 chip_color = " ok";  chip_dot = true;  break;
             case SensorRuntimeState::kConfigured:
             case SensorRuntimeState::kInitialized:
+            case SensorRuntimeState::kDeferred:
                 chip_color = " warn"; chip_dot = true; break;
             case SensorRuntimeState::kAbsent:
             case SensorRuntimeState::kFailed:

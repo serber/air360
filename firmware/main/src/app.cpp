@@ -139,11 +139,15 @@ void App::run() {
         return;
     }
 
+    // Power-aware ordering: only low-current kBeforeNetwork sensors (power
+    // monitors) run before the radios; the modem, Wi-Fi, BLE, and every other
+    // sensor start afterwards so a weak supply is not hit by all loads at once.
     platform_.boot(status_service_);
-    network_.bootCellular(platform_, status_service_);
     data_.bootSensors(platform_, status_service_);
     data_.bootBackends(status_service_);
+    network_.bootCellular(platform_, status_service_);
     network_.bootWifi(platform_, status_service_);
+    data_.releaseDeferredSensors(platform_, status_service_);
     data_.bootUploads(platform_, network_, status_service_);
 
     if (!bootWebServer()) {
@@ -172,7 +176,7 @@ void App::bootInstrumentation() {
 }
 
 bool App::bootSystem() {
-    ESP_LOGI(kTag, "Boot step 1/9: arm task watchdog");
+    ESP_LOGI(kTag, "Boot step 1/11: arm task watchdog");
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
@@ -181,13 +185,13 @@ bool App::bootSystem() {
     }
     status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
 
-    ESP_LOGI(kTag, "Boot step 2/9: initialize NVS");
+    ESP_LOGI(kTag, "Boot step 2/11: initialize NVS");
     if (reportBootError("NVS init", initStorage())) {
         return false;
     }
     status_service_.markNvsReady(true);
 
-    ESP_LOGI(kTag, "Boot step 3/9: initialize network core");
+    ESP_LOGI(kTag, "Boot step 3/11: initialize network core");
     if (reportBootError("Network core init", initNetworkingCore())) {
         return false;
     }
@@ -196,7 +200,7 @@ bool App::bootSystem() {
 }
 
 bool App::bootWebServer() {
-    ESP_LOGI(kTag, "Boot step 9/9: start status web server");
+    ESP_LOGI(kTag, "Boot step 11/11: start status web server");
     const esp_err_t web_err =
         web_server_.start(
             status_service_,

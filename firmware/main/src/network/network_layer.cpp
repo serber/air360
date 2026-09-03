@@ -53,7 +53,7 @@ void NetworkLayer::bootCellular(PlatformLayer& /*platform*/, StatusService& stat
     bool cellular_config_loaded = false;
     bool cellular_defaults_written = false;
 
-    ESP_LOGI(kTag, "Boot step 4b/9: load or create cellular config");
+    ESP_LOGI(kTag, "Boot step 7/11: load or create cellular config");
     const esp_err_t cellular_config_err = cellular_config_repository_.loadOrCreate(
         cellular_config_,
         cellular_config_loaded,
@@ -90,7 +90,7 @@ void NetworkLayer::bootCellular(PlatformLayer& /*platform*/, StatusService& stat
 void NetworkLayer::bootWifi(PlatformLayer& platform, StatusService& status_service) {
     DeviceConfig& config = platform.deviceConfig();
 
-    ESP_LOGI(kTag, "Boot step 7/9: resolve network mode");
+    ESP_LOGI(kTag, "Boot step 8/11: resolve network mode");
     if (cellular_config_.enabled != 0U) {
         // Cellular is the primary uplink.  Wi-Fi station is started only if
         // credentials exist, giving the operator a debug window at boot.

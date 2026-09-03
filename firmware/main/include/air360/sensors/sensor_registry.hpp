@@ -37,6 +37,17 @@ struct MaintenanceActionDescriptor {
     const char* label;
 };
 
+// Boot phase in which the sensor manager may start driving a sensor type.
+// The sensor task itself starts before any radio is powered; sensors in the
+// kAfterNetwork phase stay parked until App releases them once cellular and
+// Wi-Fi bring-up has finished. kBeforeNetwork is reserved for low-current
+// sensors whose readings must be available before the radios come up, such as
+// the INA219/INA226 power monitors that feed the boot-time power gate.
+enum class SensorStartupPhase : std::uint8_t {
+    kBeforeNetwork = 0U,
+    kAfterNetwork = 1U,
+};
+
 inline constexpr std::array<SensorUartPortBinding, kMaxUartPortsPerSensor>
     kSensorUartPortBindings{{
         {1U, 18, 17},
@@ -91,6 +102,10 @@ struct SensorDescriptor {
     // descriptor small. Distinct from the persistent startup_calibration mode.
     const MaintenanceActionDescriptor* maintenance_actions = nullptr;
     std::uint8_t maintenance_action_count = 0U;
+    // Boot phase gate for this sensor type. Defaults to kAfterNetwork so a new
+    // sensor never adds current draw before the radios are up unless it
+    // explicitly opts in.
+    SensorStartupPhase startup_phase = SensorStartupPhase::kAfterNetwork;
 };
 
 inline std::int16_t firstAllowedGpioPin(const SensorDescriptor& descriptor) {

@@ -42,7 +42,7 @@ void DataLayer::bootSensors(PlatformLayer& platform, StatusService& status_servi
     bool sensor_config_loaded = false;
     bool sensor_defaults_written = false;
 
-    ESP_LOGI(kTag, "Boot step 5/9: load or create sensor config");
+    ESP_LOGI(kTag, "Boot step 5/11: load or create sensor config");
     const esp_err_t sensor_config_err = sensor_config_repository_.loadOrCreate(
         sensor_config_list_,
         sensor_config_loaded,
@@ -99,6 +99,11 @@ void DataLayer::bootSensors(PlatformLayer& platform, StatusService& status_servi
     }
     status_service.setSensors(sensor_manager_);
     status_service.setMeasurements(measurement_store_);
+}
+
+void DataLayer::releaseDeferredSensors(PlatformLayer& platform, StatusService& status_service) {
+    ESP_LOGI(kTag, "Boot step 9/11: release after-network sensors and BLE");
+    sensor_manager_.releaseAfterNetworkPhase();
 
     ble_advertiser_.start(platform.deviceConfig(), measurement_store_);
     status_service.setBleAdvertiser(ble_advertiser_);
@@ -109,7 +114,7 @@ void DataLayer::bootBackends(StatusService& status_service) {
     bool backend_config_loaded = false;
     bool backend_defaults_written = false;
 
-    ESP_LOGI(kTag, "Boot step 6/9: load or create backend config");
+    ESP_LOGI(kTag, "Boot step 6/11: load or create backend config");
     const esp_err_t backend_config_err = backend_config_repository_.loadOrCreate(
         backend_config_list_,
         backend_config_loaded,
@@ -138,7 +143,7 @@ void DataLayer::bootUploads(
     PlatformLayer& platform,
     NetworkLayer& network,
     StatusService& status_service) {
-    ESP_LOGI(kTag, "Boot step 8/9: start upload manager");
+    ESP_LOGI(kTag, "Boot step 10/11: start upload manager");
     upload_manager_.start(
         platform.buildInfo(),
         platform.deviceConfig(),

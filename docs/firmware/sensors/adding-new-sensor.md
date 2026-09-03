@@ -174,6 +174,8 @@ For a UART sensor, set `.default_uart_port_id` to `1U` or `2U` and list every se
 
 For a GPIO or analog sensor, leave UART fields empty and list every selectable GPIO in `.allowed_gpio_pins`. There is no separate default GPIO field; the web UI and add route use the first allowed pin as the initial selection.
 
+**Startup phase.** Leave `.startup_phase` at its default (`SensorStartupPhase::kAfterNetwork`) unless the sensor is a low-current power monitor whose readings must exist before the radios come up. Only INA219 and INA226 set `.startup_phase = SensorStartupPhase::kBeforeNetwork`; every other sensor is parked in `kDeferred` until boot step 9 releases it after cellular/Wi-Fi bring-up. Opting into `kBeforeNetwork` adds the sensor's current draw to the pre-network power budget, so do it only for sensors that draw a few milliamps and have no warm-up load. See [../startup-pipeline.md](../startup-pipeline.md#sensor-startup-phases).
+
 ---
 
 ## Step 8 — Wire up the web UI

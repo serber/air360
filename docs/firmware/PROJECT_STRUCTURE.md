@@ -70,7 +70,7 @@ firmware/
 ### Core runtime
 
 - `main/src/app_main.cpp` — `app_main()` entry, constructs and runs `air360::App`
-- `main/src/app.cpp` — 9-step boot sequence: LEDs, watchdog, NVS, network core, then delegates to facade `boot*()` methods and starts the web server
+- `main/src/app.cpp` — 11-step power-aware boot sequence: LEDs, watchdog, NVS, network core, then delegates to facade `boot*()` methods (power-monitor sensors before the radios, everything else after) and starts the web server
 - `main/src/platform/platform_layer.cpp` — `PlatformLayer` facade owning `BuildInfo`, `ConfigRepository`, `DeviceConfig`, and `Air360ApiCredentialRepository`
 - `main/src/network/network_layer.cpp` — `NetworkLayer` facade owning `NetworkManager`, `CellularManager`, `CellularConfigRepository`, the Wi-Fi debug-window timer, and the cellular boot phase
 - `main/src/data/data_layer.cpp` — `DataLayer` facade owning sensors, measurement store, BLE advertiser, backend config and `UploadManager`
