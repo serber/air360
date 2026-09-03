@@ -85,13 +85,14 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 | 4 | Device config load/create | `PlatformLayer::boot` | NVS namespace `air360`, key `device_cfg`; boot counter increment |
 | 5 | Sensor config load/create and manager start | `DataLayer::bootSensors` | NVS key `sensor_cfg`; may launch `air360_sensor`; only `kBeforeNetwork` sensors (INA219/INA226) poll, the rest park in `kDeferred` |
 | 6 | Backend config load/create | `DataLayer::bootBackends` | NVS key `backend_cfg` |
-| 7 | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS key `cellular_cfg`; may launch `cellular` |
-| 8 | Network mode resolution | `NetworkLayer::bootWifi` | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
-| 9 | Release after-network sensors; BLE start | `DataLayer::releaseDeferredSensors` | `SensorManager::releaseAfterNetworkPhase()`; BLE advertising starts here |
-| 10 | Upload manager start | `DataLayer::bootUploads` | Launches `air360_upload` when enabled backends exist |
-| 11 | Web server start | `App::bootWebServer` | Starts `esp_http_server`; main task enters `App::runMaintenanceLoop` |
+| 7 | Power gate | `App::bootPowerGate` | Reads the INA bus voltage; deep-sleeps with an escalating timer when below `power_gate_threshold_mv` |
+| 8 | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS key `cellular_cfg`; may launch `cellular` |
+| 9 | Network mode resolution | `NetworkLayer::bootWifi` | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
+| 10 | Release after-network sensors; BLE start | `DataLayer::releaseDeferredSensors` | `SensorManager::releaseAfterNetworkPhase()`; BLE advertising starts here |
+| 11 | Upload manager start | `DataLayer::bootUploads` | Launches `air360_upload` when enabled backends exist |
+| 12 | Web server start | `App::bootWebServer` | Starts `esp_http_server`; main task enters `App::runMaintenanceLoop` |
 
-The order is power-aware: nothing but the low-current power monitors draws current before the modem and Wi-Fi are brought up, and BLE plus every other sensor start only after the uplink decision. See [startup-pipeline.md](startup-pipeline.md#sensor-startup-phases).
+The order is power-aware: nothing but the low-current power monitors draws current before the power gate decides whether the supply can carry the radios; the modem and Wi-Fi are brought up only after that, and BLE plus every other sensor start only after the uplink decision. See [startup-pipeline.md](startup-pipeline.md#sensor-startup-phases) and [power-gate.md](power-gate.md).
 
 After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of panic-rebooting on a 30-second cycle.
 
@@ -160,8 +161,10 @@ Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdo
 `App::run()` delegates each boot step to one of three layered facades that group the long-lived runtime objects by concern. Ownership is layered — `PlatformLayer` at the bottom (nothing depends on networking or sensors), then `NetworkLayer`, then `DataLayer` — and each higher layer reads from the lower ones. The call order in `App::run()` interleaves the layers so that power-monitor sensors run before the radios and everything else after; see the [startup sequence](#startup-sequence) table for which boot step each facade method handles.
 
 - **`PlatformLayer`** — owns identity and persistent device-level configuration: `BuildInfo`, `ConfigRepository` + `DeviceConfig`, and `Air360ApiCredentialRepository`. Boot step 4.
-- **`NetworkLayer`** — owns the uplink: `NetworkManager`, `CellularManager` + `CellularConfigRepository`, and the Wi-Fi debug-window timer. Boot steps 7 (cellular) and 8 (Wi-Fi/network-mode resolution). Layered above `PlatformLayer`, below `DataLayer`.
-- **`DataLayer`** — owns everything that produces or consumes measurements: the sensor pipeline (`SensorManager` etc.), `MeasurementStore`, the BLE advertiser, backend config, and `UploadManager`. Boot steps 5 (sensor config + before-network sensors), 6 (backend config), 9 (after-network sensors + BLE), and 10 (uploads). Layered above both `PlatformLayer` and `NetworkLayer`.
+- **`NetworkLayer`** — owns the uplink: `NetworkManager`, `CellularManager` + `CellularConfigRepository`, and the Wi-Fi debug-window timer. Boot steps 8 (cellular) and 9 (Wi-Fi/network-mode resolution). Layered above `PlatformLayer`, below `DataLayer`.
+- **`DataLayer`** — owns everything that produces or consumes measurements: the sensor pipeline (`SensorManager` etc.), `MeasurementStore`, the BLE advertiser, backend config, and `UploadManager`. Boot steps 5 (sensor config + before-network sensors), 6 (backend config), 10 (after-network sensors + BLE), and 11 (uploads). Layered above both `PlatformLayer` and `NetworkLayer`.
+
+`App` itself owns the `PowerGate` (boot step 7) because the decision spans layers: it reads `PlatformLayer` config and `DataLayer` measurements and decides whether `NetworkLayer` is booted at all.
 
 The individual managers each facade owns are documented in their own sections below.
 
@@ -416,7 +419,7 @@ Owns the sensor runtime lifecycle.
 - `applyConfig(SensorConfigList)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
 - `buildManagedSensors()` — validates transport bindings, calls `SensorRegistry::createDriver()` for each enabled sensor
 - `taskMain()` — polls each eligible sensor at its configured interval (5 s during its 60 s warmup window), updates measurements, handles errors
-- `releaseAfterNetworkPhase()` — opens the `kAfterNetwork` startup phase; called once by `App` after cellular/Wi-Fi bring-up (boot step 9)
+- `releaseAfterNetworkPhase()` — opens the `kAfterNetwork` startup phase; called once by `App` after cellular/Wi-Fi bring-up (boot step 10)
 
 **Startup phases:**
 
@@ -964,7 +967,7 @@ No application-level RTOS queues. Upload delivery progress is tracked via per-ba
 
 ### Confirmed in implementation
 
-- Full 11-step, power-aware boot sequence
+- Full 12-step, power-aware boot sequence with INA-driven power gate
 - NVS-backed config for device, sensors, and backends
 - FreeRTOS sensor polling task with per-sensor scheduling
 - 12 sensor driver types across I2C, UART, GPIO, and ADC transports

@@ -48,7 +48,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | mDNS name | `{device_name}.local` (station mode only) |
 | Stack overflow | `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y`; `vApplicationStackOverflowHook` logs and reboots |
 
-The server starts during boot step 11/11. A startup failure is fatal — the boot LED is set to the error state.
+The server starts during boot step 12/12. A startup failure is fatal — the boot LED is set to the error state.
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
@@ -129,6 +129,8 @@ Each individual check (`time_synced`, `sensors_reporting`, `uplink_available`, `
 
 **Backends section** — one row per configured backend showing type, enabled state, last upload result, and last upload time.
 
+**System section** — also shows a `Power gate` row while `power_gate_enabled = 1`: a `Passed` chip with the measured bus voltage and threshold, or a `Skipped` chip explaining why the gate did not run (no INA reading within the wait window, or no INA219/INA226 configured), plus the number and length of low-voltage deep sleeps that preceded this boot. See [power-gate.md](power-gate.md).
+
 **Sensors section** — one row per configured sensor showing sensor type, runtime state, transport summary, and the latest reading values. When a one-shot maintenance action is in progress (or finished) the row shows a `Maintenance: <status>` line (e.g. `FRC: warming up (45s/120s)`); the same string is exposed as `maintenance_status` on each sensor object in the Raw Status JSON. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 
 ---
@@ -143,7 +145,7 @@ The page currently shows:
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error, cellular reconnect counters, consecutive cellular failures, and PWRKEY cycle count
 - **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
-- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, `next_retry_ms`, and `maintenance_status`.
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, `next_retry_ms`, and `maintenance_status`. The top-level `power_gate` object (`enabled`, `outcome`, `threshold_mv`, `has_voltage`, `voltage_mv`, `sensor_id`, `wait_ms`, `prior_sleeps`, `last_sleep_s`, `detail`) records the boot-time power gate decision; see [power-gate.md](power-gate.md).
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.

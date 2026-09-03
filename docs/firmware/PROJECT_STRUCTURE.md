@@ -70,7 +70,8 @@ firmware/
 ### Core runtime
 
 - `main/src/app_main.cpp` — `app_main()` entry, constructs and runs `air360::App`
-- `main/src/app.cpp` — 11-step power-aware boot sequence: LEDs, watchdog, NVS, network core, then delegates to facade `boot*()` methods (power-monitor sensors before the radios, everything else after) and starts the web server
+- `main/src/app.cpp` — 12-step power-aware boot sequence: LEDs, watchdog, NVS, network core, then delegates to facade `boot*()` methods (power-monitor sensors before the radios, power gate, everything else after) and starts the web server
+- `main/src/power_gate.cpp` — `PowerGate`: boot-time INA bus-voltage check with RTC-retained escalating deep sleep (see `power-gate.md`)
 - `main/src/platform/platform_layer.cpp` — `PlatformLayer` facade owning `BuildInfo`, `ConfigRepository`, `DeviceConfig`, and `Air360ApiCredentialRepository`
 - `main/src/network/network_layer.cpp` — `NetworkLayer` facade owning `NetworkManager`, `CellularManager`, `CellularConfigRepository`, the Wi-Fi debug-window timer, and the cellular boot phase
 - `main/src/data/data_layer.cpp` — `DataLayer` facade owning sensors, measurement store, BLE advertiser, backend config and `UploadManager`
@@ -205,6 +206,7 @@ VS Code: open `firmware/` directly or `firmware/firmware.code-workspace` with th
 ## How to navigate as a contributor
 
 - **Boot order** → `main/src/app.cpp`
+- **Power gate / deep sleep** → `main/src/power_gate.cpp`
 - **Web routes and UI** → `main/src/web_server.cpp`, `main/src/web/`, `status_service.cpp`, `web_ui.cpp`
 - **Device persistence** → `main/src/config_repository.cpp`
 - **Cellular modem** → `main/src/cellular_manager.cpp` (lifecycle), `cellular_config_repository.cpp` (persistence)

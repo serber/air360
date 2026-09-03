@@ -58,7 +58,8 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System overview: components, task model, data flow, GPIO allocation |
-| [startup-pipeline.md](startup-pipeline.md) | 9-step boot sequence, long-lived tasks, failure modes |
+| [startup-pipeline.md](startup-pipeline.md) | 12-step power-aware boot sequence, sensor startup phases, long-lived tasks, failure modes |
+| [power-gate.md](power-gate.md) | Boot-time INA bus-voltage gate: decision flow, escalating deep sleep, observability |
 | [nvs.md](nvs.md) | NVS storage: namespace, blob structs, validation and reset behaviour |
 
 ---

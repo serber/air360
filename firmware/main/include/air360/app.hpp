@@ -4,6 +4,7 @@
 #include "air360/network/network_layer.hpp"
 #include "air360/ota_service.hpp"
 #include "air360/platform/platform_layer.hpp"
+#include "air360/power_gate.hpp"
 #include "air360/status_service.hpp"
 #include "air360/web_server.hpp"
 
@@ -22,6 +23,9 @@ class App {
   private:
     void bootInstrumentation();
     [[nodiscard]] bool bootSystem();
+    // Boot step 7/12. Returns normally when boot may continue; deep-sleeps
+    // (never returns) when the power gate decides the supply is too weak.
+    void bootPowerGate();
     [[nodiscard]] bool bootWebServer();
     void indicateReady();
     void runMaintenanceLoop();
@@ -32,6 +36,7 @@ class App {
     NetworkLayer  network_;
     DataLayer     data_;
     OtaService    ota_service_;
+    PowerGate     power_gate_;
     WebServer     web_server_;
 };
 

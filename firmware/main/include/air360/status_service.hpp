@@ -9,6 +9,7 @@
 #include "air360/config_load_status.hpp"
 #include "air360/config_repository.hpp"
 #include "air360/network_manager.hpp"
+#include "air360/power_gate.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/upload_manager.hpp"
@@ -47,6 +48,7 @@ class StatusService {
     void setUploads(const UploadManager& upload_manager);
     void setWebServerStarted(bool started);
     void setBleAdvertiser(const BleAdvertiser& ble);
+    void setPowerGate(const PowerGateDecision& decision);
 
     std::string renderRootHtml() const;
     std::string renderDiagnosticsHtml(std::string_view log_contents) const;
@@ -78,6 +80,7 @@ class StatusService {
     ConfigLoadRuntimeStatus backend_config_load_{};
     bool web_server_started_ = false;
     esp_reset_reason_t reset_reason_ = esp_reset_reason();
+    PowerGateDecision power_gate_{};
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
 };

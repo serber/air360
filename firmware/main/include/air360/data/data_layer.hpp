@@ -27,21 +27,21 @@ class DataLayer {
     DataLayer(DataLayer&&) = delete;
     DataLayer& operator=(DataLayer&&) = delete;
 
-    // Boot step 5/11: load sensor config and apply it to the sensor manager.
+    // Boot step 5/12: load sensor config and apply it to the sensor manager.
     // Only kBeforeNetwork sensors (power monitors) start polling here; every
     // other sensor is parked so it adds no current draw before the radios
     // come up. BLE does not start here either.
     void bootSensors(PlatformLayer& platform, StatusService& status_service);
 
-    // Boot step 6/11: load backend config (uploads do not start yet).
+    // Boot step 6/12: load backend config (uploads do not start yet).
     void bootBackends(StatusService& status_service);
 
-    // Boot step 9/11: release kAfterNetwork sensors and start the BLE
+    // Boot step 10/12: release kAfterNetwork sensors and start the BLE
     // advertiser bound to device config + measurement store. Runs after
     // cellular and Wi-Fi bring-up.
     void releaseDeferredSensors(PlatformLayer& platform, StatusService& status_service);
 
-    // Boot step 10/11: start the upload manager and apply backend config.
+    // Boot step 11/12: start the upload manager and apply backend config.
     void bootUploads(
         PlatformLayer& platform,
         NetworkLayer& network,

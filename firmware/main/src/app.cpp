@@ -145,6 +145,7 @@ void App::run() {
     platform_.boot(status_service_);
     data_.bootSensors(platform_, status_service_);
     data_.bootBackends(status_service_);
+    bootPowerGate();
     network_.bootCellular(platform_, status_service_);
     network_.bootWifi(platform_, status_service_);
     data_.releaseDeferredSensors(platform_, status_service_);
@@ -176,7 +177,7 @@ void App::bootInstrumentation() {
 }
 
 bool App::bootSystem() {
-    ESP_LOGI(kTag, "Boot step 1/11: arm task watchdog");
+    ESP_LOGI(kTag, "Boot step 1/12: arm task watchdog");
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
@@ -185,13 +186,13 @@ bool App::bootSystem() {
     }
     status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
 
-    ESP_LOGI(kTag, "Boot step 2/11: initialize NVS");
+    ESP_LOGI(kTag, "Boot step 2/12: initialize NVS");
     if (reportBootError("NVS init", initStorage())) {
         return false;
     }
     status_service_.markNvsReady(true);
 
-    ESP_LOGI(kTag, "Boot step 3/11: initialize network core");
+    ESP_LOGI(kTag, "Boot step 3/12: initialize network core");
     if (reportBootError("Network core init", initNetworkingCore())) {
         return false;
     }
@@ -199,8 +200,32 @@ bool App::bootSystem() {
     return true;
 }
 
+void App::bootPowerGate() {
+    ESP_LOGI(kTag, "Boot step 7/12: evaluate power gate");
+    const PowerGateDecision decision = power_gate_.evaluate(
+        platform_.deviceConfig(),
+        data_.sensorConfigList(),
+        data_.measurementStore(),
+        esp_reset_reason());
+    status_service_.setPowerGate(decision);
+    if (!decision.sleep_requested) {
+        return;
+    }
+
+    // Everything started so far is either config in RAM or the low-current
+    // power monitors; deep sleep drops all of it and boot restarts from the
+    // bootloader when the timer fires.
+    ESP_LOGW(
+        kTag,
+        "Power gate: supply too weak for the radios, deep-sleeping %" PRIu32 " s (%s)",
+        decision.sleep_seconds,
+        powerGateOutcomeKey(decision.outcome));
+    setLedColor(0U, 0U, 0U);
+    PowerGate::enterDeepSleep(decision.sleep_seconds);
+}
+
 bool App::bootWebServer() {
-    ESP_LOGI(kTag, "Boot step 11/11: start status web server");
+    ESP_LOGI(kTag, "Boot step 12/12: start status web server");
     const esp_err_t web_err =
         web_server_.start(
             status_service_,
