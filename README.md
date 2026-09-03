@@ -87,8 +87,6 @@ Start here depending on what you need.
   [docs/firmware/measurement-pipeline.md](docs/firmware/measurement-pipeline.md)
 - Firmware architecture decision records:
   [docs/firmware/adr/README.md](docs/firmware/adr/README.md)
-- Sensor.Community opportunity roadmap:
-  [docs/ecosystem/sensor-community-opportunity-roadmap.md](docs/ecosystem/sensor-community-opportunity-roadmap.md)
 - Firmware release-packaging skill:
   [.claude/skills/air360-firmware-release-bundle/](.claude/skills/air360-firmware-release-bundle/)
 - Backend documentation map:
