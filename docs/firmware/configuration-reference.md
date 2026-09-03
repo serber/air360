@@ -41,7 +41,7 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
-All four are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
+Device, sensor, and backend config are loaded at boot steps 4–6 and cellular config at boot step 8; each is validated and replaced with compiled-in defaults on any integrity failure. There is no migration except the `backend_cfg` v1 → v2 path — any other schema or size change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
 
 ---
 

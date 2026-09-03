@@ -56,7 +56,7 @@ I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
 GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, PPD42NS, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
 
-Startup timing is also a descriptor property (`startup_phase`). INA219 and INA226 start polling before the modem and Wi-Fi are powered; every other sensor in this index stays parked in `kDeferred` until the firmware releases the after-network phase at boot step 9. See [../startup-pipeline.md](../startup-pipeline.md#sensor-startup-phases) and [adding-new-sensor.md](adding-new-sensor.md).
+Startup timing is also a descriptor property (`startup_phase`). INA219 and INA226 start polling before the modem and Wi-Fi are powered; every other sensor in this index stays parked in `kDeferred` until the firmware releases the after-network phase at boot step 10. See [../startup-pipeline.md](../startup-pipeline.md#sensor-startup-phases) and [adding-new-sensor.md](adding-new-sensor.md).
 
 ## Datasheet Notes
 

@@ -72,7 +72,7 @@ Drivers access hardware exclusively through `SensorDriverContext`, which carries
 
 ### After `poll()`
 
-- On success: state → `kPolling`, `failures = 0`, `next_retry_ms = 0`, `next_action_time_ms = now + effective_poll_ms` where `effective_poll_ms = min(poll_interval_ms, 5000)` during the sensor's 60 s warmup window (anchored at the moment it became eligible — task start for `kBeforeNetwork` sensors, the boot step 9 release for `kAfterNetwork` ones), otherwise `poll_interval_ms`.
+- On success: state → `kPolling`, `failures = 0`, `next_retry_ms = 0`, `next_action_time_ms = now + effective_poll_ms` where `effective_poll_ms = min(poll_interval_ms, 5000)` during the sensor's 60 s warmup window (anchored at the moment it became eligible — task start for `kBeforeNetwork` sensors, the boot step 10 release for `kAfterNetwork` ones), otherwise `poll_interval_ms`.
 - On the first two consecutive poll failures: keep `driver_ready = true` and retry polling after `min(effective_poll_ms, 5000)`. This absorbs short bus glitches without a full driver teardown.
 - On the third consecutive poll failure: set `driver_ready = false`, increment `failures`, and enter the same exponential init backoff used by `init()` failures.
 
