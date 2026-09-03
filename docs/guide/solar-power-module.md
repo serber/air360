@@ -242,6 +242,14 @@ device's 5 V input (USB-C or the shield's DC barrel jack — see
   squeeze out extra dark-day runtime, a synchronous buck module (e.g. Mini-560)
   is a drop-in improvement. For this pack and panel the LM2596 works fine.
 
+**Low-voltage mornings.** If you fit an INA219 or INA226 to the shield, enable
+the [Power gate](device-features.md#power-gate-ina) on the Device page. The
+firmware then reads the bus voltage before it powers Wi-Fi or the modem and goes
+back to deep sleep while the pack is too weak, instead of brown-out cycling until
+the panel catches up. With the INA on the shield's 5 V input the default
+`4700` mV threshold catches the LM2596 sagging; an INA226 on the battery side
+lets you gate on the pack voltage itself (about `6200` mV for this 2S pack).
+
 A 3D-printable solar panel mount that also houses the module is on Printables:
 
 - [Solar mount on Printables](https://www.printables.com/model/1490965-solar-panel-mount)

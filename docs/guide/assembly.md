@@ -132,6 +132,12 @@ Sensor.Community.
 | INA219 | DC current, voltage, power | Monitors the device's own power consumption; useful for solar-powered or battery-backed setups. |
 | INA226 | DC current, voltage, power | Higher-accuracy successor to INA219 with a wider bus voltage range (up to 36 V); same self-power-monitoring use case. |
 
+On the shield the INA sits in the 5 V input path (the screw-terminal / 0R
+jumper position), so its bus voltage is the regulated rail. For a solar build
+that should gate boot on the pack voltage itself, wire an INA226 on the battery
+side instead and set the [Power gate](device-features.md#power-gate-ina)
+threshold accordingly.
+
 ### GPS — location tagging
 
 A GPS module (any NMEA-compatible receiver via UART) adds geographic coordinates

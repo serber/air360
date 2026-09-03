@@ -56,6 +56,17 @@ The Wi-Fi SSID or password is wrong, or the network is out of range.
 **Fix:** reconnect to the setup AP, open `/config`, correct the credentials, and
 save again.
 
+### The device is dark and unreachable in the morning, then comes back later
+
+On a solar build with the [Power gate](device-features.md#power-gate-ina)
+enabled this is the gate doing its job: the INA bus voltage was below the
+threshold at boot, so the device deep-slept instead of powering the radios. The
+LED stays off during the sleep. Once it boots, the Overview page's `Power gate`
+row shows how many low-voltage sleeps preceded that boot. If it sleeps too
+eagerly, lower the *Start threshold*; if it brown-out cycles instead of
+sleeping, the threshold is too low for your wiring, or the INA is not in the
+sensor list.
+
 ### The UI opens but uploads do not start
 
 Check that:
