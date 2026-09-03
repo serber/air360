@@ -43,6 +43,13 @@ enum class TransportKind : std::uint8_t {
     kGpio = 4U,
 };
 
+// Power monitors report SensorValueKind::kVoltageMv and start before the radios
+// (SensorStartupPhase::kBeforeNetwork). The boot-time power gate and the
+// config page use this to find a bus-voltage source.
+inline bool sensorTypeIsPowerMonitor(SensorType type) {
+    return type == SensorType::kIna219 || type == SensorType::kIna226;
+}
+
 enum class SensorRuntimeState : std::uint8_t {
     kDisabled = 0U,
     kConfigured = 1U,

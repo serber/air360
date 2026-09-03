@@ -152,7 +152,7 @@ This page is intended for diagnostics and capacity checks, not for normal day-to
 
 ## Page: Device Configuration (`/config`)
 
-Form for network credentials, device identity, static IP, and cellular modem settings. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
+Form for network credentials, device identity, static IP, cellular modem, BLE, and boot-time power gate settings. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
 
 **Network and identity fields:**
 
@@ -205,8 +205,20 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 |-------|-------|-------|
 | Wi-Fi power save | `.switch` button + hidden `<input type=checkbox name=wifi_power_save>` | Enables `WIFI_PS_MIN_MODEM` (modem sleep between DTIM beacons); station mode only; off by default |
 
+**Power gate (INA) card** — rendered with the `hidden` attribute unless the sensor list contains an enabled INA219 or INA226 (`sensorTypeIsPowerMonitor()`); hidden inputs are still submitted, so stored values round-trip even while the card is not shown. The card body is collapsed unless the switch is on and starts with a hint showing the latest bus-voltage reading of the first enabled power monitor (`MeasurementStore::runtimeInfoForSensor`, value kind `kVoltageMv`) or "no reading yet".
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Enable power gate | `.switch` button + hidden `<input type=checkbox name=power_gate_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
+| Start threshold | `<input type=number min=1000 max=36000>` | `power_gate_threshold_mv`; boot continues only when the INA bus voltage is at or above it |
+| Sample wait | `<input type=number min=5 max=120>` | `power_gate_sample_wait_s`; longest wait for the first INA reading before the gate is skipped |
+| First sleep | `<input type=number min=30 max=7200>` | `power_gate_sleep_base_s`; deep-sleep duration after the first low-voltage boot |
+| Maximum sleep | `<input type=number min=30 max=7200>` | `power_gate_sleep_max_s`; cap for the doubling sleep duration; must be ≥ first sleep |
+
+Unparsable numeric values fall back to the currently stored ones before validation, so a browser that submits an empty field cannot wipe a setting.
+
 **Submit action:** `POST /config`
-- Validates field lengths, password constraints, and SNTP server characters server-side.
+- Validates field lengths, password constraints, SNTP server characters, and power gate ranges server-side.
 - Builds `DeviceConfig` and `CellularConfig`, validates both records, and saves `device_cfg` plus `cellular_cfg` with one NVS commit through `saveDeviceAndCellularConfig()`.
 - Responds with "Configuration saved. Device is rebooting now." and schedules a short one-shot reboot task after the response has been sent; `esp_restart()` is not called from an ESP timer callback.
 - On validation or save failure, re-renders the form with the submitted values preserved and an error notice. Runtime config pointers and status are updated only after the combined save succeeds.

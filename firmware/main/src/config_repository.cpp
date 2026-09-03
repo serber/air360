@@ -1,5 +1,6 @@
 #include "air360/config_repository.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -47,6 +48,60 @@ bool parseIpv4Octet(std::string_view value, std::uint8_t& out_octet) {
     }
 
     return nvs_commit(handle);
+}
+
+// Upgrades a stored schema v1 blob (376 bytes, no power-gate fields) to the
+// current layout. Every v1 field keeps its value; the appended power-gate
+// fields receive their defaults. An unrecognisable v1 header falls back to
+// defaults exactly like any other invalid blob.
+[[nodiscard]] esp_err_t migrateV1(
+    const ConfigRepository& repository,
+    nvs_handle_t handle,
+    DeviceConfig& out_config,
+    bool& loaded_from_storage,
+    bool& wrote_defaults) {
+    std::uint8_t raw[kDeviceConfigV1Size] = {};
+    std::size_t blob_size = sizeof(raw);
+    esp_err_t err = nvs_get_blob(handle, kConfigKey, raw, &blob_size);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    DeviceConfig migrated{};
+    std::memcpy(&migrated, raw, offsetof(DeviceConfig, power_gate_enabled));
+    const bool header_ok =
+        migrated.magic == kDeviceConfigMagic &&
+        migrated.schema_version == 1U &&
+        migrated.record_size == static_cast<std::uint16_t>(kDeviceConfigV1Size);
+    migrated.schema_version = kDeviceConfigSchemaVersion;
+    migrated.record_size = static_cast<std::uint16_t>(sizeof(DeviceConfig));
+    applyPowerGateDefaults(migrated);
+
+    if (!header_ok || !repository.isValid(migrated)) {
+        ESP_LOGW(kTag, "Stored v1 config invalid, replacing with defaults");
+        out_config = makeDefaultDeviceConfig();
+        err = saveInternal(handle, out_config);
+        if (err == ESP_OK) {
+            wrote_defaults = true;
+        }
+        return err;
+    }
+
+    // Keep the migrated record even if the write-back fails: the stored v1 blob
+    // stays intact and the migration simply runs again on the next boot, which
+    // is better than booting on defaults without the stored Wi-Fi credentials.
+    err = saveInternal(handle, migrated);
+    if (err != ESP_OK) {
+        ESP_LOGW(
+            kTag,
+            "Device config migrated v1 -> v2 in memory; saving it failed (%s), will retry next boot",
+            esp_err_to_name(err));
+    } else {
+        ESP_LOGI(kTag, "Migrated device config schema v1 -> v2 (power gate fields added)");
+    }
+    out_config = migrated;
+    loaded_from_storage = true;
+    return ESP_OK;
 }
 
 }  // namespace
@@ -143,7 +198,46 @@ DeviceConfig makeDefaultDeviceConfig() {
         CONFIG_AIR360_LAB_AP_PASSWORD);
 #endif
     config.sntp_server[0] = '\0';
+    applyPowerGateDefaults(config);
     return config;
+}
+
+void applyPowerGateDefaults(DeviceConfig& config) {
+    config.power_gate_enabled = 0U;
+    config.reserved2 = 0U;
+    config.power_gate_threshold_mv = kPowerGateDefaultThresholdMv;
+    config.power_gate_sleep_base_s = kPowerGateDefaultSleepBaseS;
+    config.power_gate_sleep_max_s = kPowerGateDefaultSleepMaxS;
+    config.power_gate_sample_wait_s = kPowerGateDefaultSampleWaitS;
+}
+
+bool validatePowerGateConfig(const DeviceConfig& config, const char*& out_error) {
+    out_error = nullptr;
+    if (config.power_gate_enabled > 1U) {
+        out_error = "Power gate flag must be 0 or 1.";
+        return false;
+    }
+    if (config.power_gate_threshold_mv < kPowerGateThresholdMinMv ||
+        config.power_gate_threshold_mv > kPowerGateThresholdMaxMv) {
+        out_error = "Power gate threshold must be 1000-36000 mV.";
+        return false;
+    }
+    if (config.power_gate_sleep_base_s < kPowerGateSleepMinS ||
+        config.power_gate_sleep_base_s > kPowerGateSleepMaxS) {
+        out_error = "Power gate first sleep must be 30-7200 seconds.";
+        return false;
+    }
+    if (config.power_gate_sleep_max_s < config.power_gate_sleep_base_s ||
+        config.power_gate_sleep_max_s > kPowerGateSleepMaxS) {
+        out_error = "Power gate maximum sleep must be between the first sleep and 7200 seconds.";
+        return false;
+    }
+    if (config.power_gate_sample_wait_s < kPowerGateSampleWaitMinS ||
+        config.power_gate_sample_wait_s > kPowerGateSampleWaitMaxS) {
+        out_error = "Power gate sample wait must be 5-120 seconds.";
+        return false;
+    }
+    return true;
 }
 
 bool ConfigRepository::isValid(const DeviceConfig& config) const {
@@ -193,6 +287,11 @@ bool ConfigRepository::isValid(const DeviceConfig& config) const {
         return false;
     }
 
+    const char* power_gate_error = nullptr;
+    if (!validatePowerGateConfig(config, power_gate_error)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -223,6 +322,12 @@ esp_err_t ConfigRepository::loadOrCreate(
     }
 
     if (err != ESP_OK) {
+        nvs_close(handle);
+        return err;
+    }
+
+    if (blob_size == kDeviceConfigV1Size) {
+        err = migrateV1(*this, handle, out_config, loaded_from_storage, wrote_defaults);
         nvs_close(handle);
         return err;
     }
