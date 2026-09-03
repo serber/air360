@@ -53,7 +53,7 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 
 | Struct | Magic | Schema version |
 |--------|-------|----------------|
-| `DeviceConfig` | `0x41333630` ("A360") | 2 |
+| `DeviceConfig` | `0x41333630` ("A360") | 1 |
 | `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
 | `SensorConfigList` | `0x41333631` ("A361") | 1 |
 | `BackendConfigList` | `0x41333632` ("A362") | 2 |
@@ -71,7 +71,7 @@ Device identity and network credentials.
 ```cpp
 struct DeviceConfig {
     uint32_t magic;                  // 0x41333630
-    uint16_t schema_version;         // 2
+    uint16_t schema_version;         // 1
     uint16_t record_size;            // 384
     uint16_t http_port;              // default: 80
     uint8_t  lab_ap_enabled;         // 0 or 1
@@ -91,7 +91,7 @@ struct DeviceConfig {
     char     sta_netmask[16];
     char     sta_gateway[16];
     char     sta_dns[16];
-    // ---- schema v2 ----
+    // ---- power gate ----
     uint8_t  power_gate_enabled;     // 0 or 1
     uint8_t  reserved2;
     uint16_t power_gate_threshold_mv;// default: 4700
@@ -122,8 +122,6 @@ struct DeviceConfig {
 | `power_gate_sample_wait_s` | `15` | Longest wait for the first voltage sample before the gate is skipped |
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
-
-Schema v2 appended the power-gate fields (376 → 384 bytes). There is no migration: a stored v1 blob fails the size check on the first boot of a v2 firmware and is replaced with defaults, so Wi-Fi credentials and other device settings must be re-entered through the setup AP.
 
 ---
 
@@ -399,7 +397,7 @@ All three blob repositories follow the same load pattern:
 7. If any field mismatches: write defaults, return.
 8. Return the loaded struct.
 
-The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. `device_cfg` schema v2 (power-gate fields) has no migration: a stored v1 blob fails the size check and is replaced with defaults, so Wi-Fi credentials and other device settings must be entered again after upgrading. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
+The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
 
 ---
 

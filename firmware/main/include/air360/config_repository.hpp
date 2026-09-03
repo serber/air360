@@ -8,9 +8,9 @@
 namespace air360 {
 
 constexpr std::uint32_t kDeviceConfigMagic = 0x41333630U;
-constexpr std::uint16_t kDeviceConfigSchemaVersion = 2U;
+constexpr std::uint16_t kDeviceConfigSchemaVersion = 1U;
 
-// Boot-time power gate (schema v2). The gate compares the INA219/INA226 bus
+// Boot-time power gate. The gate compares the INA219/INA226 bus
 // voltage measured before any radio is powered against power_gate_threshold_mv
 // and deep-sleeps instead of continuing boot while the supply is below it.
 constexpr std::uint16_t kPowerGateThresholdMinMv = 1000U;
@@ -50,7 +50,7 @@ struct DeviceConfig {
     char sta_netmask[16];
     char sta_gateway[16];
     char sta_dns[16];
-    // ---- schema v2 ----
+    // ---- power gate ----
     std::uint8_t power_gate_enabled;        // 0 = off, 1 = gate boot on bus voltage
     std::uint8_t reserved2;
     std::uint16_t power_gate_threshold_mv;  // continue boot only when voltage >= this
@@ -60,7 +60,7 @@ struct DeviceConfig {
 };
 
 DeviceConfig makeDefaultDeviceConfig();
-// Resets only the schema v2 power-gate fields to their defaults.
+// Resets only the power-gate fields to their defaults.
 void applyPowerGateDefaults(DeviceConfig& config);
 // Range-checks the power-gate fields; out_error names the first violation.
 bool validatePowerGateConfig(const DeviceConfig& config, const char*& out_error);
