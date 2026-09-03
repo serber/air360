@@ -87,3 +87,6 @@ Desktop.ini
 *.workspace # General workspace files, can be from various tools
 *.suo       # Visual Studio Solution User Options
 *.sln.docstates # Visual Studio
+
+# Firmware release bundles are build outputs, never committed.
+firmware/release/

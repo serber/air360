@@ -1,163 +1,77 @@
 # Air360
 
+<!-- One paragraph: what the project is (open air-quality station), which parts live
+     in this repository (firmware, backend, portal, docs), and who it is for. -->
+
 ## Overview
 
-Air360 is a repository that combines project documentation and the ESP-IDF firmware implementation.
+The repository contains:
 
-This repository is organized into two main parts:
+- an ESP-IDF firmware for `esp32s3` (`firmware/`) — sensors, local web UI, multi-target uploads
+- a Fastify backend (`backend/`) — device registration, authenticated ingest, public data
+- a Next.js public portal (`portal/`)
+- documentation (`docs/`) that connects those pieces and an end-user build guide
 
-- `docs/` — architecture notes, analysis, planning, and project context
-- `firmware/` — the actual ESP-IDF firmware project
+<!-- Keep this list factual; every bullet must correspond to a directory that exists. -->
 
-Use this repository if you need to understand the project direction, inspect implementation details, or work on the firmware.
-
----
-
-## Repository layout
+## Repository Layout
 
 ```text
 .
 ├── docs/
-├── firmware/
-├── CLAUDE.md
-├── LICENSE
-└── ...
+│   ├── firmware/    firmware implementation docs (architecture, subsystems, sensors, ADRs)
+│   ├── backend/     backend design and deployment notes
+│   ├── portal/      portal scope and boundaries
+│   ├── guide/       end-user build guide
+│   └── hardware/    shield and solar-module photos, Gerbers
+├── firmware/        ESP-IDF project (source of truth for device behaviour)
+├── backend/         Fastify application (source of truth for the native API)
+├── portal/          Next.js application (source of truth for the public portal)
+├── scripts/         repository checkers
+├── .claude/skills/  agent skills
+└── CLAUDE.md        project-wide agent contract
 ```
 
-### `docs/`
+## Documentation Map
 
-The `docs/` directory contains project documentation such as:
+<!-- One line per entry point, as a relative link that exists. Group by audience:
+     users (guide), firmware developers, backend/portal developers, releases. -->
 
-- architecture notes
-- implementation plans
-- hardware bring-up notes
-- backend/server contract notes
-- UI and integration analysis
+- Build guide (assemble, flash, configure): `docs/guide/README.md`
+- Firmware documentation map: `docs/firmware/README.md`
+- Firmware architecture: `docs/firmware/ARCHITECTURE.md`
+- Firmware startup sequence: `docs/firmware/startup-pipeline.md`
+- Firmware configuration reference: `docs/firmware/configuration-reference.md`
+- Backend documentation map: `docs/backend/README.md`
+- Portal documentation map: `docs/portal/README.md`
+- Release packaging skill: `.claude/skills/air360-firmware-release-bundle/SKILL.md`
 
-These files are useful for understanding project intent, constraints, and planned direction.
+## Components
 
-### `firmware/`
+### Firmware
 
-The `firmware/` directory contains the buildable ESP-IDF application.
+<!-- Target, toolchain, what it does at runtime, where to read next, how to build
+     (the canonical build command from firmware/CLAUDE.md). -->
 
-This is the main implementation area for:
+### Backend
 
-- application source code
-- firmware configuration
-- partition layout
-- build and flash workflow
+<!-- Stack, responsibilities, where the contract docs live, how to run. -->
 
-### `CLAUDE.md`
+### Portal
 
-Project-wide guidance for Claude Code and contributors.
+<!-- Stack, responsibilities, how to run. -->
 
----
+## Getting Started
 
-## Documentation map
+<!-- Three paths: I want to build a device (guide); I want to change firmware
+     (firmware/CLAUDE.md + docs/firmware/README.md); I want to run backend/portal. -->
 
-The following files are the main entry points in `docs/`:
+## Current Status
 
-### `docs/modern-replacement-firmware-architecture.md`
+<!-- Only claims backed by code or by an implementation doc. Separate
+     "implemented" from "documented, unverified" from "planned". -->
 
-Describes the intended firmware architecture, major subsystems, and design direction.
+## Development Notes
 
-### `docs/firmware-iterative-implementation-plan.md`
-
-Describes the staged implementation approach and likely delivery phases.
-
-### `docs/phase-1-hardware-boot-notes.md`
-
-Contains hardware bring-up notes and early boot observations.
-
-### `docs/airrohr-firmware-server-contract.md`
-
-Describes the expected contract between firmware and server/backend.
-
-### `docs/airrohr-firmware-ui-analysis.md`
-
-Contains UI-facing or product-facing analysis relevant to the firmware behavior.
-
-> Note: files in `docs/` may describe planned or intended behavior. Confirm implementation details against the firmware sources in `firmware/`.
-
----
-
-## Firmware location
-
-The buildable ESP-IDF project lives in:
-
-```text
-firmware/
-```
-
-Typical firmware-related files include:
-
-- `firmware/CMakeLists.txt`
-- `firmware/main/`
-- `firmware/sdkconfig`
-- `firmware/sdkconfig.defaults`
-- `firmware/partitions.csv`
-- `firmware/README.md`
-
-For implementation details, treat `firmware/` as the source of truth.
-
----
-
-## Getting started
-
-Choose your starting point depending on your goal.
-
-### If you want to understand the project structure
-
-Read:
-
-1. this README
-2. `docs/modern-replacement-firmware-architecture.md`
-3. `firmware/README.md`
-
-### If you want to understand hardware and early bring-up
-
-Read:
-
-1. `docs/phase-1-hardware-boot-notes.md`
-2. relevant firmware source files under `firmware/main/`
-
-### If you want to build or modify the firmware
-
-Go to:
-
-1. `firmware/README.md`
-2. `firmware/main/`
-3. `firmware/sdkconfig.defaults`
-4. `firmware/partitions.csv`
-
----
-
-## Current status
-
-Based on the repository structure:
-
-- `docs/` captures architecture, planning, and analysis context
-- `firmware/` contains the active implementation
-- implementation status should always be verified against the source code in `firmware/`
-
-When documentation and code differ, prefer the firmware source tree for current behavior.
-
----
-
-## Development notes
-
-- Keep repository-level documentation and firmware-level documentation separate.
-- Use `docs/` for design rationale and broader project context.
-- Use `firmware/` documentation for implementation and operational instructions.
-- Avoid treating generated files under `firmware/build/` as maintained source files.
-
----
-
-## Contributing
-
-When updating documentation:
-
-- preserve project-specific terminology
-- distinguish implemented behavior from planned behavior
-- keep root-level docs focused on repository navigation and context
-- keep firmware-specific instructions inside `firmware/README.md`
+<!-- Agent contracts (CLAUDE.md files), checkers in scripts/, skills, commit
+     expectations. -->

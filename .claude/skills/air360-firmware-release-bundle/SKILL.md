@@ -9,12 +9,24 @@ description: Create a GitHub-release-ready firmware bundle for the Air360 ESP-ID
 
 Create a deterministic release bundle for the current Air360 firmware build. The skill packages the already-built ESP-IDF artifacts from `firmware/build` into a versioned folder under `firmware/release/`: a merged image for serial flashing, the application image for OTA updates, the split images (zipped), and release notes.
 
+## Preconditions
+
+File and folder names come from `project_version` in `build/project_description.json`, which ESP-IDF derives from `git describe` at **build time**. Highlights in the release notes are the commits between the previous tag and the tag matching that version. So the order matters:
+
+1. Commit everything; the working tree must be clean (a dirty tree adds `-dirty` to the version).
+2. Create the tag on the release commit: `git tag -a v0.1-beta.1 -m "..."`.
+3. Build **on that tag commit** with the canonical command from `firmware/CLAUDE.md`:
+   `source ~/.espressif/v6.0/esp-idf/export.sh && idf.py build` (run from `firmware/`).
+4. Only then run the bundle script. A bundle built before tagging is named after the previous tag plus a commit suffix and its notes fall into the wrong range.
+
+`firmware/release/` is git-ignored; bundles are never committed.
+
 ## Workflow
 
-1. Make sure the firmware has already been built and `firmware/build/` contains valid `.bin` outputs.
+1. Confirm the preconditions above and that `firmware/build/` contains fresh `.bin` outputs for the tag commit.
 2. Run `scripts/create_release_bundle.py <requested-version>` from the repo root.
-3. Review the generated folder under `firmware/release/air360-v<commit>/`.
-4. Upload the generated zip files and release notes to GitHub Releases.
+3. Review the generated folder under `firmware/release/air360-v<version>/`; open `release-notes.md` and add testing notes or sign-off by hand.
+4. Upload the generated zip files, the `-full.bin`, the `-ota.bin`, `sha256sums.txt`, and the release notes to GitHub Releases.
 
 ## Output Contract
 
