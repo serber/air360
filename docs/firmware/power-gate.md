@@ -96,7 +96,7 @@ If the last reset was a brownout **and** no voltage sample arrived within the wa
 
 ## Configuration
 
-All settings live in `DeviceConfig` (schema v2) and are edited on the `/config` page in the "Power gate (INA)" card, which is rendered only while an INA219 or INA226 is in the sensor list. Field ranges and defaults are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg); the NVS layout and the v1 → v2 migration are in [nvs.md](nvs.md#device_cfg--deviceconfig).
+All settings live in `DeviceConfig` (schema v2) and are edited on the `/config` page in the "Power gate (INA)" card, which is rendered only while an INA219 or INA226 is in the sensor list. Field ranges and defaults are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg); the NVS layout is in [nvs.md](nvs.md#device_cfg--deviceconfig) (schema v2 has no migration; a v1 blob is reset to defaults).
 
 | Field | Default | Effect |
 |-------|---------|--------|

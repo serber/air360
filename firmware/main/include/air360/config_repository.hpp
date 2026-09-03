@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -10,9 +9,6 @@ namespace air360 {
 
 constexpr std::uint32_t kDeviceConfigMagic = 0x41333630U;
 constexpr std::uint16_t kDeviceConfigSchemaVersion = 2U;
-// Byte size of the schema v1 blob. Kept only so loadOrCreate() can migrate a
-// stored v1 record in place instead of resetting it to defaults.
-constexpr std::size_t kDeviceConfigV1Size = 376U;
 
 // Boot-time power gate (schema v2). The gate compares the INA219/INA226 bus
 // voltage measured before any radio is powered against power_gate_threshold_mv
@@ -62,13 +58,6 @@ struct DeviceConfig {
     std::uint16_t power_gate_sleep_max_s;   // cap for the escalating sleep duration
     std::uint16_t power_gate_sample_wait_s; // max wait for the first voltage sample
 };
-
-// The v2 fields are appended after the last v1 field, so a stored v1 blob is a
-// byte-exact prefix of the v2 struct and can be migrated by copying it in.
-static_assert(
-    offsetof(DeviceConfig, power_gate_enabled) + 2U == kDeviceConfigV1Size,
-    "DeviceConfig v2 fields must start where the v1 tail padding was");
-static_assert(sizeof(DeviceConfig) == 384U, "DeviceConfig layout changed; bump schema");
 
 DeviceConfig makeDefaultDeviceConfig();
 // Resets only the schema v2 power-gate fields to their defaults.

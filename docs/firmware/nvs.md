@@ -123,9 +123,7 @@ struct DeviceConfig {
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
 
-### Schema v1 → v2 migration
-
-Schema v2 appended the six power-gate fields after `sta_dns`, growing the blob from 376 to 384 bytes; the v1 fields keep their offsets, so a stored v1 blob is a byte-exact prefix of the v2 struct (`static_assert` in `config_repository.hpp` pins both sizes). `ConfigRepository::loadOrCreate()` migrates a 376-byte blob in place: it checks the v1 header (`magic`, `schema_version == 1`, `record_size == 376`), copies the v1 payload into a zeroed v2 struct, sets `schema_version = 2` and the new `record_size`, applies the power-gate defaults (gate off), validates the result, and saves it back. Wi-Fi credentials, static IP, BLE, and every other v1 setting survive the upgrade. Only a blob that fails the v1 header check is replaced with defaults.
+Schema v2 appended the power-gate fields (376 → 384 bytes). There is no migration: a stored v1 blob fails the size check on the first boot of a v2 firmware and is replaced with defaults, so Wi-Fi credentials and other device settings must be re-entered through the setup AP.
 
 ---
 
@@ -401,7 +399,7 @@ All three blob repositories follow the same load pattern:
 7. If any field mismatches: write defaults, return.
 8. Return the loaded struct.
 
-The incremental migrations are the `device_cfg` schema v1 → v2 path and the `backend_cfg` schema v1 → v2 path described above. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
+The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. `device_cfg` schema v2 (power-gate fields) has no migration: a stored v1 blob fails the size check and is replaced with defaults, so Wi-Fi credentials and other device settings must be entered again after upgrading. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
 
 ---
 
