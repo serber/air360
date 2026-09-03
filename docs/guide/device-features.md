@@ -127,6 +127,11 @@ other sensor is started, only the INA runs and takes a bus-voltage reading.
   for the *First sleep* duration. On every consecutive low-voltage wake-up the
   sleep doubles (5 → 10 → 20 → 30 min with the defaults) up to *Maximum sleep*.
   The chain resets as soon as one boot passes the gate.
+- **Four low-voltage sleeps in a row** — the next boot goes through anyway, radios
+  and all, and the Overview page shows a red *Bypassed* chip. This is the escape
+  hatch for a threshold set above what your supply ever reaches: open `/config`
+  and lower it. If the supply really is too weak, that boot browns out and the
+  sleep chain simply starts over.
 - **No INA reading within *Sample wait*** — the gate is skipped and boot
   continues. A broken or missing power monitor never keeps the station offline.
   The one exception: if the previous reset was a brownout and the INA still gave

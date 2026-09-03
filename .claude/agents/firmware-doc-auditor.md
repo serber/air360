@@ -42,7 +42,7 @@ Read in this order:
 | Runtime state enums and their keys | `sensor_types.hpp`, `status_service.cpp` switches |
 | HTTP routes and form fields | `grep -n '\.uri\s*=' firmware/main/src/web_server.cpp`, `firmware/main/webui/*.html`, `firmware/main/src/web/*.cpp` |
 | Status JSON keys | `renderStatusJson()` in `status_service.cpp` |
-| Log tags | `grep -rn 'constexpr char kTag' firmware/main/src` vs the registry in `firmware/CLAUDE.md` |
+| Log tags | `grep -rhn 'constexpr char kTag\[\] = "air360\.[a-z_.]*"' firmware/main/src \| sed 's/.*"air360\.\([a-z_.]*\)".*/\1/' \| sort -u` — compare the **whole** list against the registry line in `firmware/CLAUDE.md`, not just files touched in the range |
 | Constants tables | each subsystem doc's "Summary of constants" vs the `constexpr` values in its source |
 | Host tests | `firmware/test/host/CMakeLists.txt` vs `PROJECT_STRUCTURE.md` |
 

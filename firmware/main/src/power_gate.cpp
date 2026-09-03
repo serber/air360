@@ -23,6 +23,12 @@ constexpr char kTag[] = "air360.power_gate";
 constexpr std::uint32_t kSamplePollIntervalMs = 250U;
 // Doubling stops here because the sleep cap (7200 s) is reached long before.
 constexpr std::uint32_t kSleepEscalationShiftCap = 8U;
+// After this many consecutive low-voltage sleeps (5+10+20+30 min with the
+// default base/cap) one boot is let through with the radios so the operator can
+// reach /config and correct a threshold that sits above the real supply
+// voltage. If the supply really is too weak that boot browns out, the RTC
+// counters reset, and the chain simply restarts from the base sleep.
+constexpr std::uint32_t kMaxConsecutiveGateSleeps = 4U;
 
 // RTC slow memory survives deep sleep but not a cold boot, so both values are
 // trusted only when the current boot is a deep-sleep wake-up.
@@ -98,6 +104,8 @@ const char* powerGateOutcomeKey(PowerGateOutcome outcome) {
             return "sleep_low_voltage";
         case PowerGateOutcome::kSleepBrownout:
             return "sleep_brownout";
+        case PowerGateOutcome::kBypassedAfterSleeps:
+            return "bypassed_after_sleeps";
         default:
             return "unknown";
     }
@@ -133,6 +141,23 @@ PowerGateDecision PowerGate::evaluate(
         decision.outcome = PowerGateOutcome::kNoPowerMonitor;
         decision.detail = "Power gate enabled but no INA219/INA226 is configured; boot continues";
         ESP_LOGW(kTag, "%s", decision.detail.c_str());
+        g_rtc_low_voltage_sleeps = 0U;
+        return decision;
+    }
+
+    if (decision.prior_sleeps >= kMaxConsecutiveGateSleeps) {
+        decision.outcome = PowerGateOutcome::kBypassedAfterSleeps;
+        char bypass_detail[160];
+        std::snprintf(
+            bypass_detail,
+            sizeof(bypass_detail),
+            "Power gate bypassed after %" PRIu32 " consecutive low-voltage sleeps (last %" PRIu32
+            " s); booting with radios so the threshold can be corrected",
+            decision.prior_sleeps,
+            decision.last_sleep_seconds);
+        decision.detail = bypass_detail;
+        ESP_LOGW(kTag, "%s", bypass_detail);
+        // The chain restarts from the base duration if this boot sleeps again.
         g_rtc_low_voltage_sleeps = 0U;
         return decision;
     }

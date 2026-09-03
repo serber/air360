@@ -209,6 +209,7 @@ Config load failure is **non-fatal** — in-memory defaults are used.
 - Gate disabled, no INA219/INA226 configured, or no reading within `power_gate_sample_wait_s`: boot continues (fail-open). The decision is stored in `StatusService` and shown on the Overview page and in the status JSON.
 - Reading at or above `power_gate_threshold_mv`: boot continues.
 - Reading below the threshold (or no reading after a brownout reset): the LED is switched off and the device enters **deep sleep** with a timer wake-up. Boot never reaches step 8. The sleep duration doubles on consecutive low-voltage wake-ups, from `power_gate_sleep_base_s` up to `power_gate_sleep_max_s`, tracked in RTC memory.
+- After four consecutive low-voltage sleeps one boot is let through regardless of the reading (`kBypassedAfterSleeps`), so a threshold set too high can still be corrected from `/config`.
 
 The main task feeds the TWDT while waiting for the sample; the wait is bounded to 5–120 s by config validation. Full decision flow, escalation rules, and observability are in [power-gate.md](power-gate.md).
 

@@ -38,6 +38,7 @@ The power gate breaks that loop. Boot step 5 starts only the `kBeforeNetwork` se
 ```text
 power_gate_enabled == 0 ──────────────────────────► kDisabled        → continue
 no enabled INA219/INA226 in sensor_cfg ───────────► kNoPowerMonitor  → continue
+prior consecutive sleeps ≥ 4 ─────────────────────► kBypassedAfterSleeps → continue (escape hatch)
 wait ≤ power_gate_sample_wait_s for kVoltageMv
   ├─ no sample, reset reason == BROWNOUT ─────────► kSleepBrownout   → deep sleep
   ├─ no sample, any other reset ──────────────────► kNoSample        → continue
@@ -46,6 +47,10 @@ wait ≤ power_gate_sample_wait_s for kVoltageMv
 ```
 
 The gate is **fail-open**: every path that cannot prove the supply is weak lets boot continue. A missing or broken power monitor never bricks the station.
+
+### Escape hatch
+
+The gate runs at boot step 7, before Wi-Fi (step 9) and the web server (step 12). A threshold set above the voltage the supply can actually reach would therefore put the device to sleep on every boot with no way to open `/config`. To keep the operator in control, `PowerGate::evaluate()` lets one boot through unconditionally once the RTC counter reports `kMaxConsecutiveGateSleeps` (4) consecutive low-voltage sleeps — with the default durations that is after 5 + 10 + 20 + 30 minutes. The outcome is `kBypassedAfterSleeps`, the Overview row shows a red **Bypassed** chip with "check the threshold", and the sleep counter is zeroed. If the supply really is too weak, that boot browns out, the counters reset on the non-deep-sleep reset, and the escalation restarts from the base duration; the cost is one full boot attempt per chain, roughly once an hour.
 
 ### Waiting for the first sample
 
@@ -86,7 +91,7 @@ Two counters live in RTC slow memory (`RTC_DATA_ATTR`), which survives deep slee
 | `g_rtc_low_voltage_sleeps` | Consecutive low-voltage sleeps before this boot |
 | `g_rtc_last_sleep_seconds` | Duration of the most recent sleep |
 
-The sleep duration is `power_gate_sleep_base_s × 2^n`, capped at `power_gate_sleep_max_s`, where `n` is the number of prior consecutive sleeps. With the defaults (300 s base, 1800 s cap) the sequence is 5 → 10 → 20 → 30 → 30 → … minutes. The counters are trusted only when `esp_reset_reason() == ESP_RST_DEEPSLEEP`; any other reset (power-on, brownout, software, watchdog) zeroes them so the chain restarts from the base duration. A boot that passes or skips the gate also zeroes the sleep counter.
+The sleep duration is `power_gate_sleep_base_s × 2^n`, capped at `power_gate_sleep_max_s`, where `n` is the number of prior consecutive sleeps. With the defaults (300 s base, 1800 s cap) the sequence is 5 → 10 → 20 → 30 → 30 → … minutes. The counters are trusted only when `esp_reset_reason() == ESP_RST_DEEPSLEEP`; any other reset (power-on, brownout, software, watchdog) zeroes them so the chain restarts from the base duration. A boot that passes, skips, or bypasses the gate also zeroes the sleep counter.
 
 ### Brownout fallback
 
@@ -129,7 +134,7 @@ All settings live in `DeviceConfig` and are edited on the `/config` page in the 
 }
 ```
 
-`outcome` is one of `disabled`, `no_power_monitor`, `no_sample`, `passed`, `sleep_low_voltage`, `sleep_brownout`. The two `sleep_*` values are never visible on a live page, because the device sleeps instead of serving it; they appear only in the serial log.
+`outcome` is one of `disabled`, `no_power_monitor`, `no_sample`, `passed`, `sleep_low_voltage`, `sleep_brownout`, `bypassed_after_sleeps`. The two `sleep_*` values are never visible on a live page, because the device sleeps instead of serving it; they appear only in the serial log.
 
 ---
 
@@ -138,3 +143,4 @@ All settings live in `DeviceConfig` and are edited on the `/config` page in the 
 - The gate runs once per boot. A supply that collapses after Wi-Fi is up is still handled only by the brownout detector and the next boot.
 - Deep sleep powers down the ESP32-S3 only. A SIM7600 module that was left powered by a previous session, the LM2596 quiescent current, and any sensor with its own regulator keep drawing from the pack; the gate removes the radio peaks, not the whole load.
 - RTC counters are lost on a cold boot, so a BMS cutoff between sleeps restarts the escalation from the base duration.
+- A threshold above the real supply voltage is not detected as such; the escape hatch only guarantees a full boot every four sleeps so the value can be corrected from `/config`.

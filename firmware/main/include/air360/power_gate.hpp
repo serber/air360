@@ -19,6 +19,8 @@ enum class PowerGateOutcome : std::uint8_t {
     kPassed,             // bus voltage at or above the threshold
     kSleepLowVoltage,    // bus voltage below the threshold; deep sleep requested
     kSleepBrownout,      // no reading and the last reset was a brownout; deep sleep requested
+    kBypassedAfterSleeps,// too many consecutive sleeps; one boot let through so the
+                         // operator can reach the web UI and fix the threshold
 };
 
 const char* powerGateOutcomeKey(PowerGateOutcome outcome);
@@ -49,6 +51,9 @@ struct PowerGateDecision {
 //
 // Fail-open by design: a disabled gate, a missing power monitor, or a monitor
 // that produces no reading within power_gate_sample_wait_s lets boot continue.
+// An escape hatch also lets one boot through after kMaxConsecutiveGateSleeps
+// low-voltage sleeps in a row, so a threshold set above the real supply voltage
+// cannot lock the operator out of the web UI forever.
 class PowerGate {
   public:
     // Blocks for at most config.power_gate_sample_wait_s seconds while waiting

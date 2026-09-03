@@ -1249,6 +1249,10 @@ std::string renderConnectionBlock(
                 gate_val = "<span class='chip warn'><span class='dot'></span>Skipped</span>";
                 gate_val += "<span class='mono-meta'>no INA219/INA226 configured";
                 break;
+            case PowerGateOutcome::kBypassedAfterSleeps:
+                gate_val = "<span class='chip err'><span class='dot'></span>Bypassed</span>";
+                gate_val += "<span class='mono-meta'>too many low-voltage sleeps; check the threshold";
+                break;
             default:
                 gate_val = "<span class='chip'>";
                 gate_val += htmlEscape(powerGateOutcomeKey(power_gate.outcome));
