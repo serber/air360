@@ -68,7 +68,7 @@ The state is guarded by a mutex inside `NetworkManager`; callers receive copies 
 
 ## Boot-time network selection
 
-`NetworkLayer::bootWifi` (boot step 7, called from `App::run()`) decides the network mode from the cellular and Wi-Fi config:
+`NetworkLayer::bootWifi` (boot step 9, called from `App::run()`) decides the network mode from the cellular and Wi-Fi config:
 
 ```text
 cellular_config.enabled != 0?
@@ -140,9 +140,15 @@ The handlers stay active after `connectStation()` returns, which is what enables
 5. switches Wi-Fi to `WIFI_MODE_STA`
 6. applies STA credentials and starts Wi-Fi
 7. sets power save mode: `WIFI_PS_MIN_MODEM` if `config.wifi_power_save_enabled`, otherwise `WIFI_PS_NONE`
-8. waits up to 15 seconds for `kStationConnectedBit` or `kStationFailedBit`
+8. waits up to 15 seconds for `kStationConnectedBit` or `kStationFailedBit`, retrying `esp_wifi_connect()` inside that window after a fast failure
 
 The default timeout comes from `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` via `tuning::network::kConnectTimeoutMs`. Increase it only if field networks routinely need more than one WPA + DHCP round-trip window to become usable.
+
+### Boot-time in-window retries
+
+The ESP-IDF driver calls `esp_wifi_connect()` once and never retries by itself, so a `NO_AP_FOUND` after a 1–2 s scan, a beacon timeout, or an auth failure on a sagging supply used to end the whole boot attempt within seconds. For the boot-time attempt (`ConnectAttemptKind::kInitial`) the firmware now stays inside the connect window: after `kStationFailedBit` it waits `kInitialConnectRetryDelayMs` (1 s), clears the event bits, calls `esp_wifi_connect()` again, and keeps waiting for the remainder of the window. A retry is attempted only while at least `kInitialConnectRetryMinRemainingMs` (3 s) of the window is left, so a 15 s window typically yields three to four association attempts. Each retry is logged with the disconnect reason and the remaining window time.
+
+Runtime reconnects and setup-AP retries do not use in-window retries; they already have their own backoff or interval loop.
 
 On success:
 
@@ -225,9 +231,15 @@ Backoff sequence:
 
 The first step and cap are build-time tunables: `CONFIG_AIR360_WIFI_RECONNECT_BASE_DELAY_MS` and `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS`.
 
-When the timer fires, the callback only notifies the persistent `air360_net` worker. The worker performs the blocking `attemptStationConnect(...)`, so the shared FreeRTOS timer task is not blocked by the 15-second station wait and no per-attempt tasks are spawned.
+When the timer fires, the callback only notifies the persistent `air360_net` worker. The worker performs the blocking `attemptStationConnect(...)`, so the shared FreeRTOS timer task is not blocked by the 15-second station wait and no per-attempt tasks are spawned. Before acting on a reconnect or setup-AP retry request the worker checks `station_connected`; a request that outlived the outage (the station came back through another path) is logged and ignored instead of tearing the live connection down.
 
 `IP_EVENT_STA_GOT_IP` resets the reconnect counter to zero and clears the backoff state.
+
+**Self-healing schedule.** A runtime reconnect attempt starts with the intentional-stop guard active (see below) for `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS`. A real disconnect that lands inside that window, for example `NO_AP_FOUND` after a short scan, still sets `kStationFailedBit` but the handler deliberately schedules nothing. `attemptStationConnect()` therefore checks on its failure path whether the reconnect timer is active and, if not, arms the next backoff step itself through `armReconnectBackoff()`. The same check re-arms the setup-AP retry timer after a failed APSTA retry. Without it the loop ended silently with `reconnect_backoff_active = true` and no timer.
+
+### Recovery when setup AP cannot start
+
+If the boot-time station join fails **and** `startLabAp()` itself fails (an `esp_wifi_*` error on a weak supply, for example), `NetworkLayer::bootWifi` calls `scheduleStationRecovery()`. With stored station credentials and an initialised Wi-Fi runtime this arms the normal reconnect backoff in station-only mode, so the device keeps retrying the upstream network instead of sitting in `kOffline` until the next reboot. Without credentials or without a runtime it returns `ESP_ERR_INVALID_STATE` and the failure is logged.
 
 ### Setup AP retry loop
 
@@ -364,6 +376,8 @@ If there is no stored station configuration, the firmware does not attempt autom
 | Parameter | Value |
 |-----------|-------|
 | Station connect timeout | 15 000 ms |
+| Boot join in-window retry delay | 1 000 ms |
+| Boot join minimum window left for a retry | 3 000 ms |
 | Station wait poll slice | 250 ms |
 | Reconnect base delay | 10 s |
 | Reconnect cap | 300 s |

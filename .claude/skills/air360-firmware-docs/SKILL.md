@@ -1,6 +1,6 @@
 ---
 name: air360-firmware-docs
-description: "Use this skill when the task is to create, update, audit, or improve documentation for the ESP-IDF firmware project located in ./firmware. Best for firmware README generation, build/flash/monitor instructions, architecture docs based on firmware/main, sdkconfig explanation, partition table notes, Kconfig documentation, source layout explanation, and implementation-focused developer documentation for the C++17 firmware."
+description: "Use this skill when the task is to create, update, audit, or improve documentation for the ESP-IDF firmware project located in ./firmware. Best for firmware README generation, build/flash/monitor instructions, architecture docs based on firmware/main, sdkconfig explanation, partition table notes, Kconfig documentation, source layout explanation, and implementation-focused developer documentation for the C++20 firmware."
 ---
 
 # Air360 Firmware Documentation Skill
@@ -16,7 +16,7 @@ Use this skill when the user asks to:
 - document `partitions.csv`
 - summarize modules under `firmware/main/`
 - describe startup flow or runtime architecture
-- document C++17 source structure
+- document C++20 source structure
 - explain firmware configuration or developer workflow
 - align firmware docs with the current implementation
 
@@ -122,7 +122,13 @@ Preferred templates for firmware documentation:
 - `.claude/skills/air360-firmware-docs/templates/firmware-architecture.template.md`
 - `docs/firmware/doc-template.md`
 
-When generating firmware documentation, read the closest matching template and fill it with repository-specific details from the `firmware/` project.
+When generating a **new** document, read the closest matching template and fill it with repository-specific details from the `firmware/` project. When updating an existing document (`firmware/README.md`, `docs/firmware/*.md`), edit it in place; the existing files are already richer than the templates.
+
+Every new document under `docs/firmware/` must also be:
+
+- added to the index table in `docs/firmware/README.md`
+- linked from the `Read next` section of at least one related document
+- listed in `docs/firmware/change-impact-map.md` when it describes a code path that has co-change rules
 
 Template rules:
 
@@ -212,24 +218,16 @@ Run the following checks before touching any doc:
 |-------------------|-----|
 | All `.cpp` files | `ls firmware/main/src/` and `ls firmware/main/src/sensors/drivers/` |
 | All public headers | `ls firmware/main/include/air360/` |
-| All HTTP routes | `grep '\.uri\s*=' firmware/main/src/web_server.cpp` |
+| All HTTP routes | `grep -n '\.uri\s*=' firmware/main/src/web_server.cpp` (handlers live in `firmware/main/src/web/*.cpp`) |
 | All NVS keys | `grep 'kConfigKey\|kNamespace\|nvs_set\|nvs_get' firmware/main/src/*.cpp` |
-| All NVS structs and their magic/schema | read `include/air360/*_config_repository.hpp` |
+| All NVS structs and their magic/schema | read `include/air360/config_repository.hpp`, `include/air360/cellular_config_repository.hpp`, `include/air360/sensors/sensor_config_repository.hpp`, `include/air360/uploads/backend_config_repository.hpp` |
 | All `SensorType` enum values | read `include/air360/sensors/sensor_types.hpp` |
 | All Kconfig constants used as defaults | read `main/Kconfig.projbuild` and grep `CONFIG_AIR360_` in `src/sensors/sensor_registry.cpp` |
 | Sensor category membership | grep `kParticulateMatter\|kClimate\|kLight\|kGas\|kLocation` in `web_server.cpp` |
-| FreeRTOS task names, stacks, priorities | grep `xTaskCreate\|kTaskStack\|kTaskPriority` |
-| Managed components | `ls firmware/managed_components/` |
-
-#### Step 2 — Validate docs
-
-Run:
-
-```bash
-python3 scripts/check_firmware_docs.py
-```
-
-Use `docs/firmware/change-impact-map.md` to identify which companion docs should move with a subsystem change.
+| FreeRTOS task names, stacks, priorities | `grep -rn 'xTaskCreate\|TaskStackSize\|TaskStackBytes\|TaskPriority' firmware/main/src` |
+| Managed components | `ls firmware/managed_components/` and `firmware/main/idf_component.yml` |
+| Boot steps | `grep -rn "Boot step" firmware/main/src` — the `N/M` numbering must match `startup-pipeline.md` and `ARCHITECTURE.md` |
+| Host tests | `ls firmware/test/host/` and `firmware/test/host/CMakeLists.txt` |
 
 #### Step 2 — Map inventory to docs
 
@@ -253,6 +251,14 @@ Cross-reference each item against the relevant doc:
 Do not rewrite sections that are already accurate. Make targeted edits: add missing rows, correct wrong values, remove stale entries.
 
 After editing each doc, re-read the changed section and verify it matches the source exactly.
+
+#### Step 4 — Validate
+
+```bash
+python3 scripts/check_firmware_docs.py
+```
+
+Use `docs/firmware/change-impact-map.md` to identify which companion docs should move with a subsystem change. The checker catches broken links and missing headers, not stale facts — Step 1 to 3 do that.
 
 ---
 
@@ -322,7 +328,7 @@ Do not present `build/` as maintained source structure.
 - Prefer implementation-focused developer documentation.
 - Keep instructions scoped to the `firmware/` directory.
 
-### C++17 expectations
+### C++20 expectations
 
 When applicable, document:
 

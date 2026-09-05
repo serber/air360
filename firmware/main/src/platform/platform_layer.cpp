@@ -39,7 +39,7 @@ void PlatformLayer::boot(StatusService& status_service) {
     bool loaded_from_storage = false;
     bool wrote_defaults = false;
 
-    ESP_LOGI(kTag, "Boot step 4/9: load or create device config");
+    ESP_LOGI(kTag, "Boot step 4/12: load or create device config");
     const esp_err_t config_err =
         config_repository_.loadOrCreate(config_, loaded_from_storage, wrote_defaults);
     if (config_err != ESP_OK) {

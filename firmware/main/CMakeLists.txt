@@ -16,6 +16,7 @@ idf_component_register(
         "src/crypto_utils.cpp"
         "src/network_manager.cpp"
         "src/ota_service.cpp"
+        "src/power_gate.cpp"
         "src/web_assets.cpp"
         "src/web_ui.cpp"
         "src/web/web_request_body.cpp"

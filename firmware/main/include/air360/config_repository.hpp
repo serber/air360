@@ -10,6 +10,20 @@ namespace air360 {
 constexpr std::uint32_t kDeviceConfigMagic = 0x41333630U;
 constexpr std::uint16_t kDeviceConfigSchemaVersion = 1U;
 
+// Boot-time power gate. The gate compares the INA219/INA226 bus
+// voltage measured before any radio is powered against power_gate_threshold_mv
+// and deep-sleeps instead of continuing boot while the supply is below it.
+constexpr std::uint16_t kPowerGateThresholdMinMv = 1000U;
+constexpr std::uint16_t kPowerGateThresholdMaxMv = 36000U;   // INA226 bus range
+constexpr std::uint16_t kPowerGateDefaultThresholdMv = 4700U; // sagging 5 V rail
+constexpr std::uint16_t kPowerGateSleepMinS = 30U;
+constexpr std::uint16_t kPowerGateSleepMaxS = 7200U;
+constexpr std::uint16_t kPowerGateDefaultSleepBaseS = 300U;
+constexpr std::uint16_t kPowerGateDefaultSleepMaxS = 1800U;
+constexpr std::uint16_t kPowerGateSampleWaitMinS = 5U;
+constexpr std::uint16_t kPowerGateSampleWaitMaxS = 120U;
+constexpr std::uint16_t kPowerGateDefaultSampleWaitS = 15U;
+
 constexpr std::uint8_t kBleAdvIntervalCount = 4U;
 constexpr std::uint16_t kBleAdvIntervalTable[kBleAdvIntervalCount] = {100U, 300U, 1000U, 3000U};
 constexpr std::uint8_t kBleAdvIntervalDefaultIndex = 2U;  // 1000 ms
@@ -36,9 +50,20 @@ struct DeviceConfig {
     char sta_netmask[16];
     char sta_gateway[16];
     char sta_dns[16];
+    // ---- power gate ----
+    std::uint8_t power_gate_enabled;        // 0 = off, 1 = gate boot on bus voltage
+    std::uint8_t reserved2;
+    std::uint16_t power_gate_threshold_mv;  // continue boot only when voltage >= this
+    std::uint16_t power_gate_sleep_base_s;  // first deep-sleep duration below threshold
+    std::uint16_t power_gate_sleep_max_s;   // cap for the escalating sleep duration
+    std::uint16_t power_gate_sample_wait_s; // max wait for the first voltage sample
 };
 
 DeviceConfig makeDefaultDeviceConfig();
+// Resets only the power-gate fields to their defaults.
+void applyPowerGateDefaults(DeviceConfig& config);
+// Range-checks the power-gate fields; out_error names the first violation.
+bool validatePowerGateConfig(const DeviceConfig& config, const char*& out_error);
 bool isValidIpv4Address(std::string_view value);
 bool validateStaticIpv4Config(
     bool sta_use_static_ip,

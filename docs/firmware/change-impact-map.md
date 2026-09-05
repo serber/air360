@@ -30,6 +30,7 @@ This document maps common firmware code changes to the other code, configuration
 | `network_manager.cpp` | `connectivity_checker.cpp`, `status_service.cpp`, `web_server.cpp` | `network-manager.md`, `time.md`, `startup-pipeline.md`, `web-ui.md` |
 | `cellular_manager.cpp`, `modem_gpio.cpp`, `cellular_config_repository.cpp` | `network_manager.cpp`, `status_service.cpp` | `cellular-manager.md`, `configuration-reference.md`, `sensors/sim7600e.md`, `startup-pipeline.md` |
 | `config_repository.cpp` | `web_server.cpp`, `status_service.cpp` | `nvs.md`, `configuration-reference.md`, `startup-pipeline.md` |
+| `power_gate.cpp` | `app.cpp`, `status_service.cpp`, `config_repository.cpp`, `sensors/sensor_manager.cpp` | `power-gate.md`, `startup-pipeline.md`, `configuration-reference.md`, `web-ui.md` |
 | `sensors/sensor_config_repository.cpp` | `sensor_registry.cpp`, `web_server.cpp` | `nvs.md`, `configuration-reference.md`, `sensors/README.md`, `sensors/adding-new-sensor.md` |
 | `uploads/backend_config_repository.cpp` | `backend_registry.cpp`, `upload_manager.cpp`, `web_server.cpp` | `nvs.md`, `configuration-reference.md`, `measurement-pipeline.md`, `upload-adapters.md` |
 | `uploads/air360_api_credentials.cpp` | `air360_api_uploader.cpp`, `upload_manager.cpp`, `web_server.cpp` | `nvs.md`, `configuration-reference.md`, `upload-adapters.md`, `web-ui.md` |

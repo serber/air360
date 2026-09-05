@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <vector>
@@ -265,6 +266,25 @@ std::string currentUtcDateTimeLabel() {
     return buffer;
 }
 
+std::string renderPowerGateJson(const PowerGateDecision& gate) {
+    const std::string voltage_json =
+        gate.has_voltage && std::isfinite(gate.voltage_mv) ? formatFloat(gate.voltage_mv, 0)
+                                                           : std::string("null");
+    std::string json = "{";
+    json += "\"enabled\":" + std::string(gate.enabled ? "true" : "false") + ",";
+    json += "\"outcome\":\"" + jsonEscape(powerGateOutcomeKey(gate.outcome)) + "\",";
+    json += "\"threshold_mv\":" + std::to_string(gate.threshold_mv) + ",";
+    json += "\"has_voltage\":" + std::string(gate.has_voltage ? "true" : "false") + ",";
+    json += "\"voltage_mv\":" + voltage_json + ",";
+    json += "\"sensor_id\":" + std::to_string(gate.sensor_id) + ",";
+    json += "\"wait_ms\":" + std::to_string(gate.wait_ms) + ",";
+    json += "\"prior_sleeps\":" + std::to_string(gate.prior_sleeps) + ",";
+    json += "\"last_sleep_s\":" + std::to_string(gate.last_sleep_seconds) + ",";
+    json += "\"detail\":\"" + jsonEscape(gate.detail) + "\"";
+    json += "}";
+    return json;
+}
+
 const char* resetReasonLabel(esp_reset_reason_t reason) {
     switch (reason) {
         case ESP_RST_UNKNOWN:
@@ -347,6 +367,7 @@ struct StatusServiceRenderSnapshot {
     ConfigLoadRuntimeStatus backend_config_load{};
     bool web_server_started = false;
     esp_reset_reason_t reset_reason = ESP_RST_UNKNOWN;
+    PowerGateDecision power_gate{};
     std::vector<SensorRuntimeInfo> sensors;
     MeasurementStoreSnapshot measurement_store;
     UploadManagerRuntimeSnapshot upload;
@@ -488,6 +509,10 @@ CheckState evaluateSensorCheck(
             return CheckState::kFailed;
         case SensorRuntimeState::kDisabled:
             return CheckState::kSkipped;
+        case SensorRuntimeState::kDeferred:
+            // Parked until the after-network startup phase opens; its warmup
+            // window has not started yet.
+            return CheckState::kPending;
         case SensorRuntimeState::kConfigured:
         case SensorRuntimeState::kInitialized:
         case SensorRuntimeState::kPolling:
@@ -1024,6 +1049,7 @@ std::string renderSensorOverviewBlock(
                 chip_color = " ok";  chip_dot = true;  break;
             case SensorRuntimeState::kConfigured:
             case SensorRuntimeState::kInitialized:
+            case SensorRuntimeState::kDeferred:
                 chip_color = " warn"; chip_dot = true; break;
             case SensorRuntimeState::kAbsent:
             case SensorRuntimeState::kFailed:
@@ -1094,7 +1120,8 @@ std::string renderConnectionBlock(
     const NetworkState& network_state,
     const CellularState& cellular_state,
     bool has_ble_state,
-    const BleState& ble_state) {
+    const BleState& ble_state,
+    const PowerGateDecision& power_gate) {
     std::string html;
     html.reserve(1024U);
     const std::uint64_t now_uptime_ms = uptimeMilliseconds();
@@ -1201,6 +1228,49 @@ std::string renderConnectionBlock(
         });
     }
 
+    // Power gate row — only if enabled in config. A boot that reaches this
+    // page always passed (or skipped) the gate, so the row explains why.
+    if (power_gate.enabled) {
+        std::string gate_val;
+        const std::string voltage_text = formatFloat(power_gate.voltage_mv, 0);
+        switch (power_gate.outcome) {
+            case PowerGateOutcome::kPassed:
+                gate_val = "<span class='chip ok'><span class='dot'></span>Passed</span>";
+                gate_val += "<span class='mono-meta'>";
+                gate_val += voltage_text;
+                gate_val += " mV &ge; " + std::to_string(power_gate.threshold_mv) + " mV";
+                break;
+            case PowerGateOutcome::kNoSample:
+                gate_val = "<span class='chip warn'><span class='dot'></span>Skipped</span>";
+                gate_val += "<span class='mono-meta'>no INA reading within ";
+                gate_val += std::to_string(power_gate.wait_ms) + " ms";
+                break;
+            case PowerGateOutcome::kNoPowerMonitor:
+                gate_val = "<span class='chip warn'><span class='dot'></span>Skipped</span>";
+                gate_val += "<span class='mono-meta'>no INA219/INA226 configured";
+                break;
+            case PowerGateOutcome::kBypassedAfterSleeps:
+                gate_val = "<span class='chip err'><span class='dot'></span>Bypassed</span>";
+                gate_val += "<span class='mono-meta'>too many low-voltage sleeps; check the threshold";
+                break;
+            default:
+                gate_val = "<span class='chip'>";
+                gate_val += htmlEscape(powerGateOutcomeKey(power_gate.outcome));
+                gate_val += "</span><span class='mono-meta'>";
+                break;
+        }
+        if (power_gate.prior_sleeps > 0U) {
+            gate_val += " &middot; " + std::to_string(power_gate.prior_sleeps) +
+                        " low-voltage sleep(s), last " +
+                        std::to_string(power_gate.last_sleep_seconds) + " s";
+        }
+        gate_val += "</span>";
+        html += renderTemplate(WebTemplateKey::kSectionRow, {
+            {"LABEL",      "Power gate"},
+            {"VALUE_HTML", gate_val},
+        });
+    }
+
     return html;
 }
 
@@ -1212,7 +1282,8 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     const MeasurementStoreSnapshot& measurement_store,
     const UploadManagerRuntimeSnapshot& upload,
     bool has_ble_state,
-    const BleState& ble_state) {
+    const BleState& ble_state,
+    const PowerGateDecision& power_gate) {
     RuntimeOverviewViewModel model;
     const HealthViewModel health = buildHealthViewModel(
         network_state, sensors, upload.backends, measurement_store, upload.upload_interval_ms);
@@ -1272,7 +1343,7 @@ RuntimeOverviewViewModel buildRuntimeOverviewViewModel(
     model.uptime = formatUptimeCompact(uptimeMilliseconds());
     model.boot_count = boot_count;
     model.connection_block_html = renderConnectionBlock(
-        network_state, cellular_state, has_ble_state, ble_state);
+        network_state, cellular_state, has_ble_state, ble_state, power_gate);
     model.sensor_count = sensors.size();
     model.backend_block_html =
         renderBackendOverviewBlock(upload.backends, upload.upload_interval_ms);
@@ -1366,6 +1437,7 @@ std::string buildStatusJsonDocument(
     json += "\"reset_reason_label\":\"";
     json += jsonEscape(resetReasonLabel(render_snapshot.reset_reason));
     json += "\",";
+    json += "\"power_gate\":" + renderPowerGateJson(render_snapshot.power_gate) + ",";
     json += "\"health_status\":\"" + jsonEscape(healthStatusKey(health.status)) + "\",";
     json += "\"health_summary\":\"" + jsonEscape(health.summary) + "\",";
     json += "\"health_checks\":{";
@@ -1588,6 +1660,7 @@ std::string buildStatusJsonDocument(
         json += "\"binding\":\"" + jsonEscape(sensor.binding_summary) + "\",";
         json += "\"poll_interval_ms\":" + std::to_string(sensor.poll_interval_ms) + ",";
         json += "\"status\":\"" + jsonEscape(sensorRuntimeStateKey(sensor.state)) + "\",";
+        json += "\"startup_phase\":\"" + jsonEscape(sensorStartupPhaseKey(sensor.startup_phase)) + "\",";
         json += "\"failures\":" + std::to_string(sensor.failures) + ",";
         json += "\"soft_fails\":" + std::to_string(sensor.soft_fails) + ",";
         json += "\"next_retry_ms\":" + std::to_string(sensor.next_retry_ms) + ",";
@@ -1754,6 +1827,12 @@ void StatusService::setBleAdvertiser(const BleAdvertiser& ble) {
     unlock();
 }
 
+void StatusService::setPowerGate(const PowerGateDecision& decision) {
+    lock();
+    power_gate_ = decision;
+    unlock();
+}
+
 std::string StatusService::renderRootHtml() const {
     StatusServiceRenderSnapshot render_snapshot;
     const SensorManager* sensor_manager = nullptr;
@@ -1776,6 +1855,7 @@ std::string StatusService::renderRootHtml() const {
     render_snapshot.backend_config_load = backend_config_load_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
+    render_snapshot.power_gate = power_gate_;
     sensor_manager = sensor_manager_;
     measurement_store = measurement_store_;
     upload_manager = upload_manager_;
@@ -1804,7 +1884,8 @@ std::string StatusService::renderRootHtml() const {
         render_snapshot.measurement_store,
         render_snapshot.upload,
         render_snapshot.has_ble_state,
-        render_snapshot.ble_state);
+        render_snapshot.ble_state,
+        render_snapshot.power_gate);
 
     const std::string body = renderPageTemplate(
         WebTemplateKey::kHome,
@@ -1851,6 +1932,7 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
     render_snapshot.backend_config_load = backend_config_load_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
+    render_snapshot.power_gate = power_gate_;
     cellular_manager = cellular_manager_;
     sensor_manager = sensor_manager_;
     measurement_store = measurement_store_;
@@ -1905,6 +1987,7 @@ std::string StatusService::renderDiagnosticsHtml(std::string_view log_contents) 
         true);
 }
 
+
 std::string StatusService::renderStatusJson() const {
     StatusServiceRenderSnapshot render_snapshot;
     const CellularManager* cellular_manager = nullptr;
@@ -1928,6 +2011,7 @@ std::string StatusService::renderStatusJson() const {
     render_snapshot.backend_config_load = backend_config_load_;
     render_snapshot.web_server_started = web_server_started_;
     render_snapshot.reset_reason = reset_reason_;
+    render_snapshot.power_gate = power_gate_;
     cellular_manager = cellular_manager_;
     sensor_manager = sensor_manager_;
     measurement_store = measurement_store_;

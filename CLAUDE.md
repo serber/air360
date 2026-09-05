@@ -120,3 +120,12 @@ Skills live under `.claude/skills/`. Use the table below to pick the right one.
 | `air360-firmware-docs` | Creating or rewriting a firmware implementation doc in `docs/firmware/` or `firmware/README.md` | Code is being changed — use `esp-idf-cpp-developer` instead |
 | `air360-docs` | Creating or rewriting repository-level docs: root `README.md`, `docs/README.md`, onboarding guide, project map | Firmware implementation details — use `air360-firmware-docs` instead |
 | `air360-firmware-release-bundle` | Packaging a firmware release after a successful build: merging binaries, generating release notes, creating zip archives | Build has not completed or no `firmware/build/` artifacts exist |
+
+## Agents
+
+Project agents live under `.claude/agents/`. They run in a separate context and return a report; use them for isolated, read-heavy work, not for changes that must stay in step with the current diff.
+
+| Agent | Use when | Do not use when |
+|-------|----------|-----------------|
+| `firmware-doc-auditor` | Read-only audit of `docs/firmware/`, `docs/guide/`, `firmware/README.md`, and `firmware/CLAUDE.md` against the source after a series of commits or before a release; returns findings with code locations | You are editing code and its docs in the same change — use `firmware-change-checklist` and update the docs directly |
+| `firmware-code-auditor` | Architect-level, read-only review of firmware code on a commit range or subsystem: repository invariants, ESP-IDF/FreeRTOS correctness, C++20 style, layering, firmware security; returns findings with confidence and locations | A quick bug hunt on the current diff — use `/code-review`; or a task that changes code, where the rules are applied directly through `esp-idf-cpp-developer` |

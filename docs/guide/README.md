@@ -34,6 +34,7 @@ A reference for every card on the Device settings page.
 - [Identity](device-features.md#identity) — device name, mDNS hostname
 - [Wi-Fi station](device-features.md#wi-fi-station) — credentials, scanner, setup AP fallback
 - [Wi-Fi power save](device-features.md#wi-fi-power-save) — modem sleep for battery/solar builds
+- [Power gate (INA)](device-features.md#power-gate-ina) — deep-sleep at boot while the supply is too weak for the radios
 - [Time (SNTP)](device-features.md#time-sntp) — clock sync, required for uploads
 - [Static IP](device-features.md#static-ip) — fixed address instead of DHCP
 - [Mobile uplink](device-features.md#mobile-uplink) — cellular modem as primary uplink

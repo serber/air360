@@ -41,7 +41,7 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
-All four are loaded at boot step 4–6, validated, and replaced with compiled-in defaults on any integrity failure. There is no migration — a schema change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
+Device, sensor, and backend config are loaded at boot steps 4–6 and cellular config at boot step 8; each is validated and replaced with compiled-in defaults on any integrity failure. There is no migration except the `backend_cfg` v1 → v2 path — any other schema or size change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
 
 ---
 
@@ -126,6 +126,11 @@ Struct: `DeviceConfig`
 | `sta_netmask` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars |
 | `sta_gateway` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars |
 | `sta_dns` | `char[16]` | `""` | IPv4 dotted-decimal; max 15 chars; empty = use gateway |
+| `power_gate_enabled` | `uint8_t` | `0` | 0 = off; 1 = boot-time power gate on an INA219/INA226 bus-voltage reading |
+| `power_gate_threshold_mv` | `uint16_t` | `4700` | 1000–36000 mV; boot continues only when the measured bus voltage is at or above it |
+| `power_gate_sleep_base_s` | `uint16_t` | `300` | 30–7200 s; first deep-sleep duration after a low-voltage boot |
+| `power_gate_sleep_max_s` | `uint16_t` | `1800` | `power_gate_sleep_base_s`–7200 s; cap for the doubling sleep duration |
+| `power_gate_sample_wait_s` | `uint16_t` | `15` | 5–120 s; how long boot waits for the first voltage sample before skipping the gate |
 
 ### Validation rules (`ConfigRepository::isValid`)
 
@@ -137,6 +142,7 @@ Struct: `DeviceConfig`
 - `lab_ap_ssid` must be 1–32 characters.
 - `lab_ap_password`: either empty (open AP) or 8–63 characters (WPA2-PSK).
 - `sntp_server`: null-terminated within its buffer; 0–63 printable ASCII chars (no spaces or control characters); empty is valid and means "use firmware default".
+- Power gate fields are range-checked by `validatePowerGateConfig()` regardless of `power_gate_enabled`, so a stored record always carries usable values: threshold 1000–36000 mV, first sleep 30–7200 s, maximum sleep between the first sleep and 7200 s, sample wait 5–120 s.
 
 ### Notes
 
@@ -148,6 +154,7 @@ Struct: `DeviceConfig`
 - `wifi_power_save_enabled`: when `1`, `NetworkManager` calls `esp_wifi_set_ps(WIFI_PS_MIN_MODEM)` after Wi-Fi start instead of `WIFI_PS_NONE`. Reduces idle power consumption (~80–100 mA → ~20–30 mA average) at the cost of slightly increased upload latency. Applies to station mode only; the setup AP is unaffected.
 - `ble_advertise_enabled`: when `1`, `BleAdvertiser` starts broadcasting sensor readings in BTHome v2 format on boot. The advertisement is non-connectable and requires no pairing. Home Assistant detects these packets automatically via its Bluetooth integration. Works independently of Wi-Fi state.
 - `ble_adv_interval_index`: selects the BLE advertising interval from `{100, 300, 1000, 3000}` ms. Index 2 (1000 ms) is the default and is recommended for most Home Assistant setups. Shorter intervals increase radio activity and power draw; 100 ms is generally unnecessary for sensor telemetry.
+- `power_gate_*`: configure the boot-time power gate. The gate only has an effect when an enabled INA219 or INA226 is in the sensor list; those sensors start before any radio (see [startup-pipeline.md](startup-pipeline.md#sensor-startup-phases)). The threshold is compared against the INA **bus voltage**, so its meaning depends on where the module is wired: on the shield's 5 V input path a sagging LM2596 output shows up as roughly 4.5–4.8 V, hence the 4700 mV default; on the battery side of a 2S LiFePO4 pack a value near 6200 mV marks the cutoff. `power_gate_sample_wait_s` bounds how long boot waits for the first reading; without one the gate is skipped (fail-open) and boot continues. The web UI shows the card only when a power monitor is configured, but the stored values round-trip unchanged either way. The gate logic itself (deep sleep, escalating sleep duration, brownout handling) is described in [power-gate.md](power-gate.md).
 
 ---
 

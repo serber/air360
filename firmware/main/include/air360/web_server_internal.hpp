@@ -61,6 +61,11 @@ bool validateConfigForm(
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
     unsigned long cellular_modem_type,
+    bool power_gate_enabled,
+    unsigned long power_gate_threshold_mv,
+    unsigned long power_gate_sleep_base_s,
+    unsigned long power_gate_sleep_max_s,
+    unsigned long power_gate_sample_wait_s,
     std::string& error);
 
 std::string renderConfigPage(
@@ -68,6 +73,8 @@ std::string renderConfigPage(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const SensorConfigList& sensor_config_list,
+    const MeasurementStore& measurement_store,
     const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice);

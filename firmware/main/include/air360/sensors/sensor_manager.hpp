@@ -30,6 +30,9 @@ struct SensorRuntimeInfo {
     std::string type_name;
     std::string binding_summary;
     std::uint32_t poll_interval_ms = 0U;
+    // Boot phase the sensor type belongs to; kAfterNetwork sensors report
+    // kDeferred until App releases them after network bring-up.
+    SensorStartupPhase startup_phase = SensorStartupPhase::kAfterNetwork;
     SensorRuntimeState state = SensorRuntimeState::kUnsupported;
     std::uint32_t failures = 0U;
     std::uint32_t soft_fails = 0U;
@@ -62,6 +65,13 @@ class SensorManager {
     [[nodiscard]] esp_err_t applyConfig(const SensorConfigList& config);
     [[nodiscard]] esp_err_t stop();
 
+    // Opens the kAfterNetwork startup phase: every parked (kDeferred) sensor
+    // becomes eligible for init/poll and starts its own warmup window. Called
+    // once by App after cellular/Wi-Fi bring-up. The release is sticky — a
+    // later applyConfig() (web UI "Apply now") starts all sensors at once.
+    // Logs how many sensors were released.
+    void releaseAfterNetworkPhase();
+
     std::vector<SensorRuntimeInfo> sensors() const;
     std::size_t configuredCount() const;
     std::size_t enabledCount() const;
@@ -77,11 +87,15 @@ class SensorManager {
         std::uint32_t consecutive_poll_failures = 0U;
         std::uint64_t next_init_allowed_ms = 0U;
         std::uint64_t next_action_time_ms = 0U;
+        // Uptime at which the sensor became eligible for init/poll; anchors its
+        // warmup window. 0 while the sensor is parked in kDeferred.
+        std::uint64_t eligible_since_ms = 0U;
     };
 
     void lock() const;
     void unlock() const;
     std::vector<ManagedSensor> buildManagedSensors(const SensorConfigList& config);
+    static void markDriverPending(ManagedSensor& managed, bool phase_open, std::uint64_t now_ms);
     esp_err_t startLocked();
     bool stopRequested() const;
     static void taskEntry(void* arg);
@@ -95,6 +109,9 @@ class SensorManager {
     EventGroupHandle_t lifecycle_events_ = nullptr;
     TaskHandle_t task_ = nullptr;
     std::atomic_bool stop_requested_{false};
+    // Sticky: once set, buildManagedSensors() no longer parks kAfterNetwork
+    // sensors. Atomic because applyConfig() reads it outside the mutex.
+    std::atomic_bool after_network_released_{false};
     std::vector<ManagedSensor> sensors_;
     I2cBusManager i2c_bus_manager_;
     UartPortManager uart_port_manager_;

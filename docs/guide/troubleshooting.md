@@ -56,6 +56,17 @@ The Wi-Fi SSID or password is wrong, or the network is out of range.
 **Fix:** reconnect to the setup AP, open `/config`, correct the credentials, and
 save again.
 
+### The device is dark and unreachable in the morning, then comes back later
+
+On a solar build with the [Power gate](device-features.md#power-gate-ina)
+enabled this is the gate doing its job: the INA bus voltage was below the
+threshold at boot, so the device deep-slept instead of powering the radios. The
+LED stays off during the sleep. Once it boots, the Overview page's `Power gate`
+row shows how many low-voltage sleeps preceded that boot. If it sleeps too
+eagerly, lower the *Start threshold*; if it brown-out cycles instead of
+sleeping, the threshold is too low for your wiring, or the INA is not in the
+sensor list.
+
 ### The UI opens but uploads do not start
 
 Check that:
@@ -92,6 +103,16 @@ original being re-entered.
   select **I already have an upload secret**, paste the original, and save.
 - **If you lost it:** the existing backend record can't be recovered without a
   backend-side reset — contact the backend operator, then generate a new secret.
+
+### After a firmware update the device is back in setup AP mode
+
+Firmware releases that change the layout of the stored device settings (the
+power-gate fields were added this way) do not migrate the old record. On the
+first boot of such a release the device discards `device_cfg`, starts the setup
+AP, and every Device page setting — Wi-Fi credentials, device name, static IP,
+BLE, power gate — must be entered again. Sensor, backend, and cellular settings
+are stored separately and survive. The release notes say when a release resets
+device settings; plan the update for a moment when you can reach the setup AP.
 
 ### Moving the device to a different Wi-Fi network
 

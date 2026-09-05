@@ -109,6 +109,81 @@ setting takes effect right after the device joins the network.
 
 ---
 
+## Power gate (INA)
+
+A card that appears only when an **INA219 or INA226** power monitor is in your
+sensor list. It stops the device from powering the radios while the supply is
+too weak, which is the morning problem on solar builds: the pack sat at the BMS
+cutoff all night, the panel now delivers a trickle, and every Wi-Fi burst pulls
+the rail into a brownout reset before the battery can recover. Off by default.
+
+### What it does
+
+The firmware boots in a power-aware order. Before the modem, Wi-Fi, BLE, or any
+other sensor is started, only the INA runs and takes a bus-voltage reading.
+
+- **Reading at or above the threshold** — boot continues normally.
+- **Reading below the threshold** — the LED goes dark and the device deep-sleeps
+  for the *First sleep* duration. On every consecutive low-voltage wake-up the
+  sleep doubles (5 → 10 → 20 → 30 min with the defaults) up to *Maximum sleep*.
+  The chain resets as soon as one boot passes the gate.
+- **Four low-voltage sleeps in a row** — the next boot goes through anyway, radios
+  and all, and the Overview page shows a red *Bypassed* chip. This is the escape
+  hatch for a threshold set above what your supply ever reaches: open `/config`
+  and lower it. If the supply really is too weak, that boot browns out and the
+  sleep chain simply starts over.
+- **No INA reading within *Sample wait*** — the gate is skipped and boot
+  continues. A broken or missing power monitor never keeps the station offline.
+  The one exception: if the previous reset was a brownout and the INA still gave
+  no reading, the device sleeps as well.
+
+While the device sleeps nothing is served: no web UI, no uploads, no BLE. It
+wakes on its own timer and re-evaluates.
+
+### Choosing the threshold
+
+The value is compared with the INA **bus voltage**, so it depends on where the
+module sits in your power chain:
+
+| INA wired into | Bus voltage measures | Suggested threshold |
+|----------------|----------------------|---------------------|
+| The shield's 5 V input path (standard assembly) | LM2596 output; it sags to ~4.5–4.8 V when a 2S LiFePO4 pack drops near 6.2–6.5 V | `4700` mV (default) |
+| The battery side, between BMS and step-down (INA226 only, up to 36 V) | Pack voltage directly | ~`6200` mV for 2S LiFePO4 |
+
+The reading is taken with no radio running, so it is the pack's lightly-loaded
+voltage. The card shows the latest INA reading above the fields; watch it over a
+few days and set the threshold a little above the level at which the device is
+known to survive a Wi-Fi join.
+
+### Fields
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| Start threshold | `4700` mV | Boot continues only at or above this bus voltage |
+| Sample wait | `15` s | Longest wait for the first INA reading before the gate is skipped |
+| First sleep | `300` s | Deep-sleep duration after the first low-voltage boot |
+| Maximum sleep | `1800` s | Cap for the doubling sleep duration |
+
+### What you see
+
+- The **Overview** page shows a `Power gate` row in the System card while the
+  gate is enabled: *Passed* with the measured voltage, or *Skipped* with the
+  reason, plus how many low-voltage sleeps preceded this boot.
+- The **Diagnostics** raw JSON carries a `power_gate` object with the same data.
+- The serial log prints one `air360.power_gate` line per decision, including the
+  sleeps you never see in the browser.
+
+### Limitations
+
+- Deep sleep powers down the ESP32-S3 only. The step-down module's quiescent
+  current, a cellular modem left powered, and sensors with their own regulators
+  keep drawing from the pack. The gate removes the radio peaks, not the whole
+  load.
+- The gate runs once per boot. A supply that collapses later is still handled by
+  the brownout detector and the next boot.
+
+---
+
 ## Time (SNTP)
 
 Where the device gets its clock. The ESP32-S3 has no battery-backed real-time

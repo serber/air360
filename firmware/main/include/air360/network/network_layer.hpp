@@ -22,12 +22,12 @@ class NetworkLayer {
     NetworkLayer(NetworkLayer&&) = delete;
     NetworkLayer& operator=(NetworkLayer&&) = delete;
 
-    // Boot step 4b/9: load cellular config, init and start cellular manager.
+    // Boot step 8/12: load cellular config, init and start cellular manager.
     // Wi-Fi is intentionally deferred to bootWifi() so that sensor and backend
     // configs can be loaded in between, matching the pre-refactor boot order.
     void bootCellular(PlatformLayer& platform, StatusService& status_service);
 
-    // Boot step 7/9: resolve network mode (station / setup AP / cellular debug
+    // Boot step 9/12: resolve network mode (station / setup AP / cellular debug
     // window) based on the loaded device + cellular configs.
     void bootWifi(PlatformLayer& platform, StatusService& status_service);
 

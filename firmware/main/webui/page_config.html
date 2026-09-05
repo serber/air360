@@ -35,6 +35,43 @@
     </div>
   </section>
 
+  <section class='card'{{POWER_GATE_CARD_HIDDEN}}>
+    <div class='card-header'>
+      <div><h3 class='card-title'>Power gate (INA)</h3><div class='card-sub'>Sleep at boot while the INA bus voltage is below the threshold. Measured before Wi-Fi, the modem, and other sensors start.</div></div>
+      <div class='card-right'>
+        <button class='switch' type='button' data-drives-checkbox='power_gate_enabled' data-reveals='power-gate-body' aria-label='Toggle power gate'></button>
+        <input type='checkbox' name='power_gate_enabled' value='1' {{POWER_GATE_ENABLED_CHECKED}} hidden>
+      </div>
+    </div>
+    <div class='card-body stack-14' id='power-gate-body'>
+      <span class='field-hint'>{{POWER_MONITOR_READING}}</span>
+      <div class='row-2'>
+        <label class='field'>
+          <span class='field-label'>Start threshold (mV)</span>
+          <input class='input' id='power_gate_threshold_mv' name='power_gate_threshold_mv' type='number' min='1000' max='36000' value='{{POWER_GATE_THRESHOLD_MV_VALUE}}'>
+          <span class='field-hint'>Boot continues only when the bus voltage is at or above this. About 4700 mV on the 5 V rail, or the pack cutoff (e.g. 6200 mV for 2S LiFePO4) when the INA sits on the battery side.</span>
+        </label>
+        <label class='field'>
+          <span class='field-label'>Sample wait (seconds)</span>
+          <input class='input' id='power_gate_sample_wait_s' name='power_gate_sample_wait_s' type='number' min='5' max='120' value='{{POWER_GATE_SAMPLE_WAIT_S_VALUE}}'>
+          <span class='field-hint'>How long boot waits for the first INA reading. Without a reading the gate is skipped and boot continues.</span>
+        </label>
+      </div>
+      <div class='row-2'>
+        <label class='field'>
+          <span class='field-label'>First sleep (seconds)</span>
+          <input class='input' id='power_gate_sleep_base_s' name='power_gate_sleep_base_s' type='number' min='30' max='7200' value='{{POWER_GATE_SLEEP_BASE_S_VALUE}}'>
+          <span class='field-hint'>Deep-sleep duration after the first low-voltage boot. Doubles on every consecutive low-voltage wake-up.</span>
+        </label>
+        <label class='field'>
+          <span class='field-label'>Maximum sleep (seconds)</span>
+          <input class='input' id='power_gate_sleep_max_s' name='power_gate_sleep_max_s' type='number' min='30' max='7200' value='{{POWER_GATE_SLEEP_MAX_S_VALUE}}'>
+          <span class='field-hint'>Cap for the doubling sleep duration.</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
   <section class='card'>
     <div class='card-header'>
       <div><h3 class='card-title'>Wi-Fi power save</h3><div class='card-sub'>Modem sleep between DTIM beacons. Station mode only.</div></div>

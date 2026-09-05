@@ -1,6 +1,6 @@
 ---
 name: air360-docs
-description: "Use this skill when the task is to create, update, audit, or improve repository-level documentation for the Air360 project. Best for root README generation, repository structure explanation, documentation map creation, onboarding docs, architecture summaries based on docs/, and explaining how docs/ and firmware/ relate. Do not use for low-level firmware build or implementation documentation unless the request is primarily about the repository as a whole."
+description: "Use this skill when the task is to create, update, audit, or improve repository-level documentation for the Air360 project: the root README.md, docs/README.md, the per-area docs indexes (docs/firmware, docs/backend, docs/portal, docs/guide, docs/hardware), onboarding and navigation docs, and explanations of how docs/ relates to the firmware/, backend/, and portal/ implementations. Do not use for firmware implementation docs (air360-firmware-docs) or for code changes."
 ---
 
 # Air360 Repository Documentation Skill
@@ -10,258 +10,141 @@ description: "Use this skill when the task is to create, update, audit, or impro
 Use this skill when the user asks to:
 
 - create or rewrite the root `README.md`
-- explain the overall repository structure
-- document what is in `docs/`
-- document onboarding flow for new contributors
-- create a documentation map for the project
-- summarize architecture at the repository level
-- explain the relationship between `docs/` and `firmware/`
-- audit repository documentation for clarity and consistency
+- update `docs/README.md` or a per-area index (`docs/<area>/README.md`)
+- explain the overall repository structure or produce a documentation map
+- write onboarding material for new contributors
+- audit repository-level documentation for broken links, stale structure, or
+  overstated implementation status
 
-Do not use this skill for detailed ESP-IDF build, flash, monitor, or source-module documentation unless the request is clearly about the whole repository.
+Do not use this skill for firmware implementation docs under `docs/firmware/`
+(use `air360-firmware-docs`), for the end-user build guide content under `docs/guide/`
+when the request is about device behaviour (that follows firmware changes), or for
+backend/portal implementation docs beyond their index pages.
 
 ---
 
 ## Repository scope
 
-This repository appears to have two main layers:
+Air360 is a multi-application repository:
 
-- `docs/` — design, analysis, planning, and architecture context
-- `firmware/` — the actual ESP-IDF firmware project
+| Directory | What it is | Local agent contract |
+|-----------|------------|----------------------|
+| `firmware/` | ESP-IDF 6.x, C++20 firmware for ESP32-S3 | `firmware/CLAUDE.md` |
+| `backend/` | Fastify backend: device registration, ingest, public device list, history | `backend/CLAUDE.md` |
+| `portal/` | Next.js public portal | `portal/CLAUDE.md` |
+| `docs/` | Documentation, split by area (below) | root `CLAUDE.md` |
+| `scripts/` | Repository checkers (`check_firmware_docs.py`, `check_style.py`, `check_firmware_host_tests.py`) | — |
+| `.claude/skills/` | Agent skills | root `CLAUDE.md` skills table |
 
-Also consider:
+`docs/` areas:
 
-- root `CLAUDE.md` as project-wide instruction context
-- root-level files such as `LICENSE` and `.gitignore` as repository metadata
+| Directory | Role | Authority |
+|-----------|------|-----------|
+| `docs/firmware/` | Implementation docs for the firmware: architecture, subsystems, sensors, ADRs | Explanatory; `firmware/` is the source of truth |
+| `docs/backend/` | Backend design notes, ingest contract, deployment | Explanatory; `backend/` is the source of truth |
+| `docs/portal/` | Portal scope and boundaries | Explanatory; `portal/` is the source of truth |
+| `docs/guide/` | End-user build guide: assembly, flashing, web UI, backends, monitoring, troubleshooting | Must follow firmware behaviour |
+| `docs/hardware/` | Shield photos, Gerbers, solar module photos | Reference assets |
 
-This skill is responsible for describing the repository as a whole, not the internal firmware implementation in detail.
-
----
-
-## Main goals
-
-When this skill is used, produce documentation that helps a developer quickly understand:
-
-- what this repository is for
-- where to start reading
-- which files describe architecture and planning
-- where the buildable firmware lives
-- how design documents relate to implementation
-- what appears implemented vs planned
+Each area has its own `README.md` index. `docs/README.md` is the top-level index and
+lists the agent entry points. The root `README.md` is the public front page.
 
 ---
 
 ## Primary inputs to inspect
 
-Check these first:
+Always read, in this order:
 
-- `CLAUDE.md`
-- `docs/`
-- `firmware/README.md`
-- root-level repository structure
+1. `README.md` (root) — current public structure; preserve its section shape.
+2. `docs/README.md` — area table, agent entry points, source-of-truth hierarchy.
+3. `docs/<area>/README.md` for every area the task touches.
+4. `CLAUDE.md`, `firmware/CLAUDE.md`, `backend/CLAUDE.md`, `portal/CLAUDE.md` — the
+   agent contracts must stay consistent with whatever navigation you write.
+5. The root `CLAUDE.md` skills table when a skill is added, renamed, or rescoped.
 
-Priority files in `docs/` include:
+Then verify every path you mention exists (`ls`, `test -f`). Repository docs have
+drifted before by naming files that were removed; a documentation map with dead
+entries is worse than none.
 
-- `docs/modern-replacement-firmware-architecture.md`
-- `docs/firmware-iterative-implementation-plan.md`
-- `docs/phase-1-hardware-boot-notes.md`
-- `docs/airrohr-firmware-server-contract.md`
-- `docs/airrohr-firmware-ui-analysis.md`
+---
 
-Use these documents to understand:
+## Source-of-truth rules
 
-- project intent
-- design direction
-- architecture vocabulary
-- hardware notes
-- backend or UI assumptions
-
-Do not assume design docs are proof of implementation.
+- `firmware/`, `backend/`, `portal/` are the source of truth for implemented behaviour
+  in their area.
+- `docs/firmware/`, `docs/backend/`, `docs/portal/` explain those implementations;
+  they are not independent evidence.
+- `docs/guide/` describes the device as the firmware implements it; when firmware
+  behaviour changes the guide follows.
+- Never present a design note or plan as implemented. When status matters, say
+  "implemented", "documented but unverified", or "planned" explicitly.
 
 ---
 
 ## Templates
 
-Preferred template for new repository-level documentation:
+- `.claude/skills/air360-docs/templates/root-readme.template.md` — structure for a
+  root README rewrite. The current `README.md` already follows it; when updating an
+  existing README, edit in place instead of regenerating from the template.
 
-- `.claude/skills/air360-docs/templates/root-readme.template.md`
-
-When generating a new root README, repository overview, or onboarding document, read this template and adapt it to the actual repository contents instead of copying it verbatim.
-
-Template rules:
-
-- keep repository-level scope
-- explain `docs/` and `firmware/` separately
-- preserve project-specific terminology
-- remove irrelevant sections
-- replace all placeholder wording with repository-specific content
+Template rules: adapt to the actual tree, never keep placeholder wording, remove
+sections that do not apply, keep project terminology (setup AP, measurement pipeline,
+upload adapters, power gate, release bundle).
 
 ---
 
-## Required reasoning rules
+## Output types
 
-### Separate repository truth from implementation truth
+### Root README
 
-At repository level:
+Keep the existing shape: Overview → Repository Layout → Documentation Map →
+Components (Firmware / Backend / Portal) → Getting Started → Current Status →
+Development Notes. Every Documentation Map entry is a relative link to a file that
+exists.
 
-- `docs/` may describe intended design, analysis, or roadmap
-- `firmware/` contains implementation evidence
+### `docs/README.md` and area indexes
 
-When writing repository docs:
+Area table, agent entry points, source-of-truth hierarchy. An area index lists every
+document in the directory with a one-line purpose; new docs are added to the index in
+the same change that creates them.
 
-- explain both layers clearly
-- do not merge them into one undifferentiated description
-- distinguish:
-  - architectural intent
-  - implementation status
-  - open work or planned work
+### Documentation map / onboarding
 
-### Preserve project terminology
-
-Reuse naming already present in the repository where possible.
-
-### Avoid generic filler
-
-Do not write generic ESP-IDF tutorial content in root documentation unless needed for navigation.
+Answer, in order: where to start for architecture context; where the end-user build
+guide is; where each implementation lives; which `CLAUDE.md` governs the work; how to
+verify (checkers, host tests, `validate.sh`).
 
 ---
 
-## Default output types
+## Audit checklist
 
-### 1. Root README
-
-Use this structure by default:
-
-# Air360
-
-## Overview
-What this repository contains and the project goal.
-
-## Repository layout
-Explain the purpose of:
-- `docs/`
-- `firmware/`
-- `CLAUDE.md`
-
-## Documentation map
-List the major docs in `docs/` and what each one is for.
-
-## Firmware
-Explain that the buildable ESP-IDF application lives in `firmware/`.
-
-## Getting started
-Tell a developer where to begin depending on whether they need:
-- architecture context
-- hardware notes
-- implementation/build instructions
-
-## Current status
-Summarize what appears implemented versus planned.
-
-## Development notes
-Contributor-facing guidance.
-
-### 2. Documentation map
-
-When the user asks for project navigation or onboarding, provide a concise map of:
-
-- which file to read first
-- which document explains architecture
-- which document explains hardware
-- which document explains firmware plans
-- where the implementation lives
-
-### 3. Repository onboarding doc
-
-For new contributors, explain:
-
-- where to start
-- what docs are authoritative for design
-- where current implementation lives
-- how to avoid confusing plans with implemented features
+1. Every relative link in `README.md`, `docs/README.md`, and each area index resolves.
+   `python3 scripts/check_firmware_docs.py` covers `docs/firmware/`; check the rest
+   with a quick script or by hand.
+2. Every directory in the repository layout section exists; every existing top-level
+   directory that matters is mentioned.
+3. The skills table in the root `CLAUDE.md` matches `.claude/skills/*/SKILL.md`
+   names and descriptions.
+4. "Current status" claims are backed by code or by a doc that names the code.
+5. Terminology matches the implementation docs (do not rename concepts in the README).
 
 ---
 
 ## Writing rules
 
-### Accuracy
-
-- Do not claim a feature is implemented unless implementation confirms it.
-- Do not claim repository structure that is not present.
-- Prefer concise summaries backed by actual file names.
-
-### Style
-
-- Write in Markdown.
-- Use practical headings.
-- Keep text oriented toward maintainers and contributors.
-- Prefer clarity over completeness when documenting top-level structure.
-
-### Framing
-
-Useful phrasing patterns:
-
-- "The repository contains..."
-- "The `docs/` folder appears to capture design and planning context..."
-- "The `firmware/` directory contains the ESP-IDF application..."
-- "Based on the current structure..."
-- "Implementation should be verified against firmware sources..."
-
----
-
-## Good behavior for common requests
-
-### If asked to "create README"
-
-Prefer a repository-level README if the request mentions the whole repo, `docs/`, onboarding, architecture overview, or project structure.
-
-### If asked to "document the project"
-
-Cover:
-
-- repo structure
-- key docs
-- firmware location
-- current status boundaries
-
-### If asked to "audit docs"
-
-Check whether current repository documentation:
-
-- explains the purpose of `docs/`
-- points clearly to `firmware/`
-- distinguishes design docs from implemented behavior
-
----
-
-## Working style
-
-- Keep repository-level scope. Do not drift into detailed firmware implementation docs unless the request is explicitly about repo-level navigation to them.
-- Treat `docs/` as planning, architecture, and project context by default.
-- Treat `docs/firmware/` as implementation-oriented firmware documentation when it exists.
-- Treat `firmware/` as the implementation source of truth.
-- Prefer short, accurate navigation documents over broad generic summaries.
+- Markdown, practical headings, contributor-facing tone.
+- Prefer short navigation text with exact file names over prose summaries.
+- Do not paste ESP-IDF, Fastify, or Next.js tutorial content into repository docs.
+- Do not document generated directories (`firmware/build/`, `firmware/release/`,
+  `node_modules/`) as maintained structure.
 
 ---
 
 ## Definition of done
 
-A repository documentation task is complete only if:
-
-- the repository structure is explained clearly
-- `docs/` and `firmware/` are distinguished correctly
-- important documents in `docs/` are mapped to their purpose
-- implementation is not overstated
-- the output is ready to commit as Markdown
-
----
-
-## Anti-patterns to avoid
-
-Do not:
-
-- treat planning docs as implementation truth
-- dump ESP-IDF setup instructions into root docs unless needed for orientation
-- document `firmware/build/` as part of the maintained project structure
-- invent hardware details not confirmed anywhere
-- mix repository-level and firmware-level guidance without labeling the scope
+- Structure described matches the tree; all links resolve.
+- `docs/`, `firmware/`, `backend/`, `portal/` are distinguished and their authority
+  stated.
+- Implementation status is not overstated.
+- Indexes updated for any document added, moved, or removed.
+- Output is commit-ready Markdown.

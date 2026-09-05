@@ -934,6 +934,7 @@ constexpr std::array<SensorDescriptor, 24U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateIna219Record,
         .create_driver            = &createIna219Sensor,
+        .startup_phase            = SensorStartupPhase::kBeforeNetwork,
     },
     {
         .type                     = SensorType::kIna226,
@@ -959,6 +960,7 @@ constexpr std::array<SensorDescriptor, 24U> kDescriptors{{
         .allowed_gpio_pin_count   = 0U,
         .validate                 = &validateIna226Record,
         .create_driver            = &createIna226Sensor,
+        .startup_phase            = SensorStartupPhase::kBeforeNetwork,
     },
     {
         .type                     = SensorType::kMhz19b,

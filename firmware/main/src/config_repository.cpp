@@ -143,7 +143,46 @@ DeviceConfig makeDefaultDeviceConfig() {
         CONFIG_AIR360_LAB_AP_PASSWORD);
 #endif
     config.sntp_server[0] = '\0';
+    applyPowerGateDefaults(config);
     return config;
+}
+
+void applyPowerGateDefaults(DeviceConfig& config) {
+    config.power_gate_enabled = 0U;
+    config.reserved2 = 0U;
+    config.power_gate_threshold_mv = kPowerGateDefaultThresholdMv;
+    config.power_gate_sleep_base_s = kPowerGateDefaultSleepBaseS;
+    config.power_gate_sleep_max_s = kPowerGateDefaultSleepMaxS;
+    config.power_gate_sample_wait_s = kPowerGateDefaultSampleWaitS;
+}
+
+bool validatePowerGateConfig(const DeviceConfig& config, const char*& out_error) {
+    out_error = nullptr;
+    if (config.power_gate_enabled > 1U) {
+        out_error = "Power gate flag must be 0 or 1.";
+        return false;
+    }
+    if (config.power_gate_threshold_mv < kPowerGateThresholdMinMv ||
+        config.power_gate_threshold_mv > kPowerGateThresholdMaxMv) {
+        out_error = "Power gate threshold must be 1000-36000 mV.";
+        return false;
+    }
+    if (config.power_gate_sleep_base_s < kPowerGateSleepMinS ||
+        config.power_gate_sleep_base_s > kPowerGateSleepMaxS) {
+        out_error = "Power gate first sleep must be 30-7200 seconds.";
+        return false;
+    }
+    if (config.power_gate_sleep_max_s < config.power_gate_sleep_base_s ||
+        config.power_gate_sleep_max_s > kPowerGateSleepMaxS) {
+        out_error = "Power gate maximum sleep must be between the first sleep and 7200 seconds.";
+        return false;
+    }
+    if (config.power_gate_sample_wait_s < kPowerGateSampleWaitMinS ||
+        config.power_gate_sample_wait_s > kPowerGateSampleWaitMaxS) {
+        out_error = "Power gate sample wait must be 5-120 seconds.";
+        return false;
+    }
+    return true;
 }
 
 bool ConfigRepository::isValid(const DeviceConfig& config) const {
@@ -190,6 +229,11 @@ bool ConfigRepository::isValid(const DeviceConfig& config) const {
 
     const char* static_ip_error = nullptr;
     if (!validateStaticIpv4Config(config, static_ip_error)) {
+        return false;
+    }
+
+    const char* power_gate_error = nullptr;
+    if (!validatePowerGateConfig(config, power_gate_error)) {
         return false;
     }
 

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cinttypes>
+#include <cmath>
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
@@ -80,6 +81,14 @@ struct ConfigPageViewModel {
     // BLE
     bool ble_advertise_enabled = false;
     std::uint8_t ble_adv_interval_index = kBleAdvIntervalDefaultIndex;
+    // Power gate (card rendered only when a power monitor sensor is configured)
+    bool power_monitor_present = false;
+    bool power_gate_enabled = false;
+    std::string power_gate_threshold_mv_value;
+    std::string power_gate_sleep_base_s_value;
+    std::string power_gate_sleep_max_s_value;
+    std::string power_gate_sample_wait_s_value;
+    std::string power_monitor_reading_html;
     // OTA
     std::string ota_running_version;
     std::string ota_running_slot;
@@ -236,6 +245,8 @@ ConfigPageViewModel buildConfigPageViewModel(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const SensorConfigList& sensor_config_list,
+    const MeasurementStore& measurement_store,
     const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice);
@@ -335,12 +346,15 @@ std::string renderConfigPage(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const SensorConfigList& sensor_config_list,
+    const MeasurementStore& measurement_store,
     const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice) {
     const ConfigPageViewModel model =
         buildConfigPageViewModel(
             config, cellular_config, network_state, network_manager,
+            sensor_config_list, measurement_store,
             ota_status, notice, error_notice);
 
     const std::string body = renderPageTemplate(
@@ -376,6 +390,13 @@ std::string renderConfigPage(
             {"BLE_ADVERTISE_ENABLED_CHECKED", model.ble_advertise_enabled ? "checked" : ""},
             {"BLE_GROUP_DISABLED_CLASS", model.ble_advertise_enabled ? "" : "field--disabled"},
             {"BLE_ADV_INTERVAL_OPTIONS", buildBleIntervalOptions(model.ble_adv_interval_index)},
+            {"POWER_GATE_CARD_HIDDEN", model.power_monitor_present ? "" : " hidden"},
+            {"POWER_GATE_ENABLED_CHECKED", model.power_gate_enabled ? "checked" : ""},
+            {"POWER_GATE_THRESHOLD_MV_VALUE", model.power_gate_threshold_mv_value},
+            {"POWER_GATE_SLEEP_BASE_S_VALUE", model.power_gate_sleep_base_s_value},
+            {"POWER_GATE_SLEEP_MAX_S_VALUE", model.power_gate_sleep_max_s_value},
+            {"POWER_GATE_SAMPLE_WAIT_S_VALUE", model.power_gate_sample_wait_s_value},
+            {"POWER_MONITOR_READING", model.power_monitor_reading_html},
             {"OTA_RUNNING_VERSION", htmlEscape(model.ota_running_version)},
             {"OTA_RUNNING_SLOT", htmlEscape(model.ota_running_slot)},
             {"OTA_TARGET_SLOT", htmlEscape(model.ota_target_slot)},
@@ -1081,6 +1102,8 @@ ConfigPageViewModel buildConfigPageViewModel(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const SensorConfigList& sensor_config_list,
+    const MeasurementStore& measurement_store,
     const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice) {
@@ -1188,6 +1211,34 @@ ConfigPageViewModel buildConfigPageViewModel(
     model.ble_advertise_enabled = config.ble_advertise_enabled != 0U;
     model.ble_adv_interval_index = config.ble_adv_interval_index < kBleAdvIntervalCount
         ? config.ble_adv_interval_index : kBleAdvIntervalDefaultIndex;
+
+    model.power_gate_enabled = config.power_gate_enabled != 0U;
+    model.power_gate_threshold_mv_value = std::to_string(config.power_gate_threshold_mv);
+    model.power_gate_sleep_base_s_value = std::to_string(config.power_gate_sleep_base_s);
+    model.power_gate_sleep_max_s_value = std::to_string(config.power_gate_sleep_max_s);
+    model.power_gate_sample_wait_s_value = std::to_string(config.power_gate_sample_wait_s);
+    model.power_monitor_reading_html = "No power monitor configured.";
+    for (std::size_t index = 0; index < sensor_config_list.sensor_count; ++index) {
+        const SensorRecord& record = sensor_config_list.sensors[index];
+        if (record.enabled == 0U || !sensorTypeIsPowerMonitor(record.sensor_type)) {
+            continue;
+        }
+        model.power_monitor_present = true;
+        const MeasurementRuntimeInfo runtime = measurement_store.runtimeInfoForSensor(record.id);
+        const SensorValue* voltage = runtime.measurement.findValue(SensorValueKind::kVoltageMv);
+        model.power_monitor_reading_html = "Latest bus voltage from ";
+        model.power_monitor_reading_html += htmlEscape(sensorTypeKey(record.sensor_type));
+        model.power_monitor_reading_html += " #" + std::to_string(record.id) + ": ";
+        if (voltage != nullptr && std::isfinite(voltage->value)) {
+            model.power_monitor_reading_html += "<code>";
+            model.power_monitor_reading_html +=
+                std::to_string(static_cast<long>(std::lround(voltage->value)));
+            model.power_monitor_reading_html += " mV</code>";
+        } else {
+            model.power_monitor_reading_html += "no reading yet";
+        }
+        break;
+    }
 
     model.ota_running_version =
         ota_status.running_version.empty() ? "unknown" : ota_status.running_version;
@@ -2361,6 +2412,11 @@ bool validateConfigForm(
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
     unsigned long cellular_modem_type,
+    bool power_gate_enabled,
+    unsigned long power_gate_threshold_mv,
+    unsigned long power_gate_sleep_base_s,
+    unsigned long power_gate_sleep_max_s,
+    unsigned long power_gate_sample_wait_s,
     std::string& error) {
     if (device_name.empty()) {
         error = "Device name must not be empty.";
@@ -2444,6 +2500,28 @@ bool validateConfigForm(
         error = "Unknown modem type.";
         return false;
     }
+    // Power gate ranges are enforced even while the gate is off so the stored
+    // record always passes ConfigRepository::isValid(). Reuse the repository
+    // validator on a probe record so the limits and messages live in one place.
+    constexpr unsigned long kUint16Max = 65535UL;
+    if (power_gate_threshold_mv > kUint16Max || power_gate_sleep_base_s > kUint16Max ||
+        power_gate_sleep_max_s > kUint16Max || power_gate_sample_wait_s > kUint16Max) {
+        error = "Power gate values are out of range.";
+        return false;
+    }
+    DeviceConfig power_gate_probe = makeDefaultDeviceConfig();
+    power_gate_probe.power_gate_enabled = power_gate_enabled ? 1U : 0U;
+    power_gate_probe.power_gate_threshold_mv = static_cast<std::uint16_t>(power_gate_threshold_mv);
+    power_gate_probe.power_gate_sleep_base_s = static_cast<std::uint16_t>(power_gate_sleep_base_s);
+    power_gate_probe.power_gate_sleep_max_s = static_cast<std::uint16_t>(power_gate_sleep_max_s);
+    power_gate_probe.power_gate_sample_wait_s =
+        static_cast<std::uint16_t>(power_gate_sample_wait_s);
+    const char* power_gate_error = nullptr;
+    if (!validatePowerGateConfig(power_gate_probe, power_gate_error)) {
+        error = power_gate_error == nullptr ? "Power gate values are out of range."
+                                            : power_gate_error;
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -2493,6 +2571,11 @@ bool validateConfigForm(
     const std::string& cellular_connectivity_check_host,
     unsigned long cellular_wifi_debug_window_s,
     unsigned long cellular_modem_type,
+    bool power_gate_enabled,
+    unsigned long power_gate_threshold_mv,
+    unsigned long power_gate_sleep_base_s,
+    unsigned long power_gate_sleep_max_s,
+    unsigned long power_gate_sample_wait_s,
     std::string& error) {
     return ::air360::validateConfigForm(
         device_name,
@@ -2512,6 +2595,11 @@ bool validateConfigForm(
         cellular_connectivity_check_host,
         cellular_wifi_debug_window_s,
         cellular_modem_type,
+        power_gate_enabled,
+        power_gate_threshold_mv,
+        power_gate_sleep_base_s,
+        power_gate_sleep_max_s,
+        power_gate_sample_wait_s,
         error);
 }
 
@@ -2520,6 +2608,8 @@ std::string renderConfigPage(
     const CellularConfig& cellular_config,
     const NetworkState& network_state,
     const NetworkManager& network_manager,
+    const SensorConfigList& sensor_config_list,
+    const MeasurementStore& measurement_store,
     const OtaStatus& ota_status,
     const std::string& notice,
     bool error_notice) {
@@ -2528,6 +2618,8 @@ std::string renderConfigPage(
         cellular_config,
         network_state,
         network_manager,
+        sensor_config_list,
+        measurement_store,
         ota_status,
         notice,
         error_notice);

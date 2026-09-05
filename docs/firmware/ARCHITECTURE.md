@@ -79,18 +79,22 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 | Step | Action | Implemented in | Notes |
 |------|--------|----------------|-------|
 | pre | Log buffer + RGB LED init | `App::bootInstrumentation` | WS2812 on GPIO48 - blue while booting |
-| 1 | Watchdog arm | `App::bootSystem` | 30-second timeout, panic enabled |
+| 1 | Watchdog arm | `App::bootSystem` | Subscribes to the sdkconfig TWDT: 5 s timeout, warn only |
 | 2 | NVS flash init | `App::bootSystem` | Auto-erase on partition mismatch |
 | 3 | Network core init | `App::bootSystem` | `esp_netif_init()`, default event loop |
 | 4 | Device config load/create | `PlatformLayer::boot` | NVS namespace `air360`, key `device_cfg`; boot counter increment |
-| 4b | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS key `cellular_cfg`; may launch `cellular` |
-| 5 | Sensor config load/create and manager start | `DataLayer::bootSensors` | NVS key `sensor_cfg`; may launch `air360_sensor`; BLE advertising starts here |
+| 5 | Sensor config load/create and manager start | `DataLayer::bootSensors` | NVS key `sensor_cfg`; may launch `air360_sensor`; only `kBeforeNetwork` sensors (INA219/INA226) poll, the rest park in `kDeferred` |
 | 6 | Backend config load/create | `DataLayer::bootBackends` | NVS key `backend_cfg` |
-| 7 | Network mode resolution | `NetworkLayer::bootWifi` | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
-| 8 | Upload manager start | `DataLayer::bootUploads` | Launches `air360_upload` when enabled backends exist |
-| 9 | Web server start | `App::bootWebServer` | Starts `esp_http_server`; main task enters `App::runMaintenanceLoop` |
+| 7 | Power gate | `App::bootPowerGate` | Reads the INA bus voltage; deep-sleeps with an escalating timer when below `power_gate_threshold_mv` |
+| 8 | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS key `cellular_cfg`; may launch `cellular` |
+| 9 | Network mode resolution | `NetworkLayer::bootWifi` | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
+| 10 | Release after-network sensors; BLE start | `DataLayer::releaseDeferredSensors` | `SensorManager::releaseAfterNetworkPhase()`; BLE advertising starts here |
+| 11 | Upload manager start | `DataLayer::bootUploads` | Launches `air360_upload` when enabled backends exist |
+| 12 | Web server start | `App::bootWebServer` | Starts `esp_http_server`; main task enters `App::runMaintenanceLoop` |
 
-After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of panic-rebooting on a 30-second cycle.
+The order is power-aware: nothing but the low-current power monitors draws current before the power gate decides whether the supply can carry the radios; the modem and Wi-Fi are brought up only after that, and BLE plus every other sensor start only after the uplink decision. See [startup-pipeline.md](startup-pipeline.md#sensor-startup-phases) and [power-gate.md](power-gate.md).
+
+After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of spamming `task_wdt` warnings every 5 seconds.
 
 Full startup order with dependencies:
 
@@ -154,11 +158,13 @@ Top-level runtime controller. Owns the startup sequence, RGB status LED, watchdo
 
 ### Boot-time facades — `platform/platform_layer.cpp`, `network/network_layer.cpp`, `data/data_layer.cpp`
 
-`App::run()` delegates each boot step to one of three layered facades that group the long-lived runtime objects by concern. They are booted in dependency order — `PlatformLayer` first (nothing depends on networking or sensors), then `NetworkLayer`, then `DataLayer` — and each higher layer reads from the lower ones. See the [startup sequence](#startup-sequence) table for which boot step each facade method handles.
+`App::run()` delegates each boot step to one of three layered facades that group the long-lived runtime objects by concern. Ownership is layered — `PlatformLayer` at the bottom (nothing depends on networking or sensors), then `NetworkLayer`, then `DataLayer` — and each higher layer reads from the lower ones. The call order in `App::run()` interleaves the layers so that power-monitor sensors run before the radios and everything else after; see the [startup sequence](#startup-sequence) table for which boot step each facade method handles.
 
 - **`PlatformLayer`** — owns identity and persistent device-level configuration: `BuildInfo`, `ConfigRepository` + `DeviceConfig`, and `Air360ApiCredentialRepository`. Boot step 4.
-- **`NetworkLayer`** — owns the uplink: `NetworkManager`, `CellularManager` + `CellularConfigRepository`, and the Wi-Fi debug-window timer. Boot steps 4b (cellular) and 7 (Wi-Fi/network-mode resolution). Layered above `PlatformLayer`, below `DataLayer`.
-- **`DataLayer`** — owns everything that produces or consumes measurements: the sensor pipeline (`SensorManager` etc.), `MeasurementStore`, the BLE advertiser, backend config, and `UploadManager`. Boot steps 5 (sensors + BLE), 6 (backend config), and 8 (uploads). Layered above both `PlatformLayer` and `NetworkLayer`.
+- **`NetworkLayer`** — owns the uplink: `NetworkManager`, `CellularManager` + `CellularConfigRepository`, and the Wi-Fi debug-window timer. Boot steps 8 (cellular) and 9 (Wi-Fi/network-mode resolution). Layered above `PlatformLayer`, below `DataLayer`.
+- **`DataLayer`** — owns everything that produces or consumes measurements: the sensor pipeline (`SensorManager` etc.), `MeasurementStore`, the BLE advertiser, backend config, and `UploadManager`. Boot steps 5 (sensor config + before-network sensors), 6 (backend config), 10 (after-network sensors + BLE), and 11 (uploads). Layered above both `PlatformLayer` and `NetworkLayer`.
+
+`App` itself owns the `PowerGate` (boot step 7) because the decision spans layers: it reads `PlatformLayer` config and `DataLayer` measurements and decides whether `NetworkLayer` is booted at all.
 
 The individual managers each facade owns are documented in their own sections below.
 
@@ -412,17 +418,23 @@ Owns the sensor runtime lifecycle.
 **Lifecycle methods:**
 - `applyConfig(SensorConfigList)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
 - `buildManagedSensors()` — validates transport bindings, calls `SensorRegistry::createDriver()` for each enabled sensor
-- `taskMain()` — polls each sensor at its configured interval (5 s during the 60 s warmup window), updates measurements, handles errors
+- `taskMain()` — polls each eligible sensor at its configured interval (5 s during its 60 s warmup window), updates measurements, handles errors
+- `releaseAfterNetworkPhase()` — opens the `kAfterNetwork` startup phase; called once by `App` after cellular/Wi-Fi bring-up (boot step 10)
 
-**Warmup phase (first 60 s after `taskMain()` starts):**
+**Startup phases:**
 
-During the warmup window, `taskMain()` forces the effective poll interval to `min(configured_interval, 5 s)`. This lets sensors that take 10–15 s to initialize reach `kPolling` well within the first minute regardless of the configured interval. Readings taken during warmup update the `latest_by_sensor_` snapshot (visible in the status page and `/api/gps-location`) but are **not appended to the upload queue** — `sample_unix_ms = 0` is passed to `recordMeasurement()`. Once the window expires, the configured poll interval and normal upload queuing resume.
+`SensorDescriptor::startup_phase` (`SensorStartupPhase`) decides when the task may first drive a sensor. `kBeforeNetwork` sensors (INA219, INA226) are eligible as soon as the task starts at boot step 5. `kAfterNetwork` sensors — the default for every other type — are built with their driver allocated but parked in `kDeferred` with `eligible_since_ms = 0`; the task skips them until `releaseAfterNetworkPhase()` stamps `eligible_since_ms`, moves them to `kConfigured`, and wakes the loop. The release is sticky, so a later `applyConfig()` from the web UI starts all sensors at once.
+
+**Warmup phase (first 60 s after a sensor becomes eligible):**
+
+Each sensor's warmup window is anchored at its own `eligible_since_ms`, not at task start, so after-network sensors get the same fast start as before-network ones. During the window, `taskMain()` forces the effective poll interval to `min(configured_interval, 5 s)`. This lets sensors that take 10–15 s to initialize reach `kPolling` well within their first minute regardless of the configured interval. Readings taken during warmup update the `latest_by_sensor_` snapshot (visible in the status page and `/api/gps-location`) but are **not appended to the upload queue** — `sample_unix_ms = 0` is passed to `recordMeasurement()`. Once the window expires, the configured poll interval and normal upload queuing resume.
 
 **Sensor runtime states:**
 
 | State | Meaning |
 |-------|---------|
 | `kDisabled` | Not in active config |
+| `kDeferred` | Driver allocated, parked until the after-network startup phase is released (health check: `pending`) |
 | `kConfigured` | Config loaded, driver not yet initialized |
 | `kInitialized` | Driver init succeeded |
 | `kPolling` | Actively polling |
@@ -955,7 +967,7 @@ No application-level RTOS queues. Upload delivery progress is tracked via per-ba
 
 ### Confirmed in implementation
 
-- Full 9-step boot sequence
+- Full 12-step, power-aware boot sequence with INA-driven power gate
 - NVS-backed config for device, sensors, and backends
 - FreeRTOS sensor polling task with per-sensor scheduling
 - 12 sensor driver types across I2C, UART, GPIO, and ADC transports

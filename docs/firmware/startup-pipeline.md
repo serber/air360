@@ -12,12 +12,14 @@ This document covers the boot chain and application initialization order from `a
 
 - `firmware/main/src/app_main.cpp`
 - `firmware/main/src/app.cpp`
+- `firmware/main/src/power_gate.cpp`
 - `firmware/main/src/network_manager.cpp`
 - `firmware/main/src/uploads/upload_manager.cpp`
 
 ## Read next
 
 - [nvs.md](nvs.md)
+- [power-gate.md](power-gate.md)
 - [network-manager.md](network-manager.md)
 - [measurement-pipeline.md](measurement-pipeline.md)
 
@@ -32,13 +34,18 @@ ROM bootloader
   └─ second-stage bootloader (firmware/build/bootloader)
        └─ ESP-IDF runtime init
             └─ app_main task (FreeRTOS, stack 8 KB)
-                 └─ App::run()  ← 9 sequential boot steps
-                      ├─ step 4b → CellularManager::start() (may spawn cellular task)
-                      ├─ step 5  → spawns air360_sensor task
-                      ├─ step 8  → spawns air360_upload task
-                      └─ step 9  → starts esp_http_server (its own task)
+                 └─ App::run()  ← 12 sequential boot steps
+                      ├─ step 5  → spawns air360_sensor task (only kBeforeNetwork sensors poll)
+                      ├─ step 7  → power gate: may deep-sleep instead of continuing
+                      ├─ step 8  → CellularManager::start() (may spawn cellular task)
+                      ├─ step 9  → Wi-Fi station / setup AP bring-up
+                      ├─ step 10 → releases kAfterNetwork sensors; starts BLE advertiser
+                      ├─ step 11 → spawns air360_upload task
+                      └─ step 12 → starts esp_http_server (its own task)
                            └─ maintenance loop (runs in app_main task)
 ```
+
+The order is power-aware: before any radio is powered, the only loads the firmware adds are the low-current `kBeforeNetwork` sensors (currently the INA219/INA226 power monitors). Their bus-voltage reading feeds the power gate at step 7, which deep-sleeps the device while the supply is too weak. The modem, Wi-Fi, BLE, and every other sensor start afterwards, so a weak supply is never hit by all consumers at the same moment. See [Sensor startup phases](#sensor-startup-phases) and [power-gate.md](power-gate.md).
 
 ---
 
@@ -76,27 +83,29 @@ class App {
 };
 ```
 
-Each facade exposes `boot*()` methods invoked in sequence from `App::run()`; the boot order and `Boot step N/9` log lines are unchanged. This makes lifecycle ownership visible in `app.hpp` while still placing the runtime graph in BSS/data rather than on the main task stack. `App`, the facades, the manager classes, the web server, BLE advertiser, and transport managers are non-copyable so RTOS handles, callback registrations, and shared mutex-protected state cannot be accidentally duplicated.
+Each facade exposes `boot*()` methods invoked in sequence from `App::run()`, and every step logs a `Boot step N/12` line. This makes lifecycle ownership visible in `app.hpp` while still placing the runtime graph in BSS/data rather than on the main task stack. `App`, the facades, the manager classes, the web server, BLE advertiser, and transport managers are non-copyable so RTOS handles, callback registrations, and shared mutex-protected state cannot be accidentally duplicated.
 
 ---
 
-## Phase 2 — 9-step boot sequence (`App::run`)
+## Phase 2 — 12-step boot sequence (`App::run`)
 
 Steps execute sequentially in the main task. There is no parallelism at this stage. `App::run()` is a thin orchestrator: each row in the table below is invoked through a dedicated helper, either on `App` itself or on one of the boot-time facades.
 
 | Step | Action | Fatal? | Implemented in | Side effect |
 |------|--------|--------|----------------|-------------|
 | pre | Install log buffer; init RGB LED (GPIO48 WS2812) | No | `App::bootInstrumentation` | LED turns blue |
-| 1/9 | Arm task watchdog (30 s, panic on timeout) | No | `App::bootSystem` | Main task subscribed to TWDT |
-| 2/9 | Initialize NVS (`nvs_flash_init`) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
-| 3/9 | Initialize network core (`netif` + event loop) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
-| 4/9 | Load or create `device_cfg` | No | `PlatformLayer::boot` | `boot_count` incremented; `StatusService` updated |
-| 4b/9 | Load or create `cellular_cfg`; init and start `CellularManager` | No | `NetworkLayer::bootCellular` | **`cellular` task spawned** if `enabled != 0` |
-| 5/9 | Load or create `sensor_cfg`; start sensor task | No | `DataLayer::bootSensors` | **`air360_sensor` task spawned**; BLE advertiser started |
-| 6/9 | Load or create `backend_cfg` | No | `DataLayer::bootBackends` | — |
-| 7/9 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `NetworkLayer::bootWifi` | `StatusService` updated with network and cellular state |
-| 8/9 | Start upload manager; apply backend config | No | `DataLayer::bootUploads` | **`air360_upload` task spawned** |
-| 9/9 | Start web server | **Yes** | `App::bootWebServer` | Green or pink LED on success (via `App::indicateReady`); fall through to `App::runMaintenanceLoop`. On failure the device enters `runFailedBootLoop` instead of letting the main task return — this keeps TWDT fed and avoids a panic-reboot cycle while leaving the red LED visible. |
+| 1/12 | Subscribe main task to the task watchdog (TWDT) | No | `App::bootSystem` | Main task subscribed to the sdkconfig-initialised TWDT (5 s, warn only) |
+| 2/12 | Initialize NVS (`nvs_flash_init`) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
+| 3/12 | Initialize network core (`netif` + event loop) | **Yes** | `App::bootSystem` | Red LED on failure; enters `runFailedBootLoop` |
+| 4/12 | Load or create `device_cfg` | No | `PlatformLayer::boot` | `boot_count` incremented; `StatusService` updated |
+| 5/12 | Load or create `sensor_cfg`; start sensor task | No | `DataLayer::bootSensors` | **`air360_sensor` task spawned**; only `kBeforeNetwork` sensors poll, the rest park in `kDeferred` |
+| 6/12 | Load or create `backend_cfg` | No | `DataLayer::bootBackends` | — |
+| 7/12 | Evaluate power gate | No (may **deep-sleep**) | `App::bootPowerGate` | Waits for the first INA bus-voltage sample; below threshold → LED off, `esp_deep_sleep_start()`, boot never reaches step 8 |
+| 8/12 | Load or create `cellular_cfg`; init and start `CellularManager` | No | `NetworkLayer::bootCellular` | **`cellular` task spawned** if `enabled != 0` |
+| 9/12 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `NetworkLayer::bootWifi` | `StatusService` updated with network and cellular state |
+| 10/12 | Release `kAfterNetwork` sensors; start BLE advertiser | No | `DataLayer::releaseDeferredSensors` | Parked sensors become eligible and start their warmup; **`air360_ble` task spawned** when enabled |
+| 11/12 | Start upload manager; apply backend config | No | `DataLayer::bootUploads` | **`air360_upload` task spawned** |
+| 12/12 | Start web server | **Yes** | `App::bootWebServer` | Green or pink LED on success (via `App::indicateReady`); fall through to `App::runMaintenanceLoop`. On failure the device enters `runFailedBootLoop` instead of letting the main task return — this keeps TWDT fed and avoids a panic-reboot cycle while leaving the red LED visible. |
 
 ---
 
@@ -117,10 +126,9 @@ The built-in WS2812 RGB LED on GPIO48 (ESP32-S3-DevKitC-1) is initialised via th
 
 `esp_task_wdt_add(nullptr)` subscribes the main task to the Task Watchdog Timer (TWDT).
 
-- Timeout: **30 seconds**
-- Panic on timeout: **enabled** (triggers `esp_system_abort`, device reboots via panic handler)
-- If TWDT was already initialized by ESP-IDF (from `sdkconfig`), the call simply attaches to it
-- If TWDT is not pre-initialized, the firmware initializes it with the parameters above
+- ESP-IDF initialises the TWDT before `app_main()` (`CONFIG_ESP_TASK_WDT_INIT=y`), so the call attaches to the existing watchdog. Effective parameters come from `sdkconfig`: timeout **5 seconds** (`CONFIG_ESP_TASK_WDT_TIMEOUT_S=5`), panic on timeout **disabled** (`CONFIG_ESP_TASK_WDT_PANIC` unset) — a starved task produces a `task_wdt` warning with the task name, not a reboot
+- The fallback path in `initWatchdog()` (30 s, panic enabled) runs only when the TWDT is not pre-initialised, which the current `sdkconfig` never does
+- The boot log prints the effective values: `TWDT: app_main subscribed (5 s, warn only)`
 
 The main task feeds the watchdog with `esp_task_wdt_reset()` on every iteration of the maintenance loop (every ~10 s). Subsystem tasks (`air360_sensor`, `air360_upload`, `cellular`, `air360_ble`) subscribe to the TWDT on their own entry and feed it on each loop iteration — see `docs/firmware/watchdog.md`.
 
@@ -160,23 +168,6 @@ Config load failure is **non-fatal** — in-memory defaults are used and the boo
 
 ---
 
-### Step 4b — Load or create cellular config + start CellularManager
-
-`CellularConfigRepository::loadOrCreate()` reads the `cellular_cfg` blob (namespace `"air360"`). If not found or invalid, defaults are written and used. The cellular config is versioned independently of `DeviceConfig` — a reset here does not touch `device_cfg`.
-
-Then:
-
-1. `CellularManager::init(network_manager)` — wires the network manager reference into the cellular manager so it can update uplink state
-2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `cellular` FreeRTOS task** which manages the configured modem PPP session, reconnect backoff, and hardware reset cycles
-
-> **`cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point.
-
-`StatusService` is updated with the cellular manager reference.
-
-Config load failure is **non-fatal** — in-memory defaults are used and the boot continues. If cellular is disabled (`enabled == 0`), no task is spawned and the modem is not touched.
-
----
-
 ### Step 5 — Load or create sensor config + start sensor task
 
 `SensorConfigRepository::loadOrCreate()` reads the `sensor_cfg` blob.
@@ -186,9 +177,20 @@ Then:
 1. `SensorManager::setMeasurementStore()` — wires `MeasurementStore` into the sensor manager
 2. `SensorManager::applyConfig()` — validates the loaded sensor list, instantiates drivers, and **starts the `air360_sensor` FreeRTOS task** if at least one enabled sensor has a valid driver
 
-> **`air360_sensor` task is spawned here** — it begins polling sensors independently from this point on.
+> **`air360_sensor` task is spawned here** — but at this point it only drives sensors whose descriptor declares `SensorStartupPhase::kBeforeNetwork` (INA219, INA226). Every other enabled sensor is built with its driver allocated but parked in `kDeferred`; the task skips it until step 10 releases the after-network phase. The BLE advertiser is **not** started here.
 
 `StatusService` is updated with the sensor manager reference and the measurement store reference.
+
+#### Sensor startup phases
+
+`SensorDescriptor::startup_phase` decides when the manager may first touch a sensor:
+
+| Phase | Sensors | Eligible from |
+|-------|---------|---------------|
+| `kBeforeNetwork` | INA219, INA226 | Step 5 (task start) |
+| `kAfterNetwork` (default) | Every other type | Step 10 (`releaseAfterNetworkPhase()`) |
+
+A parked sensor reports runtime state `kDeferred`, which the health check treats as `pending`. Each sensor gets its own 60 s warmup window anchored at the moment it became eligible (`eligible_since_ms`), so after-network sensors still receive the fast 5 s warmup polling even though they start later than the task. The release is sticky: once `App` has called `releaseAfterNetworkPhase()`, a later `applyConfig()` from the web UI starts all sensors immediately.
 
 ---
 
@@ -200,7 +202,37 @@ Config load failure is **non-fatal** — in-memory defaults are used.
 
 ---
 
-### Step 7 — Resolve network mode
+### Step 7 — Evaluate power gate
+
+`App::bootPowerGate()` calls `PowerGate::evaluate()` with the device config, the sensor list, the measurement store, and `esp_reset_reason()`. Only the low-current power monitors are running at this point, so the INA bus voltage reflects the supply before any radio load.
+
+- Gate disabled, no INA219/INA226 configured, or no reading within `power_gate_sample_wait_s`: boot continues (fail-open). The decision is stored in `StatusService` and shown on the Overview page and in the status JSON.
+- Reading at or above `power_gate_threshold_mv`: boot continues.
+- Reading below the threshold (or no reading after a brownout reset): the LED is switched off and the device enters **deep sleep** with a timer wake-up. Boot never reaches step 8. The sleep duration doubles on consecutive low-voltage wake-ups, from `power_gate_sleep_base_s` up to `power_gate_sleep_max_s`, tracked in RTC memory.
+- After four consecutive low-voltage sleeps one boot is let through regardless of the reading (`kBypassedAfterSleeps`), so a threshold set too high can still be corrected from `/config`.
+
+The main task feeds the TWDT while waiting for the sample; the wait is bounded to 5–120 s by config validation. Full decision flow, escalation rules, and observability are in [power-gate.md](power-gate.md).
+
+---
+
+### Step 8 — Load or create cellular config + start CellularManager
+
+`CellularConfigRepository::loadOrCreate()` reads the `cellular_cfg` blob (namespace `"air360"`). If not found or invalid, defaults are written and used. The cellular config is versioned independently of `DeviceConfig` — a reset here does not touch `device_cfg`.
+
+Then:
+
+1. `CellularManager::init(network_manager)` — wires the network manager reference into the cellular manager so it can update uplink state
+2. `CellularManager::start(cellular_config)` — if `cellular_config.enabled != 0`, **spawns the `cellular` FreeRTOS task** which manages the configured modem PPP session, reconnect backoff, and hardware reset cycles
+
+> **`cellular` task is spawned here** (when cellular is enabled) — it begins the modem connection sequence independently from this point. This is the first radio the boot powers; the sensor and backend configs are already loaded, and only power-monitor sensors are drawing current.
+
+`StatusService` is updated with the cellular manager reference.
+
+Config load failure is **non-fatal** — in-memory defaults are used and the boot continues. If cellular is disabled (`enabled == 0`), no task is spawned and the modem is not touched.
+
+---
+
+### Step 9 — Resolve network mode
 
 The decision tree depends on whether cellular is enabled:
 
@@ -224,7 +256,7 @@ cellular_config.enabled != 0?
 - Creates Wi-Fi STA netif
 - Ensures persistent WIFI/IP event handlers and recovery timers are registered
 - Sets the DHCP hostname from `device_name` (lowercased, alphanumeric)
-- Starts Wi-Fi and waits for an IP address (up to 15 seconds), resetting the watchdog while waiting
+- Starts Wi-Fi and waits for an IP address (up to 15 seconds), resetting the watchdog while waiting; a fast disconnect inside that window triggers another `esp_wifi_connect()` after 1 s while at least 3 s of the window remain
 - On success: calls `synchronizeTime()` — polls SNTP for up to 15 seconds, resetting the watchdog
 
 **`startLabAp(config)`:**
@@ -247,7 +279,20 @@ The full connection sequence, reconnect backoff behavior, setup-AP retry path, S
 
 ---
 
-### Step 8 — Start upload manager + apply backend config
+### Step 10 — Release after-network sensors + start BLE advertiser
+
+`DataLayer::releaseDeferredSensors()` runs once the uplink decision has been made, whether or not it succeeded:
+
+1. `SensorManager::releaseAfterNetworkPhase()` — marks every parked (`kDeferred`) sensor eligible, stamps its `eligible_since_ms`, moves it to `kConfigured`, and wakes the `air360_sensor` task so init starts on the next loop iteration. The number of released sensors is logged by the manager.
+2. `BleAdvertiser::start(device_config, measurement_store)` — **spawns the `air360_ble` task** when BLE support is compiled in and `ble_advertise_enabled = 1`.
+
+> **`air360_ble` task is spawned here** (when enabled). Together with step 9 this is the point where the full sensor set and every radio are running.
+
+The release happens even when Wi-Fi fell back to setup AP or the station join failed; sensors are never held hostage by the uplink. Only the ordering is power-aware, not the outcome.
+
+---
+
+### Step 11 — Start upload manager + apply backend config
 
 Two calls:
 
@@ -262,7 +307,7 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 
 ---
 
-### Step 9 — Start web server
+### Step 12 — Start web server
 
 `WebServer::start()` configures and starts `esp_http_server`:
 
@@ -283,7 +328,7 @@ On success:
 
 ## Phase 3 — Maintenance loop
 
-After step 9, `App::run()` enters an infinite loop in the main task with a 10-second delay per iteration:
+After step 12, `App::run()` enters an infinite loop in the main task with a 10-second delay per iteration:
 
 ```cpp
 for (;;) {
@@ -301,7 +346,7 @@ The loop has four responsibilities:
 - **SNTP retry** — if the device is in station mode but time sync has not succeeded yet, it retries every 10 seconds
 - **Network state refresh** — keeps `StatusService` in sync with the current Wi-Fi network state so the web UI reflects live uplink status
 - **Cellular state refresh** — keeps `StatusService` in sync with the current cellular state (PPP IP, RSSI, ping result)
-- **Watchdog feed** — resets the TWDT on every iteration; the 30-second timeout gives a comfortable margin above the 10-second sleep
+- **Watchdog feed** — resets the TWDT after every 3 s slice of the 10 s sleep (`kRuntimeMaintenanceSliceMs`), keeping each gap under the 5 s timeout
 
 The main task runs at the default FreeRTOS task priority and stays alive for the lifetime of the firmware.
 
@@ -314,13 +359,13 @@ After the boot sequence completes, the following tasks run concurrently:
 | Task | Stack | Priority | Loop period | TWDT | Spawned at |
 |------|-------|----------|-------------|------|------------|
 | `app_main` (main task) | 8 192 B | default | 10 s | ✓ subscribed | ESP-IDF runtime |
-| `cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 4b — `CellularManager::start()` (when enabled) |
-| `air360_net` | 6 144 B | 2 | event-driven | ✓ subscribed | Step 7 — `NetworkManager::ensureWifiInit()` |
-| `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()` |
-| `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 8 — `UploadManager::start()` |
-| `air360_ble` | 4 096 B | 3 | 5 s | ✓ subscribed | Step 5 — `BleAdvertiser::start()` (when enabled) |
-| `esp_httpd` (web server) | 16 384 B | default | event-driven | ✗ IDF-managed | Step 9 — `WebServer::start()` |
-| ESP-IDF Wi-Fi / event loop | (IDF managed) | (IDF managed) | event-driven | ✗ IDF-managed | Steps 3 / 7 |
+| `cellular` | 8 192 B | 5 | event-driven | ✓ subscribed | Step 8 — `CellularManager::start()` (when enabled) |
+| `air360_net` | 6 144 B | 2 | event-driven | ✓ subscribed | Step 9 — `NetworkManager::ensureWifiInit()` |
+| `air360_sensor` | 6 144 B | 5 | 250 ms | ✓ subscribed | Step 5 — `SensorManager::applyConfig()`; after-network sensors join at step 10 |
+| `air360_upload` | 7 168 B | 4 | 1 s | ✓ subscribed | Step 11 — `UploadManager::start()` |
+| `air360_ble` | 4 096 B | 3 | 5 s | ✓ subscribed | Step 10 — `BleAdvertiser::start()` (when enabled) |
+| `esp_httpd` (web server) | 16 384 B | default | event-driven | ✗ IDF-managed | Step 12 — `WebServer::start()` |
+| ESP-IDF Wi-Fi / event loop | (IDF managed) | (IDF managed) | event-driven | ✗ IDF-managed | Steps 3 / 9 |
 
 `air360_sensor` and `air360_upload` can be stopped and restarted at runtime. `SensorManager::applyConfig()` restarts the sensor task when the user applies sensor changes through the web UI; `UploadManager::applyConfig()` restarts the upload task when backend config changes. Both paths use task notification plus an acknowledgement event bit and abort the runtime apply on timeout instead of replacing live runtime objects under a still-running task. `BleAdvertiser::stop()` also uses task notification plus a stop-acknowledge semaphore; the `air360_ble` task self-deletes after leaving NimBLE calls so no caller deletes it from a foreign task context.
 
@@ -331,17 +376,21 @@ After the boot sequence completes, the following tasks run concurrently:
 A successful boot produces the following sequence on the serial monitor:
 
 ```
-I (air360.app) Boot step 1/9: arm task watchdog
-I (air360.app) Boot step 2/9: initialize NVS
-I (air360.app) Boot step 3/9: initialize network core
-I (air360.app) Boot step 4/9: load or create device config
-I (air360.app) Boot step 4b/9: load or create cellular config
+I (air360.app) Boot step 1/12: arm task watchdog
+I (air360.app) Boot step 2/12: initialize NVS
+I (air360.app) Boot step 3/12: initialize network core
+I (air360.app) Boot step 4/12: load or create device config
+I (air360.app) Boot step 5/12: load or create sensor config
+I (air360.app) Boot step 6/12: load or create backend config
+I (air360.app) Boot step 7/12: evaluate power gate
+I (air360.power_gate) Bus voltage 4985 mV from sensor #3 is above the 4700 mV threshold; boot continues   (when enabled)
+I (air360.app) Boot step 8/12: load or create cellular config
 I (air360.app) Cellular uplink: enabled   (or: disabled)
-I (air360.app) Boot step 5/9: load or create sensor config
-I (air360.app) Boot step 6/9: load or create backend config
-I (air360.app) Boot step 7/9: resolve network mode
-I (air360.app) Boot step 8/9: start upload manager
-I (air360.app) Boot step 9/9: start status web server
+I (air360.app) Boot step 9/12: resolve network mode
+I (air360.app) Boot step 10/12: release after-network sensors and BLE
+I (air360.sensor) After-network phase released: 3 sensor(s) start now; warmup polling at 5000 ms for 60000 ms per sensor
+I (air360.app) Boot step 11/12: start upload manager
+I (air360.app) Boot step 12/12: start status web server
 I (air360.app) Runtime ready on port 80
 I (air360.ota) Marked running image valid (rollback cancelled)   (only after a fresh OTA install)
 ```
@@ -355,13 +404,16 @@ I (air360.ota) Marked running image valid (rollback cancelled)   (only after a f
 | NVS init fails | 2 | Red LED, `run()` returns, device halts |
 | Network core init fails | 3 | Red LED, `run()` returns, device halts |
 | Config load fails | 4 | Warning logged, in-memory defaults used, boot continues |
-| Cellular config load fails | 4b | Warning logged, in-memory defaults used, boot continues |
-| Cellular task creation fails | 4b | Warning logged, boot continues without cellular uplink |
 | Sensor config load fails | 5 | Warning logged, empty sensor list used, boot continues |
 | Sensor task creation fails | 5 | All sensor states set to `kError`, boot continues without polling |
 | Backend config load fails | 6 | Warning logged, defaults used, boot continues |
-| Station join fails (Wi-Fi mode) | 7 | Falls back to Lab AP mode |
-| Station join fails (cellular mode) | 7 | Warning logged, Wi-Fi skipped, cellular is still primary uplink |
-| Lab AP start fails | 7 | Warning logged, device runs without network access |
-| Upload task creation fails | 8 | All backend states set to `kError`, boot continues without uploads |
-| Web server start fails | 9 | Red LED, `run()` returns, device halts |
+| Power gate: bus voltage below threshold | 7 | LED off, deep sleep with timer wake-up (escalating duration); boot restarts later |
+| Power gate: no INA reading within the wait window | 7 | Warning logged, boot continues (deep sleep only if the last reset was a brownout) |
+| Power gate: deep-sleep timer cannot be armed | 7 | `esp_restart()` instead of sleeping without a wake source |
+| Cellular config load fails | 8 | Warning logged, in-memory defaults used, boot continues |
+| Cellular task creation fails | 8 | Warning logged, boot continues without cellular uplink |
+| Station join fails (Wi-Fi mode) | 9 | Falls back to Lab AP mode |
+| Station join fails (cellular mode) | 9 | Warning logged, Wi-Fi skipped, cellular is still primary uplink |
+| Lab AP start fails | 9 | Warning logged; with stored station credentials `scheduleStationRecovery()` arms the station reconnect backoff so the upstream network is still retried |
+| Upload task creation fails | 11 | All backend states set to `kError`, boot continues without uploads |
+| Web server start fails | 12 | Red LED, `run()` returns, device halts |

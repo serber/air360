@@ -724,6 +724,8 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
                     cell_preview,
                     server->status_service_->networkState(),
                     *server->network_manager_,
+                    *server->sensor_config_list_,
+                    *server->measurement_store_,
                     server->ota_service_->snapshot(),
                     notice,
                     error));
@@ -782,6 +784,18 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     unsigned long cellular_modem_type = server->cellular_config_->modem_type;
     parseUnsignedLong(findFormValue(fields, "cellular_modem_type"), cellular_modem_type);
 
+    // Power gate inputs live in a card that is hidden (but still submitted) when
+    // no power monitor is configured; unparsable values keep the stored ones.
+    const bool power_gate_enabled = (findFormValue(fields, "power_gate_enabled") == "1");
+    unsigned long power_gate_threshold_mv = server->config_->power_gate_threshold_mv;
+    parseUnsignedLong(findFormValue(fields, "power_gate_threshold_mv"), power_gate_threshold_mv);
+    unsigned long power_gate_sleep_base_s = server->config_->power_gate_sleep_base_s;
+    parseUnsignedLong(findFormValue(fields, "power_gate_sleep_base_s"), power_gate_sleep_base_s);
+    unsigned long power_gate_sleep_max_s = server->config_->power_gate_sleep_max_s;
+    parseUnsignedLong(findFormValue(fields, "power_gate_sleep_max_s"), power_gate_sleep_max_s);
+    unsigned long power_gate_sample_wait_s = server->config_->power_gate_sample_wait_s;
+    parseUnsignedLong(findFormValue(fields, "power_gate_sample_wait_s"), power_gate_sample_wait_s);
+
     std::string validation_error;
     if (!validateConfigForm(
             device_name,
@@ -801,6 +815,11 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             cellular_connectivity_check_host,
             cellular_wifi_debug_window_s,
             cellular_modem_type,
+            power_gate_enabled,
+            power_gate_threshold_mv,
+            power_gate_sleep_base_s,
+            power_gate_sleep_max_s,
+            power_gate_sample_wait_s,
             validation_error)) {
         DeviceConfig preview = *server->config_;
         copyString(preview.device_name, sizeof(preview.device_name), device_name);
@@ -811,6 +830,11 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
         preview.ble_advertise_enabled = ble_advertise_enabled ? 1U : 0U;
         preview.ble_adv_interval_index = static_cast<std::uint8_t>(ble_adv_interval_index);
         preview.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
+        preview.power_gate_enabled = power_gate_enabled ? 1U : 0U;
+        preview.power_gate_threshold_mv = static_cast<std::uint16_t>(power_gate_threshold_mv);
+        preview.power_gate_sleep_base_s = static_cast<std::uint16_t>(power_gate_sleep_base_s);
+        preview.power_gate_sleep_max_s = static_cast<std::uint16_t>(power_gate_sleep_max_s);
+        preview.power_gate_sample_wait_s = static_cast<std::uint16_t>(power_gate_sample_wait_s);
         copyString(preview.sta_ip, sizeof(preview.sta_ip), sta_ip);
         copyString(preview.sta_netmask, sizeof(preview.sta_netmask), sta_netmask);
         copyString(preview.sta_gateway, sizeof(preview.sta_gateway), sta_gateway);
@@ -845,6 +869,11 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
     updated.ble_advertise_enabled = ble_advertise_enabled ? 1U : 0U;
     updated.ble_adv_interval_index = static_cast<std::uint8_t>(ble_adv_interval_index);
     updated.sta_use_static_ip = sta_use_static_ip ? 1U : 0U;
+    updated.power_gate_enabled = power_gate_enabled ? 1U : 0U;
+    updated.power_gate_threshold_mv = static_cast<std::uint16_t>(power_gate_threshold_mv);
+    updated.power_gate_sleep_base_s = static_cast<std::uint16_t>(power_gate_sleep_base_s);
+    updated.power_gate_sleep_max_s = static_cast<std::uint16_t>(power_gate_sleep_max_s);
+    updated.power_gate_sample_wait_s = static_cast<std::uint16_t>(power_gate_sample_wait_s);
     copyString(updated.sta_ip, sizeof(updated.sta_ip), sta_ip);
     copyString(updated.sta_netmask, sizeof(updated.sta_netmask), sta_netmask);
     copyString(updated.sta_gateway, sizeof(updated.sta_gateway), sta_gateway);

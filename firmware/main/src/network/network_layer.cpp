@@ -53,7 +53,7 @@ void NetworkLayer::bootCellular(PlatformLayer& /*platform*/, StatusService& stat
     bool cellular_config_loaded = false;
     bool cellular_defaults_written = false;
 
-    ESP_LOGI(kTag, "Boot step 4b/9: load or create cellular config");
+    ESP_LOGI(kTag, "Boot step 8/12: load or create cellular config");
     const esp_err_t cellular_config_err = cellular_config_repository_.loadOrCreate(
         cellular_config_,
         cellular_config_loaded,
@@ -90,7 +90,7 @@ void NetworkLayer::bootCellular(PlatformLayer& /*platform*/, StatusService& stat
 void NetworkLayer::bootWifi(PlatformLayer& platform, StatusService& status_service) {
     DeviceConfig& config = platform.deviceConfig();
 
-    ESP_LOGI(kTag, "Boot step 7/9: resolve network mode");
+    ESP_LOGI(kTag, "Boot step 9/12: resolve network mode");
     if (cellular_config_.enabled != 0U) {
         // Cellular is the primary uplink.  Wi-Fi station is started only if
         // credentials exist, giving the operator a debug window at boot.
@@ -144,6 +144,15 @@ void NetworkLayer::bootWifi(PlatformLayer& platform, StatusService& status_servi
                 const esp_err_t ap_err = network_manager_.startLabAp(config);
                 if (ap_err != ESP_OK) {
                     ESP_LOGW(kTag, "Setup AP start failed: %s", esp_err_to_name(ap_err));
+                    // Without the AP nothing would ever retry the station;
+                    // fall back to the plain reconnect backoff loop.
+                    const esp_err_t recovery_err = network_manager_.scheduleStationRecovery();
+                    if (recovery_err != ESP_OK) {
+                        ESP_LOGE(
+                            kTag,
+                            "Station recovery could not be scheduled: %s",
+                            esp_err_to_name(recovery_err));
+                    }
                 }
             }
         } else {

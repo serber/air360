@@ -14,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+#include "sdkconfig.h"
 
 namespace air360 {
 
@@ -68,7 +69,9 @@ esp_err_t initRgbLed() {
 }
 
 esp_err_t initWatchdog() {
-    // ESP-IDF may pre-initialize TWDT from sdkconfig before app_main().
+    // ESP-IDF pre-initializes TWDT from sdkconfig before app_main()
+    // (CONFIG_ESP_TASK_WDT_INIT=y, CONFIG_ESP_TASK_WDT_TIMEOUT_S), so the
+    // subscribe below normally succeeds and the fallback init is never reached.
     esp_err_t err = esp_task_wdt_add(nullptr);
     if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
         return ESP_OK;
@@ -139,11 +142,16 @@ void App::run() {
         return;
     }
 
+    // Power-aware ordering: only low-current kBeforeNetwork sensors (power
+    // monitors) run before the radios; the modem, Wi-Fi, BLE, and every other
+    // sensor start afterwards so a weak supply is not hit by all loads at once.
     platform_.boot(status_service_);
-    network_.bootCellular(platform_, status_service_);
-    data_.bootSensors(platform_, status_service_);
+    data_.bootSensors(status_service_);
     data_.bootBackends(status_service_);
+    bootPowerGate();
+    network_.bootCellular(platform_, status_service_);
     network_.bootWifi(platform_, status_service_);
+    data_.releaseDeferredSensors(platform_, status_service_);
     data_.bootUploads(platform_, network_, status_service_);
 
     if (!bootWebServer()) {
@@ -172,22 +180,31 @@ void App::bootInstrumentation() {
 }
 
 bool App::bootSystem() {
-    ESP_LOGI(kTag, "Boot step 1/9: arm task watchdog");
+    ESP_LOGI(kTag, "Boot step 1/12: arm task watchdog");
     const esp_err_t watchdog_err = initWatchdog();
     if (watchdog_err != ESP_OK) {
         ESP_LOGW(kTag, "Watchdog setup failed: %s", esp_err_to_name(watchdog_err));
     } else {
-        ESP_LOGI(kTag, "TWDT: app_main subscribed (30 s, panic enabled)");
+#ifdef CONFIG_ESP_TASK_WDT_PANIC
+        constexpr const char* kWdtOnTimeout = "panic";
+#else
+        constexpr const char* kWdtOnTimeout = "warn only";
+#endif
+        ESP_LOGI(
+            kTag,
+            "TWDT: app_main subscribed (%d s, %s)",
+            CONFIG_ESP_TASK_WDT_TIMEOUT_S,
+            kWdtOnTimeout);
     }
     status_service_.markWatchdogArmed(watchdog_err == ESP_OK);
 
-    ESP_LOGI(kTag, "Boot step 2/9: initialize NVS");
+    ESP_LOGI(kTag, "Boot step 2/12: initialize NVS");
     if (reportBootError("NVS init", initStorage())) {
         return false;
     }
     status_service_.markNvsReady(true);
 
-    ESP_LOGI(kTag, "Boot step 3/9: initialize network core");
+    ESP_LOGI(kTag, "Boot step 3/12: initialize network core");
     if (reportBootError("Network core init", initNetworkingCore())) {
         return false;
     }
@@ -195,8 +212,32 @@ bool App::bootSystem() {
     return true;
 }
 
+void App::bootPowerGate() {
+    ESP_LOGI(kTag, "Boot step 7/12: evaluate power gate");
+    const PowerGateDecision decision = power_gate_.evaluate(
+        platform_.deviceConfig(),
+        data_.sensorConfigList(),
+        data_.measurementStore(),
+        esp_reset_reason());
+    status_service_.setPowerGate(decision);
+    if (!decision.sleep_requested) {
+        return;
+    }
+
+    // Everything started so far is either config in RAM or the low-current
+    // power monitors; deep sleep drops all of it and boot restarts from the
+    // bootloader when the timer fires.
+    ESP_LOGW(
+        kTag,
+        "Power gate: supply too weak for the radios, deep-sleeping %" PRIu32 " s (%s)",
+        decision.sleep_seconds,
+        powerGateOutcomeKey(decision.outcome));
+    setLedColor(0U, 0U, 0U);
+    PowerGate::enterDeepSleep(decision.sleep_seconds);
+}
+
 bool App::bootWebServer() {
-    ESP_LOGI(kTag, "Boot step 9/9: start status web server");
+    ESP_LOGI(kTag, "Boot step 12/12: start status web server");
     const esp_err_t web_err =
         web_server_.start(
             status_service_,

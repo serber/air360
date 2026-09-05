@@ -23,7 +23,7 @@ TWDT is initialized in `initWatchdog()` (`app.cpp`) with:
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| Timeout | 30 s | Fits the 10 s maintenance sleep with comfortable margin; long enough for healthy cellular reconnect attempts |
+| Timeout | 5 s (`CONFIG_ESP_TASK_WDT_TIMEOUT_S`) | Every subscribed task feeds in slices of at most 3 s (`kRuntimeMaintenanceSliceMs`, `kWdtFeedSliceMs = 2000`, 250 ms poll loops); panic on timeout is off, so a starved task logs a `task_wdt` warning instead of rebooting |
 | `trigger_panic` | `true` | On timeout the device panics and reboots — the correct behavior for an unattended field device |
 | `idle_core_mask` | all cores | FreeRTOS idle tasks on both cores are also supervised |
 
@@ -111,7 +111,7 @@ To confirm the TWDT actually fires on a real hang:
 
 1. Insert `vTaskDelay(portMAX_DELAY)` in the target task's loop (guarded by a `#ifdef CONFIG_AIR360_WDT_TEST`).
 2. Flash and connect serial monitor.
-3. After the configured timeout (30 s) the panic handler should trigger and print the offending task name.
+3. After the configured timeout (5 s) the `task_wdt` warning should print the offending task name (panic is disabled in `sdkconfig`, so the device keeps running).
 4. Device reboots.
 5. Remove the test code.
 

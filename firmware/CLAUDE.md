@@ -86,7 +86,7 @@ Rules:
 - Tag value must start with `air360.` followed by a short subsystem identifier (dots allowed for sub-levels, e.g. `air360.cellular.cfg`).
 - Do not use `static const char* TAG` or macro-based tags.
 
-Subsystem identifiers in use: `app`, `backend_cfg`, `ble`, `cellular`, `cellular.cfg`, `config`, `connectivity`, `http`, `modem_gpio`, `net`, `sensor`, `sensor_cfg`, `upload`, `web`.
+Subsystem identifiers in use: `app`, `backend_cfg`, `ble`, `cellular`, `cellular.cfg`, `config`, `connectivity`, `http`, `modem_gpio`, `net`, `ota`, `power_gate`, `sensor`, `sensor.dht`, `sensor.gps`, `sensor_cfg`, `upload`, `upload.osem`, `web`.
 
 Run `python3 ../scripts/check_style.py` to verify; this check fails on any deviation.
 

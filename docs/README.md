@@ -9,7 +9,6 @@ Top-level index for all documentation in this repository. For project-level cont
 | [firmware/README.md](firmware/README.md) | Full navigation map for firmware implementation docs — architecture, subsystems, sensor drivers, ADRs |
 | [backend/README.md](backend/README.md) | Backend design notes, ingest API contract, Ubuntu deployment guide |
 | [portal/README.md](portal/README.md) | Portal scope, stack direction, boundary with the backend |
-| [ecosystem/README.md](ecosystem/README.md) | Sensor.Community compatibility analysis and opportunity roadmap |
 
 ## Agent entry points
 

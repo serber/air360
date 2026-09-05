@@ -48,7 +48,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | mDNS name | `{device_name}.local` (station mode only) |
 | Stack overflow | `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y`; `vApplicationStackOverflowHook` logs and reboots |
 
-The server starts during boot step 9/9. A startup failure is fatal — the boot LED is set to the error state.
+The server starts during boot step 12/12. A startup failure is fatal — the boot LED is set to the error state.
 
 In station mode the web UI is reachable at both the DHCP IP address and `{device_name}.local` — the mDNS hostname is derived from the configured device name (see [network-manager.md](network-manager.md#mdns-local-discovery)).
 
@@ -129,6 +129,8 @@ Each individual check (`time_synced`, `sensors_reporting`, `uplink_available`, `
 
 **Backends section** — one row per configured backend showing type, enabled state, last upload result, and last upload time.
 
+**System section** — also shows a `Power gate` row while `power_gate_enabled = 1`: a `Passed` chip with the measured bus voltage and threshold, or a `Skipped` chip explaining why the gate did not run (no INA reading within the wait window, or no INA219/INA226 configured), plus the number and length of low-voltage deep sleeps that preceded this boot. See [power-gate.md](power-gate.md).
+
 **Sensors section** — one row per configured sensor showing sensor type, runtime state, transport summary, and the latest reading values. When a one-shot maintenance action is in progress (or finished) the row shows a `Maintenance: <status>` line (e.g. `FRC: warming up (45s/120s)`); the same string is exposed as `maintenance_status` on each sensor object in the Raw Status JSON. See [sensors/maintenance-actions.md](sensors/maintenance-actions.md).
 
 ---
@@ -143,7 +145,7 @@ The page currently shows:
 - **Tasks**: FreeRTOS stack high watermark for the sensor task, upload task, and cellular task
 - **Network Recovery**: current Wi-Fi mode / last Wi-Fi error, cellular reconnect counters, consecutive cellular failures, and PWRKEY cycle count
 - **Application Logs**: live log console that polls `GET /logs/data` every 2 seconds and auto-scrolls to the bottom. Logs are captured via `esp_log_set_vprintf` into an 8 KB in-memory ring buffer (`log_buffer.cpp`). The hook writes to UART and the ring buffer in parallel; the buffer is installed at the very start of boot.
-- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `failures`, `next_retry_ms`, and `maintenance_status`.
+- **Raw Status JSON**: a pretty-printed, read-only console-style dump with build, health, sensor, backend, configuration-load, and diagnostics fields. The `config` object reports `load_source`, per-source load counters, `wrote_defaults`, and `last_error` for the device, cellular, sensor, and backend repositories. The cellular object includes `pwrkey_cycles_total`, `last_pwrkey_ms_ago`, and `consecutive_failures`; each sensor object includes `status`, `startup_phase` (`before_network` or `after_network`), `failures`, `next_retry_ms`, and `maintenance_status`. The top-level `power_gate` object (`enabled`, `outcome`, `threshold_mv`, `has_voltage`, `voltage_mv`, `sensor_id`, `wait_ms`, `prior_sleeps`, `last_sleep_s`, `detail`) records the boot-time power gate decision; see [power-gate.md](power-gate.md).
 - **Copy JSON** button: copies the formatted JSON dump to the clipboard, with a manual-selection fallback if the browser clipboard API is unavailable
 
 This page is intended for diagnostics and capacity checks, not for normal day-to-day operation.
@@ -152,7 +154,7 @@ This page is intended for diagnostics and capacity checks, not for normal day-to
 
 ## Page: Device Configuration (`/config`)
 
-Form for network credentials, device identity, static IP, and cellular modem settings. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
+Form for network credentials, device identity, static IP, cellular modem, BLE, and boot-time power gate settings. Accessible in all network modes (including setup AP). Field constraints and validation rules are in [configuration-reference.md](configuration-reference.md#device-configuration-device_cfg). The network mode logic that determines when setup AP is active is in [network-manager.md](network-manager.md).
 
 **Network and identity fields:**
 
@@ -205,8 +207,20 @@ When `sta_ip` is not yet stored and the device is currently connected via DHCP, 
 |-------|-------|-------|
 | Wi-Fi power save | `.switch` button + hidden `<input type=checkbox name=wifi_power_save>` | Enables `WIFI_PS_MIN_MODEM` (modem sleep between DTIM beacons); station mode only; off by default |
 
+**Power gate (INA) card** — rendered with the `hidden` attribute unless the sensor list contains an enabled INA219 or INA226 (`sensorTypeIsPowerMonitor()`); hidden inputs are still submitted, so stored values round-trip even while the card is not shown. The card body is collapsed unless the switch is on and starts with a hint showing the latest bus-voltage reading of the first enabled power monitor (`MeasurementStore::runtimeInfoForSensor`, value kind `kVoltageMv`) or "no reading yet".
+
+| Field | Input | Notes |
+|-------|-------|-------|
+| Enable power gate | `.switch` button + hidden `<input type=checkbox name=power_gate_enabled>` | Switch shows/hides the section body; checkbox carries the value in POST |
+| Start threshold | `<input type=number min=1000 max=36000>` | `power_gate_threshold_mv`; boot continues only when the INA bus voltage is at or above it |
+| Sample wait | `<input type=number min=5 max=120>` | `power_gate_sample_wait_s`; longest wait for the first INA reading before the gate is skipped |
+| First sleep | `<input type=number min=30 max=7200>` | `power_gate_sleep_base_s`; deep-sleep duration after the first low-voltage boot |
+| Maximum sleep | `<input type=number min=30 max=7200>` | `power_gate_sleep_max_s`; cap for the doubling sleep duration; must be ≥ first sleep |
+
+Unparsable numeric values fall back to the currently stored ones before validation, so a browser that submits an empty field cannot wipe a setting.
+
 **Submit action:** `POST /config`
-- Validates field lengths, password constraints, and SNTP server characters server-side.
+- Validates field lengths, password constraints, SNTP server characters, and power gate ranges server-side.
 - Builds `DeviceConfig` and `CellularConfig`, validates both records, and saves `device_cfg` plus `cellular_cfg` with one NVS commit through `saveDeviceAndCellularConfig()`.
 - Responds with "Configuration saved. Device is rebooting now." and schedules a short one-shot reboot task after the response has been sent; `esp_restart()` is not called from an ESP timer callback.
 - On validation or save failure, re-renders the form with the submitted values preserved and an error notice. Runtime config pointers and status are updated only after the combined save succeeds.
@@ -238,7 +252,7 @@ Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-s
 For single-sensor categories, the "Add sensor" form is hidden if the category already has one configured sensor. The Gas category allows multiple sensors simultaneously.
 
 **Per-sensor card** — each configured sensor shows:
-- Display name and runtime state chip (`kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`) in the card header alongside **Save** and **Remove** buttons
+- Display name and runtime state chip (`kDeferred`, `kInitialized`, `kPolling`, `kAbsent`, `kError`, `kFailed`) in the card header alongside **Save** and **Remove** buttons
 - Status block: transport summary (e.g., `I2C bus 0 @ 0x76`, `GPIO 4`), poll interval, queued sample count, consecutive failure count, and next retry uptime when backing off; latest reading values
 - Edit form (model selector, poll interval, I2C address selector, UART port selector, or GPIO pin selector)
 - Calibration checkbox, rendered server-side only for sensor types whose descriptor sets `supports_startup_calibration` (currently SCD30, SCD40, and SCD41, labelled "Automatic self-calibration (ASC)"). It maps to the `startup_calibration` field; the driver applies it on the next `init()`. Unlike the transport selectors this control is not JS-toggled by the model selector — it is only present when the rendered sensor already advertises the capability, so calibration on a freshly added sensor is enabled by saving the sensor first and then ticking the checkbox on its card.

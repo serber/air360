@@ -43,6 +43,13 @@ enum class TransportKind : std::uint8_t {
     kGpio = 4U,
 };
 
+// Power monitors report SensorValueKind::kVoltageMv and start before the radios
+// (SensorStartupPhase::kBeforeNetwork). The boot-time power gate and the
+// config page use this to find a bus-voltage source.
+inline bool sensorTypeIsPowerMonitor(SensorType type) {
+    return type == SensorType::kIna219 || type == SensorType::kIna226;
+}
+
 enum class SensorRuntimeState : std::uint8_t {
     kDisabled = 0U,
     kConfigured = 1U,
@@ -52,6 +59,9 @@ enum class SensorRuntimeState : std::uint8_t {
     kUnsupported = 5U,
     kError = 6U,
     kFailed = 7U,
+    // Driver allocated but parked until the sensor manager releases the
+    // after-network startup phase (see SensorStartupPhase).
+    kDeferred = 8U,
 };
 
 // One-shot maintenance actions that can be scheduled against a sensor and run
@@ -458,6 +468,8 @@ inline const char* sensorRuntimeStateKey(SensorRuntimeState state) {
             return "unsupported";
         case SensorRuntimeState::kFailed:
             return "failed";
+        case SensorRuntimeState::kDeferred:
+            return "deferred";
         case SensorRuntimeState::kError:
         default:
             return "error";

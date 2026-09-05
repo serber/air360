@@ -56,7 +56,7 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 | `DeviceConfig` | `0x41333630` ("A360") | 1 |
 | `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
 | `SensorConfigList` | `0x41333631` ("A361") | 1 |
-| `BackendConfigList` | `0x41333632` ("A362") | 1 |
+| `BackendConfigList` | `0x41333632` ("A362") | 2 |
 
 Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
 
@@ -72,7 +72,7 @@ Device identity and network credentials.
 struct DeviceConfig {
     uint32_t magic;                  // 0x41333630
     uint16_t schema_version;         // 1
-    uint16_t record_size;
+    uint16_t record_size;            // 384
     uint16_t http_port;              // default: 80
     uint8_t  lab_ap_enabled;         // 0 or 1
     uint8_t  local_auth_enabled;     // reserved, not enforced
@@ -91,6 +91,13 @@ struct DeviceConfig {
     char     sta_netmask[16];
     char     sta_gateway[16];
     char     sta_dns[16];
+    // ---- power gate ----
+    uint8_t  power_gate_enabled;     // 0 or 1
+    uint8_t  reserved2;
+    uint16_t power_gate_threshold_mv;// default: 4700
+    uint16_t power_gate_sleep_base_s;// default: 300
+    uint16_t power_gate_sleep_max_s; // default: 1800
+    uint16_t power_gate_sample_wait_s;// default: 15
 };
 ```
 
@@ -108,6 +115,11 @@ struct DeviceConfig {
 | `sntp_server` | `""` | Empty means use firmware default (`pool.ntp.org`) |
 | `sta_use_static_ip` | `0` | 0 = DHCP; 1 = use static IP fields |
 | `ble_adv_interval_index` | `2` | Index into `{100, 300, 1000, 3000}` ms; default = 1000 ms |
+| `power_gate_enabled` | `0` | 0 = boot never sleeps on low voltage; 1 = boot-time power gate active |
+| `power_gate_threshold_mv` | `4700` | Bus voltage (mV) the INA219/INA226 must report for boot to continue |
+| `power_gate_sleep_base_s` | `300` | First deep-sleep duration below the threshold |
+| `power_gate_sleep_max_s` | `1800` | Cap for the doubling sleep duration |
+| `power_gate_sample_wait_s` | `15` | Longest wait for the first voltage sample before the gate is skipped |
 
 Compile-time defaults for AP channel and max connections are **not** stored in NVS — they are read directly from `Kconfig` constants at runtime.
 
