@@ -156,9 +156,13 @@ The portal should not communicate directly with firmware devices for account wor
 Based on the current backend structure, versioned API routes under `/v1` are the expected integration direction, but the exact contract should follow the implemented backend endpoints.
 
 In local and production Next.js runtime, `next.config.ts` rewrites `/v1/*` to
-`AIR360_API_BASE_URL` and defaults to `https://api.air360.ru`. Browser-side
-direct API calls can be forced with `NEXT_PUBLIC_AIR360_API_BASE_URL`, but the
-default portal flow uses same-origin `/v1/*` requests.
+`AIR360_API_BASE_URL` and defaults to `https://api.air360.ru`. All portal API
+requests are same-origin `/v1/*` calls through that rewrite; the backend does
+not enable CORS, so there is no browser-side direct API mode.
+
+Sensor type and measurement kind names are duplicated between firmware, backend,
+and portal. `python3 scripts/check_api_contracts.py` (repo root) fails when the
+three lists drift.
 
 ## Current Status
 

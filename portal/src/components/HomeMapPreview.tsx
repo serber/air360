@@ -3,14 +3,23 @@
 import maplibregl from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { DeviceReading, DeviceSummary, DevicesResponse } from "@/lib/api";
-import { fetchJson } from "@/lib/api";
+import type { DeviceSummary, DevicesResponse } from "@/lib/api";
+import { fetchJson, hasValidLocation } from "@/lib/api";
+import {
+  METRIC_SCALES,
+  colorsForValue,
+  findMetricReading,
+  markerValue,
+  type MapMetric,
+} from "@/lib/map-scales";
 import { MAP_STYLE } from "@/lib/map-style";
 
 const PREVIEW_SOURCE_ID = "air360-home-preview-devices";
 const PREVIEW_CIRCLE_LAYER_ID = "air360-home-preview-circles";
 const PREVIEW_LABEL_LAYER_ID = "air360-home-preview-labels";
-const PREVIEW_METRIC = "pm2_5_ug_m3";
+const PREVIEW_METRIC: MapMetric = "pm2_5_ug_m3";
+const PREVIEW_CENTER: [number, number] = [20, 35];
+const PREVIEW_ZOOM = 1.5;
 
 type PreviewFeature = {
   type: "Feature";
@@ -53,7 +62,7 @@ export function HomeMapPreview() {
     const controller = new AbortController();
 
     fetchJson<DevicesResponse>("/v1/devices", controller.signal)
-      .then((data) => setDevices(data.devices))
+      .then((data) => setDevices(data.devices.filter(hasValidLocation)))
       .catch(() => {
         if (!controller.signal.aborted) {
           setDevices([]);
@@ -72,7 +81,7 @@ export function HomeMapPreview() {
 
     const map = new maplibregl.Map({
       attributionControl: { compact: true },
-      center: [20, 35],
+      center: PREVIEW_CENTER,
       container,
       doubleClickZoom: false,
       dragPan: false,
@@ -84,7 +93,7 @@ export function HomeMapPreview() {
       scrollZoom: false,
       style: MAP_STYLE,
       touchZoomRotate: false,
-      zoom: 1.5,
+      zoom: PREVIEW_ZOOM,
     });
 
     mapRef.current = map;
@@ -203,7 +212,7 @@ function syncPreviewMap(
 
 function fitPreviewDevices(map: maplibregl.Map, features: PreviewFeature[]) {
   if (features.length === 0) {
-    map.easeTo({ center: [20, 35], zoom: 1.5 });
+    map.easeTo({ center: PREVIEW_CENTER, zoom: PREVIEW_ZOOM });
     return;
   }
 
@@ -224,14 +233,17 @@ function fitPreviewDevices(map: maplibregl.Map, features: PreviewFeature[]) {
   });
 }
 
+// The preview always shows PM2.5 with the same bands as the device map.
 function buildPreviewFeatureCollection(
   devices: DeviceSummary[],
 ): PreviewFeatureCollection {
+  const scale = METRIC_SCALES[PREVIEW_METRIC];
+
   return {
     type: "FeatureCollection",
     features: devices.map((device) => {
-      const reading = findReading(device, PREVIEW_METRIC);
-      const colors = pm25Colors(reading?.value);
+      const reading = findMetricReading(device, PREVIEW_METRIC);
+      const colors = colorsForValue(scale, reading?.value);
 
       return {
         type: "Feature",
@@ -241,7 +253,7 @@ function buildPreviewFeatureCollection(
         },
         properties: {
           color: colors.color,
-          label: typeof reading?.value === "number" ? markerValue(reading.value) : "",
+          label: reading ? markerValue(PREVIEW_METRIC, reading.value) : "",
           opacity: 0.94,
           ringColor: colors.ring,
           strokeWidth: 3,
@@ -256,37 +268,4 @@ function emptyFeatureCollection(): PreviewFeatureCollection {
     type: "FeatureCollection",
     features: [],
   };
-}
-
-function findReading(
-  device: DeviceSummary,
-  kind: string,
-): DeviceReading | undefined {
-  for (const sensor of device.sensors) {
-    const reading = sensor.readings.find((candidate) => candidate.kind === kind);
-
-    if (reading) {
-      return reading;
-    }
-  }
-
-  return undefined;
-}
-
-function pm25Colors(value: number | undefined): { color: string; ring: string } {
-  if (typeof value !== "number") {
-    return { color: "#64748b", ring: "#e2e8f0" };
-  }
-
-  if (value <= 12) return { color: "#15803d", ring: "#bbf7d0" };
-  if (value <= 35.4) return { color: "#ca8a04", ring: "#fef08a" };
-  if (value <= 55.4) return { color: "#ea580c", ring: "#fed7aa" };
-  if (value <= 150.4) return { color: "#be123c", ring: "#fecdd3" };
-  return { color: "#7f1d1d", ring: "#fecaca" };
-}
-
-function markerValue(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 1,
-  }).format(value);
 }

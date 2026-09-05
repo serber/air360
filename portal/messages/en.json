@@ -193,64 +193,152 @@
       }
     ],
     "sensorGuideTitle": "Choose your sensors",
-  "sensorGuideBody": "Pick one or more sensors based on what you want to monitor. Sensors can be combined freely; values go to the Air360 API, and compatible values also go to Sensor.Community.",
-  "sensorGuideNameColumn": "Sensor",
-  "sensorGuideMeasuresColumn": "Measures",
-  "sensorGuideWhyColumn": "Why you'd want it",
-  "sensorGuideGroups": [
-    {
-      "category": "Climate",
-      "sensors": [
-        { "name": "BME280", "measures": "Temperature, humidity, pressure", "why": "Compact all-in-one climate sensor; good for indoor and outdoor baseline monitoring." },
-        { "name": "BME680", "measures": "Temperature, humidity, pressure, gas resistance (VOC)", "why": "Same as BME280 with a gas sensor that estimates indoor air quality and volatile organic compounds." },
-        { "name": "BMP390", "measures": "Pressure, temperature", "why": "Precise barometer: it measures pressure and temperature, but not humidity. Choose it when pressure accuracy matters most." },
-        { "name": "AHT30", "measures": "Temperature, humidity", "why": "Accurate and low-cost; a reliable upgrade over DHT22 with I2C connectivity." },
-        { "name": "SHT3X", "measures": "Temperature, humidity", "why": "High-accuracy sensor; more consistent than AHT30 across wide temperature ranges." },
-        { "name": "SHT4X", "measures": "Temperature, humidity", "why": "Improved successor to SHT3X with higher accuracy in humid environments." },
-        { "name": "HTU2X", "measures": "Temperature, humidity", "why": "Budget option; lower accuracy than SHT series but widely available." },
-        { "name": "DHT11", "measures": "Temperature, humidity", "why": "Entry-level sensor with limited range (0–50 °C, 20–90 %RH); suitable for learning or quick tests." },
-        { "name": "DHT22", "measures": "Temperature, humidity", "why": "Better range and accuracy than DHT11; common first sensor for prototypes." },
-        { "name": "DS18B20", "measures": "Temperature", "why": "Waterproof probe; designed for outdoor, soil, or liquid temperature measurement." }
-      ]
-    },
-    {
-      "category": "Particulate matter",
-      "sensors": [
-        { "name": "SPS30", "measures": "PM1.0, PM2.5, PM4.0, PM10, particle count, typical particle size", "why": "Most complete PM sensor in the lineup; recommended for outdoor air quality stations." },
-        { "name": "SDS011", "measures": "PM2.5, PM10", "why": "Affordable laser sensor; popular for city and roadside air monitoring." },
-        { "name": "PMSX003 (PMS5003 / PMS7003)", "measures": "PM1.0, PM2.5, PM10, particle count bins", "why": "Widely available compact sensor; good balance of cost and data completeness." },
-        { "name": "PPD42NS", "measures": "Particle count (coarse)", "why": "Basic optical sensor; lower accuracy; GPIO-based, no shared bus required." }
-      ]
-    },
-    {
-      "category": "CO₂ and gas",
-      "sensors": [
-        { "name": "SCD30", "measures": "CO₂, temperature, humidity", "why": "NDIR CO₂ sensor; accurate and stable; recommended for ventilation and indoor air quality monitoring." },
-        { "name": "SCD40", "measures": "CO₂, temperature, humidity", "why": "Compact photoacoustic CO₂ sensor; lower cost and smaller footprint than SCD30." },
-        { "name": "SCD41", "measures": "CO₂, temperature, humidity", "why": "Higher-accuracy variant of SCD40 with single-shot measurement support; good when board space is tight." },
-        { "name": "MH-Z19B", "measures": "CO₂", "why": "NDIR CO₂ via UART; compact and common for home automation projects." }
-      ]
-    },
-    {
-      "category": "Light",
-      "sensors": [
-        { "name": "VEML7700", "measures": "Illuminance (lux)", "why": "Measures ambient light level; useful for daylight tracking or controlling light-dependent devices." },
-        { "name": "OPT3001", "measures": "Illuminance (lux)", "why": "Alternative to VEML7700 with a slightly different spectral response; same use cases." }
-      ]
-    },
-    {
-      "category": "Power monitoring",
-      "sensors": [
-        { "name": "INA219", "measures": "DC current, voltage, power", "why": "Monitors the device's own power consumption; useful for solar-powered or battery-backed setups." },
-        { "name": "INA226", "measures": "DC current, voltage, power", "why": "Higher-accuracy successor to INA219 with a wider bus voltage range (up to 36 V); same self-power-monitoring use case." }
-      ]
-    }
-  ],
-  "sensorGuideGpsTitle": "GPS — location tagging",
-  "sensorGuideGpsBody": "A GPS module (any NMEA-compatible receiver via UART) adds geographic coordinates to every measurement batch. Use it for fixed outdoor stations where you want precise coordinates attached to each reading, or for mobile setups mounted on a vehicle or carried as a portable unit.",
-  "sensorGuideCellularTitle": "Cellular modem — connectivity without Wi-Fi",
-  "sensorGuideCellularBody": "A cellular modem lets the device upload data over a SIM card with no Wi-Fi required. Supported models: SIM7600 (default), SIM7070, SIM7000, BG96, EC20, SIM800, and Generic (any AT-command modem via esp-modem). This is the right choice for rooftop stations, remote field installations, or any location where a stable Wi-Fi connection is not available.",
-  "enclosureTitle": "Enclosure: Stevenson screen",
+    "sensorGuideBody": "Pick one or more sensors based on what you want to monitor. Sensors can be combined freely; values go to the Air360 API, and compatible values also go to Sensor.Community.",
+    "sensorGuideNameColumn": "Sensor",
+    "sensorGuideMeasuresColumn": "Measures",
+    "sensorGuideWhyColumn": "Why you'd want it",
+    "sensorGuideGroups": [
+      {
+        "category": "Climate",
+        "sensors": [
+          {
+            "name": "BME280",
+            "measures": "Temperature, humidity, pressure",
+            "why": "Compact all-in-one climate sensor; good for indoor and outdoor baseline monitoring."
+          },
+          {
+            "name": "BME680",
+            "measures": "Temperature, humidity, pressure, gas resistance (VOC)",
+            "why": "Same as BME280 with a gas sensor that estimates indoor air quality and volatile organic compounds."
+          },
+          {
+            "name": "BMP390",
+            "measures": "Pressure, temperature",
+            "why": "Precise barometer: it measures pressure and temperature, but not humidity. Choose it when pressure accuracy matters most."
+          },
+          {
+            "name": "AHT30",
+            "measures": "Temperature, humidity",
+            "why": "Accurate and low-cost; a reliable upgrade over DHT22 with I2C connectivity."
+          },
+          {
+            "name": "SHT3X",
+            "measures": "Temperature, humidity",
+            "why": "High-accuracy sensor; more consistent than AHT30 across wide temperature ranges."
+          },
+          {
+            "name": "SHT4X",
+            "measures": "Temperature, humidity",
+            "why": "Improved successor to SHT3X with higher accuracy in humid environments."
+          },
+          {
+            "name": "HTU2X",
+            "measures": "Temperature, humidity",
+            "why": "Budget option; lower accuracy than SHT series but widely available."
+          },
+          {
+            "name": "DHT11",
+            "measures": "Temperature, humidity",
+            "why": "Entry-level sensor with limited range (0–50 °C, 20–90 %RH); suitable for learning or quick tests."
+          },
+          {
+            "name": "DHT22",
+            "measures": "Temperature, humidity",
+            "why": "Better range and accuracy than DHT11; common first sensor for prototypes."
+          },
+          {
+            "name": "DS18B20",
+            "measures": "Temperature",
+            "why": "Waterproof probe; designed for outdoor, soil, or liquid temperature measurement."
+          }
+        ]
+      },
+      {
+        "category": "Particulate matter",
+        "sensors": [
+          {
+            "name": "SPS30",
+            "measures": "PM1.0, PM2.5, PM4.0, PM10, particle count, typical particle size",
+            "why": "Most complete PM sensor in the lineup; recommended for outdoor air quality stations."
+          },
+          {
+            "name": "SDS011",
+            "measures": "PM2.5, PM10",
+            "why": "Affordable laser sensor; popular for city and roadside air monitoring."
+          },
+          {
+            "name": "PMSX003 (PMS5003 / PMS7003)",
+            "measures": "PM1.0, PM2.5, PM10, particle count bins",
+            "why": "Widely available compact sensor; good balance of cost and data completeness."
+          },
+          {
+            "name": "PPD42NS",
+            "measures": "Particle count (coarse)",
+            "why": "Basic optical sensor; lower accuracy; GPIO-based, no shared bus required."
+          }
+        ]
+      },
+      {
+        "category": "CO₂ and gas",
+        "sensors": [
+          {
+            "name": "SCD30",
+            "measures": "CO₂, temperature, humidity",
+            "why": "NDIR CO₂ sensor; accurate and stable; recommended for ventilation and indoor air quality monitoring."
+          },
+          {
+            "name": "SCD40",
+            "measures": "CO₂, temperature, humidity",
+            "why": "Compact photoacoustic CO₂ sensor; lower cost and smaller footprint than SCD30."
+          },
+          {
+            "name": "SCD41",
+            "measures": "CO₂, temperature, humidity",
+            "why": "Higher-accuracy variant of SCD40 with single-shot measurement support; good when board space is tight."
+          },
+          {
+            "name": "MH-Z19B",
+            "measures": "CO₂",
+            "why": "NDIR CO₂ via UART; compact and common for home automation projects."
+          }
+        ]
+      },
+      {
+        "category": "Light",
+        "sensors": [
+          {
+            "name": "VEML7700",
+            "measures": "Illuminance (lux)",
+            "why": "Measures ambient light level; useful for daylight tracking or controlling light-dependent devices."
+          },
+          {
+            "name": "OPT3001",
+            "measures": "Illuminance (lux)",
+            "why": "Alternative to VEML7700 with a slightly different spectral response; same use cases."
+          }
+        ]
+      },
+      {
+        "category": "Power monitoring",
+        "sensors": [
+          {
+            "name": "INA219",
+            "measures": "DC current, voltage, power",
+            "why": "Monitors the device's own power consumption; useful for solar-powered or battery-backed setups."
+          },
+          {
+            "name": "INA226",
+            "measures": "DC current, voltage, power",
+            "why": "Higher-accuracy successor to INA219 with a wider bus voltage range (up to 36 V); same self-power-monitoring use case."
+          }
+        ]
+      }
+    ],
+    "sensorGuideGpsTitle": "GPS — location tagging",
+    "sensorGuideGpsBody": "A GPS module (any NMEA-compatible receiver via UART) adds geographic coordinates to every measurement batch. Use it for fixed outdoor stations where you want precise coordinates attached to each reading, or for mobile setups mounted on a vehicle or carried as a portable unit.",
+    "sensorGuideCellularTitle": "Cellular modem — connectivity without Wi-Fi",
+    "sensorGuideCellularBody": "A cellular modem lets the device upload data over a SIM card with no Wi-Fi required. Supported models: SIM7600 (default), SIM7070, SIM7000, BG96, EC20, SIM800, and Generic (any AT-command modem via esp-modem). This is the right choice for rooftop stations, remote field installations, or any location where a stable Wi-Fi connection is not available.",
+    "enclosureTitle": "Enclosure: Stevenson screen",
     "enclosureBody": "For outdoor installation, you can 3D-print a Stevenson-screen-style enclosure. It shields the device from direct sun and rain while keeping airflow around the sensors.",
     "enclosureLink": "Open model on Printables",
     "enclosureImageAlt": "Air360 in a Stevenson screen enclosure",
@@ -397,10 +485,22 @@
     "firmwareLedColorColumn": "Color",
     "firmwareLedMeaningColumn": "Meaning",
     "firmwareLedColors": [
-      { "color": "Blue", "meaning": "Booting." },
-      { "color": "Pink", "meaning": "Setup AP mode — no Wi-Fi configured, or connection to Wi-Fi failed." },
-      { "color": "Green", "meaning": "Connected to Wi-Fi (station mode)." },
-      { "color": "Red", "meaning": "Fatal boot error — check serial logs." }
+      {
+        "color": "Blue",
+        "meaning": "Booting."
+      },
+      {
+        "color": "Pink",
+        "meaning": "Setup AP mode — no Wi-Fi configured, or connection to Wi-Fi failed."
+      },
+      {
+        "color": "Green",
+        "meaning": "Connected to Wi-Fi (station mode)."
+      },
+      {
+        "color": "Red",
+        "meaning": "Fatal boot error — check serial logs."
+      }
     ],
     "uiGuideTitle": "Device web interface",
     "uiGuideBody": "After the device joins your Wi-Fi network, open http://air360.local or the device IP in a browser. The interface has four sections.",
@@ -447,7 +547,12 @@
           "No account required: during setup the device creates a secret key. Save it — if you reflash the device, the same key keeps your measurement history.",
           "Set the device coordinates before uploads start. Altitude above sea level is optional, but it makes pressure readings more accurate."
         ],
-        "links": [{ "href": "/map", "label": "Air360 map" }]
+        "links": [
+          {
+            "href": "/map",
+            "label": "Air360 map"
+          }
+        ]
       },
       {
         "id": "sensor_community",
@@ -459,8 +564,14 @@
           "Register the sensor number that the device shows you, and your station will appear on their map."
         ],
         "links": [
-          { "href": "https://sensor.community/", "label": "sensor.community" },
-          { "href": "https://devices.sensor.community/sensors", "label": "Register a sensor" }
+          {
+            "href": "https://sensor.community/",
+            "label": "sensor.community"
+          },
+          {
+            "href": "https://devices.sensor.community/sensors",
+            "label": "Register a sensor"
+          }
         ]
       },
       {
@@ -472,7 +583,12 @@
           "You can publish anything you add to your senseBox, including CO2, light level and GPS coordinates.",
           "The device fetches the sensor list from your senseBox and fills in the settings for you, so there is nothing to match up by hand."
         ],
-        "links": [{ "href": "https://opensensemap.org/", "label": "opensensemap.org" }]
+        "links": [
+          {
+            "href": "https://opensensemap.org/",
+            "label": "opensensemap.org"
+          }
+        ]
       },
       {
         "id": "influxdb",
@@ -483,7 +599,12 @@
           "You provide the server address; a login and password are optional.",
           "Readings from every sensor are sent, with nothing left out."
         ],
-        "links": [{ "href": "https://www.influxdata.com/", "label": "influxdata.com" }]
+        "links": [
+          {
+            "href": "https://www.influxdata.com/",
+            "label": "influxdata.com"
+          }
+        ]
       },
       {
         "id": "custom_upload",
@@ -548,14 +669,6 @@
       "pm4_0_ug_m3": "PM4.0",
       "dust_concentration_pcs_0_01cf": "Dust count",
       "illuminance_lux": "Light"
-    },
-    "quality": {
-      "good": "Good",
-      "moderate": "Moderate",
-      "poor": "Poor",
-      "bad": "Bad",
-      "dataOnly": "Data only",
-      "noData": "No data"
     },
     "legend": {
       "temperature": "Temperature",
@@ -653,6 +766,7 @@
     "deviceData": "Device data",
     "public": "Public",
     "visitorLogs": "Visitor logs",
+    "visitorLogsRetention": "90 days",
     "trackingAds": "Tracking ads",
     "no": "No",
     "contact": "Contact",

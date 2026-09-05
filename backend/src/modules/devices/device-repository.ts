@@ -1,6 +1,7 @@
 import { sql, type Kysely } from "kysely";
 
 import type { Database, Device } from "../../db/schema";
+import { deviceOnlineSince } from "../../lib/device-activity";
 
 interface UpsertDeviceData {
   device_id: number;
@@ -36,11 +37,12 @@ export async function upsertDevice(
     .executeTakeFirstOrThrow() as Promise<Device>;
 }
 
-export async function findAllDevices(db: Kysely<Database>): Promise<Device[]> {
+/** Devices that reported within `DEVICE_ONLINE_WINDOW`. */
+export async function findOnlineDevices(db: Kysely<Database>): Promise<Device[]> {
   return db
     .selectFrom("devices")
     .selectAll()
-    .where("last_seen_at", ">=", sql<Date>`NOW() - INTERVAL '1 hour'`)
+    .where("last_seen_at", ">=", deviceOnlineSince)
     .execute() as Promise<Device[]>;
 }
 
@@ -48,7 +50,7 @@ export async function findOfflineDevices(db: Kysely<Database>): Promise<Device[]
   return db
     .selectFrom("devices")
     .selectAll()
-    .where("last_seen_at", "<", sql<Date>`NOW() - INTERVAL '1 hour'`)
+    .where("last_seen_at", "<", deviceOnlineSince)
     .execute() as Promise<Device[]>;
 }
 

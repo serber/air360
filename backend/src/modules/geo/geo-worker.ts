@@ -27,15 +27,28 @@ async function tick(app: FastifyInstance): Promise<void> {
   app.log.info({ device_id, geo_display: result.geo_display }, "geo updated");
 }
 
-export function startGeoWorker(app: FastifyInstance): void {
-  const timer = setInterval(() => {
-    tick(app).catch((err: unknown) =>
-      app.log.error({ err }, "geo worker tick error"),
-    );
-  }, TICK_INTERVAL_MS);
+/**
+ * Drains `geo_update_queue` at a Nominatim-friendly rate. The timer starts only
+ * once the server is ready (so building the app for tests does not hit the
+ * network) and stops before the database pool is closed.
+ */
+export function registerGeoWorker(app: FastifyInstance): void {
+  let timer: NodeJS.Timeout | null = null;
+  let inFlight: Promise<void> = Promise.resolve();
 
-  app.addHook("onClose", (_instance, done) => {
-    clearInterval(timer);
-    done();
+  app.addHook("onReady", async () => {
+    timer = setInterval(() => {
+      inFlight = tick(app).catch((err: unknown) =>
+        app.log.error({ err }, "geo worker tick error"),
+      );
+    }, TICK_INTERVAL_MS);
+  });
+
+  app.addHook("onClose", async () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    await inFlight;
   });
 }

@@ -1,6 +1,7 @@
 import { sql, type Kysely } from "kysely";
 
 import type { Database } from "../../db/schema";
+import { deviceOnlineSince } from "../../lib/device-activity";
 
 export interface PortalStats {
   active_devices: number;
@@ -16,7 +17,7 @@ export async function getPortalStats(
       (
         SELECT COUNT(*)
         FROM devices
-        WHERE last_seen_at >= NOW() - INTERVAL '1 hour'
+        WHERE last_seen_at >= ${deviceOnlineSince}
       ) AS active_devices,
       (
         SELECT COUNT(DISTINCT geo_country_code)

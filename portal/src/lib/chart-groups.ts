@@ -39,7 +39,6 @@ export const CHART_GROUPS: readonly ChartGroup[] = [
       "pm2_5_ug_m3",
       "pm4_0_ug_m3",
       "pm10_0_ug_m3",
-      "pm10_ug_m3",
     ],
   },
   {

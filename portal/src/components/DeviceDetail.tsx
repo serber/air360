@@ -76,8 +76,11 @@ export function DeviceDetail({ publicId }: DeviceDetailProps) {
     [byKind, groupTitles],
   );
   const isStale = device ? isDeviceStale(device.last_seen_at) : true;
+  // A failed request must surface its message: never report "loading" once the
+  // fetch has settled with an error, even when no data was ever received.
   const isLoading =
-    state.status === "idle" || state.data === undefined || state.data.period !== period;
+    state.status !== "error" &&
+    (state.status === "idle" || state.data === undefined || state.data.period !== period);
   const deviceTitle = device?.name?.trim() || t("fallbackTitle");
   const countryFlag = countryCodeFlag(device?.geo_country_code);
   const countryValue = device?.geo_country

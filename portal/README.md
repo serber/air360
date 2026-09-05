@@ -40,13 +40,6 @@ set:
 AIR360_API_BASE_URL=https://api.air360.ru
 ```
 
-Only set `NEXT_PUBLIC_AIR360_API_BASE_URL` if the browser must call a public API
-host directly:
-
-```bash
-NEXT_PUBLIC_AIR360_API_BASE_URL=https://api.air360.ru
-```
-
 The contact address shown on `/privacy` comes from `CONTACT_EMAIL`
 (`src/lib/config.ts`). Pages are dynamically rendered, so it is read from the
 server environment at request time; changing it only requires a server restart.
@@ -80,4 +73,5 @@ Portal-local AI agent guidance is in `CLAUDE.md`.
 - Shared portal shell and reusable navigation primitives:
   `src/components/PortalShell.tsx`
 - API types and fetch helpers: `src/lib/api.ts`
+- Map metric color scales shared by the device map and the home preview: `src/lib/map-scales.ts`
 - API proxy: `next.config.ts`

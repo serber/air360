@@ -106,6 +106,7 @@ Before reporting any task as done — regardless of type (code, docs, refactor, 
 - Firmware documentation index: [`docs/firmware/README.md`](docs/firmware/README.md)
 - Firmware doc template: [`docs/firmware/doc-template.md`](docs/firmware/doc-template.md)
 - Firmware doc hygiene checker: `python3 scripts/check_firmware_docs.py`
+- Firmware/backend/portal sensor-type and measurement-kind contract checker: `python3 scripts/check_api_contracts.py`
 
 ## Skills
 

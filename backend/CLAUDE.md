@@ -50,6 +50,7 @@ npm start
 - `GET /`
 - `GET /v1/devices`
 - `GET /v1/devices/offline`
+- `GET /v1/stats`
 - `GET /v1/devices/:public_id/measurements?period=<period>`
 - `PUT /v1/devices/:device_id/register`
 - `PUT /v1/devices/:device_id/batches/:batch_id`
@@ -60,7 +61,7 @@ There is no implemented `GET /v1/devices/:public_id/latest` route in the current
 
 - If you add, remove, or reshape routes, update `../docs/backend/README.md` and any matching ADR under `../docs/backend/adr/`.
 - If a route is consumed by the portal, update `../portal/src/lib/api.ts`, relevant portal components, and `../docs/portal/README.md`.
-- If firmware payloads, auth, sensor types, or measurement kinds change, update the matching firmware upload docs and verify firmware code that generates the payload.
+- If firmware payloads, auth, sensor types, or measurement kinds change, update the matching firmware upload docs, verify firmware code that generates the payload, and run `python3 ../scripts/check_api_contracts.py` (it also checks the portal copy).
 - If migrations or `src/db/schema.ts` change, update the backend data model docs and deployment guide if operators need to run or reason about the migration.
 - If reverse-geocoding behavior changes, update the backend docs and any portal docs that display `geo_*` fields.
 - If environment variables change, update `.env.example`, `../docs/backend/README.md`, and deployment docs.
@@ -70,4 +71,6 @@ There is no implemented `GET /v1/devices/:public_id/latest` route in the current
 - `device_id` is the internal 48-bit hardware identifier from firmware.
 - `public_id` is the UUID exposed through public read APIs.
 - Ingest auth uses `Authorization: Bearer <upload_secret>` against the stored `sha256:<base64url(sha256(upload_secret))>` hash.
-- `startGeoWorker()` runs inside the Fastify process and uses Nominatim reverse geocoding at a throttled interval.
+- `registerGeoWorker()` runs inside the Fastify process (timer starts on `onReady`, stops on `onClose`) and uses Nominatim reverse geocoding at a throttled interval.
+- Ingest validates the body with a JSON schema and writes the batch, measurements, device update, and geocode queue entry in one transaction.
+- The "online" window (1 hour) lives in `src/lib/device-activity.ts` and is mirrored by `DEVICE_STALE_AFTER_MS` in the portal.

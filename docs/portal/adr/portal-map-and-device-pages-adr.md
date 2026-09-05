@@ -156,8 +156,8 @@ client components (`"use client"`) because MapLibre GL JS and Recharts require
 browser APIs.
 
 `next.config.ts` rewrites same-origin `/v1/*` requests to `AIR360_API_BASE_URL`,
-defaulting to `https://api.air360.ru`. `NEXT_PUBLIC_AIR360_API_BASE_URL` is only
-needed if the browser should call a public API host directly.
+defaulting to `https://api.air360.ru`. The portal has no direct-to-API mode:
+the backend does not enable CORS, so every request goes through the rewrite.
 
 ### Component layout
 
@@ -169,12 +169,14 @@ needed if the browser should call a public API host directly.
 | `src/app/privacy/page.tsx` | Privacy policy |
 | `src/components/PortalShell.tsx` | Shared public portal navigation, footer, brand mark, and arrow primitive |
 | `src/components/DeviceMapLoader.tsx` | Client-only MapLibre loader |
-| `src/components/DeviceMap.tsx` | MapLibre map with GeoJSON device layers |
+| `src/components/DeviceMap.tsx` | MapLibre map with GeoJSON device layers (one clustered source per online/offline set) |
+| `src/components/MapLegend.tsx` | Legend for the active metric, driven by its `MetricScale` |
 | `src/components/DevicePopup.tsx` | Popup card: name, last seen, readings, link |
 | `src/components/SensorChart.tsx` | Recharts `LineChart` wrapper per measurement kind |
 | `src/components/PeriodSelector.tsx` | Period toggle buttons |
 | `src/lib/api.ts` | API response types, fetch helper, labels, formatting |
 | `src/lib/chart-groups.ts` | Declarative metadata for merging related kinds onto one chart |
+| `src/lib/map-scales.ts` | Per-metric color stops; marker colors, cluster expressions, and legends all derive from them |
 | `src/lib/config.ts` | Shared portal config such as contact email |
 
 ### Dependencies
