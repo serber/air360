@@ -2,10 +2,9 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { getDb } from "../../db/client";
 import {
-  findAllDevices,
   findDeviceByDeviceId,
-  findDeviceByPublicId,
   findOfflineDevices,
+  findOnlineDevices,
   upsertDevice,
 } from "../../modules/devices/device-repository";
 import { findAllLatestMeasurements } from "../../modules/measurements/measurement-repository";
@@ -41,7 +40,7 @@ export const deviceRoutes: FastifyPluginAsync = async (app) => {
     const db = getDb(app.config);
 
     const [devices, allMeasurements] = await Promise.all([
-      findAllDevices(db),
+      findOnlineDevices(db),
       findAllLatestMeasurements(db),
     ]);
 

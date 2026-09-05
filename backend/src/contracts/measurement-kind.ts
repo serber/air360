@@ -38,6 +38,17 @@ export const measurementKinds = [
 
 export type MeasurementKind = (typeof measurementKinds)[number];
 
+/**
+ * Kinds the backend derives on ingest and stores next to the device-reported
+ * ones. Devices never send these, so they are not accepted in upload payloads.
+ */
+export const derivedMeasurementKinds = ["pressure_hpa_raw"] as const;
+
+export type DerivedMeasurementKind = (typeof derivedMeasurementKinds)[number];
+
+/** Every kind that can appear in the `measurements` table. */
+export type StoredMeasurementKind = MeasurementKind | DerivedMeasurementKind;
+
 const measurementKindSet = new Set<string>(measurementKinds);
 
 export function isMeasurementKind(value: string): value is MeasurementKind {

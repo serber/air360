@@ -105,9 +105,19 @@ HOST=0.0.0.0
 PORT=3000
 LOG_LEVEL=info
 DATABASE_URL=postgresql://user:password@localhost:5432/air360
+# Trust X-Forwarded-* from the reverse proxy: true, false, or an address list (e.g. 127.0.0.1,loopback).
+TRUST_PROXY=true
 ```
 
 `DATABASE_URL` is required. The server will not start without it.
+
+`TRUST_PROXY` maps to Fastify's `trustProxy` and defaults to `true` because the
+reference deployment sits behind nginx. Set it to `false` (or to the proxy's
+address list) if the API port is reachable directly; otherwise a client can
+spoof `X-Forwarded-For` and the `registered_from_ip` stored on registration.
+
+The process handles `SIGTERM` and `SIGINT`: it stops accepting connections,
+stops the geo worker, drains the Postgres pool, and exits.
 
 ## Migrations
 
@@ -176,9 +186,11 @@ within `Number.MAX_SAFE_INTEGER`.
 `public_id` is a UUID generated on device registration. External-facing APIs use
 `public_id` to identify devices; `device_id` is internal.
 
-`geo_update_queue` is processed by a throttled in-process worker started from
-`src/app.ts`. It calls Nominatim reverse geocoding and stores display fields on
-the device record. Device ingest queues a geocode refresh when GPS coordinates
+`geo_update_queue` is processed by a throttled in-process worker registered in
+`src/app.ts`; its timer starts on the Fastify `onReady` hook and stops on
+`onClose`. It calls Nominatim reverse geocoding and stores display fields on
+the device record. A Nominatim answer without an `address` block (open water,
+nonsense coordinates) counts as a failed lookup and the entry is dropped. Device ingest queues a geocode refresh when GPS coordinates
 move more than 100 meters or when no display location exists yet.
 
 ## API
@@ -480,19 +492,23 @@ Request body:
 }
 ```
 
-Rules enforced by the current implementation:
+Rules enforced by the current implementation. The body is checked against a
+JSON schema (`ingestBodySchema` in `src/routes/v1/ingest.ts`) before any
+database access; schema failures return `400 invalid_payload` with the schema
+message:
 
-- If present, `device.device_id` must match the `device_id` path parameter.
-- `batch.samples` must be an array.
-- `batch.sample_count` must equal `batch.samples.length`.
-- Every sample must include numeric `sample_time_unix_ms`.
+- `batch`, `batch.sample_count`, and `batch.samples` are required; at most 2000 samples per batch and 64 values per sample.
+- Every sample must include `sensor_type`, integer `sample_time_unix_ms` between 2020-01-01 and 2100-01-01, and a `values` array.
+- Every `values[]` entry must include a supported `kind` and a numeric `value`.
 - Every `sample.sensor_type` must be supported.
-- Every `values[].kind` must be supported.
+- If present, `device.device_id` must match the `device_id` path parameter.
+- `batch.sample_count` must equal `batch.samples.length`.
 - The device must already be registered.
 - `Authorization: Bearer <upload_secret>` must match the stored registration hash.
+- The batch marker, its measurements, the device `last_seen_at` / `last_batch_id` / location update, and the geocode queue entry are written in one transaction, so a failed insert leaves no partial batch behind.
 - Duplicate `(device_id, batch_id)` requests return `200` without inserting measurements again.
 - If a sample includes `gps_nmea` latitude and longitude, ingest updates the device location and may queue a reverse-geocode refresh.
-- If a `pressure_hpa` value is received and device altitude is non-zero, ingest stores both `pressure_hpa_raw` and sea-level-adjusted `pressure_hpa`.
+- If a `pressure_hpa` value is received and device altitude is non-zero, ingest stores both `pressure_hpa_raw` and sea-level-adjusted `pressure_hpa`. `pressure_hpa_raw` is a derived kind (`derivedMeasurementKinds` in `src/contracts/measurement-kind.ts`): it appears in read responses but is rejected in upload payloads.
 
 Supported `sensor_type` values:
 
@@ -514,6 +530,21 @@ Error responses:
 | 401 | `invalid_upload_secret` | Bearer secret does not match the device |
 | 404 | `device_not_found` | Device has not been registered |
 | 500 | `internal_error` | Unexpected server error |
+
+## Error Format
+
+Every error response has the shape `{ "error": { "code": "...", "message": "..." } }`.
+Route handlers send the codes listed per route above. Errors raised by Fastify
+itself are mapped in `src/plugins/error-handler.ts`:
+
+| Status | `error.code` | Raised by |
+|--------|--------------|-----------|
+| 400 | `bad_request` | Malformed or empty JSON body |
+| 400 | `validation_error` | Schema failure on routes without a custom validation reply (`register`, `measurements` params) |
+| 404 | `not_found` | Unknown route |
+| 413 | `payload_too_large` | Body over the Fastify limit (1 MiB) |
+| 415 | `unsupported_media_type` | Non-JSON content type |
+| 5xx | `internal_error` | Unexpected server error; the message is always `Internal server error` |
 
 ## Removed Or Not Implemented Routes
 

@@ -14,10 +14,11 @@ import {
   insertMeasurements,
 } from "../../modules/ingest/ingest-repository";
 import {
-  isMeasurementKind,
+  measurementKinds,
   type MeasurementKind,
+  type StoredMeasurementKind,
 } from "../../contracts/measurement-kind";
-import { isSensorType, type SensorType } from "../../contracts/sensor-type";
+import { sensorTypes, type SensorType } from "../../contracts/sensor-type";
 
 interface IngestParams {
   device_id: number;
@@ -42,16 +43,86 @@ interface IngestBody {
     device_id?: string;
     firmware_version?: string;
   };
-  batch?: {
-    sample_count?: number;
-    samples?: IngestSample[];
+  batch: {
+    sample_count: number;
+    samples: IngestSample[];
   };
+}
+
+// Firmware only uploads once it has valid Unix time, so anything outside this
+// window is a corrupted timestamp rather than a legitimate sample.
+const MIN_SAMPLE_TIME_UNIX_MS = Date.UTC(2020, 0, 1);
+const MAX_SAMPLE_TIME_UNIX_MS = Date.UTC(2100, 0, 1);
+const MAX_SAMPLES_PER_BATCH = 2000;
+const MAX_VALUES_PER_SAMPLE = 64;
+
+const ingestBodySchema = {
+  type: "object",
+  required: ["batch"],
+  properties: {
+    schema_version: { type: "integer" },
+    sent_at_unix_ms: { type: "number" },
+    device: {
+      type: "object",
+      properties: {
+        device_id: { type: "string" },
+        firmware_version: { type: "string" },
+      },
+    },
+    batch: {
+      type: "object",
+      required: ["sample_count", "samples"],
+      properties: {
+        sample_count: { type: "integer", minimum: 0 },
+        samples: {
+          type: "array",
+          maxItems: MAX_SAMPLES_PER_BATCH,
+          items: {
+            type: "object",
+            required: ["sensor_type", "sample_time_unix_ms", "values"],
+            properties: {
+              sensor_type: { type: "string", enum: sensorTypes },
+              sample_time_unix_ms: {
+                type: "integer",
+                minimum: MIN_SAMPLE_TIME_UNIX_MS,
+                maximum: MAX_SAMPLE_TIME_UNIX_MS,
+              },
+              values: {
+                type: "array",
+                maxItems: MAX_VALUES_PER_SAMPLE,
+                items: {
+                  type: "object",
+                  required: ["kind", "value"],
+                  properties: {
+                    kind: { type: "string", enum: measurementKinds },
+                    value: { type: "number" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+interface StoredMeasurement {
+  device_id: number;
+  batch_id: number;
+  sensor_type: SensorType;
+  kind: StoredMeasurementKind;
+  value: number;
+  sampled_at: Date;
 }
 
 export const ingestRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: IngestParams; Body: IngestBody }>(
     "/devices/:device_id/batches/:batch_id",
     {
+      // Schema failures are reported under the documented `invalid_payload`
+      // code instead of the generic validation_error from the error handler.
+      attachValidation: true,
       schema: {
         params: {
           type: "object",
@@ -61,14 +132,21 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
           },
           required: ["device_id", "batch_id"],
         },
+        body: ingestBodySchema,
       },
     },
     async (request, reply) => {
+      if (request.validationError) {
+        return reply.code(400).send({
+          error: { code: "invalid_payload", message: request.validationError.message },
+        });
+      }
+
       const { device_id, batch_id } = request.params;
       const body = request.body;
-      const samples = body?.batch?.samples;
+      const samples = body.batch.samples;
 
-      if (body?.device?.device_id && Number(body.device.device_id) !== device_id) {
+      if (body.device?.device_id && Number(body.device.device_id) !== device_id) {
         return reply.code(400).send({
           error: {
             code: "invalid_payload",
@@ -77,51 +155,11 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      if (!Array.isArray(samples)) {
-        return reply.code(400).send({
-          error: { code: "invalid_payload", message: "batch.samples must be an array" },
-        });
-      }
-
-      if (body?.batch?.sample_count !== samples.length) {
+      if (body.batch.sample_count !== samples.length) {
         return reply.code(400).send({
           error: {
             code: "invalid_payload",
             message: "batch.sample_count must equal batch.samples.length",
-          },
-        });
-      }
-
-      const missingSampleTime = samples.some(
-        (s) => typeof s.sample_time_unix_ms !== "number",
-      );
-      if (missingSampleTime) {
-        return reply.code(400).send({
-          error: {
-            code: "invalid_payload",
-            message: "sample_time_unix_ms is required for every sample",
-          },
-        });
-      }
-
-      const invalidSensorType = samples.find((s) => !isSensorType(s.sensor_type));
-      if (invalidSensorType) {
-        return reply.code(400).send({
-          error: {
-            code: "invalid_payload",
-            message: "every sample.sensor_type must be a supported sensor type",
-          },
-        });
-      }
-
-      const invalidKind = samples.find((s) =>
-        s.values.some((v) => !isMeasurementKind(v.kind)),
-      );
-      if (invalidKind) {
-        return reply.code(400).send({
-          error: {
-            code: "invalid_payload",
-            message: "every values[].kind must be a supported measurement kind",
           },
         });
       }
@@ -158,17 +196,10 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const inserted = await insertBatch(db, { device_id, batch_id });
-
-      if (!inserted) {
-        // batch already processed — idempotent response
-        return reply.code(200).send();
-      }
-
       const altitude_m = device.altitude_m;
-      const measurements = samples.flatMap((sample) =>
-        sample.values.flatMap((v) => {
-          const base = {
+      const measurements: StoredMeasurement[] = samples.flatMap((sample) =>
+        sample.values.flatMap((v): StoredMeasurement[] => {
+          const base: StoredMeasurement = {
             device_id,
             batch_id,
             sensor_type: sample.sensor_type,
@@ -188,15 +219,13 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         }),
       );
 
-      await insertMeasurements(db, measurements);
-
       const latestGps = samples
         .filter((s) => s.sensor_type === "gps_nmea")
         .sort((a, b) => b.sample_time_unix_ms - a.sample_time_unix_ms)[0];
 
       let location: { latitude: number; longitude: number; altitude_m: number | null } | undefined;
       if (latestGps !== undefined) {
-        const valueOf = (kind: string) =>
+        const valueOf = (kind: MeasurementKind) =>
           latestGps.values.find((v) => v.kind === kind)?.value ?? null;
         const latitude = valueOf("latitude_deg");
         const longitude = valueOf("longitude_deg");
@@ -205,17 +234,34 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      await updateDeviceOnIngest(db, device_id, { batch_id, ...(location ? { location } : {}) });
+      const needsGeoRefresh =
+        location !== undefined &&
+        (device.geo_display === null ||
+          haversineDistanceMeters(
+            device.latitude, device.longitude,
+            location.latitude, location.longitude,
+          ) > GEO_UPDATE_THRESHOLD_METERS);
 
-      if (location !== undefined) {
-        const distance = haversineDistanceMeters(
-          device.latitude, device.longitude,
-          location.latitude, location.longitude,
-        );
-        if (distance > GEO_UPDATE_THRESHOLD_METERS || device.geo_display === null) {
-          await enqueueGeoUpdate(db, device_id);
+      // The batch marker, its measurements, and the device bookkeeping commit
+      // together: a half-written batch would otherwise be acknowledged as a
+      // duplicate on retry and its measurements lost for good.
+      await db.transaction().execute(async (trx) => {
+        const inserted = await insertBatch(trx, { device_id, batch_id });
+        if (!inserted) {
+          // batch already processed — idempotent response
+          return;
         }
-      }
+
+        await insertMeasurements(trx, measurements);
+        await updateDeviceOnIngest(trx, device_id, {
+          batch_id,
+          ...(location ? { location } : {}),
+        });
+
+        if (needsGeoRefresh) {
+          await enqueueGeoUpdate(trx, device_id);
+        }
+      });
 
       return reply.code(200).send();
     },

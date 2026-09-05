@@ -22,3 +22,13 @@ export function getDb(config: AppConfig): Kysely<Database> {
   }
   return db;
 }
+
+/** Drains the connection pool; a later `getDb()` opens a fresh one. */
+export async function closeDb(): Promise<void> {
+  if (!db) {
+    return;
+  }
+  const current = db;
+  db = null;
+  await current.destroy();
+}

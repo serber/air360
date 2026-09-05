@@ -143,6 +143,8 @@ Create `/etc/air360-backend.env`:
 HOST=127.0.0.1
 PORT=3000
 LOG_LEVEL=info
+# nginx on the same host forwards client addresses; keep true behind the proxy.
+TRUST_PROXY=true
 ```
 
 Restrict permissions:

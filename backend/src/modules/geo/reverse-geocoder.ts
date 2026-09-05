@@ -39,13 +39,21 @@ export async function reverseGeocode(
 
   if (!response.ok) return null;
 
-  const data = (await response.json()) as NominatimResponse;
-  const addr = data.address;
+  // Nominatim answers 200 with `{"error": "Unable to geocode"}` for open water
+  // or nonsense coordinates; treat that like any other failed lookup.
+  let data: Partial<NominatimResponse> | null;
+  try {
+    data = (await response.json()) as Partial<NominatimResponse> | null;
+  } catch {
+    return null;
+  }
+  const addr = data?.address;
+  if (!addr || typeof addr !== "object") return null;
 
   return {
     geo_country: addr.country ?? null,
     geo_country_code: addr.country_code?.toUpperCase() ?? null,
     geo_city: addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? null,
-    geo_display: data.display_name ?? null,
+    geo_display: data?.display_name ?? null,
   };
 }
