@@ -119,7 +119,7 @@ Skills live under `.claude/skills/`. Use the table below to pick the right one.
 | `firmware-subsystem-walkthrough` | Mapping a subsystem for the first time: boot, sensors, networking, uploads, web UI, storage | The relevant doc is already known — read it directly |
 | `air360-firmware-docs` | Creating or rewriting a firmware implementation doc in `docs/firmware/` or `firmware/README.md` | Code is being changed — use `esp-idf-cpp-developer` instead |
 | `air360-docs` | Creating or rewriting repository-level docs: root `README.md`, `docs/README.md`, onboarding guide, project map | Firmware implementation details — use `air360-firmware-docs` instead |
-| `air360-firmware-release-bundle` | Packaging a firmware release after a successful build: merging binaries, generating release notes, creating zip archives | Build has not completed or no `firmware/build/` artifacts exist |
+| `air360-firmware-release-bundle` | Cutting a firmware release from `main`: creating the version tag, clean build on the tag, merging binaries, generating release notes, creating zip archives; or re-packaging an existing build | The release PR is not merged yet, or the change is not a release (ordinary builds use the firmware build command) |
 
 ## Agents
 
