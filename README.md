@@ -150,7 +150,7 @@ If you need to work on device behavior:
 If you need to publish a firmware beta or stable build:
 
 1. Read [firmware/README.md](firmware/README.md) for the release packaging workflow
-2. Use [.claude/skills/air360-firmware-release-bundle/](.claude/skills/air360-firmware-release-bundle/) to generate the versioned release bundle from `firmware/build/`
+2. On `main`, run the release script from [.claude/skills/air360-firmware-release-bundle/](.claude/skills/air360-firmware-release-bundle/); it tags, builds, and packages the versioned bundle under `firmware/release/`
 
 If you need to operate or provision a device rather than change firmware code:
 

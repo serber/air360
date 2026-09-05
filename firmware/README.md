@@ -10,7 +10,7 @@ Related implementation docs now live in [`../docs/firmware/`](../docs/firmware/)
 
 If you need an end-user walkthrough for assembly, flashing, setup AP onboarding, and the station-mode web UI, start with the [build guide](../docs/guide/README.md).
 
-If you need to package a GitHub-release-ready firmware bundle from the current `build/` outputs, use the repo-local skill at [`../.claude/skills/air360-firmware-release-bundle/`](../.claude/skills/air360-firmware-release-bundle/).
+If you need to tag, build, and package a GitHub-release-ready firmware bundle, use the repo-local skill at [`../.claude/skills/air360-firmware-release-bundle/`](../.claude/skills/air360-firmware-release-bundle/).
 
 ## Project Structure
 
@@ -146,12 +146,14 @@ These options are consumed by the firmware through generated `CONFIG_*` macros. 
 
 This file provides repository defaults for a fresh configuration:
 
+- target pinned to `esp32s3`, so a fresh checkout builds for the right chip without a manual `idf.py set-target`
 - flash size set to `16MB`
 - custom partition table enabled via `partitions.csv`
 - C++ exceptions disabled
 - C++ RTTI disabled
 - main task stack size increased to `8192`
 - project defaults for the Air360 Kconfig options
+- lwIP PPP support enabled (`CONFIG_LWIP_PPP_SUPPORT`), required by the cellular uplink
 
 This is the file to update when the project-wide default target or default runtime settings need to change.
 
@@ -233,23 +235,23 @@ python3 scripts/check_firmware_host_tests.py
 
 ## Release Packaging
 
-To package the current build for a GitHub beta or stable release, use the repo-local release skill script:
+Releases are cut from `main` with the repo-local release skill. One command verifies the tree, creates the version tag, runs a clean `idf.py` build on that tag, and packages the outputs:
 
 ```bash
-cd firmware
-python3 .claude/skills/air360-firmware-release-bundle/scripts/create_release_bundle.py v0.1-beta.1
+# from the repository root, on main, with the release PR merged and pulled
+python3 .claude/skills/air360-firmware-release-bundle/scripts/release_firmware.py v1.4
 ```
 
-The script reads the current `build/` outputs and creates a versioned bundle under `release/air360-v<commit>/` with:
+The bundle lands in `release/air360-v<version>/` with:
 
-- `full/` merged image
+- `air360-v<version>-esp32s3-16mb-full.bin` merged image for serial flashing at `0x0`
+- `air360-v<version>-esp32s3-16mb-ota.bin` application image for OTA updates
 - `split/` flashable ESP-IDF binaries plus `flash-offsets.txt`
-- `air360-v<commit>-esp32s3-16mb-full.zip`
-- `air360-v<commit>-esp32s3-16mb-split.zip`
+- `air360-v<version>-esp32s3-16mb-split.zip`
 - `release-notes.md`
 - `sha256sums.txt`
 
-The requested version string is used in `release-notes.md`. File and folder names are derived from the build's current commit-style project version from `build/project_description.json`.
+Add `--push` to push `main` and the tag to origin afterwards. The version tag is created before the build so ESP-IDF embeds it via `git describe`; if the build fails, the script deletes the tag it created. See [`../.claude/skills/air360-firmware-release-bundle/SKILL.md`](../.claude/skills/air360-firmware-release-bundle/SKILL.md) for the other flags and for packaging an existing build without tagging.
 
 ## Flash
 
