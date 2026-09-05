@@ -98,13 +98,13 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 |-------------|-----------|-------|---------------------------|
 | BME280 | I2C | 11 | Sent as climate data |
 | BME680 | I2C | 11 | Sent as climate data; gas resistance is skipped |
-| BMP390 | I2C | 11 | Sent as temperature + pressure |
+| BMP390 | I2C | 3 | Sent as temperature + pressure (registered as BMP280 in Sensor.Community) |
 | SHT3X | I2C | 7 | Sent as temperature + humidity |
 | SHT4X | I2C | 7 | Sent as temperature + humidity |
 | HTU2X | I2C | 7 | Sent as temperature + humidity |
 | DHT11 | GPIO | 7 | Sent as temperature + humidity |
 | DHT22 | GPIO | 7 | Sent as temperature + humidity |
-| DS18B20 | GPIO (1-Wire) | 7 | Sent as temperature only |
+| DS18B20 | GPIO (1-Wire) | 13 | Sent as temperature only |
 | SCD30 | I2C | 17 | Sent as temperature + humidity + CO2 |
 | VEML7700 | I2C | — | Not supported, skipped |
 | OPT3001 | I2C | — | Not supported, skipped |
@@ -121,7 +121,7 @@ Sensors not in this table produce no request. If the batch contains only unsuppo
 
 Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordatavalues` array:
 
-**BME280 / BME680 / BMP390 (pin 11):**
+**BME280 / BME680 (pin 11):**
 
 | ValueKind | value_type |
 |-----------|-----------|
@@ -130,7 +130,14 @@ Each `MeasurementPoint` is mapped to a `value_type` string in the `sensordataval
 | `kHumidityPercent` | `"humidity"` |
 | `kGasResistanceOhms` | skipped |
 
-BMP390 has no humidity or gas channel, so it emits only `temperature` and `pressure`.
+**BMP390 (pin 3):**
+
+| ValueKind | value_type |
+|-----------|-----------|
+| `kTemperatureC` | `"temperature"` |
+| `kPressureHpa` | `"pressure"` |
+
+BMP390 has no humidity channel. Sensor.Community has no BMP390 entry, so the device is registered there as `BMP280`, which airrohr sends on X-PIN 3.
 
 **DHT11 / DHT22 (pin 7):**
 
@@ -146,7 +153,7 @@ BMP390 has no humidity or gas channel, so it emits only `temperature` and `press
 | `kTemperatureC` | `"temperature"` |
 | `kHumidityPercent` | `"humidity"` |
 
-**DS18B20 (pin 7):**
+**DS18B20 (pin 13):**
 
 | ValueKind | value_type |
 |-----------|-----------|
