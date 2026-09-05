@@ -111,26 +111,15 @@ export type MeasurementsResponse = {
   sensors: SensorMeta[];
 };
 
-export const PERIOD_OPTIONS: Array<{ label: string; value: Period }> = [
-  { label: "1 hour", value: "1h" },
-  { label: "24 hours", value: "24h" },
-  { label: "7 days", value: "7d" },
-  { label: "30 days", value: "30d" },
-  { label: "3 months", value: "90d" },
-  { label: "6 months", value: "180d" },
-  { label: "1 year", value: "365d" },
-];
-
+/** Mirrors the backend's one-hour online window (`DEVICE_ONLINE_WINDOW`). */
 export const DEVICE_STALE_AFTER_MS = 60 * 60 * 1000;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_AIR360_API_BASE_URL?.replace(
-  /\/+$/,
-  "",
-);
-
+/**
+ * API requests are always same-origin: `next.config.ts` rewrites `/v1/*` to the
+ * backend, so the browser never needs CORS or a public API host.
+ */
 export function apiUrl(path: string): string {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath;
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
 export async function fetchJson<T>(
@@ -160,6 +149,15 @@ export function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+export function hasValidLocation(device: DeviceSummary): boolean {
+  return (
+    Number.isFinite(device.location.latitude) &&
+    Number.isFinite(device.location.longitude) &&
+    Math.abs(device.location.latitude) <= 90 &&
+    Math.abs(device.location.longitude) <= 180
+  );
 }
 
 export function isDeviceStale(lastSeenAt: string, nowMs = Date.now()): boolean {
@@ -255,7 +253,6 @@ export function kindLabel(kind: string): string {
   const labels: Record<string, string> = {
     altitude_m: "Altitude",
     adc_raw: "Raw ADC",
-    bus_voltage_v: "Bus voltage",
     co2_ppm: "CO2",
     course_deg: "Course",
     current_ma: "Current",
@@ -278,20 +275,15 @@ export function kindLabel(kind: string): string {
     pc2_5_per_0_1l: "PC2.5",
     pc5_0_per_0_1l: "PC5.0",
     pc10_per_0_1l: "PC10",
-    no2_voltage_v: "NO2 voltage",
-    particle_size_um: "Particle size",
     pm1_0_ug_m3: "PM1.0",
     pm2_5_ug_m3: "PM2.5",
     pm4_0_ug_m3: "PM4.0",
     pm10_0_ug_m3: "PM10",
-    pm10_ug_m3: "PM10",
     power_mw: "Power",
     pressure_hpa: "Pressure (sea level)",
     pressure_hpa_raw: "Pressure (station)",
-    raw_adc: "Raw ADC",
     satellites: "Satellites",
     speed_knots: "Speed",
-    speed_kmh: "Speed",
     temperature_c: "Temperature",
     typical_particle_size_um: "Typical particle size",
     voltage_mv: "Voltage",

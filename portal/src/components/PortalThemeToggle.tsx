@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { setPortalTheme, usePortalTheme } from "@/lib/theme";
 
@@ -39,10 +38,6 @@ function SunIcon() {
 export function PortalThemeToggle() {
   const t = useTranslations("common");
   const theme = usePortalTheme();
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
 
   function toggleTheme() {
     setPortalTheme(theme === "dark" ? "light" : "dark");

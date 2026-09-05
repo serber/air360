@@ -119,7 +119,7 @@ export default function Privacy() {
                   </div>
                   <div className="air-info-row">
                     <span>{t("visitorLogs")}</span>
-                    <b>90 days</b>
+                    <b>{t("visitorLogsRetention")}</b>
                   </div>
                   <div className="air-info-row">
                     <span>{t("trackingAds")}</span>

@@ -42,7 +42,7 @@ Local `/v1/*` requests are proxied by `next.config.ts` to `AIR360_API_BASE_URL`,
 - Layout and global CSS: `src/app/layout.tsx`, `src/app/globals.css`
 - API contracts and formatting: `src/lib/api.ts`, `src/lib/config.ts`
 - Theme store shared by the toggle and the charts: `src/lib/theme.ts`
-- Map UI: `src/components/DeviceMap.tsx`, `src/components/DeviceMapLoader.tsx`, `src/components/DevicePopup.tsx`
+- Map UI: `src/components/DeviceMap.tsx`, `src/components/DeviceMapLoader.tsx`, `src/components/DevicePopup.tsx`, `src/components/MapLegend.tsx`, `src/lib/map-scales.ts`
 - Device detail UI: `src/components/DeviceDetail.tsx`, `src/components/SensorChart.tsx`, `src/components/PeriodSelector.tsx`
 - Build guide UI: `src/app/build/page.tsx`, `src/components/BuildImagePreview.tsx`
 - API proxy: `next.config.ts`
@@ -57,6 +57,8 @@ Local `/v1/*` requests are proxied by `next.config.ts` to `AIR360_API_BASE_URL`,
 ## Co-change expectations
 
 - If backend response shapes change, update `src/lib/api.ts`, affected components, `../docs/portal/README.md`, and `../docs/backend/README.md`.
+- If sensor types or measurement kinds change, update `src/lib/api.ts` (`sensorTypes`, `kindLabel`) and run `python3 ../scripts/check_api_contracts.py`.
+- If a map metric or its color bands change, edit `src/lib/map-scales.ts` only; markers, clusters, the legend, and the home preview all read from it.
 - If routes or visible page behavior change, update `portal/README.md`, `../docs/portal/README.md`, and the relevant portal ADR.
 - If proxy or environment behavior changes, update `next.config.ts`, `portal/README.md`, and `../docs/portal/ubuntu-deployment.md`.
 - If adding Next.js APIs or changing framework conventions, read the local `node_modules/next/dist/docs/` guide first.

@@ -61,7 +61,7 @@ There is no implemented `GET /v1/devices/:public_id/latest` route in the current
 
 - If you add, remove, or reshape routes, update `../docs/backend/README.md` and any matching ADR under `../docs/backend/adr/`.
 - If a route is consumed by the portal, update `../portal/src/lib/api.ts`, relevant portal components, and `../docs/portal/README.md`.
-- If firmware payloads, auth, sensor types, or measurement kinds change, update the matching firmware upload docs and verify firmware code that generates the payload.
+- If firmware payloads, auth, sensor types, or measurement kinds change, update the matching firmware upload docs, verify firmware code that generates the payload, and run `python3 ../scripts/check_api_contracts.py` (it also checks the portal copy).
 - If migrations or `src/db/schema.ts` change, update the backend data model docs and deployment guide if operators need to run or reason about the migration.
 - If reverse-geocoding behavior changes, update the backend docs and any portal docs that display `geo_*` fields.
 - If environment variables change, update `.env.example`, `../docs/backend/README.md`, and deployment docs.
