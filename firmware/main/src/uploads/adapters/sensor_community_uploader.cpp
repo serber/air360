@@ -29,9 +29,21 @@ bool mapMeasurement(
     std::uint8_t& out_pin,
     const char*& out_value_type) {
     switch (point.sensor_type) {
+        case SensorType::kBmp390:
+            // airrohr registers pressure-only BMP sensors as BMP280 on X-PIN 3 (BMP280_API_PIN).
+            out_pin = 3U;
+            switch (point.value_kind) {
+                case SensorValueKind::kTemperatureC:
+                    out_value_type = "temperature";
+                    return true;
+                case SensorValueKind::kPressureHpa:
+                    out_value_type = "pressure";
+                    return true;
+                default:
+                    return false;
+            }
         case SensorType::kBme280:
         case SensorType::kBme680:
-        case SensorType::kBmp390:
             out_pin = 11U;
             switch (point.value_kind) {
                 case SensorValueKind::kTemperatureC:
@@ -51,7 +63,6 @@ bool mapMeasurement(
         case SensorType::kHtu2x:
         case SensorType::kSht3x:
         case SensorType::kSht4x:
-        case SensorType::kDs18b20:
             out_pin = 7U;
             switch (point.value_kind) {
                 case SensorValueKind::kTemperatureC:
@@ -59,6 +70,16 @@ bool mapMeasurement(
                     return true;
                 case SensorValueKind::kHumidityPercent:
                     out_value_type = "humidity";
+                    return true;
+                default:
+                    return false;
+            }
+        case SensorType::kDs18b20:
+            // airrohr registers DS18B20 on X-PIN 13 (DS18B20_API_PIN), not on the DHT/SHT pin 7.
+            out_pin = 13U;
+            switch (point.value_kind) {
+                case SensorValueKind::kTemperatureC:
+                    out_value_type = "temperature";
                     return true;
                 default:
                     return false;
