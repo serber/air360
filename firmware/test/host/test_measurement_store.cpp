@@ -129,9 +129,40 @@ void testMeasurementStorePruneWrapper() {
     requireEqual(decision.prune_up_to, 18U, "prune wrapper returns minimum quorum cursor");
 }
 
+void testSensorReplacementReclaimsLatestSlots() {
+    air360::MeasurementStore store;
+    for (std::uint32_t id = 1U; id <= air360::kMaxConfiguredSensors; ++id) {
+        const auto sample = makeSample(id, id * 1000U);
+        store.recordMeasurement(id, sample.sensor_type, sample.measurement, 1700000000000LL);
+    }
+    const std::uint32_t survivors[] = {2U, 9U};
+    store.retainLatestMeasurements(survivors, 2U);
+    requireEqual(store.runtimeInfoForSensor(1U).last_sample_time_ms, 0U,
+                 "removed sensor no longer appears in latest cache");
+    requireEqual(store.runtimeInfoForSensor(2U).last_sample_time_ms, 2000U,
+                 "unchanged sensor retains latest reading");
+    requireEqual(store.pendingCount(), air360::kMaxConfiguredSensors,
+                 "config apply preserves upload history");
+    for (std::uint32_t id = 9U; id < 50U; ++id) {
+        const std::uint32_t active[] = {2U, id};
+        store.retainLatestMeasurements(active, 2U);
+        const auto sample = makeSample(id, id * 1000U);
+        store.recordMeasurement(id, sample.sensor_type, sample.measurement, 0);
+        requireEqual(store.runtimeInfoForSensor(id).last_sample_time_ms, id * 1000U,
+                     "repeated replacement continues updating latest measurements");
+        requireEqual(store.snapshot().measurements.size(), 2U,
+                     "BLE snapshot contains only active sensors");
+    }
+    store.retainLatestMeasurements(nullptr, 0U);
+    require(store.snapshot().measurements.empty(), "disabling all sensors clears latest cache");
+    requireEqual(store.pendingCount(), air360::kMaxConfiguredSensors,
+                 "clearing latest does not discard queued samples");
+}
+
 }  // namespace
 
 int main() {
+    testSensorReplacementReclaimsLatestSlots();
     testRecordWithoutUnixTimeDoesNotEnqueue();
     testRecordWithUnixTimeSnapshotsLatestAndQueue();
     testOverflowWindowCountAndDiscard();

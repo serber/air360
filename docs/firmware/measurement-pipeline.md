@@ -116,6 +116,8 @@ measurement_store_->recordMeasurement(
 
 ### 2a — Update `latest_by_sensor_`
 
+After stopping the old sensor task during `applyConfig()`, the manager calls `retainLatestMeasurements()` with enabled sensor IDs. Deleted/disabled sensors release their latest-value slots, unchanged sensors retain their readings, and new sensors can populate the fixed eight-entry cache without rebooting. This also removes deleted readings from BLE snapshots. Queued upload history and acknowledgement cursors are preserved.
+
 An unbounded list of `LatestMeasurementEntry` (one entry per sensor ID). Always updated regardless of unix time. Used by the web UI (`/`) and the Diagnostics page raw dump to show the most recent reading for each sensor.
 
 ```cpp
