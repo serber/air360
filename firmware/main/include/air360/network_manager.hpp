@@ -59,6 +59,11 @@ struct NetworkState {
     std::uint64_t next_setup_ap_retry_uptime_ms = 0U;
     std::string time_sync_error;
     std::int64_t last_time_sync_unix_ms = 0;
+
+    bool hasConnectedUplink() const {
+        return !cellular_ip.empty() ||
+               (mode == NetworkMode::kStation && station_connected);
+    }
 };
 
 struct WifiNetworkRecord {
@@ -101,7 +106,8 @@ class NetworkManager {
     // Updates cellular_ip in NetworkState and affects uplinkStatus().
     void setCellularStatus(bool ppp_connected, const char* ip_address);
     [[nodiscard]] esp_err_t scanAvailableNetworks();
-    [[nodiscard]] esp_err_t ensureStationTime(std::uint32_t timeout_ms = tuning::network::kConnectTimeoutMs);
+    void configureTimeServer(const DeviceConfig& config);
+    [[nodiscard]] esp_err_t ensureUplinkTime(std::uint32_t timeout_ms = tuning::network::kConnectTimeoutMs);
     SntpCheckResult checkSntp(const std::string& server, std::uint32_t timeout_ms = 10000U);
     UplinkStatus uplinkStatus() const;
     NetworkState state() const;

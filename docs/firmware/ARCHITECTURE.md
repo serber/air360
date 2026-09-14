@@ -94,7 +94,7 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 
 The order is power-aware: nothing but the low-current power monitors draws current before the power gate decides whether the supply can carry the radios; the modem and Wi-Fi are brought up only after that, and BLE plus every other sensor start only after the uplink decision. See [startup-pipeline.md](startup-pipeline.md#sensor-startup-phases) and [power-gate.md](power-gate.md).
 
-After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when station uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of spamming `task_wdt` warnings every 5 seconds.
+After a successful boot, `App::indicateReady` flips the LED green/pink and `App::runMaintenanceLoop` runs a 10-second maintenance loop that retries SNTP synchronization when Wi-Fi or PPP uplink is available and refreshes status snapshots. If `bootSystem` or `bootWebServer` fails, control falls through to `App::runFailedBootLoop`, which keeps feeding TWDT so the device sits idle with a red LED instead of spamming `task_wdt` warnings every 5 seconds.
 
 Full startup order with dependencies:
 

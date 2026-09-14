@@ -78,7 +78,7 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_WIFI_RECONNECT_MAX_DELAY_MS` | `300000` | Upper cap for reconnect backoff while station recovery is active |
 | `CONFIG_AIR360_WIFI_SETUP_AP_RETRY_DELAY_MS` | `180000` | Delay between background station retries while setup AP stays active |
 | `CONFIG_AIR360_WIFI_DISCONNECT_IGNORE_WINDOW_MS` | `2000` | Ignore window for self-induced disconnect events during Wi-Fi mode changes |
-| `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` | Timeout for synchronous station join and `ensureStationTime()`-driven joins |
+| `CONFIG_AIR360_WIFI_CONNECT_TIMEOUT_MS` | `15000` | Timeout for synchronous station join and the default `ensureUplinkTime()` wait |
 | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` | Shared queued-sample capacity before oldest uploads are dropped |
 | `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` | Period between BTHome payload rebuilds in `air360_ble` |
 | `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` | `y` | Enables the bootloader rollback path. After an OTA the new image boots in `ESP_OTA_IMG_PENDING_VERIFY`; if it crashes before `OtaService::confirmRunningImage()` runs, the bootloader returns to the previous slot. |

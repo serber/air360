@@ -332,8 +332,8 @@ After step 12, `App::run()` enters an infinite loop in the main task with a 10-s
 
 ```cpp
 for (;;) {
-    if (station mode && connected && no valid time) {
-        network_manager.ensureStationTime(10000);  // retry SNTP
+    if (Wi-Fi or PPP connected && no valid time) {
+        network_manager.ensureUplinkTime(10000);  // retry SNTP
     }
     status_service.setNetworkState(network_manager.state());
     status_service.setCellularState(cellular_manager.state());
@@ -343,7 +343,7 @@ for (;;) {
 ```
 
 The loop has four responsibilities:
-- **SNTP retry** — if the device is in station mode but time sync has not succeeded yet, it retries every 10 seconds
+- **SNTP retry** — if Wi-Fi or PPP is connected but time sync has not succeeded yet, it retries every 10 seconds
 - **Network state refresh** — keeps `StatusService` in sync with the current Wi-Fi network state so the web UI reflects live uplink status
 - **Cellular state refresh** — keeps `StatusService` in sync with the current cellular state (PPP IP, RSSI, ping result)
 - **Watchdog feed** — resets the TWDT after every 3 s slice of the 10 s sleep (`kRuntimeMaintenanceSliceMs`), keeping each gap under the 5 s timeout

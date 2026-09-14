@@ -4,6 +4,11 @@ project(air360_host_tests LANGUAGES CXX)
 
 enable_testing()
 
+add_executable(test_network_uplink test_network_uplink.cpp)
+target_include_directories(test_network_uplink PRIVATE stubs ../../main/include)
+target_compile_features(test_network_uplink PRIVATE cxx_std_17)
+add_test(NAME network_uplink COMMAND test_network_uplink)
+
 add_executable(test_web_form
     ../../main/src/web/web_form.cpp
     test_web_form.cpp
