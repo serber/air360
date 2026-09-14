@@ -82,11 +82,11 @@ Boot is handled by `app_main.cpp` and `app.cpp`. `app_main()` constructs one sta
 | 1 | Watchdog arm | `App::bootSystem` | Subscribes to the sdkconfig TWDT: 5 s timeout, warn only |
 | 2 | NVS flash init | `App::bootSystem` | Auto-erase on partition mismatch |
 | 3 | Network core init | `App::bootSystem` | `esp_netif_init()`, default event loop |
-| 4 | Device config load/create | `PlatformLayer::boot` | NVS namespace `air360`, key `device_cfg`; boot counter increment |
+| 4 | Device config load/create | `PlatformLayer::boot` | NVS `network_cfg` device record (legacy `device_cfg`); boot counter increment |
 | 5 | Sensor config load/create and manager start | `DataLayer::bootSensors` | NVS key `sensor_cfg`; may launch `air360_sensor`; only `kBeforeNetwork` sensors (INA219/INA226) poll, the rest park in `kDeferred` |
 | 6 | Backend config load/create | `DataLayer::bootBackends` | NVS key `backend_cfg` |
 | 7 | Power gate | `App::bootPowerGate` | Reads the INA bus voltage; deep-sleeps with an escalating timer when below `power_gate_threshold_mv` |
-| 8 | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS key `cellular_cfg`; may launch `cellular` |
+| 8 | Cellular config load/create and manager start | `NetworkLayer::bootCellular` | NVS `network_cfg` cellular record (legacy `cellular_cfg`); may launch `cellular` |
 | 9 | Network mode resolution | `NetworkLayer::bootWifi` | Cellular-primary debug Wi-Fi, station join, or setup AP fallback |
 | 10 | Release after-network sensors; BLE start | `DataLayer::releaseDeferredSensors` | `SensorManager::releaseAfterNetworkPhase()`; BLE advertising starts here |
 | 11 | Upload manager start | `DataLayer::bootUploads` | Launches `air360_upload` when enabled backends exist |
@@ -174,7 +174,7 @@ The individual managers each facade owns are documented in their own sections be
 
 ### `ConfigRepository` — `config_repository.cpp`
 
-Manages the `DeviceConfig` NVS blob (schema version 1).
+Manages the `DeviceConfig` record (schema version 1). Both device and cellular records are saved atomically in `network_cfg`; legacy separate blobs remain readable until the first combined save.
 
 **`DeviceConfig` fields:**
 
@@ -206,7 +206,7 @@ On load: magic, schema version, or blob size mismatch triggers replacement with 
 
 ### `CellularConfigRepository` — `cellular_config_repository.cpp`
 
-Manages the `CellularConfig` NVS blob (schema version 1). Independent of `DeviceConfig` — versioned separately under the same `air360` NVS namespace.
+Manages the `CellularConfig` record (schema version 1), versioned separately but saved with `DeviceConfig` in `network_cfg` under the `air360` namespace. See [nvs.md](nvs.md) for legacy loading and error behavior.
 
 **`CellularConfig` fields:**
 
@@ -784,8 +784,9 @@ Four independent NVS blobs under namespace `air360`:
 
 | Key | Structure | Description |
 |-----|-----------|-------------|
-| `device_cfg` | `DeviceConfig` | Device name, Wi-Fi creds, SNTP, static IP, HTTP port |
-| `cellular_cfg` | `CellularConfig` | Modem UART/GPIO, carrier APN, credentials |
+| `network_cfg` | DeviceConfig + CellularConfig | Atomic device/cellular settings |
+| `device_cfg` (legacy) | `DeviceConfig` | Device name, Wi-Fi creds, SNTP, static IP, HTTP port |
+| `cellular_cfg` (legacy) | `CellularConfig` | Modem UART/GPIO, carrier APN, credentials |
 | `sensor_cfg` | `SensorConfigList` (up to 8 entries) | Sensor inventory |
 | `backend_cfg` | `BackendConfigList` (up to 4 entries) | Backend targets and upload interval |
 | `boot_count` | `uint32_t` | Incremented on every boot |

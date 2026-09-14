@@ -184,6 +184,8 @@ known to survive a Wi-Fi join.
 
 ---
 
+Device and cellular settings are saved together. Existing settings are preserved when upgrading; after saving with this firmware, rolling back to older firmware restores the older firmware’s last separately saved settings.
+
 ## Time (SNTP)
 
 Where the device gets its clock. The ESP32-S3 has no battery-backed real-time

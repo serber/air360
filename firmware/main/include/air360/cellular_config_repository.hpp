@@ -20,8 +20,8 @@ constexpr std::uint8_t kModemTypeSim800  = 5U;
 constexpr std::uint8_t kModemTypeGeneric = 6U;
 constexpr std::uint8_t kModemTypeMax     = kModemTypeGeneric;
 
-// Stored as NVS blob "cellular_cfg" in the "air360" namespace.
-// Independent of DeviceConfig — versioned separately.
+// Stored inside "network_cfg" after a combined save; legacy "cellular_cfg"
+// remains readable before migration. Fields are versioned separately from DeviceConfig.
 //
 // GPIO fields use 0xFF to mean "not wired / not used".
 // String fields are null-terminated; empty string means "not configured".

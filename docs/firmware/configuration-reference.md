@@ -26,7 +26,7 @@ This is the **semantics** view: defaults, ranges, and save-time validation. For 
 - [web-ui.md](web-ui.md)
 - [network-manager.md](network-manager.md)
 
-The firmware stores all user-editable configuration in four NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
+The firmware stores all user-editable configuration in NVS blobs. This document is a field-by-field reference for each configuration domain — defaults, valid ranges, and validation rules enforced at save time.
 
 For storage format details (magic numbers, schema versions, struct layouts) see [nvs.md](nvs.md).
 
@@ -36,12 +36,12 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 
 | Domain | NVS key | Struct | What it controls |
 |--------|---------|--------|-----------------|
-| Device | `device_cfg` | `DeviceConfig` | Network credentials, device identity, static IP, web server port |
-| Cellular | `cellular_cfg` | `CellularConfig` | Cellular modem settings, carrier provisioning, cellular uplink |
+| Device | `network_cfg` (legacy: `device_cfg`) | `DeviceConfig` | Network credentials, device identity, static IP, web server port |
+| Cellular | `network_cfg` (legacy: `cellular_cfg`) | `CellularConfig` | Cellular modem settings, carrier provisioning, cellular uplink |
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
-Device, sensor, and backend config are loaded at boot steps 4–6 and cellular config at boot step 8; each is validated and replaced with compiled-in defaults on any integrity failure. There is no migration except the `backend_cfg` v1 → v2 path — any other schema or size change wipes stored values. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
+Device, sensor, and backend config are loaded at boot steps 4–6 and cellular config at boot step 8; each is validated and replaced with compiled-in defaults on any integrity failure. Legacy device/cellular keys migrate to `network_cfg` on the first Device page save; `backend_cfg` also supports v1 → v2 migration. An invalid combined blob causes an in-memory default fallback for both domains without replacing storage; legacy individual blobs are reset on incompatible schema or size changes. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
 
 ---
 
@@ -51,11 +51,11 @@ Configuration is changed through the embedded web UI served on port 80, or via t
 
 | Web UI page | Domain |
 |-------------|--------|
-| Device | `device_cfg` and `cellular_cfg` |
+| Device | `network_cfg` (both device and cellular records) |
 | Sensors | `sensor_cfg` |
 | Backends | `backend_cfg` |
 
-Changes are written to NVS immediately on save. The Device page stages `device_cfg` and `cellular_cfg` together and commits both with one NVS commit, so runtime copies are updated only after both records persist successfully. The device must be rebooted for most changes to take effect (network credentials, sensor list). Backend and upload interval changes are applied by the upload manager without a reboot.
+Changes are written to NVS immediately on save. The Device page replaces one `network_cfg` blob containing both records. Runtime copies update only after save succeeds; even on a storage failure the persisted records form a complete pair. Existing separate keys remain readable until the first combined save. The device must be rebooted for most changes to take effect (network credentials, sensor list). Backend and upload interval changes are applied by the upload manager without a reboot.
 
 ---
 
@@ -161,7 +161,7 @@ Struct: `DeviceConfig`
 ## Cellular configuration (`cellular_cfg`)
 
 Struct: `CellularConfig`  
-NVS key: `cellular_cfg` (namespace `air360`) — loaded independently of `device_cfg`; saved together with `device_cfg` by the Device Configuration page.  
+NVS key: `network_cfg` (namespace `air360`), shared with DeviceConfig; legacy `cellular_cfg` is read only before the first combined save.
 Schema version: 1.
 
 ### Fields
@@ -190,7 +190,7 @@ Schema version: 1.
 - When `enabled = 1`, the configured modem is the primary uplink. Wi-Fi station remains active for `wifi_debug_window_s` seconds after boot, then stops automatically. The Overview page Uplink stat reflects cellular as primary.
 - `connectivity_check_host` defaults to `"8.8.8.8"` in the compiled-in `CellularConfig`. When the field is emptied in the UI, the form still pre-fills `"8.8.8.8"` for convenience before save.
 - `username`/`password` are used for PPP PAP authentication (`esp_netif_ppp_set_auth`). Leave empty if the carrier does not require authentication.
-- `modem_type` must be one of the known `kModemType*` constants. Invalid stored values fail cellular config validation and reset only `cellular_cfg` to defaults.
+- `modem_type` must be one of the known `kModemType*` constants. Invalid stored values fail cellular config validation. For the combined blob, both domains fall back to in-memory defaults without overwriting storage.
 - `connectivity_check_host` must be an IPv4 address (not a hostname); it is pinged via ICMP after PPP connects. The result is shown in the Connection panel on the Overview page.
 
 ---
