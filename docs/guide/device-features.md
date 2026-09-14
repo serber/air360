@@ -303,7 +303,7 @@ cloud and no network round-trip. Off by default; a switch reveals the setting.
 ### What it does
 
 When enabled, the device continuously broadcasts its latest sensor values as
-**BTHome v2** advertisements. This is a passive, broadcast-only format:
+**BTHome v2** advertisements. Measurements take priority within the 31-byte packet; the device name is shortened or omitted when needed to fit them. This is a passive, broadcast-only format:
 
 - **No pairing and no connection** — any nearby BLE scanner just receives the
   data as it is broadcast.

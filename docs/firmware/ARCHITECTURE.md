@@ -140,6 +140,8 @@ After startup the firmware runs several concurrent execution contexts:
 
 The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. The httpd task is the sole HTTP request handler — all concurrent connections are multiplexed on this single task (no thread pool). `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y` enables a per-task stack canary; `vApplicationStackOverflowHook` in `app_main.cpp` logs the overflowing task name and reboots.
 
+BLE advertising reserves 26 bytes for BTHome service data after the flags and AD header. Measurements are packed first; the local name uses remaining space and is marked shortened when truncated, or omitted when no name fits.
+
 Modules are not event-driven at the application layer. Inter-module communication uses direct method calls under mutex protection. `NetworkManager` also owns instance-scoped Wi-Fi runtime handles: a station event group, reconnect/setup-AP retry timers, the persistent `air360_net` worker task, and ESP-IDF event handler registrations.
 
 ---
