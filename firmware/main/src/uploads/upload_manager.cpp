@@ -415,7 +415,7 @@ void UploadManager::taskMain() {
 
                             if (attempt.retry_after_seconds > 0U) {
                                 next_action_time_ms =
-                                    attempt_now_ms +
+                                    uptimeMilliseconds() +
                                     static_cast<std::uint64_t>(attempt.retry_after_seconds) * 1000U;
                             }
                         }

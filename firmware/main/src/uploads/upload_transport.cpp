@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstdlib>
+#include <charconv>
+#include <string_view>
+#include <strings.h>
 #include <utility>
 
 #include "air360/uploads/upload_log_endpoint.hpp"
@@ -21,7 +23,26 @@ constexpr std::size_t kMaxBodySnippetBytes = 512U;
 struct ResponseBodyCapture {
     std::string snippet;
     bool truncated = false;
+    std::uint32_t retry_after_seconds = 0U;
 };
+
+std::uint32_t parseRetryAfter(const char* header) {
+    if (header == nullptr) {
+        return 0U;
+    }
+    std::string_view value(header);
+    const auto first = value.find_first_not_of(" \t");
+    if (first == std::string_view::npos) {
+        return 0U;
+    }
+    value = value.substr(first, value.find_last_not_of(" \t") - first + 1U);
+    std::uint32_t seconds = 0U;
+    const auto parsed = std::from_chars(value.data(), value.data() + value.size(), seconds);
+    return parsed.ec == std::errc{} && parsed.ptr == value.data() + value.size() &&
+                   seconds <= 3600U
+               ? seconds
+               : 0U;
+}
 
 void appendBodySnippet(ResponseBodyCapture& capture, const char* data, std::size_t data_len) {
     if (data == nullptr || data_len == 0U || capture.snippet.size() >= kMaxBodySnippetBytes) {
@@ -51,12 +72,20 @@ void appendBodySnippet(ResponseBodyCapture& capture, const char* data, std::size
 }
 
 esp_err_t httpEventHandler(esp_http_client_event_t* event) {
-    if (event == nullptr || event->event_id != HTTP_EVENT_ON_DATA) {
+    if (event == nullptr) {
         return ESP_OK;
     }
 
     auto* capture = static_cast<ResponseBodyCapture*>(event->user_data);
     if (capture == nullptr) {
+        return ESP_OK;
+    }
+
+    if (event->event_id == HTTP_EVENT_ON_HEADER && event->header_key != nullptr &&
+        strcasecmp(event->header_key, "Retry-After") == 0) {
+        capture->retry_after_seconds = parseRetryAfter(event->header_value);
+    }
+    if (event->event_id != HTTP_EVENT_ON_DATA) {
         return ESP_OK;
     }
 
@@ -140,14 +169,7 @@ UploadTransportResponse UploadTransport::execute(const UploadRequestSpec& reques
         const auto content_length = esp_http_client_get_content_length(client);
         response.response_size = content_length > 0 ? static_cast<int>(content_length) : 0;
 
-        char* retry_after_val = nullptr;
-        if (esp_http_client_get_header(client, "Retry-After", &retry_after_val) == ESP_OK &&
-            retry_after_val != nullptr) {
-            const unsigned long parsed = std::strtoul(retry_after_val, nullptr, 10);
-            if (parsed > 0UL && parsed <= 3600UL) {
-                response.retry_after_seconds = static_cast<std::uint32_t>(parsed);
-            }
-        }
+        response.retry_after_seconds = body_capture.retry_after_seconds;
         response.body_snippet = std::move(body_capture.snippet);
         if (body_capture.truncated) {
             response.body_snippet += "...";

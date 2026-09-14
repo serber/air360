@@ -4,6 +4,15 @@ project(air360_host_tests LANGUAGES CXX)
 
 enable_testing()
 
+add_executable(test_upload_transport
+    test_upload_transport.cpp
+    ../../main/src/uploads/upload_transport.cpp
+    ../../main/src/uploads/upload_log_endpoint.cpp
+)
+target_include_directories(test_upload_transport PRIVATE stubs ../../main/include)
+target_compile_features(test_upload_transport PRIVATE cxx_std_17)
+add_test(NAME upload_transport COMMAND test_upload_transport)
+
 add_executable(test_config_transaction
     test_config_transaction.cpp
     ../../main/src/config_transaction.cpp

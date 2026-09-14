@@ -385,3 +385,5 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 | Max values per measurement | 16 | `sensor_types.hpp` |
 | Default upload interval | 145 000 ms | `backend_config.hpp` |
 | Sensor retry delay on error | 5 000 ms | `sensor_manager.cpp` |
+
+A valid numeric `Retry-After` from the HTTP response schedules the next backend attempt relative to delivery completion, preserving the full server-requested delay even on a slow connection.

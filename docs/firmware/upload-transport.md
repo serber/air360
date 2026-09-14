@@ -32,7 +32,7 @@ This document covers the low-level HTTP transport used by the firmware's HTTP-ba
 2. Call `esp_http_client_init()`.
 3. Set all headers from `request.headers` via `esp_http_client_set_header()`.
 4. If `request.body` is non-empty, set it via `esp_http_client_set_post_field()`.
-5. Attach a response event handler that captures a sanitized response-body snippet.
+5. Attach a response event handler that captures a sanitized response-body snippet and `Retry-After` from `HTTP_EVENT_ON_HEADER` (case-insensitive header name).
 6. Call `esp_http_client_perform()` — blocks until the response is received or the timeout expires.
 7. Extract HTTP status code, response content length, and `Retry-After`.
 8. Compute total wall-clock duration from `esp_timer_get_time()`.
@@ -91,7 +91,7 @@ When `esp_http_client_perform()` completes with `ESP_OK`, `body_snippet` contain
 
 If `esp_http_client_perform` fails (network error, DNS failure, timeout), `transport_err` is set to the ESP-IDF error code and `http_status` remains 0. `body_snippet` is empty in this case — the error is in `transport_err`.
 
-`retry_after_seconds` is populated whenever `transport_err == ESP_OK` and the response contains a numeric `Retry-After` header in the range 1–3600. Values outside that range, HTTP-date format, and absent headers all result in `retry_after_seconds == 0`.
+`retry_after_seconds` is populated whenever `transport_err == ESP_OK` and the response contains a numeric `Retry-After` header in the range 1–3600. Optional surrounding spaces/tabs are accepted; signs, trailing junk, numeric overflow, values outside that range, HTTP-date format, and absent headers all result in `retry_after_seconds == 0`.
 
 ---
 
@@ -105,7 +105,7 @@ If `esp_http_client_perform` fails (network error, DNS failure, timeout), `trans
 
 See [upload-adapters.md](upload-adapters.md) for the per-adapter classification rules.
 
-When a request fails and `retry_after_seconds > 0`, `UploadManager` overrides the backend's next-action time to `now + retry_after_seconds` instead of the normal upload interval. This is an override in both directions: the server may request a longer wait (e.g. HTTP 429 throttle) or a shorter one. Values capped at 3600 s by the transport; values above that are silently zeroed and the normal interval applies.
+When a request fails and `retry_after_seconds > 0`, `UploadManager` overrides the backend's next-action time to `uptime_after_delivery + retry_after_seconds` instead of the normal upload interval. The delay starts after delivery returns, so time spent sending the request does not shorten the server-requested wait. This is an override in both directions: the server may request a longer wait (e.g. HTTP 429 throttle) or a shorter one. Values capped at 3600 s by the transport; values above that are silently zeroed and the normal interval applies.
 
 ---
 
