@@ -248,6 +248,7 @@ struct SensorRecord {
 | 22 | SCD40 |
 | 23 | SCD41 |
 | 24 | INA226 |
+| 25 | LMP91000 AFE |
 
 ### `TransportKind` enum values
 

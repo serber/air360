@@ -48,6 +48,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [dht.md](dht.md) | DHT11 / DHT22 | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
 | [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
+| [lmp91000.md](lmp91000.md) | LMP91000 AFE | I2C | Bus 0, LMP91000 `0x48` + ADS1115 `0x49`, SDA=`GPIO8`, SCL=`GPIO9` | Cell signal voltage |
 | [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
 | [ina226.md](ina226.md) | INA226 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
 | [mhz19b.md](mhz19b.md) | MH-Z19B | UART | Default UART2, RX=`GPIO16`, TX=`GPIO15`, `9600` baud; UART1 selectable | CO2 |
@@ -335,6 +336,19 @@ Startup timing is also a descriptor property (`startup_phase`). INA219 and INA22
 | Accuracy | Repeatability `<2 %` of output value; stability `<2 % / month` |
 | Maximum current | Not stated; the public Winsen manual describes the sensor as low-consumption and specifies sensitivity in `uA/ppm` rather than supply current |
 | Reference links | [Winsen product page](https://de.winsen-sensor.com/product/me3-no2.html?lang=tr), [Winsen manual](https://www.winsen-sensor.com/d/files/4-series-electrochemical-toxic-gas-sensor/me3-no2/me3-no2-0-20ppm.pdf) |
+
+### LMP91000 AFE
+
+| Field | Value |
+|-------|-------|
+| Manufacturer | Texas Instruments (LMP91000 potentiostat, ADS1115 ADC); cell from Winsen ME3 series |
+| Air360 measurements | Cell signal voltage relative to the LMP91000 internal zero; the firmware does not yet convert this to gas concentration |
+| Declared service life | Determined by the electrochemical cell (`2 years` in air for Winsen ME3) |
+| Operating temperature | LMP91000 `-40..85 deg C`; ADS1115 `-40..125 deg C`; cell limits apply |
+| Supply voltage | `3.3 V` board supply (LMP91000 `2.7..5.25 V`, ADS1115 `2.0..5.5 V`) |
+| Accuracy | Limited by the cell: Winsen ME3 resolution `0.1 ppm`, zero drift `0.2 ppm` |
+| Maximum current | LMP91000 `<10 uA` typical; ADS1115 `150 uA` while converting |
+| Reference links | [TI LMP91000 datasheet](https://www.ti.com/lit/ds/symlink/lmp91000.pdf), [TI ADS1115 datasheet](https://www.ti.com/lit/ds/symlink/ads1115.pdf) |
 
 ### INA219
 

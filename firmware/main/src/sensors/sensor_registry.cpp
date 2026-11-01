@@ -13,6 +13,7 @@
 #include "air360/sensors/drivers/ds18b20_sensor.hpp"
 #include "air360/sensors/drivers/gps_nmea_sensor.hpp"
 #include "air360/sensors/drivers/htu2x_sensor.hpp"
+#include "air360/sensors/drivers/lmp91000_sensor.hpp"
 #include "air360/sensors/drivers/me3_no2_sensor.hpp"
 #include "air360/sensors/drivers/pmsx003_sensor.hpp"
 #include "air360/sensors/drivers/ppd42ns_sensor.hpp"
@@ -466,6 +467,19 @@ bool validateMe3No2Record(const SensorRecord& record, std::string& error) {
     return true;
 }
 
+bool validateLmp91000Record(const SensorRecord& record, std::string& error) {
+    if (!validateCommonRecord(record, error)) {
+        return false;
+    }
+
+    if (record.transport_kind != TransportKind::kI2c) {
+        error = "LMP91000 AFE currently supports only I2C.";
+        return false;
+    }
+
+    return true;
+}
+
 bool validatePpd42nsRecord(const SensorRecord& record, std::string& error) {
     if (!validateCommonRecord(record, error)) {
         return false;
@@ -520,7 +534,7 @@ constexpr std::array<MaintenanceActionDescriptor, 1U> kSps30MaintenanceActions{{
 static_assert(sizeof(SensorDescriptor) == 76U,
     "SensorDescriptor layout changed — update kDescriptors designated initializers");
 
-constexpr std::array<SensorDescriptor, 24U> kDescriptors{{
+constexpr std::array<SensorDescriptor, 25U> kDescriptors{{
     {
         .type                     = SensorType::kBme280,
         .type_key                 = "bme280",
@@ -1111,6 +1125,31 @@ constexpr std::array<SensorDescriptor, 24U> kDescriptors{{
         .allowed_gpio_pin_count   = kBoardSensorGpioPinCount,
         .validate                 = &validateMe3No2Record,
         .create_driver            = &createMe3No2Sensor,
+    },
+    {
+        .type                     = SensorType::kLmp91000,
+        .type_key                 = "lmp91000",
+        .display_name             = "LMP91000 AFE",
+        .supports_i2c             = true,
+        .supports_analog          = false,
+        .supports_uart            = false,
+        .supports_gpio            = false,
+        .driver_implemented       = true,
+        .default_poll_interval_ms = kDefaultSensorPollIntervalMs,
+        .default_i2c_bus_id       = kPrimaryI2cBus,
+        .default_i2c_address      = 0x48U,
+        .allowed_i2c_addresses    = {0x48U},
+        .allowed_i2c_address_count = 1U,
+        .default_uart_port_id     = 0U,
+        .allowed_uart_ports       = {},
+        .allowed_uart_port_count  = 0U,
+        .default_uart_rx_gpio_pin = -1,
+        .default_uart_tx_gpio_pin = -1,
+        .default_uart_baud_rate   = 0U,
+        .allowed_gpio_pins        = {},
+        .allowed_gpio_pin_count   = 0U,
+        .validate                 = &validateLmp91000Record,
+        .create_driver            = &createLmp91000Sensor,
     },
     {
         .type                     = SensorType::kPpd42ns,

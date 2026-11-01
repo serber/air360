@@ -49,6 +49,7 @@ idf_component_register(
         "src/sensors/drivers/ina219_sensor.cpp"
         "src/sensors/drivers/ina226_sensor.cpp"
         "src/sensors/drivers/mhz19b_sensor.cpp"
+        "src/sensors/drivers/lmp91000_sensor.cpp"
         "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/opt3001_sensor.cpp"
         "src/sensors/drivers/pmsx003_sensor.cpp"
