@@ -113,7 +113,7 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | PMSX003 | UART | 1 | Sent as PM1.0, PM2.5, and PM10 particulate matter data |
 | PPD42NS | GPIO | — | Not supported by Sensor.Community, skipped |
 | GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
-| ME3-NO2 | Analog (ADC) | — | Not supported, skipped |
+| LMP91000 AFE | I2C | — | Not supported, skipped |
 
 Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `deliver()` returns `kNoData`.
 

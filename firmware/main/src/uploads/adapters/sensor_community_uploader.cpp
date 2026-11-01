@@ -178,7 +178,6 @@ bool mapMeasurement(
                     return false;
             }
         case SensorType::kUnknown:
-        case SensorType::kMe3No2:
         case SensorType::kLmp91000:
         case SensorType::kVeml7700:
         case SensorType::kOpt3001:

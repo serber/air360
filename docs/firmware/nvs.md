@@ -231,7 +231,7 @@ struct SensorRecord {
 | 5 | BME680 |
 | 6 | SPS30 |
 | 7 | SDS011 |
-| 8 | ME3-NO2 |
+| 8 | ME3-NO2 (retired; stored records are removed on load) |
 | 9 | VEML7700 |
 | 10 | DS18B20 |
 | 11 | SCD30 |
@@ -405,7 +405,7 @@ All three blob repositories follow the same load pattern:
 7. If any field mismatches: write defaults, return.
 8. Return the loaded struct.
 
-The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
+The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. `sensor_cfg` also drops records whose `sensor_type` is retired (currently `8`, ME3-NO2) before validation and saves the cleaned list back. Without that step, one retired sensor would fail validation and reset every configured sensor to defaults. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
 
 ---
 

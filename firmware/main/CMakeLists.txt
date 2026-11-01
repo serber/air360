@@ -50,7 +50,6 @@ idf_component_register(
         "src/sensors/drivers/ina226_sensor.cpp"
         "src/sensors/drivers/mhz19b_sensor.cpp"
         "src/sensors/drivers/lmp91000_sensor.cpp"
-        "src/sensors/drivers/me3_no2_sensor.cpp"
         "src/sensors/drivers/opt3001_sensor.cpp"
         "src/sensors/drivers/pmsx003_sensor.cpp"
         "src/sensors/drivers/ppd42ns_sensor.cpp"
@@ -109,7 +108,6 @@ idf_component_register(
         espressif__ds18b20
         espressif__onewire_bus
         cinderblocks__esp_tinygpsplusplus
-        esp_adc
         efuse
         esp_psram
         esp_rom

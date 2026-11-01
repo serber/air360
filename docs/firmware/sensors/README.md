@@ -47,7 +47,6 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 | [gps_nmea.md](gps_nmea.md) | GPS (NMEA) | UART | Default UART1, RX=`GPIO18`, TX=`GPIO17`, `9600` baud; UART2 selectable | Latitude, longitude, altitude, satellites, speed, course, HDOP |
 | [dht.md](dht.md) | DHT11 / DHT22 | GPIO | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature, humidity |
 | [ds18b20.md](ds18b20.md) | DS18B20 | GPIO / 1-Wire | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Temperature |
-| [me3_no2.md](me3_no2.md) | ME3-NO2 | Analog (ADC) | Descriptor allowed pins: `GPIO4`, `GPIO5`, `GPIO6` | Raw ADC, voltage |
 | [lmp91000.md](lmp91000.md) | LMP91000 AFE | I2C | Bus 0, LMP91000 `0x48` + ADS1115 `0x49`, SDA=`GPIO8`, SCL=`GPIO9` | Cell signal voltage |
 | [ina219.md](ina219.md) | INA219 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
 | [ina226.md](ina226.md) | INA226 | I2C | Bus 0, `0x40` (alt `0x41`, `0x44`, `0x45`), SDA=`GPIO8`, SCL=`GPIO9` | Bus voltage, current, power |
@@ -55,7 +54,7 @@ Use [supported-sensors.md](supported-sensors.md) for the concise matrix and [add
 
 I2C bus 0 is fixed to SDA=`GPIO8`, SCL=`GPIO9` at `100 kHz`.
 
-GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, PPD42NS, and ME3-NO2 descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
+GPIO/analog sensor pins are listed per sensor descriptor. The current DHT11, DHT22, DS18B20, and PPD42NS descriptors allow `GPIO4`, `GPIO5`, and `GPIO6`; only one sensor can occupy a pin at a time.
 
 Startup timing is also a descriptor property (`startup_phase`). INA219 and INA226 start polling before the modem and Wi-Fi are powered; every other sensor in this index stays parked in `kDeferred` until the firmware releases the after-network phase at boot step 10. See [../startup-pipeline.md](../startup-pipeline.md#sensor-startup-phases) and [adding-new-sensor.md](adding-new-sensor.md).
 
@@ -324,18 +323,6 @@ Startup timing is also a descriptor property (`startup_phase`). INA219 and INA22
 | Maximum current | Module-dependent |
 | Reference links | Air360 intentionally supports a generic NMEA-over-UART receiver rather than one fixed GNSS module. Add manufacturer references only after the hardware BOM selects a concrete GPS part number. |
 
-### ME3-NO2
-
-| Field | Value |
-|-------|-------|
-| Manufacturer | Zhengzhou Winsen Electronics Technology Co., Ltd. |
-| Air360 measurements | Raw ADC value and calibrated voltage; the firmware does not yet convert this to NO2 concentration |
-| Declared service life | `2 years` in air |
-| Operating temperature | The public manual excerpt used here does not expose one clean operating-temperature band; it does give zero-drift data for `-20..40 deg C` and storage temperature `-20..50 deg C` |
-| Supply / bias | `0 mV` bias, recommended `10 ohm` load resistance; this electrochemical cell is read through external analog front-end circuitry rather than powered like a digital sensor |
-| Accuracy | Repeatability `<2 %` of output value; stability `<2 % / month` |
-| Maximum current | Not stated; the public Winsen manual describes the sensor as low-consumption and specifies sensitivity in `uA/ppm` rather than supply current |
-| Reference links | [Winsen product page](https://de.winsen-sensor.com/product/me3-no2.html?lang=tr), [Winsen manual](https://www.winsen-sensor.com/d/files/4-series-electrochemical-toxic-gas-sensor/me3-no2/me3-no2-0-20ppm.pdf) |
 
 ### LMP91000 AFE
 

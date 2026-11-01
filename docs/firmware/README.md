@@ -116,7 +116,6 @@ Transport bindings and addresses are canonical in [sensors/supported-sensors.md]
 | [sensors/gps_nmea.md](sensors/gps_nmea.md) | GPS (NMEA) | Latitude, longitude, altitude, speed, satellites, HDOP |
 | [sensors/dht.md](sensors/dht.md) | DHT11 / DHT22 | Temperature, humidity |
 | [sensors/ds18b20.md](sensors/ds18b20.md) | DS18B20 | Temperature |
-| [sensors/me3_no2.md](sensors/me3_no2.md) | ME3-NO2 | Raw ADC count, voltage |
 | [sensors/lmp91000.md](sensors/lmp91000.md) | LMP91000 AFE | Cell signal voltage |
 | [sensors/ina219.md](sensors/ina219.md) | INA219 | Bus voltage, current, power |
 | [sensors/ina226.md](sensors/ina226.md) | INA226 | Bus voltage, current, power |

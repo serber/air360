@@ -139,7 +139,6 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` (managed component) |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` (managed component) |
-| `me3_no2_sensor.cpp` | ME3-NO2 (ADC) | `esp_adc` (IDF built-in) |
 | `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
 | `sensirion_i2c_hal.cpp` | Sensirion I2C HAL | (bridge for SPS30 vendored lib) |
 

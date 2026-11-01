@@ -105,7 +105,6 @@ Reference drivers by transport type:
 | UART (library-managed) | `mhz19b_sensor` |
 | UART (via UartPortManager) | `gps_nmea_sensor` |
 | GPIO / 1-Wire | `dht_sensor`, `ds18b20_sensor` |
-| Analog / ADC | `me3_no2_sensor` |
 
 ---
 

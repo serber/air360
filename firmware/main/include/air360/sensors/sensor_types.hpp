@@ -16,7 +16,7 @@ enum class SensorType : std::uint8_t {
     kBme680 = 5U,
     kSps30 = 6U,
     kSds011 = 7U,
-    kMe3No2 = 8U,
+    kMe3No2 = 8U,  // Retired: ME3-NO2 ADC driver removed; stored records are dropped on load.
     kVeml7700 = 9U,
     kDs18b20 = 10U,
     kScd30 = 11U,
@@ -435,6 +435,7 @@ inline const char* sensorTypeKey(SensorType type) {
         case SensorType::kHtu2x:    return "htu2x";
         case SensorType::kSht4x:    return "sht4x";
         case SensorType::kSht3x:    return "sht3x";
+        // Kept so the backend and portal still recognise historical uploads.
         case SensorType::kMe3No2:   return "me3_no2";
         case SensorType::kVeml7700: return "veml7700";
         case SensorType::kIna219:   return "ina219";
