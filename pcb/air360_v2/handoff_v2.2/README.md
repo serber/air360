@@ -7,6 +7,7 @@ Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2
 |---|---|
 | `Air360_V2.2_Gerber.zip` | Gerber and drill files, 4 layers |
 | `Air360_V2.2_BOM.csv` | 106 parts in 54 lines, tab-separated UTF-16 |
+| `Air360_V2.2_BOM.md` | Readable copy of the BOM grouped by part type, in Russian |
 | `Air360_V2.2_PickAndPlace.csv` | 106 placements, top side, TP1–TP3 removed |
 | `Air360_V2.2_Schematic.pdf` | All five schematic sheets |
 | `Air360_V2.2.epro2` | EasyEDA Pro project |
