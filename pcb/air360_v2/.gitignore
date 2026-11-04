@@ -1,0 +1,4 @@
+# V2.1 is a local fallback; it can be exported again from EasyEDA.
+handoff_v2.1/
+# 3D model is large and can be exported again from EasyEDA.
+*.step
