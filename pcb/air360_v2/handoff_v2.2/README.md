@@ -1,7 +1,7 @@
 # Air360 V2.2 manufacturing package
 
 
-Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-04, all from one revision. Nothing in this package has been built or measured. `../DESIGN_LOG.md` sections 23–24 hold the design notes and checks. EasyEDA project `Air360_V2.1` is the fallback design.
+Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-04, all from one revision. Nothing in this package has been built or measured. `../DESIGN_LOG.md` sections 23–24 hold the design notes and checks. `../handoff_v2.1/` is the fallback design.
 
 | File | Content |
 |---|---|

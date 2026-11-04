@@ -7,7 +7,7 @@ Air360 V2 is a single board that replaces the ESP32-S3 DevKit plus shield build.
 | Revision | State | Files |
 |---|---|---|
 | V2.2 | Current, cost-down, 1–1.5 A | [`handoff_v2.2/`](handoff_v2.2/README.md), EasyEDA project `Air360_V2.2` |
-| V2.1 | Fallback, up to 3.3 A peak | EasyEDA project `Air360_V2.1`; its package is kept locally, not in git |
+| V2.1 | Fallback, up to 3.3 A peak | [`handoff_v2.1/`](handoff_v2.1/README.md), EasyEDA project `Air360_V2.1` |
 
 V2.1 has a known defect: U5 stops the board from starting on DC. Do not build it without the fix in [`DESIGN_LOG.md`](DESIGN_LOG.md) section 25.
 
