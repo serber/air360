@@ -34,13 +34,21 @@ Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2
 Order line:
 
 ```
-5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Purple Soldermask, White Legend, ENIG, Tented Vias, No Impedance Control, 81.28x85MM, order number will be added on bottom side.
+5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Standard Stack-up, Purple Soldermask, White Legend, ENIG, Tented Vias, No Impedance Control, 81.28x85MM, Min Track/Space 0.15/0.10MM, Min Via 0.3/0.5MM, order number will be added on bottom side.
 ```
+
+This line is for bare boards ordered by email. Attach `Air360_V2.2_Gerber.zip` from this folder.
+
+- **Order number:** the bottom silkscreen layer is empty and the top one is dense, so ask for the number on the bottom side.
+- **Finish:** ENIG is preferred, not required. HASL is cheaper but leaves the fine USB-C and U1 pads uneven, which makes J1 harder to solder.
+- **Stack-up:** any standard one with the copper weights above fits, because impedance is not controlled.
+- **Soldermask:** confirm that purple is available for 4 layers with ENIG. This was not checked.
+- **Stencil:** for hot-air or oven soldering, add `+ SMT stencil (top side only)`. Paste data exists for the top side only.
+- **Assembly:** a factory assembly order also needs the BOM, the pick-and-place file and the items under "Before ordering".
 
 ## Before ordering
 
 - **Stock and price:** LCSC numbers were not checked for stock or price.
-- **Stack-up:** no specific stack-up has been chosen. Pick one that matches the copper weights above.
 - **Headers:** GPIO1–3, I2C1–3, UART2, MODEM, J2 and JP1 have no LCSC number in the BOM. JP1 is 1×2 and needs one 2.54 mm jumper cap.
 - **Placement review:** check rotations in the assembler's preview, especially U1, J1, LED1 and all polarized parts. LED1 footprint orientation was not compared with the package drawing.
 - **Via in pad:** U3 pin 2 has a via inside its pad. Tell the assembler, and check the joint if soldering by hand.
