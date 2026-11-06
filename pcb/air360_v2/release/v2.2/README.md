@@ -1,16 +1,16 @@
-# Air360 V2.2 manufacturing package
+# Release v2.2
 
 
-Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-04, all from one revision. Nothing in this package has been built or measured. `../DESIGN_LOG.md` sections 23–24 hold the design notes and checks. `../handoff_v2.1/` is the fallback design.
+Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-04, all from one revision. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–24 hold the design notes and checks. `../release/v2.1/` is the fallback design.
 
 | File | Content |
 |---|---|
-| `Air360_V2.2_Gerber.zip` | Gerber and drill files, 4 layers |
-| `Air360_V2.2_BOM.csv` | 106 parts in 54 lines, tab-separated UTF-16 |
-| `Air360_V2.2_BOM.md` | Readable copy of the BOM grouped by part type, in Russian |
-| `Air360_V2.2_PickAndPlace.csv` | 106 placements, top side, TP1–TP3 removed |
-| `Air360_V2.2_Schematic.pdf` | All five schematic sheets |
-| `Air360_V2.2.epro2` | EasyEDA Pro project |
+| `gerber-v2.2.zip` | Gerber and drill files, 4 layers |
+| `BOM.md` | Parts list with order links |
+| `bom-v2.2.csv` | EasyEDA BOM export, 106 parts in 54 lines, tab-separated UTF-16 |
+| `placement-v2.2.csv` | 106 placements, top side, TP1–TP3 removed |
+| `schematic-v2.2.pdf` | All five schematic sheets |
+| `project-v2.2.epro2` | EasyEDA Pro project |
 | `Air360_V2.2.step` | Board and component 3D models. Not in git because of its size; export it from EasyEDA |
 | `FIRST_POWER_UP.md` | First power-up procedure and threshold table |
 | `TEST_PLAN.md` | Post-assembly test plan |
@@ -31,13 +31,7 @@ Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2
 | Surface finish | ENIG preferred, for the USB-C pads |
 | Assembly | Top side only |
 
-Order line:
-
-```
-5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Standard Stack-up, Purple Soldermask, White Legend, ENIG, Tented Vias, No Impedance Control, 81.28x85MM, Min Track/Space 0.15/0.10MM, Min Via 0.3/0.5MM, order number will be added on bottom side.
-```
-
-This line is for bare boards ordered by email. Attach `Air360_V2.2_Gerber.zip` from this folder.
+The order instruction is in the [board README](../../README.md#ordering). It covers bare boards ordered by email.
 
 - **Order number:** the bottom silkscreen layer is empty and the top one is dense, so ask for the number on the bottom side.
 - **Finish:** ENIG is preferred, not required. HASL is cheaper but leaves the fine USB-C and U1 pads uneven, which makes J1 harder to solder.

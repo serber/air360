@@ -15,8 +15,8 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | 5. Functional placement | Done | Section 19, 2026-11-04; accepted by the user after 3D review |
 | 6. Routing | Done | Section 20, 2026-11-04; DRC returns no errors, pending user review |
 | 7. Final verification | Done | Section 21, 2026-11-04; bench tests remain |
-| 8. Manufacturing handoff | Done | `handoff_v2.1/`, 2026-11-04; not ordered |
-| V2.2 cost-down revision | Done, pending review | Sections 23–25, `handoff_v2.2/`, 2026-11-04; not ordered |
+| 8. Manufacturing handoff | Done | `release/v2.1/`, 2026-11-04; not ordered |
+| V2.2 cost-down revision | Done, pending review | Sections 23–25, `release/v2.2/`, 2026-11-04; not ordered |
 
 ## 1. Decisions
 
@@ -55,7 +55,7 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | D31 | 2026-11-04 | J3, J4 and F1 moved right: J3 and J4 by 1 mm, F1 by 0.3 mm | J3 was 2.05 mm from the centre of H1, under an M3 head. User chose moving J3. The jack opening no longer matches the shield position by 1 mm; check any enclosure cut-out |
 | D32 | 2026-11-04 | Green LED2 with R39 4.7 kΩ from BUCK_5V to GND shows that the buck is running | User asked for a visible state indicator. `EN_NODE` is too high-impedance to drive it, and BUCK_5V draws nothing from a tripped pack |
 | D33 | 2026-11-04 | Test pads are separate 1.5 mm pads TP1P–TP3P over TP1–TP3 | A pad size edited on a component is lost on reload, so Gerber kept 0.5 mm. Supersedes the pad note in D22 |
-| D34 | 2026-11-04 | V2.1 is frozen as the fallback in `handoff_v2.1/`; a cost-down V2.2 targets 1–1.5 A at +5V with all power parts sized to that | User decision after field data, 130–145 mA without modem and about 250–300 mA with it. Supersedes D6 for V2.2 only |
+| D34 | 2026-11-04 | V2.1 is frozen as the fallback in `release/v2.1/`; a cost-down V2.2 targets 1–1.5 A at +5V with all power parts sized to that | User decision after field data, 130–145 mA without modem and about 250–300 mA with it. Supersedes D6 for V2.2 only |
 | D35 | 2026-11-04 | V2.2 DC input is 2S only, 6–8.4 V | User: only 2S at the input. Supersedes for V2.2 the 5 V charger at DC (D14) and the 26 V tolerance; JP1 keeps only `Li` and `LFP`. V2.1 is unchanged |
 | D36 | 2026-11-04 | V2.2 buck is AP63205WU-7, fixed 5 V, 2 A, 32 V input | 2S input allows it, few external parts, datasheet Rev. Nov 2024. MP2315 rejected: marked not recommended for new designs. LMR33620 not needed |
 | D37 | 2026-11-04 | UVLO block clears the left edge by 4.4 mm, matching the right side | User review of V2.2 |
@@ -566,7 +566,7 @@ Hardware-only, not verified: UVLO thresholds and restart, all power modes, buck 
 
 ## 22. Manufacturing handoff
 
-The package is in `handoff_v2.1/`, exported from one revision on 2026-11-04, after adding LED2 and the separate test pads. Its Gerber passed the raster connectivity check: 0 opens and 0 shorts on 66 nets, no copper in the antenna zone, TP1–TP3 at 1.5 mm. BOM has 112 parts and placement 112 rows; TP1–TP3 are not assembled and were removed from the placement file by script. The schematic export is a ZIP; the package holds the PDF from inside it.
+The package is in `release/v2.1/`, exported from one revision on 2026-11-04, after adding LED2 and the separate test pads. Its Gerber passed the raster connectivity check: 0 opens and 0 shorts on 66 nets, no copper in the antenna zone, TP1–TP3 at 1.5 mm. BOM has 112 parts and placement 112 rows; TP1–TP3 are not assembled and were removed from the placement file by script. The schematic export is a ZIP; the package holds the PDF from inside it.
 
 Known cosmetic defect: the schematic PDF keeps doubled block headings and the old `Debug and spare GPIO` heading. Text deletions through the API show in the editor but are not in the export. Nets are not affected. Removing them by hand in EasyEDA is optional.
 
@@ -600,7 +600,7 @@ U3 pin 2 needs a board connection to the tab. Signals run under the body, so pin
 
 ## 24. V2.2 verification
 
-Run on the Gerber in `handoff_v2.2/`, after the final copper rebuild.
+Run on the Gerber in `release/v2.2/`, after the final copper rebuild.
 
 | Check | Result |
 |---|---|

@@ -1,16 +1,17 @@
-# Air360 V2.1 manufacturing package
+# Release v2.1
 
-> **Do not order assembly or parts from this BOM yet.** U5 TLV3011 is open-drain with no pull-up on `UV_OK`, so the board would not start from DC. See `../DESIGN_LOG.md` section 25. The Gerber files are not affected.
+> **Do not order assembly or parts from this BOM yet.** U5 TLV3011 is open-drain with no pull-up on `UV_OK`, so the board would not start from DC. See `../../DESIGN_LOG.md` section 25. The Gerber files are not affected.
 
-Prototype package exported from EasyEDA Pro project `Air360_V2.1` on 2026-11-04, all from one revision, including the buck indicator LED2. Nothing in this package has been built or measured. `../DESIGN_LOG.md` is the design record; section 21 holds the verification results.
+Prototype package exported from EasyEDA Pro project `Air360_V2.1` on 2026-11-04, all from one revision, including the buck indicator LED2. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` is the design record; section 21 holds the verification results.
 
 | File | Content |
 |---|---|
-| `Air360_V2.1_Gerber.zip` | Gerber and drill files, 4 layers |
-| `Air360_V2.1_BOM.csv` | 112 parts in 56 lines, tab-separated UTF-16 |
-| `Air360_V2.1_PickAndPlace.csv` | 112 placements, top side, TP1–TP3 removed |
-| `Air360_V2.1_Schematic.pdf` | All five schematic sheets |
-| `Air360_V2.1.epro2` | EasyEDA Pro project |
+| `gerber-v2.1.zip` | Gerber and drill files, 4 layers |
+| `BOM.md` | Parts list with order links |
+| `bom-v2.1.csv` | EasyEDA BOM export, 112 parts in 56 lines, tab-separated UTF-16 |
+| `placement-v2.1.csv` | 112 placements, top side, TP1–TP3 removed |
+| `schematic-v2.1.pdf` | All five schematic sheets |
+| `project-v2.1.epro2` | EasyEDA Pro project |
 | `Air360_V2.1.step` | Board and component 3D models. Not in git because of its size; export it from EasyEDA |
 | `FIRST_POWER_UP.md` | First power-up procedure and threshold table |
 | `TEST_PLAN.md` | Post-assembly test plan |

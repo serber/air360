@@ -4,10 +4,14 @@ Air360 V2 is a single board that replaces the ESP32-S3 DevKit plus shield build.
 
 **Status:** V2.2 is designed and verified on paper and on its manufacturing files. No board has been built or measured. Values below are datasheet figures or calculations unless stated otherwise.
 
+![Air360 V2.2 board](docs/images/board-top.png)
+
+*Render of the V2.2 3D model, with silkscreen and pad openings from the Gerbers and the planned purple soldermask. Copper is not shown, and part colors are approximate.*
+
 | Revision | State | Files |
 |---|---|---|
-| V2.2 | Current, cost-down, 1–1.5 A | [`handoff_v2.2/`](handoff_v2.2/README.md), EasyEDA project `Air360_V2.2` |
-| V2.1 | Fallback, up to 3.3 A peak | [`handoff_v2.1/`](handoff_v2.1/README.md), EasyEDA project `Air360_V2.1` |
+| V2.2 | Current, cost-down, 1–1.5 A | [`release/v2.2/`](release/v2.2/README.md), EasyEDA project `Air360_V2.2` |
+| V2.1 | Fallback, up to 3.3 A peak | [`release/v2.1/`](release/v2.1/README.md), EasyEDA project `Air360_V2.1` |
 
 V2.1 has a known defect: U5 stops the board from starting on DC. Do not build it without the fix in [`DESIGN_LOG.md`](DESIGN_LOG.md) section 25.
 
@@ -131,8 +135,6 @@ Keep `V_OFF` above about 5.8 V. Because `Vref` varies by device, the guaranteed 
 
 The target of 1–1.5 A comes from field data on the shield build: about 140 mA without a modem and 250–300 mA with one. V2.1 was sized for 3.3 A, which summed every peak at once.
 
-Full BOM: [`handoff_v2.2/Air360_V2.2_BOM.csv`](handoff_v2.2/Air360_V2.2_BOM.csv).
-
 ## Firmware settings
 
 - Enable INA219 at address `0x41`.
@@ -152,12 +154,27 @@ Full BOM: [`handoff_v2.2/Air360_V2.2_BOM.csv`](handoff_v2.2/Air360_V2.2_BOM.csv)
 - INA219 readings at `0x41` with stock firmware
 - Wi-Fi range, LED1 and LED2 brightness, cable fit
 
-## Files
+## Ordering
 
-| File | Purpose |
+Files are in [`release/v2.2`](release/v2.2). Upload `gerber-v2.2.zip` and send this instruction:
+
+```text
+5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Standard Stack-up, Purple Soldermask, White Legend, ENIG, Tented Vias, No Impedance Control, 81.28x85MM, Min Track/Space 0.15/0.10MM, Min Via 0.3/0.5MM, order number will be added on bottom side.
+```
+
+Parameters and checks before ordering are in the [release notes](release/v2.2/README.md).
+
+## Bill of materials
+
+See [`release/v2.2/BOM.md`](release/v2.2/BOM.md).
+
+## Repository
+
+| Path | Content |
 |---|---|
+| [`release/v2.2`](release/v2.2) | Current release: Gerbers, BOM, placement, schematic, and EasyEDA project |
+| [`release/v2.1`](release/v2.1) | Fallback release with the known defect above |
 | [`REQUIREMENTS.md`](REQUIREMENTS.md) | Requirements, with the V2.2 changes in their own section |
 | [`DESIGN_LOG.md`](DESIGN_LOG.md) | Decisions, calculations and verification results |
-| [`handoff_v2.2/README.md`](handoff_v2.2/README.md) | Manufacturing package and ordering parameters |
-| [`handoff_v2.2/FIRST_POWER_UP.md`](handoff_v2.2/FIRST_POWER_UP.md) | First power-up procedure |
-| [`handoff_v2.2/TEST_PLAN.md`](handoff_v2.2/TEST_PLAN.md) | Post-assembly test plan |
+| [`release/v2.2/FIRST_POWER_UP.md`](release/v2.2/FIRST_POWER_UP.md) | First power-up procedure |
+| [`release/v2.2/TEST_PLAN.md`](release/v2.2/TEST_PLAN.md) | Post-assembly test plan |
