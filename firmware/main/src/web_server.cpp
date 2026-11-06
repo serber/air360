@@ -692,7 +692,7 @@ constexpr std::array<SensorType, 5U> kGasSensorTypes{{
     SensorType::kScd30,
     SensorType::kScd40,
     SensorType::kScd41,
-    SensorType::kMe3No2,
+    SensorType::kLmp91000,
     SensorType::kMhz19b,
 }};
 
@@ -798,7 +798,7 @@ SensorCategory sensorCategoryForType(SensorType type) {
         case SensorType::kIna219:
         case SensorType::kIna226:
             return SensorCategory::kPower;
-        case SensorType::kMe3No2:
+        case SensorType::kLmp91000:
         case SensorType::kMhz19b:
         case SensorType::kUnknown:
         default:

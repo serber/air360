@@ -22,7 +22,7 @@ configured sensor at a time, except Gas**, which allows more than one.
 | Particulate Matter | SPS30, SDS011, PMSX003 |
 | Dust Count | PPD42NS |
 | Location | GPS (NMEA) |
-| Gas | MH-Z19B |
+| Gas | MH-Z19B, LMP91000 AFE (electrochemical) |
 | Power Monitoring | INA219, INA226 |
 
 ## Connection per sensor
@@ -57,6 +57,7 @@ settings if your module differs.
 | HTU2X | `0x40` |
 | INA219 | `0x40` |
 | INA226 | `0x40` |
+| LMP91000 AFE | `0x48` (plus its ADS1115 at `0x49`) |
 | SCD30 | `0x61` |
 | SCD40 / SCD41 | `0x62` |
 | SPS30 | `0x69` |

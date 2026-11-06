@@ -382,7 +382,6 @@ Static catalog of all supported sensor types. Each entry (`SensorDescriptor`) ho
 | DHT11 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
 | DHT22 | GPIO | — | GPIO4, GPIO5, GPIO6 | 30 s |
 | DS18B20 | GPIO (1-Wire) | — | GPIO4, GPIO5, GPIO6 | 30 s |
-| ME3-NO2 | Analog (ADC) | — | GPIO4, GPIO5, GPIO6 | 30 s |
 
 ---
 
@@ -469,7 +468,6 @@ Each driver wraps an ESP-IDF managed component or vendored library and implement
 | `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` |
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` |
-| `me3_no2_sensor.cpp` | ME3-NO2 (analog) | `esp_adc` (IDF built-in) |
 | `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
 | `sensirion_i2c_hal.cpp` | Sensirion HAL | (I2C HAL for SPS30) |
 
@@ -849,7 +847,7 @@ The modem DTE uses 4096 B RX / 512 B TX ring buffers by default.
 
 ### GPIO / Analog
 
-- GPIO4, GPIO5, GPIO6: descriptor-allowed pins for DHT11, DHT22, DS18B20 (1-Wire), ME3-NO2 (ADC)
+- GPIO4, GPIO5, GPIO6: descriptor-allowed pins for DHT11, DHT22, DS18B20 (1-Wire), PPD42NS
 - One sensor per slot; selection through the `/sensors` web UI
 
 ---
