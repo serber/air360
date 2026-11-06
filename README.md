@@ -23,6 +23,7 @@ At the device level, the project is centered on a local-first firmware runtime w
 The repository intentionally separates:
 
 - `docs/` for architecture, planning, deployment notes, and implementation-oriented navigation
+- `pcb/` for custom hardware design context and board documentation
 - `firmware/` for the actual ESP-IDF device firmware
 - `backend/` for the native Air360 API backend
 - `portal/` for the user-facing web application
@@ -49,6 +50,7 @@ The older planning documents in `docs/` still matter, but they should be read as
 ├── docs/
 ├── firmware/
 ├── portal/
+├── pcb/
 ├── CLAUDE.md
 ├── LICENSE
 └── README.md
@@ -56,6 +58,8 @@ The older planning documents in `docs/` still matter, but they should be read as
 
 - `docs/`
   Project context, architecture notes, compatibility analysis, firmware docs, backend docs, and portal deployment notes.
+- `pcb/`
+  Custom board context, including the in-development [Air360 V2 integrated board](pcb/air360_v2/README.md).
 - `firmware/`
   ESP-IDF firmware project for the device. This is the source of truth for implemented device behavior.
 - `backend/`
@@ -69,6 +73,8 @@ The older planning documents in `docs/` still matter, but they should be read as
 
 Start here depending on what you need.
 
+- Air360 V2 integrated board design context (in development):
+  [pcb/air360_v2/README.md](pcb/air360_v2/README.md)
 - Build guide (assemble, flash, and configure a device):
   [docs/guide/README.md](docs/guide/README.md)
 - Firmware documentation map (all subsystems):

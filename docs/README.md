@@ -6,6 +6,7 @@ Top-level index for all documentation in this repository. For project-level cont
 
 | Directory | What it covers |
 |-----------|----------------|
+| [Air360 V2 board](../pcb/air360_v2/README.md) | In-development integrated ESP32-S3 board design context and status |
 | [firmware/README.md](firmware/README.md) | Full navigation map for firmware implementation docs — architecture, subsystems, sensor drivers, ADRs |
 | [backend/README.md](backend/README.md) | Backend design notes, ingest API contract, Ubuntu deployment guide |
 | [portal/README.md](portal/README.md) | Portal scope, stack direction, boundary with the backend |
