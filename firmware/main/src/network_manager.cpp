@@ -400,8 +400,8 @@ esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
     state_.time_synchronized = false;
     state_.time_sync_error.clear();
     state_.last_time_sync_unix_ms = 0;
-    if (!state_.station_connected) {
-        state_.time_sync_error = "station is not connected";
+    if (!state_.hasConnectedUplink()) {
+        state_.time_sync_error = "uplink is not connected";
         unlock();
         return ESP_ERR_INVALID_STATE;
     }
@@ -1511,9 +1511,9 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
     }
 
     lock();
-    const bool station_connected = state_.station_connected;
+    const bool uplink_connected = state_.hasConnectedUplink();
     unlock();
-    if (!station_connected) {
+    if (!uplink_connected) {
         result.error = "not_connected";
         return result;
     }
@@ -1568,11 +1568,17 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
     return result;
 }
 
-esp_err_t NetworkManager::ensureStationTime(std::uint32_t timeout_ms) {
+void NetworkManager::configureTimeServer(const DeviceConfig& config) {
     lock();
-    const bool ready = (state_.mode == NetworkMode::kStation && state_.station_connected);
+    configured_sntp_server_ = config.sntp_server;
+    unlock();
+}
+
+esp_err_t NetworkManager::ensureUplinkTime(std::uint32_t timeout_ms) {
+    lock();
+    const bool ready = state_.hasConnectedUplink();
     if (!ready) {
-        state_.time_sync_error = "station is not connected";
+        state_.time_sync_error = "uplink is not connected";
         unlock();
         return ESP_ERR_INVALID_STATE;
     }

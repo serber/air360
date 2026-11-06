@@ -233,6 +233,29 @@ void MeasurementStore::discardUpTo(std::uint64_t sample_id) {
     unlock();
 }
 
+void MeasurementStore::retainLatestMeasurements(
+    const std::uint32_t* sensor_ids, std::size_t count) {
+    lock();
+    std::size_t retained = 0U;
+    for (std::size_t index = 0U; index < latest_count_; ++index) {
+        bool keep = false;
+        for (std::size_t id_index = 0U; id_index < count; ++id_index) {
+            if (sensor_ids[id_index] == latest_by_sensor_[index].sensor_id) {
+                keep = true;
+                break;
+            }
+        }
+        if (keep) {
+            latest_by_sensor_[retained++] = latest_by_sensor_[index];
+        }
+    }
+    for (std::size_t index = retained; index < latest_count_; ++index) {
+        latest_by_sensor_[index] = LatestMeasurementEntry{};
+    }
+    latest_count_ = retained;
+    unlock();
+}
+
 MeasurementRuntimeInfo MeasurementStore::runtimeInfoForSensor(std::uint32_t sensor_id) const {
     lock();
 

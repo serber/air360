@@ -116,6 +116,8 @@ measurement_store_->recordMeasurement(
 
 ### 2a — Update `latest_by_sensor_`
 
+After stopping the old sensor task during `applyConfig()`, the manager calls `retainLatestMeasurements()` with enabled sensor IDs. Deleted/disabled sensors release their latest-value slots, unchanged sensors retain their readings, and new sensors can populate the fixed eight-entry cache without rebooting. This also removes deleted readings from BLE snapshots. Queued upload history and acknowledgement cursors are preserved.
+
 An unbounded list of `LatestMeasurementEntry` (one entry per sensor ID). Always updated regardless of unix time. Used by the web UI (`/`) and the Diagnostics page raw dump to show the most recent reading for each sensor.
 
 ```cpp
@@ -383,3 +385,5 @@ The sensor task and the upload task access `MeasurementStore` concurrently:
 | Max values per measurement | 16 | `sensor_types.hpp` |
 | Default upload interval | 145 000 ms | `backend_config.hpp` |
 | Sensor retry delay on error | 5 000 ms | `sensor_manager.cpp` |
+
+A valid numeric `Retry-After` from the HTTP response schedules the next backend attempt relative to delivery completion, preserving the full server-requested delay even on a slow connection.

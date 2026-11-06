@@ -591,3 +591,5 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Supported sensors | BME280, BME680, BMP390, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | Any reading the user maps to a box sensor ID |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 | 200–208 (canonical POST returns 201) |
 | Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config | Valid senseBox ID, mapping table loadable |
+
+HTTP adapters receive `retry_after_seconds` from response-header events in `UploadTransport`. Numeric server delays of 1–3600 seconds override the next attempt deadline, measured from delivery completion; outgoing request headers are not used.

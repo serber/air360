@@ -89,6 +89,7 @@ void NetworkLayer::bootCellular(PlatformLayer& /*platform*/, StatusService& stat
 
 void NetworkLayer::bootWifi(PlatformLayer& platform, StatusService& status_service) {
     DeviceConfig& config = platform.deviceConfig();
+    network_manager_.configureTimeServer(config);
 
     ESP_LOGI(kTag, "Boot step 9/12: resolve network mode");
     if (cellular_config_.enabled != 0U) {

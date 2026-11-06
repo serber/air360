@@ -70,6 +70,9 @@ class MeasurementStore {
         std::uint64_t until_sample_id) const;
     void discardUpTo(std::uint64_t sample_id);
 
+    // Called while the sensor producer is stopped; queued history is retained.
+    void retainLatestMeasurements(const std::uint32_t* sensor_ids, std::size_t count);
+
     MeasurementRuntimeInfo runtimeInfoForSensor(std::uint32_t sensor_id) const;
     std::size_t allLatestMeasurements(
         MeasurementRuntimeInfo* out,

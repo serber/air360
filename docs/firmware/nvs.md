@@ -30,8 +30,9 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 | Key | NVS type | Stored structure | Written by |
 |-----|----------|-----------------|------------|
-| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository`; `/config` combined save |
-| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository`; `/config` combined save |
+| `network_cfg` | blob | `PairedConfig` (DeviceConfig + CellularConfig) | `/config` combined save; individual repository saves after migration |
+| `device_cfg` | blob | `DeviceConfig` | `ConfigRepository` before migration |
+| `cellular_cfg` | blob | `CellularConfig` | `CellularConfigRepository` before migration |
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
 | `osem_map` | blob | `OpenSenseMapMappingTable` | `OpenSenseMapMappingRepository` |
@@ -49,7 +50,7 @@ All blob structs share the same integrity guard pattern at the start of the stru
 | `schema_version` | `uint16_t` | Detects schema changes |
 | `record_size` | `uint16_t` | Detects struct size changes |
 
-On load, all three fields are validated. Any mismatch discards the stored blob and writes defaults in its place. There is no migration.
+On load, all three fields are validated. For legacy individual blobs, a mismatch replaces the record with defaults. The combined `network_cfg` uses the error/fallback policy described below.
 
 | Struct | Magic | Schema version |
 |--------|-------|----------------|
@@ -60,7 +61,13 @@ On load, all three fields are validated. Any mismatch discards the stored blob a
 
 Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
 
-`device_cfg` and `cellular_cfg` are loaded independently at boot, but the Device Configuration page saves them together. `saveDeviceAndCellularConfig()` validates both records, stages both blobs with one NVS handle, and performs a single `nvs_commit()` after both `nvs_set_blob()` calls succeed. This prevents the web UI from committing only the device part of the form when the cellular write fails. The firmware does not yet keep dual slots or a pending transaction marker for power-loss rollback during commit.
+Device and cellular repositories first read the shared `network_cfg` blob. Its envelope contains magic `0x4E434647`, version 1, record size, and the unchanged `DeviceConfig` and `CellularConfig` records. Both records must validate before either is returned.
+
+`saveDeviceAndCellularConfig()` validates both records and replaces this one blob with one `nvs_set_blob()`, followed by `nvs_commit()`. NVS writes are immediate; commit does not make separate keys transactional. A failed/interrupted write can leave the previous or new complete pair, never one new record with one old record. Commit errors are propagated; callers must not assume an error means the previous pair remains stored.
+
+When `network_cfg` is absent, the repositories retain their existing separate-key load/default behavior. The next Device Configuration save migrates to the combined blob without changing field layouts or resetting settings. Legacy keys are left intact but cease to be authoritative. Individual repository saves after migration replace the combined blob while preserving the other record. Firmware predating this format reads the retained legacy settings after an OTA rollback, not later combined saves.
+
+An unreadable or invalid existing combined blob returns an error without resurrecting stale legacy settings or overwriting storage. Boot falls back to in-memory defaults for both domains; saving a valid Device Configuration form repairs the combined blob.
 
 ---
 

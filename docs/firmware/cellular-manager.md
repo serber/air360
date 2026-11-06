@@ -196,7 +196,7 @@ If the modem reports registration state `2` ("not registered, searching"), the t
 
 ## Default netif management
 
-On PPP connect: `esp_netif_set_default_netif(ppp_netif_)` — all outgoing traffic (SNTP, uploads) goes through cellular.
+On PPP connect: `esp_netif_set_default_netif(ppp_netif_)` — all outgoing traffic (SNTP, uploads) goes through cellular. The main maintenance loop starts/retries SNTP while PPP is connected and Unix time is invalid, including cold boots without Wi-Fi credentials.
 
 On PPP disconnect: the teardown code looks up `"WIFI_STA_DEF"` via `esp_netif_get_handle_from_ifkey()` and restores it as default if present.
 

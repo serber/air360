@@ -1,6 +1,7 @@
 #include "air360/sensors/sensor_manager.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <cstdio>
 #include <cstdint>
@@ -175,6 +176,17 @@ esp_err_t SensorManager::applyConfig(const SensorConfigList& config) {
     }
 
     std::vector<ManagedSensor> next_sensors = buildManagedSensors(config);
+
+    if (measurement_store_ != nullptr) {
+        std::array<std::uint32_t, kMaxConfiguredSensors> active_ids{};
+        std::size_t active_count = 0U;
+        for (const auto& sensor : next_sensors) {
+            if (sensor.runtime.enabled && active_count < active_ids.size()) {
+                active_ids[active_count++] = sensor.runtime.id;
+            }
+        }
+        measurement_store_->retainLatestMeasurements(active_ids.data(), active_count);
+    }
 
     lock();
     sensors_ = std::move(next_sensors);

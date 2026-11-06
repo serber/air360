@@ -57,8 +57,8 @@ struct BthomeEntry {
 static_assert(sizeof(BthomeEntry) == 8U,
     "BthomeEntry layout changed — update kBthomeMap designated initializers");
 
-// Encoding priority: most important first. Total packet budget = 27 bytes
-// (31 byte limit − flags 3B − name AD ~8B − service data header 4B − device_info 1B = ~15B free).
+// Encoding priority: most important first. Service data has 26 bytes after
+// reserving flags and its AD header; the name uses any remaining packet space.
 // Each entry = 1B ID + value_bytes.
 constexpr std::array<BthomeEntry, 7U> kBthomeMap{{
     {.kind = SensorValueKind::kTemperatureC,    .object_id = 0x02U, .value_bytes = 2U, .is_signed = true,  .factor = 100.0f},
@@ -280,30 +280,13 @@ void BleAdvertiser::taskMain() {
 
 void BleAdvertiser::updateAdvertisement() {
     std::uint8_t adv_buf[kLegacyAdvPacketMaxLen];
-    std::uint8_t adv_len = 0U;
-    std::array<std::uint8_t, 28U> svc_data{};
+    std::array<std::uint8_t, ble::kServiceDataCapacity> svc_data{};
     const std::uint8_t svc_payload_len = buildPayload(svc_data.data(), svc_data.size());
-    const std::uint8_t name_len = static_cast<std::uint8_t>(std::strlen(device_name_));
-
-    struct ble_hs_adv_fields fixed_fields = {};
-    fixed_fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-    if (3U + 2U + name_len <= kLegacyAdvPacketMaxLen) {
-        fixed_fields.name = reinterpret_cast<const std::uint8_t*>(device_name_);
-        fixed_fields.name_len = name_len;
-        fixed_fields.name_is_complete = 1;
-    }
-    const int rc_fields =
-        ble_hs_adv_set_fields(&fixed_fields, adv_buf, &adv_len, sizeof(adv_buf));
-    if (rc_fields != 0) {
-        ESP_LOGW(kTag, "ble_hs_adv_set_fields failed: %d", rc_fields);
+    const std::size_t adv_len = ble::buildAdvertisement(
+        adv_buf, sizeof(adv_buf), device_name_, svc_data.data(), svc_payload_len);
+    if (adv_len == 0U) {
+        ESP_LOGW(kTag, "BLE advertisement does not fit packet budget");
         return;
-    }
-
-    if (adv_len + 2U + svc_payload_len <= sizeof(adv_buf)) {
-        adv_buf[adv_len++] = static_cast<std::uint8_t>(1U + svc_payload_len);
-        adv_buf[adv_len++] = BLE_HS_ADV_TYPE_SVC_DATA_UUID16;
-        std::memcpy(&adv_buf[adv_len], svc_data.data(), svc_payload_len);
-        adv_len = static_cast<std::uint8_t>(adv_len + svc_payload_len);
     }
 
     ble_gap_adv_stop();

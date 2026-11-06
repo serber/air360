@@ -83,18 +83,18 @@ Any `tv_sec` below this constant is treated as not-yet-set. `currentUnixMillisec
 
 ## SNTP synchronisation
 
-SNTP runs over the station Wi-Fi interface. It is not attempted in setup AP mode.
+SNTP runs over a connected Wi-Fi station or cellular PPP uplink. Setup AP alone does not provide an uplink. The configured SNTP server is loaded even when Wi-Fi startup is skipped.
 
 ### When it runs
 
 | Trigger | Timeout |
 |---------|---------|
 | Immediately after `connectStation()` succeeds | 15 000 ms |
-| Maintenance loop retry (if station connected, time still invalid) | 10 000 ms |
+| Maintenance loop retry (if Wi-Fi or PPP connected, time still invalid) | 10 000 ms |
 
 ### Sync sequence (`NetworkManager::synchronizeTime`)
 
-1. Requires `station_connected == true`; returns `ESP_ERR_INVALID_STATE` otherwise.
+1. Requires `NetworkState::hasConnectedUplink() == true`; returns `ESP_ERR_INVALID_STATE` otherwise.
 2. If `hasValidUnixTime()` is already true — marks `time_synchronized = true` and returns `ESP_OK` immediately (no SNTP traffic sent).
 3. First call: `esp_netif_sntp_init()` with `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org`. Sets `sntp_initialized = true`.
 4. Subsequent calls: `esp_netif_sntp_start()` (re-arms the already-initialised client).
@@ -104,15 +104,15 @@ SNTP runs over the station Wi-Fi interface. It is not attempted in setup AP mode
 
 ### Maintenance loop retry
 
-`App::run()` retries time sync on every maintenance loop iteration as long as the station is connected but `hasValidTime()` returns false:
+`App::run()` retries time sync on every maintenance loop iteration as long as Wi-Fi or PPP is connected but `hasValidTime()` returns false:
 
 ```cpp
-if (mode == kStation && station_connected && !hasValidTime()) {
-    ensureStationTime(10000);
+if (network_state.hasConnectedUplink() && !hasValidTime()) {
+    ensureUplinkTime(10000);
 }
 ```
 
-This covers the case where SNTP timed out during the initial boot (e.g., NTP server temporarily unreachable) but the station connection itself is healthy.
+This covers the case where SNTP timed out during the initial boot (e.g., NTP server temporarily unreachable) but the uplink itself is healthy. It also starts SNTP after a cellular-only cold boot once PPP receives an IP address.
 
 ### SNTP constants
 
@@ -154,13 +154,7 @@ if (sample_unix_ms > 0 && !measurement.empty()) {
 
 ### `UploadManager` upload cycle
 
-The upload task skips the upload cycle entirely if any of these conditions are true:
-
-- Network mode is not `kStation`
-- Station is not connected
-- `hasValidTime()` returns `false`
-
-In this case the task waits 1 second and checks again.
+Upload attempts require `uplinkStatus().uplink_ready`: a connected Wi-Fi or PPP bearer and valid Unix time. Time synchronization checks bearer connectivity independently of `uplink_ready`, so an unset clock cannot prevent SNTP from starting.
 
 ### Upload adapter time preconditions
 

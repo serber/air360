@@ -6,6 +6,11 @@
 
 namespace air360 {
 
+// ESP_ERR_NVS_NOT_FOUND means the device still uses the legacy separate keys.
+[[nodiscard]] esp_err_t loadDeviceAndCellularConfig(
+    DeviceConfig& device_config,
+    CellularConfig& cellular_config);
+
 [[nodiscard]] esp_err_t saveDeviceAndCellularConfig(
     const ConfigRepository& config_repository,
     const CellularConfigRepository& cellular_config_repository,

@@ -314,17 +314,17 @@ The Diagnostics page raw JSON dump exposes the same fields in machine-readable f
 
 ## Time synchronisation
 
-`synchronizeTime()` still runs only when the station is connected:
+`synchronizeTime()` runs when Wi-Fi station or cellular PPP is connected:
 
-1. fail fast if `station_connected == false`
+1. fail fast if `NetworkState::hasConnectedUplink()` is false
 2. skip work if Unix time is already valid
 3. initialize or restart SNTP
 4. poll for valid time in 250 ms slices up to the supplied timeout
 5. update `time_synchronized`, `time_sync_error`, and `last_time_sync_unix_ms`
 
-`ensureStationTime(10000)` is still called from the maintenance loop when Wi-Fi is up but valid Unix time is not yet available.
+`ensureUplinkTime(10000)` is called from the maintenance loop when Wi-Fi or PPP is up but valid Unix time is not yet available. `configureTimeServer()` loads the configured server before the Wi-Fi startup decision, including cellular-only boots.
 
-SNTP is still not attempted in setup AP mode.
+Setup AP alone does not enable SNTP; a connected PPP uplink does. The web SNTP check accepts either uplink.
 
 ---
 
@@ -335,10 +335,9 @@ The main task still retries SNTP periodically:
 ```cpp
 for (;;) {
     const NetworkState network_state = network_manager.state();
-    if (network_state.mode == NetworkMode::kStation &&
-        network_state.station_connected &&
+    if (network_state.hasConnectedUplink() &&
         !network_manager.hasValidTime()) {
-        network_manager.ensureStationTime(10000);
+        network_manager.ensureUplinkTime(10000);
     }
 
     status_service.setNetworkState(network_manager.state());

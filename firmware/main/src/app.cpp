@@ -279,10 +279,9 @@ void App::indicateReady() {
 void App::runMaintenanceLoop() {
     for (;;) {
         const NetworkState network_state = network_.networkManager().state();
-        if (network_state.mode == NetworkMode::kStation &&
-            network_state.station_connected &&
+        if (network_state.hasConnectedUplink() &&
             !network_.networkManager().hasValidTime()) {
-            const esp_err_t time_err = network_.networkManager().ensureStationTime(10000U);
+            const esp_err_t time_err = network_.networkManager().ensureUplinkTime(10000U);
             if (time_err != ESP_OK) {
                 ESP_LOGW(
                     kTag,

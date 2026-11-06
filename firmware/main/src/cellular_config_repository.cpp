@@ -1,4 +1,5 @@
 #include "air360/cellular_config_repository.hpp"
+#include "air360/config_transaction.hpp"
 
 #include "air360/string_utils.hpp"
 #include "esp_log.h"
@@ -77,6 +78,13 @@ esp_err_t CellularConfigRepository::loadOrCreate(
     loaded_from_storage = false;
     wrote_defaults = false;
 
+    DeviceConfig device{};
+    const esp_err_t paired_err = loadDeviceAndCellularConfig(device, out_config);
+    if (paired_err != ESP_ERR_NVS_NOT_FOUND) {
+        loaded_from_storage = paired_err == ESP_OK;
+        return paired_err;
+    }
+
     nvs_handle_t handle = 0;
     esp_err_t err = nvs_open(kNamespace, NVS_READWRITE, &handle);
     if (err != ESP_OK) {
@@ -139,6 +147,16 @@ esp_err_t CellularConfigRepository::loadOrCreate(
 esp_err_t CellularConfigRepository::save(const CellularConfig& config) {
     if (!isValid(config)) {
         return ESP_ERR_INVALID_ARG;
+    }
+
+    DeviceConfig device{};
+    CellularConfig previous{};
+    const esp_err_t paired_err = loadDeviceAndCellularConfig(device, previous);
+    if (paired_err == ESP_OK) {
+        return saveDeviceAndCellularConfig(ConfigRepository{}, *this, device, config);
+    }
+    if (paired_err != ESP_ERR_NVS_NOT_FOUND) {
+        return paired_err;
     }
 
     nvs_handle_t handle = 0;

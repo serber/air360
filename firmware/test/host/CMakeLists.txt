@@ -4,6 +4,31 @@ project(air360_host_tests LANGUAGES CXX)
 
 enable_testing()
 
+add_executable(test_upload_transport
+    test_upload_transport.cpp
+    ../../main/src/uploads/upload_transport.cpp
+    ../../main/src/uploads/upload_log_endpoint.cpp
+)
+target_include_directories(test_upload_transport PRIVATE stubs ../../main/include)
+target_compile_features(test_upload_transport PRIVATE cxx_std_17)
+add_test(NAME upload_transport COMMAND test_upload_transport)
+
+add_executable(test_config_transaction
+    test_config_transaction.cpp
+    ../../main/src/config_transaction.cpp
+    ../../main/src/config_repository.cpp
+    ../../main/src/cellular_config_repository.cpp
+)
+target_include_directories(test_config_transaction PRIVATE stubs ../../main/include)
+target_compile_options(test_config_transaction PRIVATE -include sdkconfig.h)
+target_compile_features(test_config_transaction PRIVATE cxx_std_17)
+add_test(NAME config_transaction COMMAND test_config_transaction)
+
+add_executable(test_network_uplink test_network_uplink.cpp)
+target_include_directories(test_network_uplink PRIVATE stubs ../../main/include)
+target_compile_features(test_network_uplink PRIVATE cxx_std_17)
+add_test(NAME network_uplink COMMAND test_network_uplink)
+
 add_executable(test_web_form
     ../../main/src/web/web_form.cpp
     test_web_form.cpp

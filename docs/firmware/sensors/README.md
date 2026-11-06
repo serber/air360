@@ -384,3 +384,5 @@ The cellular modem is not a sensor. It is managed by `CellularManager` independe
 | [sim7600e.md](sim7600e.md) | SIM7600E reference modem | UART1 (RX=`GPIO18`, TX=`GPIO17`) | Cellular PPP uplink; built-in GNSS is not yet used by the firmware |
 
 > The default modem UART conflicts with the default GPS UART. GPS and cellular cannot be used simultaneously on the stock `GPIO17` / `GPIO18` wiring unless the GPS sensor is moved to UART2 in the Sensor Configuration page or the modem UART is reconfigured.
+
+When sensor configuration is applied at runtime, the manager removes deleted or disabled sensors from the latest-measurement cache before restarting polling. Their queued upload history remains available; see [measurement-pipeline.md](../measurement-pipeline.md).
