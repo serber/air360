@@ -4,9 +4,13 @@ Air360 V2 is a single board that replaces the ESP32-S3 DevKit plus shield build.
 
 **Status:** V2.2 is designed and verified on paper and on its manufacturing files. No board has been built or measured. Values below are datasheet figures or calculations unless stated otherwise.
 
-![Air360 V2.2 board](docs/images/board-top.png)
+![Air360 V2.2 board, overview](docs/images/board-overview.png)
 
-*Render of the V2.2 3D model, with silkscreen and pad openings from the Gerbers and the planned purple soldermask. Copper is not shown, and part colors are approximate.*
+| Top | Bottom |
+|---|---|
+| ![Air360 V2.2 board, top](docs/images/board-top.png) | ![Air360 V2.2 board, bottom](docs/images/board-bottom.png) |
+
+*EasyEDA 3D Preview of the V2.2 board with the planned purple soldermask. Part colors are approximate.*
 
 | Revision | State | Files |
 |---|---|---|
@@ -56,8 +60,8 @@ Pin 1 is at the top of each header as seen from the connector edge.
 | Part | Function |
 |---|---|
 | JP1 | Battery type. Jumper on for Li-ion, off for LiFePO4 |
-| SW1 | Reset |
-| SW2 | Boot, GPIO0 |
+| SW1 | Reset. Marked `RESET` on the silkscreen |
+| SW2 | Boot, GPIO0. Marked `BOOT` on the silkscreen |
 | LED1 | Addressable RGB LED on GPIO48 |
 | LED2, green | On while the buck runs. Off on USB-only power |
 | TP1, TP2, TP3 | Test pads: `VREF`, `EN_NODE`, GND |
