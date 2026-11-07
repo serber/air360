@@ -59,6 +59,7 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | D35 | 2026-11-04 | V2.2 DC input is 2S only, 6–8.4 V | User: only 2S at the input. Supersedes for V2.2 the 5 V charger at DC (D14) and the 26 V tolerance; JP1 keeps only `Li` and `LFP`. V2.1 is unchanged |
 | D36 | 2026-11-04 | V2.2 buck is AP63205WU-7, fixed 5 V, 2 A, 32 V input | 2S input allows it, few external parts, datasheet Rev. Nov 2024. MP2315 rejected: marked not recommended for new designs. LMR33620 not needed |
 | D37 | 2026-11-04 | UVLO block clears the left edge by 4.4 mm, matching the right side | User review of V2.2 |
+| D38 | 2026-11-07 | V2.2 silkscreen shows `RESET` and `BOOT` in place of SW1 and SW2 | User: the button function must be readable on the board. The designators stay in the schematic, BOM and placement file; only their silkscreen text is hidden |
 
 ## 2. Architecture
 
@@ -626,3 +627,13 @@ The same review also changed C16 to 22 µF, CL21A226MAQNNNE, C45783, same 0805 p
 Logic reviewed on paper for V2.2: U5 to U6 to `EN_NODE` to U2 EN, hysteresis through D8, source switching Q1, Q2, Q4, Q5 in both modes, Q3 gate limit, INA219 address, ESP32 strapping and reset, USB CC. No other logic fault found. Not checked on hardware.
 
 Final state on the package Gerber: EasyEDA DRC empty, ERC clean, 0 opens and 0 shorts on 64 nets, 0 Unique ID and pin net differences, BOM 106 parts, placement 106 rows.
+
+## 26. V2.2 button labels, 2026-11-07
+
+SW1 connects to `CHIP_PU` and SW2 to `IO0`, so their silkscreen now reads `RESET` and `BOOT`. Each text sits at the old designator position, with the same 32 mil size and 6 mil line, on the top silkscreen. It keeps the D28 clearances: about 0.3 mm from the switch outline at `RESET`.
+
+The package was exported again from the live project, which already held later moves of silkscreen designators (J1, J3, GPIO1–3 and others). The new top silkscreen therefore differs from the 2026-11-04 package in those positions as well.
+
+Compared with the 2026-11-04 package: inner layers, bottom copper, outline and drill positions match; top copper differs only by rounding of about 0.1 mil on the pour outline; BOM unchanged; schematic text unchanged on all five sheets; placement unchanged apart from 0.001 mm rounding on U5 and C16. EasyEDA DRC is empty. The new Gerber shows `RESET` and `BOOT`, and they survive closing and reopening the PCB.
+
+Renders in `docs/images/` come from the EasyEDA 3D Preview with purple board color. The EasyEDA background stays black because the setting did not reach the 3D scene.

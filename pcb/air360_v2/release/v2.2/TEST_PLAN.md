@@ -35,6 +35,6 @@ Set limits from the part ratings before testing.
 ## Items that only hardware can confirm
 
 - **Modem:** whether your modem runs from +5V at 1.5 A through its transmit bursts. Watch +5V with a scope.
-- **Wi-Fi:** range with the board in its enclosure. SW1 sits next to the antenna keep-out.
+- **Wi-Fi:** range with the board in its enclosure. SW1, marked `RESET`, sits next to the antenna keep-out.
 - **LED1:** brightness and colour at 3.3 V, below its 3.7 V rated minimum. ESP32-S3-DevKitC-1 v1.1 feeds this LED from 3.3 V too.
 - **Fit:** cables at all headers, shield mounting holes, jack position at J3, and M3 heads at H1–H6.

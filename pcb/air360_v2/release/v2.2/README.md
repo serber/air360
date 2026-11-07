@@ -1,7 +1,7 @@
 # Release v2.2
 
 
-Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-04, all from one revision. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–24 hold the design notes and checks. `../release/v2.1/` is the fallback design.
+Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-07, all from one revision. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–26 hold the design notes and checks. `../release/v2.1/` is the fallback design.
 
 | File | Content |
 |---|---|
@@ -51,6 +51,7 @@ The order instruction is in the [board README](../../README.md#ordering). It cov
 ## Keep in mind
 
 - DC takes a 2S battery only. 5 V goes through USB-C. 5 V at DC does not start the board.
+- SW1 and SW2 are marked `RESET` and `BOOT` on the silkscreen. The BOM, placement file and schematic keep the designators SW1 and SW2.
 - J3 is 1 mm right of the shield position. Check any enclosure cut-out.
 - Connect J3 or J4, not both.
 - +5V is designed for 1–1.5 A. A modem with high transmit bursts may need its own supply.
