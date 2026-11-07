@@ -15,9 +15,7 @@ Air360 V2 is a single board that replaces the ESP32-S3 DevKit plus shield build.
 | Revision | State | Files |
 |---|---|---|
 | V2.2 | Current, cost-down, 1–1.5 A | [`release/v2.2/`](release/v2.2/README.md), EasyEDA project `Air360_V2.2` |
-| V2.1 | Fallback, up to 3.3 A peak | [`release/v2.1/`](release/v2.1/README.md), EasyEDA project `Air360_V2.1` |
 
-V2.1 has a known defect: U5 stops the board from starting on DC. Do not build it without the fix in [`DESIGN_LOG.md`](DESIGN_LOG.md) section 25.
 
 ## What it does
 
@@ -137,7 +135,7 @@ Keep `V_OFF` above about 5.8 V. Because `Vref` varies by device, the guaranteed 
 | D5–D7 | BAT54S | Clamp GPIO1–3 to 3V3, because PPD42NS can output above 4 V |
 | LED1 | SK6812MINI-HS | Same kind of LED on 3.3 V as ESP32-S3-DevKitC-1. Rated from 3.7 V, so confirm it on hardware |
 
-The target of 1–1.5 A comes from field data on the shield build: about 140 mA without a modem and 250–300 mA with one. V2.1 was sized for 3.3 A, which summed every peak at once.
+The target of 1–1.5 A comes from field data on the shield build: about 140 mA without a modem and 250–300 mA with one.
 
 ## Firmware settings
 
@@ -177,7 +175,6 @@ See [`release/v2.2/BOM.md`](release/v2.2/BOM.md).
 | Path | Content |
 |---|---|
 | [`release/v2.2`](release/v2.2) | Current release: Gerbers, BOM, placement, schematic, and EasyEDA project |
-| [`release/v2.1`](release/v2.1) | Fallback release with the known defect above |
 | [`REQUIREMENTS.md`](REQUIREMENTS.md) | Requirements, with the V2.2 changes in their own section |
 | [`DESIGN_LOG.md`](DESIGN_LOG.md) | Decisions, calculations and verification results |
 | [`release/v2.2/FIRST_POWER_UP.md`](release/v2.2/FIRST_POWER_UP.md) | First power-up procedure |

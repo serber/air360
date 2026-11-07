@@ -1,4 +1,4 @@
-# Air360 V2.1 — Design Log
+# Air360 V2 — Design Log
 
 This is the single current record of stages, decisions, and defects required by `REQUIREMENTS.md` section 9. Requirements live in `REQUIREMENTS.md`; this file records how they are being met.
 
@@ -15,14 +15,14 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | 5. Functional placement | Done | Section 19, 2026-11-04; accepted by the user after 3D review |
 | 6. Routing | Done | Section 20, 2026-11-04; DRC returns no errors, pending user review |
 | 7. Final verification | Done | Section 21, 2026-11-04; bench tests remain |
-| 8. Manufacturing handoff | Done | `release/v2.1/`, 2026-11-04; not ordered |
+| 8. Manufacturing handoff | Done | `release/v2.2/`, 2026-11-07; not ordered |
 | V2.2 cost-down revision | Done, pending review | Sections 23–25, `release/v2.2/`, 2026-11-04; not ordered |
 
 ## 1. Decisions
 
 | ID | Date | Decision | Reason |
 |---|---|---|---|
-| D1 | 2026-11-04 | Working project is `Air360_V2.1`; `Air360_V2` is not a reference | User: unsuccessful attempt |
+| D1 | 2026-11-04 | Working project is `Air360_V2.2`; `Air360_V2` is not a reference | User: unsuccessful attempt |
 | D2 | 2026-11-04 | Battery is 2S only | User: simplifies the board |
 | D3 | 2026-11-04 | Both Li-ion and LiFePO4 are supported through one on-board chemistry jumper | User asked for both; only the restart threshold differs |
 | D4 | 2026-11-04 | Connector pinout in `REQUIREMENTS.md` section 7 is confirmed | User: taken from firmware; no re-check |
@@ -55,8 +55,8 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | D31 | 2026-11-04 | J3, J4 and F1 moved right: J3 and J4 by 1 mm, F1 by 0.3 mm | J3 was 2.05 mm from the centre of H1, under an M3 head. User chose moving J3. The jack opening no longer matches the shield position by 1 mm; check any enclosure cut-out |
 | D32 | 2026-11-04 | Green LED2 with R39 4.7 kΩ from BUCK_5V to GND shows that the buck is running | User asked for a visible state indicator. `EN_NODE` is too high-impedance to drive it, and BUCK_5V draws nothing from a tripped pack |
 | D33 | 2026-11-04 | Test pads are separate 1.5 mm pads TP1P–TP3P over TP1–TP3 | A pad size edited on a component is lost on reload, so Gerber kept 0.5 mm. Supersedes the pad note in D22 |
-| D34 | 2026-11-04 | V2.1 is frozen as the fallback in `release/v2.1/`; a cost-down V2.2 targets 1–1.5 A at +5V with all power parts sized to that | User decision after field data, 130–145 mA without modem and about 250–300 mA with it. Supersedes D6 for V2.2 only |
-| D35 | 2026-11-04 | V2.2 DC input is 2S only, 6–8.4 V | User: only 2S at the input. Supersedes for V2.2 the 5 V charger at DC (D14) and the 26 V tolerance; JP1 keeps only `Li` and `LFP`. V2.1 is unchanged |
+| D34 | 2026-11-04 | Cost-down V2.2 targets 1–1.5 A at +5V with all power parts sized to that | User decision after field data, 130–145 mA without modem and about 250–300 mA with it. Supersedes D6 |
+| D35 | 2026-11-04 | V2.2 DC input is 2S only, 6–8.4 V | User: only 2S at the input. Supersedes for V2.2 the 5 V charger at DC (D14) and the 26 V tolerance; JP1 keeps only `Li` and `LFP` |
 | D36 | 2026-11-04 | V2.2 buck is AP63205WU-7, fixed 5 V, 2 A, 32 V input | 2S input allows it, few external parts, datasheet Rev. Nov 2024. MP2315 rejected: marked not recommended for new designs. LMR33620 not needed |
 | D37 | 2026-11-04 | UVLO block clears the left edge by 4.4 mm, matching the right side | User review of V2.2 |
 | D38 | 2026-11-07 | V2.2 silkscreen shows `RESET` and `BOOT` in place of SW1 and SW2 | User: the button function must be readable on the board. The designators stay in the schematic, BOM and placement file; only their silkscreen text is hidden |
@@ -234,7 +234,7 @@ No source change is required. Existing configuration needed:
 
 ## 9. DevKitC function mapping
 
-| DevKitC function | Air360 V2.1 | Note |
+| DevKitC function | Air360 V2 | Note |
 |---|---|---|
 | 5 V from USB | USB-C VBUS, section 5 | Hardware limit added |
 | 3V3 regulator | On-board, rated at least 800 mA | Linear or buck decided in stage 2 |
@@ -452,7 +452,7 @@ Resistors are UNI-ROYAL 0805 1 %. Capacitors are Samsung/Yageo/Murata 0805, with
 
 ## 17. Schematic
 
-Five pages in `Air360_V2.1`: Power, UVLO, Core, Interfaces, Connectors. Every connected pin has a named net stub. Page uuids change only if pages are recreated: Power `80f1be94e4bf01d4`, UVLO `19af7e170f338b3b`, Core `62ebd2124f2c4987`, Interfaces `3a9d18a5311ea846`, Connectors `bce7f15b4b1691b6`.
+Five pages in `Air360_V2.2`: power, UVLO, core, interfaces, connectors. Every connected pin has a named net stub. Page uuids change only if pages are recreated: power `832322dde21e9463`, UVLO `7ca8a5ed4c92187a`, core `639e38c8049a27e4`, interfaces `c211ae6ae66dcfec`, connectors `225f56858bcee42c`.
 
 ### Verification, 2026-11-04
 
@@ -565,35 +565,26 @@ LED1: pinout matches the SK6812MINI-HS datasheet numbering (1 GND, 2 DIN, 3 VDD,
 
 Hardware-only, not verified: UVLO thresholds and restart, all power modes, buck stability and ripple, INA219 reading, thermal rise, Wi-Fi range near SW1, real cable fit.
 
-## 22. Manufacturing handoff
-
-The package is in `release/v2.1/`, exported from one revision on 2026-11-04, after adding LED2 and the separate test pads. Its Gerber passed the raster connectivity check: 0 opens and 0 shorts on 66 nets, no copper in the antenna zone, TP1–TP3 at 1.5 mm. BOM has 112 parts and placement 112 rows; TP1–TP3 are not assembled and were removed from the placement file by script. The schematic export is a ZIP; the package holds the PDF from inside it.
-
-Known cosmetic defect: the schematic PDF keeps doubled block headings and the old `Debug and spare GPIO` heading. Text deletions through the API show in the editor but are not in the export. Nets are not affected. Removing them by hand in EasyEDA is optional.
-
-Not done: stock and price check, choice of JLCPCB stack-up, LCSC numbers for ten 2.54 mm headers. No order was placed.
-
 ## 23. V2.2 design
 
-Project `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`; PCB `93ecb0b02681a8ec`; schematic `cdf4394e2fb2e7ce`. Schematic sheets and routing were rebuilt, starting from the V2.1 placement. Connector positions, outline and holes match V2.1.
+Project `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`; PCB `93ecb0b02681a8ec`; schematic `cdf4394e2fb2e7ce`. Schematic sheets and routing were rebuilt from the earlier placement. Connector positions, outline and holes did not change.
 
-| Item | V2.1 | V2.2 |
-|---|---|---|
-| U2 | LMR33640ADDAR | AP63205WU-7, C2071056 |
-| L1 | 6.8 µH, 10 × 10 mm | SWPA6045S4R7MT 4.7 µH, Isat 5.5 A, C78804 |
-| Output caps | 4 × 22 µF | C8, C9, 2 × 22 µF, per AP63205 datasheet |
-| Input | C3, C4 10 µF 50 V, C5 220 nF | C3 10 µF 25 V 1206, C9807; C5 100 nF |
-| Removed | R4, R5, C4, C7, C10, C11 | Fixed-output buck has no FB divider or VCC cap |
-| Q1–Q3 | AO4407A | AO3401A, C15127 |
-| RS1 | 2 W 2512 | RL1206FR-070R1L 0.1 Ω 0.25 W, C364357 |
-| F1, F2 | 3 A 2920 | SMD1210P150TF/16, 1.5 A, C7529589 |
-| F3, F4 | 2 A, 1.1 A | SMD1206P110TF/16, 1.1 A, C46970781 |
-| U3 | SGM2212 TO-252 | AMS1117-3.3, C6186 |
-| C2, C13 | Polymer | RVT1C221M0607 220 µF 16 V, C3342 |
-| D3 | SMAJ24A | SMAJ15A, C132582 |
-| JP1 | 2 × 3 | 1 × 2: fitted Li-ion, open LiFePO4 |
+| Item | V2.2 |
+|---|---|
+| U2 | AP63205WU-7, C2071056 |
+| L1 | SWPA6045S4R7MT 4.7 µH, Isat 5.5 A, C78804 |
+| Output caps | C8, C9, 2 × 22 µF, per AP63205 datasheet |
+| Input | C3 10 µF 25 V 1206, C9807; C5 100 nF |
+| Q1–Q3 | AO3401A, C15127 |
+| RS1 | RL1206FR-070R1L 0.1 Ω 0.25 W, C364357 |
+| F1, F2 | SMD1210P150TF/16, 1.5 A, C7529589 |
+| F3, F4 | SMD1206P110TF/16, 1.1 A, C46970781 |
+| U3 | AMS1117-3.3, C6186 |
+| C2, C13 | RVT1C221M0607 220 µF 16 V, C3342 |
+| D3 | SMAJ15A, C132582 |
+| JP1 | 1 × 2: fitted Li-ion, open LiFePO4 |
 
-Inner2 holds +5V and 3V3 pours. V_BUCK is a Top track. Thresholds match V2.1 because R9–R14 are unchanged.
+Inner2 holds +5V and 3V3 pours. V_BUCK is a Top track. Thresholds follow section 13 because R9–R14 are unchanged.
 
 [calc] RS1 dissipates 0.225 W at 1.5 A against a 0.25 W rating, which is little margin. L1 ripple is about 0.39 A at 8.4 V and 1.1 MHz; peak stays under the 2.8 A switch limit and the 5.5 A Isat. U3 loses 0.43 W at 250 mA from 5 V; SOT-223 thermal rise is to be measured. +5V current limits are set by F3 and F4 at 1.1 A hold and U2 at 2 A; a modem with high bursts may need its own supply.
 
@@ -620,7 +611,7 @@ Not verified: anything physical; 3D inspection by the user; plane necks and ther
 
 ## 25. U5 output stage defect, 2026-11-04
 
-U5 TLV3011 has an open-drain output and `UV_OK` had no pull-up, so `UV_OK` could not go high and the buck would never enable from DC. ERC, DRC and Gerber checks passed because they only confirm connections; the error was found when the user asked for a cheaper part. V2.2 now uses TLV3012AIDBVR, C62505, same pinout, push-pull output, rotated 90° on the PCB because the library footprint is numbered differently. **V2.1 keeps this defect**, and its README carries a warning; the same part swap applies if V2.1 is ever used.
+U5 TLV3011 has an open-drain output and `UV_OK` had no pull-up, so `UV_OK` could not go high and the buck would never enable from DC. ERC, DRC and Gerber checks passed because they only confirm connections; the error was found when the user asked for a cheaper part. V2.2 now uses TLV3012AIDBVR, C62505, same pinout, push-pull output, rotated 90° on the PCB because the library footprint is numbered differently.
 
 The same review also changed C16 to 22 µF, CL21A226MAQNNNE, C45783, same 0805 pads: the AMS1117 datasheet names 22 µF on the output for stability, though as solid tantalum, so ceramic stability needs a bench check.
 

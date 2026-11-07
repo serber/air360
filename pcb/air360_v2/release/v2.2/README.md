@@ -1,7 +1,7 @@
 # Release v2.2
 
 
-Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-07, all from one revision. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–26 hold the design notes and checks. `../release/v2.1/` is the fallback design.
+Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-07, all from one revision. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–26 hold the design notes and checks.
 
 | File | Content |
 |---|---|

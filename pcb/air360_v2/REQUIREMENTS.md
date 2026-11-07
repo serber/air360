@@ -158,13 +158,13 @@ Placement must follow electrical functions: input capacitors at converter power 
 
 ## V2.2 revision, 2026-11-04
 
-These points override the earlier sections for project `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`. `Air360_V2.1` stays as the fallback.
+These points override the earlier sections for project `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`.
 
 - DC input is a 2S battery only, Li-ion or LiFePO4, about 6–8.4 V. A 5 V supply goes through USB-C. 5 V at DC must not start the board and must not damage it.
 - There is no 5 V profile at DC. JP1 selects Li-ion or LiFePO4 only.
 - +5V target is 1–1.5 A, based on field data: about 140 mA without a modem, 250–300 mA with one. High modem bursts may need a separate supply.
 - A 12 V adapter plugged into DC by mistake should not cause damage. It is not an operating mode.
-- Connectors, shield positions, board outline, mounting holes and USB-C stay as in V2.1.
+- Connectors, shield positions, board outline, mounting holes and USB-C do not change in this revision.
 
 ## 9. Working without repetition or loops
 
@@ -186,11 +186,11 @@ Work in **EasyEDA Pro** using the **easyeda-api** skill. It is installed at `/Us
 
 The electrical-design methodology skill is available at `/Users/albert/.codex/skills/power-pcb-design/SKILL.md`. Apply it consistently with the user's explicit instruction to complete the work: do not turn internal review gates into repeated requests for permission for every action.
 
-The working project is `Air360_V2.1`. The earlier `Air360_V2` project is an unsuccessful attempt: do not use it as a design reference. Live project details, provided as connection references rather than guarantees of current state:
+The working project is `Air360_V2.2`. The earlier `Air360_V2` project is an unsuccessful attempt: do not use it as a design reference. Live project details, provided as connection references rather than guarantees of current state:
 
-- Project: `Air360_V2.1`, UUID `2edc5b154a48424798d8439840dee72e`.
-- PCB: `PCB1`, UUID `5b934af9b309bf30`.
-- Schematic: `schematic1`, UUID `5f4e4d27f40d94dc`; page `p1`, UUID `80f1be94e4bf01d4`.
+- Project: `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`.
+- PCB: `PCB1`, UUID `93ecb0b02681a8ec`.
+- Schematic: `schematic1`, UUID `cdf4394e2fb2e7ce`; pages `power` `832322dde21e9463`, `connectors` `225f56858bcee42c`, `uvlo` `7ca8a5ed4c92187a`, `core` `639e38c8049a27e4`, `interfaces` `c211ae6ae66dcfec`.
 - The local API Gateway previously ran at `127.0.0.1:49620`; verify connectivity and the active document before operating.
 - PCB API units are mil; schematic units and individual data formats can differ. Check documented units/scaling rather than copying coordinates blindly.
 - The abandoned board was 90×70 mm with four layers. This is not a target; derive stack-up and mechanics during design.
