@@ -1,22 +1,8 @@
-# Air360 V2 — Design Log
+# Air360 V2 — design record
 
-This is the single current record of stages, decisions, and defects required by `REQUIREMENTS.md` section 9. Requirements live in `REQUIREMENTS.md`; this file records how they are being met.
+Requirements are in [SPEC.md](SPEC.md). Evidence labels: **[repo]** read from this repository, **[calc]** calculated, **[ds]** data sheet, **[assumed]** estimate. Nothing has been built or measured.
 
-Evidence labels: **[repo]** read from this repository; **[calc]** calculated here; **[ds]** from a datasheet read in this work; **[assumed]** engineering estimate that stage 2 must confirm. Nothing here has been physically tested.
-
-## Stage status
-
-| Stage | State | Notes |
-|---|---|---|
-| 1. Requirements and architecture | Done | This document, 2026-11-04 |
-| 2. Components and calculations | Done | Sections 12–16, 2026-11-04 |
-| 3. Schematic | Done | Section 17, 2026-11-04 |
-| 4. Rules and mechanics | Done | Section 18, 2026-11-04 |
-| 5. Functional placement | Done | Section 19, 2026-11-04; accepted by the user after 3D review |
-| 6. Routing | Done | Section 20, 2026-11-04; DRC returns no errors, pending user review |
-| 7. Final verification | Done | Section 21, 2026-11-04; bench tests remain |
-| 8. Manufacturing handoff | Done | `release/v2.2/`, 2026-11-07; not ordered |
-| V2.2 cost-down revision | Done, pending review | Sections 23–25, `release/v2.2/`, 2026-11-04; not ordered |
+Sections 1–15 record the V2 base design. The V2.2 cost-down revision (sections 16–20) takes precedence where they differ: 1–1.5 A at +5V instead of the 3.33 A budget, AP63205 buck instead of LMR33640, AO3401A switches, AMS1117 for 3V3, TLV3012 comparator, and no 5 V profile at DC.
 
 ## 1. Decisions
 
@@ -25,24 +11,17 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | D1 | 2026-11-04 | Working project is `Air360_V2.2`; `Air360_V2` is not a reference | User: unsuccessful attempt |
 | D2 | 2026-11-04 | Battery is 2S only | User: simplifies the board |
 | D3 | 2026-11-04 | Both Li-ion and LiFePO4 are supported through one on-board chemistry jumper | User asked for both; only the restart threshold differs |
-| D4 | 2026-11-04 | Connector pinout in `REQUIREMENTS.md` section 7 is confirmed | User: taken from firmware; no re-check |
+| D4 | 2026-11-04 | Connector pinout in SPEC section 7 is confirmed | User: taken from firmware; no re-check |
 | D5 | 2026-11-04 | One switched +5V rail for everything; UVLO controls the DC path only | Loads and ESP32 lose power together, so no signal line can backfeed a dead load |
-| D6 | 2026-11-04 | Buck rated for at least 4 A of output (budget peak 3.33 A) | Section 5 |
-| D7 | 2026-11-04 | DC input survives at least 26 V | Solar module may present panel voltage, section 3; also covers a mistaken 3S pack |
 | D8 | 2026-11-04 | DC has priority over USB when UVLO reports DC healthy | Programming from a computer must not load the port |
 | D9 | 2026-11-04 | INA219 strapped to `0x41` by default | `0x40` collides with HTU2X; `0x44`/`0x45` collide with SHT3X, SHT4X, OPT3001 |
 | D10 | 2026-11-04 | Firmware `power_gate` stays disabled on this board | Section 8: it would sleep on USB-only power |
 | D11 | 2026-11-04 | No second USB connector and no USB-UART bridge | Section 9 mapping shows native USB plus J2 covers every DevKitC function |
 | D12 | 2026-11-04 | Automatic restart after UVLO is required; a manual-reset latch is not acceptable | Solar station stays connected and must recover unattended, section 4 |
 | D13 | 2026-11-04 | UVLO thresholds are set by fixed 0805 resistors, with a jumper for the two chemistry presets; no trimmers | User wants adjustable thresholds; trimmers drift outdoors; the monitor must work with the ESP32 off, so firmware cannot set them |
-| D14 | 2026-11-04 | A 5 V charger at DC is a third position of the input-profile jumper: UVLO is overridden, buck EN is forced on, and the buck runs in dropout | User requirement. A charger and a discharged pack cannot be told apart by voltage. A direct bypass to +5V was rejected: a wrong setting on a battery would put 8.4 V on the rail, whereas the buck still regulates |
-| D15 | 2026-11-04 | Sensor and modem connectors copy the shield v1.3: same types, pitch, pin order, and column spacing | User requirement; section 12 |
-| D16 | 2026-11-04 | UVLO uses TLV3011 for thresholds, then TPS3808G01 for the restart delay; no single-chip solution | TPS3808 holds RESET low at power-up, which would block a first start below `V_ON` |
-| D17 | 2026-11-04 | DC/USB switching is discrete: AO4407A P-FETs driven from the UVLO enable signal | Hand-solderable, carries 3.3 A; no QFN power mux required |
-| D18 | 2026-11-04 | Correction: `V_OFF` tolerance is wider than the ±0.1 V first stated, so first power-up includes a threshold check | TLV3011 reference is 1.208–1.276 V; section 13 |
-| D19 | 2026-11-04 | 3V3 LDO is SGM2212-3.3 in TO-252, not SOT-223 | Datasheet θJA 117 °C/W in SOT-223 against 56 °C/W; SOT-223 would rise about 50 °C at 0.43 W |
-| D20 | 2026-11-04 | 3V3 output capacitance limited to 10 µF effective | SGM2212 datasheet range is 1–10 µF |
-| D21 | 2026-11-04 | LED runs directly from +5V, no diode | WS2812B-2020 VIH is 2.7 V; supply range 3.7–5.3 V covers the rail |
+| D15 | 2026-11-04 | Sensor and modem connectors copy the shield v1.3: same types, pitch, pin order, and column spacing | User requirement; section 11 |
+| D16 | 2026-11-04 | UVLO uses a comparator (TLV3012 in V2.2) for thresholds, then TPS3808G01 for the restart delay; no single-chip solution | TPS3808 holds RESET low at power-up, which would block a first start below `V_ON` |
+| D18 | 2026-11-04 | Correction: `V_OFF` tolerance is wider than the ±0.1 V first stated, so first power-up includes a threshold check | TLV3011 reference is 1.208–1.276 V; section 12 |
 | D22 | 2026-11-04 | Test points TP1 VREF, TP2 EN_NODE, TP3 GND, replacing header J6 | First-power-up threshold check needs VREF, which is otherwise only on SOT-23 pins. User chose pads over the unfitted header to save space. Pads are 1.5 mm, set on the PCB; the library part has 0.5 mm, too small for a probe |
 | D23 | 2026-11-04 | JP1 is a plain 2×3 pin header `HDR-M_2.54_2x3`, not the KH boxed header | Both KH parts were 15.5 mm wide shrouded IDC headers |
 | D24 | 2026-11-04 | Board height 85 mm | 75 mm left the power stage cramped; user allowed enlargement |
@@ -60,7 +39,7 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | D36 | 2026-11-04 | V2.2 buck is AP63205WU-7, fixed 5 V, 2 A, 32 V input | 2S input allows it, few external parts, datasheet Rev. Nov 2024. MP2315 rejected: marked not recommended for new designs. LMR33620 not needed |
 | D37 | 2026-11-04 | UVLO block clears the left edge by 4.4 mm, matching the right side | User review of V2.2 |
 | D38 | 2026-11-07 | V2.2 silkscreen shows `RESET` and `BOOT` in place of SW1 and SW2 | User: the button function must be readable on the board. The designators stay in the schematic, BOM and placement file; only their silkscreen text is hidden |
-| D39 | 2026-11-09 | V2.2 0805 resistors and capacitors follow the user's other boards: all 0805 resistors Yageo RC0805, and 100 nF, 1 µF and 10 µF 0805 the Samsung parts used there | User: one manufacturer per value across their projects, so the same value is not ordered twice. Scope limited to resistors and capacitors; D1, headers, LED2 and J4 stay. Section 27 |
+| D39 | 2026-11-09 | V2.2 0805 resistors and capacitors follow the user's other boards: all 0805 resistors Yageo RC0805, and 100 nF, 1 µF and 10 µF 0805 the Samsung parts used there | User: one manufacturer per value across their projects, so the same value is not ordered twice. Scope limited to resistors and capacitors; D1, headers, LED2 and J4 stay. Section 20 |
 
 ## 2. Architecture
 
@@ -112,7 +91,7 @@ Comparator with reference `Vref`: divider R1 (top) and R2 (bottom) from the batt
 - `V_ON = V_OFF + R1 × (Vref − Vd) / Rd`
 - The chemistry jumper adds a second resistor in parallel with Rd.
 
-Final values are in section 13.
+Final values are in section 12.
 
 Stage 8 documentation must include a resistor table and the lower limit: `V_OFF` must stay above about 5.8 V (section 5).
 
@@ -166,19 +145,6 @@ Path resistance assumed at 0.25 Ω total for cable, connector, and protection [a
 - 2G modem bursts cannot be fully absorbed by on-board bulk capacitance: 1.2 A for 577 µs on 1000 µF droops 0.69 V [calc].
 - **Computer port:** without DC, supports the board and low-power I²C sensors only, no modem or fan sensors. A 500–900 mA port cannot cover the 600 mA 3V3 peak with a margin. With DC present, DC priority means the port carries data only.
 
-### 5 V charger at DC
-
-Source 5.1 V, cable 0.15 Ω [assumed], shunt 0.1 Ω, protection 0.03 Ω, buck dropout 0.15 V per ampere [ds: LMR33640 150 mV at 1 A, typical; dropout assumed linear].
-
-| Rail current | +5V at board | Result |
-|---|---:|---|
-| 0.5 A | 4.88 V | In range |
-| 1.0 A | 4.67 V | In range |
-| 1.4 A | 4.50 V | Limit for 4.5 V sensors |
-| 2.0 A | 4.24 V | Below sensor minimum |
-
-Rated load in this mode is **1.4 A total at the rail**, which is below the 2 A USB rating. A modem is better served by USB-C.
-
 ### Output limits
 
 | Output | Limit | Note |
@@ -199,8 +165,6 @@ Rated load in this mode is **1.4 A total at the rail**, which is below the 2 A U
 | DC below `V_OFF`, no USB | None | Off | Everything off, monitor alive |
 | Reverse DC | USB if present | Off or 0 V | No damage |
 | Dead or absent pack, USB present | USB | Near 0 V | Normal |
-| 5 V charger at DC, profile set to 5 V | Buck in dropout | Input voltage and total current | Normal, reduced load, section 5 |
-| 5 V charger at DC, profile set to a battery | None | Off | Stays off, no damage |
 | Battery at DC, profile set to 5 V | Buck | Pack | Runs, but UVLO is disabled and only the BMS protects the pack |
 
 ## 7. Interfaces
@@ -248,11 +212,11 @@ No source change is required. Existing configuration needed:
 | RGB LED | SK6812MINI-HS on GPIO48, per firmware `kRgbLedGpio` | D27 |
 | GPIO headers | Connectors only; J5 removed, D25 | Spare GPIO are not exposed |
 
-**Module restrictions.** GPIO26–32 serve internal flash and are not exposed; GPIO35–37 serve octal PSRAM on N16R8 and are unavailable. Strapping pins 0, 3, 45, 46 must not be loaded at boot. No assigned Air360 function uses 3, 45, or 46. These facts are from memory of Espressif documents; confirm against the module datasheet in stage 2. All assigned GPIOs in `REQUIREMENTS.md` section 7 avoid the restricted pins.
+**Module restrictions.** GPIO26–32 serve internal flash and are not exposed; GPIO35–37 serve octal PSRAM on N16R8 and are unavailable. Strapping pins 0, 3, 45, 46 must not be loaded at boot. No assigned Air360 function uses 3, 45, or 46. These facts are from memory of Espressif documents; confirm against the module datasheet in stage 2. All assigned GPIOs in SPEC section 7 avoid the restricted pins.
 
 ## 10. Acceptance criteria
 
-1. Every pin in `REQUIREMENTS.md` section 7 matches the netlist.
+1. Every pin in SPEC section 7 matches the netlist.
 2. With 3.33 A at +5V and 6.2 V pack, +5V stays in regulation and no part exceeds its rating [calc, then bench].
 3. Pack falling slowly through `V_OFF` removes all +5V loads once, with no later restart unless charged above `V_ON`.
 4. Load removal alone never causes a restart.
@@ -260,24 +224,8 @@ No source change is required. Existing configuration needed:
 6. USB never backfeeds DC, and buck never backfeeds VBUS.
 7. Flashing, reset, and logs work over native USB with stock firmware.
 8. INA219 reads pack voltage within its specification at `0x41` with stock firmware.
-9. 26 V at DC input causes no damage; UVLO need not protect that pack.
-10. A 5 V charger at DC runs the board with the 5 V profile, and leaves it off and undamaged with a battery profile.
 
-## 11. Stage 1 open items, closed in stage 2
-
-| ID | Item | Result |
-|---|---|---|
-| O1 | K3 voltage on the solar module | Still unknown; DC input tolerates 26 V regardless |
-| O2 | Buck | LMR33640ADDAR, section 14 |
-| O3 | DC/USB priority | Discrete, section 13 |
-| O4 | UVLO | TLV3011 + TPS3808G01, section 13 |
-| O5 | Limiters | PTCs, section 15 |
-| O6 | 3V3 thermal | Section 14 |
-| O7 | GPIO1–3 protection | Section 13 |
-| O8 | DC connector | DC-005 and KF301 in parallel, as on the shield |
-| O9 | [assumed] values | Remaining ones listed in section 16 |
-
-## 12. Shield connector geometry
+## 11. Shield connector geometry
 
 Source: `docs/hardware/Gerber_Air360-Shield_PCB_Air360_2026-06-05.zip` (drill file), shield v1.3 photos, and the shield BOM supplied by the user on 2026-11-04. The oshwlab page could not be opened from this environment.
 
@@ -292,11 +240,11 @@ Source: `docs/hardware/Gerber_Air360-Shield_PCB_Air360_2026-06-05.zip` (drill fi
 | DC power | DC-005, 5.5×2.1 mm | | Centre positive to be confirmed on the shield |
 | Screw terminal | KF301-5.0-2P | 5.0 mm | |
 
-- These agree with `REQUIREMENTS.md` section 7. SPS30 and SCD30 are printed in the reverse order of the table's pin numbers, so pin 1 of the table is the printed right-hand pin. Physical order follows the shield.
+- These agree with SPEC section 7. SPS30 and SCD30 are printed in the reverse order of the table's pin numbers, so pin 1 of the table is the printed right-hand pin. Physical order follows the shield.
 - Column spacing: 3.556 mm within the GPIO and I2C groups; 7.112 mm from MODEM to UART2; 5.207 mm from UART2 to GPIO; 5.334 mm from GPIO to I2C. All header columns start on one line.
 - Shield board is 50.8 × 81.3 mm with M3-size holes at 44.47 × 74.80 mm spacing. Whether the new board keeps these is decided in stage 4.
 
-## 13. Control circuit calculations
+## 12. Control circuit calculations
 
 ### UVLO
 
@@ -367,91 +315,7 @@ Connector ── 470 Ω ── GPIO, with BAT54S clamp to 3V3 and GND on the GPI
 - GPIO21 DTR: 100 kΩ pull-down.
 - LED: firmware uses `LED_MODEL_WS2812`, so WS2812B-2020 is used directly from +5V with a 100 Ω series resistor, D21.
 
-## 14. Power stage calculations
-
-**Buck: LMR33640ADDAR**, 400 kHz, ESOP-8 with pad [ds, except as noted].
-
-| Item | Value | Basis |
-|---|---|---|
-| FB | 100 kΩ / 24.9 kΩ | 5.02 V |
-| Inductor | 6.8 µH, Isat ≥ 6.2 A | `K` 0.19 at 8.4 V and 4 A, 1.48 A ripple at 26 V; Isat above the 6.2 A maximum limit |
-| Peak inductor at 3.33 A, 8.4 V | 3.7 A | Under the 4.8 A minimum limit |
-| `CIN` | 2 × 10 µF 50 V + 220 nF 50 V + 100 µF 35 V polymer | Ceramic at pins; bulk after the shunt |
-| `COUT` | 4 × 22 µF 25 V at the buck, + 470 µF polymer on +5V | Datasheet minimum 3 × 22 µF; total under the 1000 µF limit |
-| `CBOOT`, `CVCC` | 100 nF, 1 µF | VCC is not loaded |
-| Dissipation, 1.23 A | about 0.25 W | Conduction from RDSON plus switching [assumed] |
-| Dissipation, 3.33 A at 6.2 V | about 1.2 W | Short duration; about 36 °C rise at 30 °C/W [assumed] if it were sustained |
-
-**Reverse protection:** Q3 AO4407A, drain at input, source at V_PROT, gate to GND through 100 kΩ, 12 V zener gate to source.
-
-**Input TVS:** SMAJ24A after Q3, so a reversed pack does not forward-bias it.
-
-**Residual risk:** SMAJ24A clamps up to about 39 V, above the 26 V INA219 and 36 V buck limits. It covers ESD and short events, not a sustained surge.
-
-**Updated minimum pack voltage at peak load:** 5.4 V + 3.18 A × (0.1 + 0.03 + 0.03 Ω, including PTC [assumed]) = 5.9 V.
-
-**3V3: SGM2212-3.3 in TO-252.** Dropout 420 mV at 800 mA [ds]. Loss is 0.43 W at 250 mA and 1.0 W at 600 mA from 5 V, so rise is about 24 °C and 56 °C at datasheet θJA. At 4.6 V USB input the headroom is 1.3 V, well above dropout.
-
-**INA219:** A0 to VS, A1 to GND for `0x41`, on solder jumpers.
-
-## 15. Bill of materials
-
-C numbers come from the EasyEDA library search on 2026-11-04. Stock and price were not checked.
-
-| Ref | Part | Package | LCSC |
-|---|---|---|---|
-| U1 | ESP32-S3-WROOM-1-N16R8 | Module | C2913202 |
-| U2 | LMR33640ADDAR | ESOP-8 | C2836966 |
-| U3 | SGM2212-3.3XOB2G/TR | TO-252-2 | C5152863 |
-| U4 | INA219AIDR | SOIC-8 | C138706 |
-| U5 | TLV3011AIDBVR | SOT-23-6 | C2870632 |
-| U6 | TPS3808G01DBVR | SOT-23-6 | C19653 |
-| U7 | HT7533-1 | SOT-89 | C14289 |
-| D1 | USBLC6-2SC6 | SOT-23-6 | C2827654 |
-| D2 | SMF5.0A, VBUS | SOD-123 | C266673 |
-| D3 | SMAJ24A, DC | SMA | C132586 |
-| D4 | BZT52C12S | SOD-323 | C213232 |
-| D5–7 | BAT54S, GPIO1–3 | SOT-23 | C268450 |
-| D8 | 1N4148WS, UVLO | SOD-323 | C2128 |
-| LED1 | SK6812MINI-HS | 3.5 × 3.5 mm | C2922787 |
-| Q1–3 | AO4407A | SOIC-8 | C16072 |
-| Q4–5 | AO3400A | SOT-23 | C20917 |
-| L1 | SPM10065VT-6R8M-D, Isat 15.8 A | 10.5 × 10 mm | C2047831 |
-| RS1 | 0.1 Ω 1 % 2 W alloy | 2512 | C42453896 |
-| F1, F2 | PTC 3 A hold 33 V, DC and USB | 2920 | C2943634 |
-| F3 | PTC 2 A hold 33 V, modem | 1812 | C42924294 |
-| F4 | PTC 1.1 A hold 33 V, sensor 5 V | 1812 | C70119 |
-| F5 | PTC 0.2 A hold 9 V, external 3V3 | 0805 | C20976 |
-| C | 470 µF 10 V polymer | 6.3 mm SMD | C4747954 |
-| C | 100 µF 35 V polymer | 6.3 × 8 mm TH | C48970595 |
-| J1 | TYPE-C-31-M-12 | USB-C 16P | C165948 |
-| J2 | Pin header 1×3, UART0 | 2.54 mm | Library footprint |
-| TP1–TP3 | Test pads, not in BOM | 1.5 mm pad | Library `Test-Point` plus separate pads TP1P–TP3P, D33 |
-| LED2 | KT-0805G green, buck running | 0805 | C2297 |
-| R39 | 4.7 kΩ 1 %, LED2 | 0805 | C17673 |
-| J3 | DC005, footprint `DC-IN-TH_DC005` as on the shield | TH | C431533 |
-| J4 | KF301-5.0-2P | TH | C474881 |
-| I2C1–3, UART2, MODEM, GPIO1–3 | HDR-M-2.54 1×6, 1×5, 1×4 per section 12 | 2.54 mm | Library footprints `HDR-TH_nP-P2.54-V-M` |
-| SPS30 | SH-ZH1.5-5A, SPS30 (same footprint as HC-ZH1.5-5A, C2845553) | TH vertical | C54431921 |
-| SCD30 | HC-ZH1.5-4A, SCD30 | TH vertical | C2845552 |
-| JP1 | HDR-M_2.54_2x3, profile | 2.54 mm | Library footprint |
-| SW1–2 | TS-1187A-B-A-B, BOOT and RESET | 5.1 mm | C318884 |
-
-Resistors are UNI-ROYAL 0805 1 %. Capacitors are Samsung/Yageo/Murata 0805, with C77102 (10 µF 50 V 1210) and C12891 (22 µF 25 V 1206). All carry supplier numbers in the schematic.
-
-## 16. Stage 2 remaining unknowns
-
-| Item | Result |
-|---|---|
-| HT7533-1 | Closed: Iq 2.5 µA typical, 4 µA maximum [ds] |
-| SGM2212 | Closed: D19, D20. Read from a distributor-hosted copy of the datasheet |
-| Shunt | Closed: C42453896 explicitly lists 100 mΩ 2 W |
-| WS2812B-2020 | Closed: D21 |
-| ESP32-S3 GPIO restrictions | Closed: GPIO35–37 and strapping pins 0, 3, 45, 46 confirmed in the WROOM-1 datasheet. GPIO26–32 not re-read; they are not exposed on the symbol |
-| Weak-sun restart on LFP | Open, bench test |
-| USB and DC-5 V rail figures | Open, bench test |
-
-## 17. Schematic
+## 13. Schematic
 
 Five pages in `Air360_V2.2`: power, UVLO, core, interfaces, connectors. Every connected pin has a named net stub. Page uuids change only if pages are recreated: power `832322dde21e9463`, UVLO `7ca8a5ed4c92187a`, core `639e38c8049a27e4`, interfaces `c211ae6ae66dcfec`, connectors `225f56858bcee42c`.
 
@@ -467,14 +331,7 @@ U2 PG; U1 IO3, IO45, IO46, IO35–37; JP1 3–4 (LiFePO4 parking position); J1 S
 
 Buttons use diagonal pins 1 and 4, which are across the switch whichever way the internal pairs run.
 
-### To check in stage 4 (footprints)
-
-- Polarity of D2, D3, D4 and C2, C13 at the pad level; the symbols are correct.
-- J3 pin 1 is the centre contact.
-- SPS30 and SCD30 pin 1 position against the shield.
-- USB-C and module footprints.
-
-## 18. Rules and mechanics
+## 14. Rules and mechanics
 
 | Item | Value | Basis |
 |---|---|---|
@@ -495,7 +352,7 @@ Footprints audited on imported pads and in the editor: J3 pad 1 is the rear (cen
 
 Connector positions in millimetres, shield frame (origin at bottom left, connector edge at the bottom): MODEM x 31.115; UART2 x 38.227; GPIO x 43.434, 46.990, 50.546; I2C x 55.880, 59.436, 62.992. Pin 1 of each header is at y 16.51. SPS30 row y 14.986, x 68.628–74.628. SCD30 row y 7.366, x 68.616–73.116. DC jack J3 moved 1 mm right of the shield position so an M3 screw head clears it at H1 (user decision, D31), opening to the bottom edge at x about 10.3; KF301 at x 20.47 and 25.47, y 7.
 
-## 19. Placement
+## 15. Placement
 
 Functional groups on the top side, millimetres:
 
@@ -516,7 +373,7 @@ Functional groups on the top side, millimetres:
 
 Layout revised after the user's second review, keeping their moves of the buck and UVLO blocks. C5, C6 and C7 had drifted 2–4 mm from U2 in that edit and were put back at their pins: C5 at pins 1 and 2, C6 at pins 7 and 8, C7 at pin 6 (rotated 180°). JP1 labels moved with JP1.
 
-All nine header and ZH connector positions were read back from pad coordinates and match section 12. Footprint bounding boxes, which include silkscreen, were checked for overlap.
+All nine header and ZH connector positions were read back from pad coordinates and match section 11. Footprint bounding boxes, which include silkscreen, were checked for overlap.
 
 Import does not replace a footprint when a symbol's device changes; JP1 and LED1 had to be placed on the PCB by hand with pad nets set through the API, and LED1 has no matching unique ID. TP1–TP3 were placed the same way, with unique IDs set; importing did not bring them over. Re-check these, and the 1.5 mm pads of TP1–TP3, after any later import, and use Update PCB in the EasyEDA UI if a sync is needed.
 
@@ -524,49 +381,7 @@ Verified after the second review, on read-back from EasyEDA: 111 components, pad
 
 Not done in this stage: antenna keep-out regions, which are created with routing.
 
-## 20. Routing
-
-Layers: Top and Bottom carry signals and a GND pour; Inner1 is a GND pour; Inner2 holds V_BUCK (left), +5V (centre) and 3V3 (right) pours, plus a short VBUS track behind J1. `ANT_KEEPOUT` covers x 47.6–70.5, y 77.8–85 on all layers.
-
-Routed by hand: DC_IN, DC_F, V_PROT main path, Kelvin sense from RS1 to U4, SW, BOOT, VCC_B, BUCK_5V copper, +5V and 3V3 fan-out to Inner2, VBUS, VBUS_F, USB_DP, USB_DM, connector rails. The remaining 49 signal nets used the EasyEDA autorouter on Top and Bottom. 51 GND vias were placed by script with a clearance check; U6 pin 2 got none and relies on the Top pour.
-
-USB-C needs vias between 0.5 mm pads: `USB_DM` uses 0.3/0.5 mm vias at J1, and the A and B pads are tied there.
-
-State on 2026-11-04: pours are filled in the EasyEDA UI, because the API call returns nothing, so any copper edit needs Shift+B there. Final DRC returned an empty list, including connection and netlist checks. ERC is clean; schematic netlist 115 components, 66 nets, 0 mismatches; Unique IDs match between schematic and PCB. 662 tracks, 161 vias, 6 pours. STEP export shows the six 3.03 mm holes. A test Gerber export has all layers.
-
-Not physically verified: nothing here was built or measured. Stage 7 still has to check layer content, mechanics and antenna region independently of EasyEDA's DRC.
-
-The autorouter's RPC reports a timeout but commits its tracks.
-
-EN_NODE is a 100 kΩ high-impedance node, so it was moved off the path between the L1 pads. FB sense no longer starts at L1 pad 2 or runs under L1; it taps BUCK_5V at the output side. `I2C_SDA` still runs on Bottom under L1, with Inner1 GND between them.
-
-Netlist Error: Import Changes offered to remove and re-add ten connectors because their schematic Unique IDs had changed to gge197–gge206 while the PCB kept the old ones. Applying it would have displaced the shield connectors. The PCB IDs were rewritten to match, without moving anything. Always read that dialog before applying it.
-
-## 21. Final verification
-
-Independent check: the Gerber copper layers are rasterized at 0.05 mm, joined through the drill data, and compared with pad nets, without using EasyEDA's DRC.
-
-| Check | Result | State |
-|---|---|---|
-| ERC, schematic netlist against design model | Clean; 115 components, 66 nets, 0 mismatches | Verified |
-| EasyEDA DRC | Empty list, but it missed the TP3 short below | Verified, not sufficient alone |
-| Gerber connectivity, opens | 0 of 66 nets | Verified on the package Gerber |
-| Gerber connectivity, shorts | 1 found: TP3 (GND) on EN_NODE; 0 after the fix | Verified on the package Gerber |
-| Copper gaps by raster | About 0.14 mm minimum, at J1 vias; resolution 0.05 mm, rule 0.15 mm | Verified after the fix |
-| Copper in antenna zone | None on four layers, x 49–69, y 78.3–85 | Verified |
-| Connector pins and positions | Match the requirements pin table and shield positions | Verified |
-| Outline and holes | 81.28 × 85 mm; six 3.03 mm NPTH | Verified |
-| Silkscreen on exposed copper | 10 px in 6 specks, no text; macro pads not counted | Partial |
-
-Inner2 narrowest widths: V_BUCK 4.2 mm, +5V 4.0 mm, 3V3 4.2 mm. For 0.5 oz inner copper, IPC-2221 gives about 2.1 mm for the 1.23 A continuous budget at 10 °C rise, and about 5.2 mm for 3.3 A at 20 °C rise [calc]. Continuous load has margin. The 3.3 A peak is short and is above the 10 °C figure at these necks, which is accepted because the budget sums peaks as simultaneous.
-
-TP3 cause: its pad was restored to 1.5 mm after routing, overlapping EN_NODE, and EasyEDA DRC did not report it. TP3 moved to x 22.4, y 60. A later check found component pad edits are lost on reload, so the final 1.5 mm comes from separate pads (D33), confirmed in the Gerber raster.
-
-LED1: pinout matches the SK6812MINI-HS datasheet numbering (1 GND, 2 DIN, 3 VDD, 4 DOUT). Its rated VDD is 3.7–5.5 V, so 3V3 is below rating. The ESP32-S3-DevKitC-1 v1.1 schematic also ties VDD to `VCC_3V3`, so D27 stands; confirm brightness and colour on hardware. Footprint orientation against the package drawing was not checked: the drawing is vector art and was not rendered.
-
-Hardware-only, not verified: UVLO thresholds and restart, all power modes, buck stability and ripple, INA219 reading, thermal rise, Wi-Fi range near SW1, real cable fit.
-
-## 23. V2.2 design
+## 16. V2.2 design
 
 Project `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`; PCB `93ecb0b02681a8ec`; schematic `cdf4394e2fb2e7ce`. Schematic sheets and routing were rebuilt from the earlier placement. Connector positions, outline and holes did not change.
 
@@ -585,13 +400,13 @@ Project `Air360_V2.2`, UUID `03cfb60824c0433cafe2a8958e9efd4c`; PCB `93ecb0b0268
 | D3 | SMAJ15A, C132582 |
 | JP1 | 1 × 2: fitted Li-ion, open LiFePO4 |
 
-Inner2 holds +5V and 3V3 pours. V_BUCK is a Top track. Thresholds follow section 13 because R9–R14 are unchanged.
+Inner2 holds +5V and 3V3 pours. V_BUCK is a Top track. Thresholds follow section 12, because R9–R14 are unchanged.
 
 [calc] RS1 dissipates 0.225 W at 1.5 A against a 0.25 W rating, which is little margin. L1 ripple is about 0.39 A at 8.4 V and 1.1 MHz; peak stays under the 2.8 A switch limit and the 5.5 A Isat. U3 loses 0.43 W at 250 mA from 5 V; SOT-223 thermal rise is to be measured. +5V current limits are set by F3 and F4 at 1.1 A hold and U2 at 2 A; a modem with high bursts may need its own supply.
 
 U3 pin 2 needs a board connection to the tab. Signals run under the body, so pin 2 reaches the Inner2 3V3 pour through a via in its pad.
 
-## 24. V2.2 verification
+## 17. V2.2 verification
 
 Run on the Gerber in `release/v2.2/`, after the final copper rebuild.
 
@@ -610,7 +425,7 @@ Run on the Gerber in `release/v2.2/`, after the final copper rebuild.
 
 Not verified: anything physical; 3D inspection by the user; plane necks and thermal rise on V2.2.
 
-## 25. U5 output stage defect, 2026-11-04
+## 18. U5 output stage defect, 2026-11-04
 
 U5 TLV3011 has an open-drain output and `UV_OK` had no pull-up, so `UV_OK` could not go high and the buck would never enable from DC. ERC, DRC and Gerber checks passed because they only confirm connections; the error was found when the user asked for a cheaper part. V2.2 now uses TLV3012AIDBVR, C62505, same pinout, push-pull output, rotated 90° on the PCB because the library footprint is numbered differently.
 
@@ -620,7 +435,7 @@ Logic reviewed on paper for V2.2: U5 to U6 to `EN_NODE` to U2 EN, hysteresis thr
 
 Final state on the package Gerber: EasyEDA DRC empty, ERC clean, 0 opens and 0 shorts on 64 nets, 0 Unique ID and pin net differences, BOM 106 parts, placement 106 rows.
 
-## 26. V2.2 button labels, 2026-11-07
+## 19. V2.2 button labels, 2026-11-07
 
 SW1 connects to `CHIP_PU` and SW2 to `IO0`, so their silkscreen now reads `RESET` and `BOOT`. Each text sits at the old designator position, with the same 32 mil size and 6 mil line, on the top silkscreen. It keeps the D28 clearances: about 0.3 mm from the switch outline at `RESET`.
 
@@ -630,7 +445,7 @@ Compared with the 2026-11-04 package: inner layers, bottom copper, outline and d
 
 Renders in `docs/images/` come from the EasyEDA 3D Preview with purple board color. The EasyEDA background stays black because the setting did not reach the 3D scene.
 
-## 27. V2.2 passives unified with the user's other boards, 2026-11-09
+## 20. V2.2 passives unified with the user's other boards, 2026-11-09
 
 Reference BOMs, read on 2026-11-09: `serber/tiny-gps-logger` rev1, `serber/marauder-c5-pancake-board` rev1, `serber/solar-power-module-CN3722` rev2, `serber/lmp91000-afe` v1.0, `serber/solar-mppt-focv` rev1. Where a value and package match, V2.2 now uses the part from those boards. The user limited the change to resistors and capacitors and asked for every 0805 resistor to move to the Yageo RC0805 series, including values the other boards do not use.
 
@@ -645,7 +460,7 @@ Reference BOMs, read on 2026-11-09: `serber/tiny-gps-logger` rev1, `serber/marau
 | R9 499 kΩ, R10 124 kΩ, R11 787 kΩ, R12 1.13 MΩ | UNI-ROYAL C17721, C17440, C17825, C189663 | RC0805FR-07…, C274360, C273869, C273902, C482946 | Same series, no match in the references |
 | R15, R16 10 kΩ; R17, R18 5.1 kΩ; R19, R22–R27 100 Ω; R20, R21, R31, R34, R37, R39 4.7 kΩ; R30, R33, R36 470 Ω | UNI-ROYAL C17414, C27834, C17408, C17673, C17710 | RC0805FR-07…, C84376, C84375, C105577, C60816, C114564 | Same series; the references have 10k, 5.1k and 100 Ω only in 0603 |
 
-Resistance, tolerance (1 %, 0 Ω jumper 5 %) and 0.125 W rating are unchanged, so the UVLO thresholds in section 13 stand. Capacitor voltage ratings only go up. C15, C18 and C23 change from X7R to X5R, rated to 85 °C instead of 125 °C. Unchanged and not in the references: 470 nF, 220 nF (already the CN3722 part), 22 µF 0805 (already the marauder part), 10 µF and 22 µF 1206, 220 µF, RS1.
+Resistance, tolerance (1 %, 0 Ω jumper 5 %) and 0.125 W rating are unchanged, so the UVLO thresholds in section 12 stand. Capacitor voltage ratings only go up. C15, C18 and C23 change from X7R to X5R, rated to 85 °C instead of 125 °C. Unchanged and not in the references: 470 nF, 220 nF (already the CN3722 part), 22 µF 0805 (already the marauder part), 10 µF and 22 µF 1206, 220 µF, RS1.
 
 Method: only attributes were changed through the bridge, on the schematic and on the PCB: manufacturer, part number, LCSC number, datasheet and the LCSC fields. The symbol, footprint, position and library link stay the same. On the PCB the `Device` field was set to the new part number, which feeds the placement file. Every LCSC number was opened on lcsc.com on 2026-11-09 and matched part number and maker. Stock and price were not checked. JLCPCB lists all new resistors and C1711 as Extended parts, while most replaced UNI-ROYAL values were Basic. This matters only for JLCPCB assembly fees.
 
@@ -660,3 +475,97 @@ Method: only attributes were changed through the bridge, on the schematic and on
 
 `schematic-v2.2.pdf` was not exported again: symbols show `={Value}` and values did not change. If it is ever exported again, it should look the same.
 
+## Bring-up
+
+### First power-up
+
+Use a current-limited bench supply. Wear eye protection the first time power is applied. Numbers below are datasheet values or calculations, not measurements on this board.
+
+#### Before power
+
+1. Inspect the board: polarity of C2, C13, D2, D3, D4, D8, LED2, orientation of U1–U7, D1, D5–D7, LED1, Q1–Q5. Look for solder bridges at J1, U1 and U2.
+2. With nothing connected, measure resistance to GND at `DC_IN`, `V_BUCK`, `+5V`, `3V3` and `+5V_S`. Stop if any reads near zero.
+3. Leave all external modules and sensors disconnected.
+
+| JP1 | Battery | Restart `V_ON` |
+|---|---|---|
+| Jumper off | 2S LiFePO4 | 6.81 V |
+| Jumper on | 2S Li-ion | 7.20 V |
+
+#### DC input, LiFePO4 profile
+
+1. Remove the JP1 jumper. Set the supply to 7.5 V, current limit 200 mA, and connect to J3 or J4. Polarity at J4 is marked `+` and `−`.
+2. Measure `3V3M` at C18: expect about 3.3 V at once.
+3. Wait for the restart delay: 57 s nominal, at least about 34 s. This delay also applies to the first start.
+4. Check TP2 (`EN_NODE`) against TP3 (GND): expect it to go high, LED2 to light, then `+5V` near 5 V and `3V3` near 3.3 V. The current limit may need raising to about 500 mA for the ESP32.
+5. If current sits at the limit, or a part heats quickly, disconnect and find the fault before going on.
+
+#### Threshold check
+
+LED2 (green) is on while the buck runs. It lights after the restart delay once DC is above `V_ON`, stays on as DC falls, and goes out at `V_OFF`. It stays off on USB-only power. Allow up to a minute at each step when looking for `V_ON`.
+
+1. Measure TP1 (`VREF`) against TP3. Datasheet range is 1.208–1.276 V.
+2. Lower the supply slowly from 7.5 V. Record the voltage where `+5V` drops: this is `V_OFF`. Expect 6.24 V nominal. The guaranteed range is 5.90–6.59 V.
+3. If `V_OFF` is outside 6.1–6.35 V, change R10. `V_ON` moves with it.
+4. Raise the supply slowly. Record where the board restarts after the delay. Expect 6.81 V with the jumper off, and 7.20 V with it on.
+
+Threshold table and formulas: [board README](../README.md#changing-the-thresholds). Delay is about `(C23 in nF + 0.5) / 175` s; C23 is 10 µF.
+
+Do not swap U5 for TLV3011 (open-drain) or TLV3012B without rechecking the start-up kick.
+
+#### USB
+
+1. With DC disconnected, connect USB-C from a charger or port.
+2. Expect `+5V` near VBUS and `3V3` near 3.3 V. LED2 stays off.
+3. Flash firmware over native USB. If entering download mode by hand, hold BOOT and press RESET.
+
+#### Firmware settings
+
+- Enable INA219 at address `0x41`.
+- Keep `power_gate_enabled = 0`. On USB-only power the INA219 reads about 0 V, and an enabled gate would sleep the board.
+- Check the RGB LED on GPIO48 with `LED_MODEL_WS2812`.
+
+#### Battery
+
+Use a pack with its own BMS.
+
+### Test plan
+
+Run the first power-up first. Record the measured value for each row. Nothing below has been run yet.
+
+#### Electrical acceptance
+
+| # | Test | Pass |
+|---|---|---|
+| 1 | Connect each connector to its real cable, module or sensor | Works; pinout matches SPEC section 7 |
+| 2 | 6.2 V at DC, electronic load 1.5 A on +5V | +5V in regulation, no part over rating |
+| 3 | Lower DC slowly through `V_OFF` | All +5V loads drop once and stay off until above `V_ON` |
+| 4 | After a trip, remove all load | No restart |
+| 5 | USB with DC dead, absent and reversed | USB operation continues |
+| 6 | USB and DC together, each order of connection | No backfeed into DC or VBUS |
+| 7 | Flash, reset and logs over native USB | All work with stock firmware |
+| 8 | Compare INA219 voltage and current with a meter | Within INA219 specification at `0x41` |
+| 9 | 5 V at DC | Board stays off, no damage |
+| 10 | 12 V at DC, short test | No damage; not an operating mode |
+| 11 | Watch LED2 through tests 3 and 5 | On with the buck, off at `V_OFF`, off on USB only; brightness acceptable |
+
+#### Measurements with no acceptance number yet
+
+Set limits from the part ratings before testing.
+
+| Item | Method |
+|---|---|
+| Buck stability and ripple | Scope at C8, load steps, 6–8.4 V input |
+| 3V3 stability | Scope at C16: AMS1117 output with ceramic capacitors, load steps |
+| UVLO first start | Connect a charged pack several times: board must start after the delay each time |
+| SW node ringing | Scope at L1 pad 1 with a short ground spring |
+| Thermal rise | Thermocouple or camera on U2, U3, L1, RS1, Q1, Q3 at continuous load |
+| 3V3 on USB | Minimum USB voltage with AMS1117 at full ESP32 load |
+| U3 pin 2 solder joint | Inspect, because the pad has a via |
+
+#### Items that only hardware can confirm
+
+- **Modem:** whether your modem runs from +5V at 1.5 A through its transmit bursts. Watch +5V with a scope.
+- **Wi-Fi:** range with the board in its enclosure. SW1, marked `RESET`, sits next to the antenna keep-out.
+- **LED1:** brightness and colour at 3.3 V, below its 3.7 V rated minimum. ESP32-S3-DevKitC-1 v1.1 feeds this LED from 3.3 V too.
+- **Fit:** cables at all headers, shield mounting holes, jack position at J3, and M3 heads at H1–H6.
