@@ -54,32 +54,32 @@ Parts fitted on the board, grouped by part type. Generated from `bom-v2.2.csv`, 
 
 | Refs | Qty | Value | Part | Manufacturer | Package | LCSC |
 |---|---|---|---|---|---|---|
-| C1, C5, C6, C12, C14, C21, C22, C24, C25, C27 | 10 | 100nF | `CC0805KRX7R9BB104` | YAGEO | C0805 | [C49678](https://www.lcsc.com/product-detail/C49678.html) |
+| C1, C5, C6, C12, C14, C21, C22, C24, C25, C27 | 10 | 100nF | `CL21B104KBCNNNC` | SAMSUNG | C0805 | [C1711](https://www.lcsc.com/product-detail/C1711.html) |
 | C2, C13 | 2 | 220uF | `RVT1C221M0607` | HONOR | CAP-SMD | [C3342](https://www.lcsc.com/product-detail/C3342.html) |
 | C3 | 1 | 10uF | `CL31A106KAHNNNE` | SAMSUNG | C1206 | [C9807](https://www.lcsc.com/product-detail/C9807.html) |
 | C8, C9 | 2 | 22uF | `CL31A226KAHNNNE` | SAMSUNG | C1206 | [C12891](https://www.lcsc.com/product-detail/C12891.html) |
-| C15, C18, C23 | 3 | 10uF | `CL21B106KOQNNNE` | SAMSUNG | C0805 | [C95841](https://www.lcsc.com/product-detail/C95841.html) |
+| C15, C18, C23 | 3 | 10uF | `CL21A106KAYNNNE` | SAMSUNG | C0805 | [C15850](https://www.lcsc.com/product-detail/C15850.html) |
 | C16 | 1 | 22uF | `CL21A226MAQNNNE` | SAMSUNG | C0805 | [C45783](https://www.lcsc.com/product-detail/C45783.html) |
 | C17 | 1 | 220nF | `CL21B224KBFNNNE` | SAMSUNG | C0805 | [C5378](https://www.lcsc.com/product-detail/C5378.html) |
 | C19, C20 | 2 | 470nF | `CL21B474KAFNNNE` | SAMSUNG | C0805 | [C15972](https://www.lcsc.com/product-detail/C15972.html) |
-| C26 | 1 | 1uF | `CL21B105KAFNNNE` | SAMSUNG | C0805 | [C116352](https://www.lcsc.com/product-detail/C116352.html) |
+| C26 | 1 | 1uF | `CL21B105KBFNNNE` | SAMSUNG | C0805 | [C28323](https://www.lcsc.com/product-detail/C28323.html) |
 
 ## Resistors
 
 | Refs | Qty | Value | Part | Manufacturer | Package | LCSC |
 |---|---|---|---|---|---|---|
-| R1, R6, R7, R8, R14, R28, R29 | 7 | 100kΩ | `0805W8F1003T5E` | UNI-ROYAL | R0805 | [C17407](https://www.lcsc.com/product-detail/C17407.html) |
-| R2, R3, R32, R35, R38 | 5 | 0Ω | `0805W8F0000T5E` | UNI-ROYAL | R0805 | [C17477](https://www.lcsc.com/product-detail/C17477.html) |
-| R9 | 1 | 499kΩ | `0805W8F4993T5E` | UNI-ROYAL | R0805 | [C17721](https://www.lcsc.com/product-detail/C17721.html) |
-| R10 | 1 | 124kΩ | `0805W8F1243T5E` | UNI-ROYAL | R0805 | [C17440](https://www.lcsc.com/product-detail/C17440.html) |
-| R11 | 1 | 787kΩ | `0805W8F7873T5E` | UNI-ROYAL | R0805 | [C17825](https://www.lcsc.com/product-detail/C17825.html) |
-| R12 | 1 | 1.13MΩ | `0805W8F1134T5E` | UNI-ROYAL | R0805 | [C189663](https://www.lcsc.com/product-detail/C189663.html) |
-| R13 | 1 | 1MΩ | `0805W8F1004T5E` | UNI-ROYAL | R0805 | [C17514](https://www.lcsc.com/product-detail/C17514.html) |
-| R15, R16 | 2 | 10kΩ | `0805W8F1002T5E` | UNI-ROYAL | R0805 | [C17414](https://www.lcsc.com/product-detail/C17414.html) |
-| R17, R18 | 2 | 5.1kΩ | `0805W8F5101T5E` | UNI-ROYAL | R0805 | [C27834](https://www.lcsc.com/product-detail/C27834.html) |
-| R19, R22, R23, R24, R25, R26, R27 | 7 | 100Ω | `0805W8F1000T5E` | UNI-ROYAL | R0805 | [C17408](https://www.lcsc.com/product-detail/C17408.html) |
-| R20, R21, R31, R34, R37, R39 | 6 | 4.7kΩ | `0805W8F4701T5E` | UNI-ROYAL | R0805 | [C17673](https://www.lcsc.com/product-detail/C17673.html) |
-| R30, R33, R36 | 3 | 470Ω | `0805W8F4700T5E` | UNI-ROYAL | R0805 | [C17710](https://www.lcsc.com/product-detail/C17710.html) |
+| R1, R6, R7, R8, R14, R28, R29 | 7 | 100kΩ | `RC0805FR-07100KL` | YAGEO | R0805 | [C96346](https://www.lcsc.com/product-detail/C96346.html) |
+| R2, R3, R32, R35, R38 | 5 | 0Ω | `RC0805JR-070RL` | YAGEO | R0805 | [C96345](https://www.lcsc.com/product-detail/C96345.html) |
+| R9 | 1 | 499kΩ | `RC0805FR-07499KL` | YAGEO | R0805 | [C274360](https://www.lcsc.com/product-detail/C274360.html) |
+| R10 | 1 | 124kΩ | `RC0805FR-07124KL` | YAGEO | R0805 | [C273869](https://www.lcsc.com/product-detail/C273869.html) |
+| R11 | 1 | 787kΩ | `RC0805FR-07787KL` | YAGEO | R0805 | [C273902](https://www.lcsc.com/product-detail/C273902.html) |
+| R12 | 1 | 1.13MΩ | `RC0805FR-071M13L` | YAGEO | R0805 | [C482946](https://www.lcsc.com/product-detail/C482946.html) |
+| R13 | 1 | 1MΩ | `RC0805FR-071ML` | YAGEO | R0805 | [C107700](https://www.lcsc.com/product-detail/C107700.html) |
+| R15, R16 | 2 | 10kΩ | `RC0805FR-0710KL` | YAGEO | R0805 | [C84376](https://www.lcsc.com/product-detail/C84376.html) |
+| R17, R18 | 2 | 5.1kΩ | `RC0805FR-075K1L` | YAGEO | R0805 | [C84375](https://www.lcsc.com/product-detail/C84375.html) |
+| R19, R22, R23, R24, R25, R26, R27 | 7 | 100Ω | `RC0805FR-07100RL` | YAGEO | R0805 | [C105577](https://www.lcsc.com/product-detail/C105577.html) |
+| R20, R21, R31, R34, R37, R39 | 6 | 4.7kΩ | `RC0805FR-074K7L` | YAGEO | R0805 | [C60816](https://www.lcsc.com/product-detail/C60816.html) |
+| R30, R33, R36 | 3 | 470Ω | `RC0805FR-07470RL` | YAGEO | R0805 | [C114564](https://www.lcsc.com/product-detail/C114564.html) |
 | RS1 | 1 | 100mΩ | `RL1206FR-070R1L` | YAGEO | R1206 | [C364357](https://www.lcsc.com/product-detail/C364357.html) |
 
 ## Connectors and mechanics
