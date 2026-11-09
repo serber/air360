@@ -1,23 +1,21 @@
 # Air360 V2 board
 
-Air360 V2 is a single board that replaces the ESP32-S3 DevKit plus shield build. It carries the ESP32-S3 module, power from a 2S battery or USB-C, hardware battery protection, current monitoring, and the shield's sensor connectors.
+One board that replaces the Air360 ESP32-S3 DevKit plus shield build: ESP32-S3 module, power from a 2S battery or USB-C, hardware undervoltage lockout, current monitoring and the shield's sensor connectors.
 
-**Status:** V2.2 is designed and verified on paper and on its manufacturing files. No board has been built or measured. Values below are datasheet figures or calculations unless stated otherwise.
+![Board, top side](docs/images/board-top.png)
 
-![Air360 V2.2 board, overview](docs/images/board-overview.png)
+*Render, not a photo. Part colours are approximate.*
 
-| Top | Bottom |
+## Status
+
+| Part | State |
 |---|---|
-| ![Air360 V2.2 board, top](docs/images/board-top.png) | ![Air360 V2.2 board, bottom](docs/images/board-bottom.png) |
+| PCB | V2.2, EasyEDA Pro, DRC empty, Gerber connectivity checked. Not manufactured |
+| Validation | Calculated and checked in CAD only. Nothing measured |
 
-*EasyEDA 3D Preview of the V2.2 board with the planned purple soldermask. Part colors are approximate.*
+Bring-up and test plan: [design record](docs/DESIGN-RECORD.md#bring-up).
 
-| Revision | State | Files |
-|---|---|---|
-| V2.2 | Current, cost-down, 1–1.5 A | [`release/v2.2/`](release/v2.2/README.md), EasyEDA project `Air360_V2.2` |
-
-
-## What it does
+## Features
 
 - Runs the Air360 firmware on an ESP32-S3-WROOM-1-N16R8.
 - Takes power from a 2S battery at DC, or 5 V at USB-C. DC has priority when both are present.
@@ -25,7 +23,20 @@ Air360 V2 is a single board that replaces the ESP32-S3 DevKit plus shield build.
 - Measures battery voltage and current with an INA219.
 - Offers the shield's connectors at the shield's positions, so existing cables and mounting fit.
 
-The board is 81.28 × 85 mm with six M3 holes, four of them matching the shield.
+## Specifications
+
+| Parameter | Value |
+|---|---|
+| Board | 81.28 × 85 mm, 4 layers, 1.6 mm, corner radius 3 mm |
+| Mounting | 6 × M3, four at the shield positions |
+| DC input | 2S Li-ion or LiFePO4, about 6–8.4 V |
+| USB-C | 5 V, power, flashing and logs |
+| +5V rail | 1–1.5 A |
+| Module | ESP32-S3-WROOM-1-N16R8 |
+
+![Board, overview](docs/images/board-overview.png)
+
+![Board, bottom side](docs/images/board-bottom.png)
 
 ## Connections
 
@@ -149,22 +160,23 @@ The target of 1–1.5 A comes from field data on the shield build: about 140 mA 
 - **Spare GPIO:** only GPIO1–3 connectors are brought out.
 - **J3 position:** 1 mm right of the shield position, to clear an M3 head at H1. Check any enclosure cut-out.
 
-## Not yet confirmed on hardware
-
-- UVLO thresholds, restart delay and first start
-- Buck and 3V3 stability, ripple and thermal rise
-- INA219 readings at `0x41` with stock firmware
-- Wi-Fi range, LED1 and LED2 brightness, cable fit
-
 ## Ordering
 
-Files are in [`release/v2.2`](release/v2.2). Upload `gerber-v2.2.zip` and send this instruction:
+Upload [`release/v2.2/gerber-v2.2.zip`](release/v2.2) and send:
 
 ```text
 5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Standard Stack-up, Purple Soldermask, White Legend, ENIG, Tented Vias, No Impedance Control, 81.28x85MM, Min Track/Space 0.15/0.10MM, Min Via 0.3/0.5MM, order number will be added on bottom side.
 ```
 
-Parameters and checks before ordering are in the [release notes](release/v2.2/README.md).
+| Item | Why |
+|---|---|
+| Layers | Top, Inner1 GND, Inner2 power, Bottom |
+| Stack-up | Any standard one with 1 oz outer, 0.5 oz inner: impedance is not controlled, USB is full speed |
+| ENIG | Flat pads for USB-C and U1. HASL works with more risk at J1 |
+| Smallest features | 0.15 mm track, 0.10 mm space, 0.3 mm via drill, 0.5–0.6 mm via pad |
+| Holes | Six 3.03 mm mounting and two 0.6 mm USB-C pegs, non-plated |
+| Order number on the bottom | Bottom silkscreen is empty, top is dense |
+| Stencil | Top side only, for hot air or oven |
 
 ## Bill of materials
 
@@ -174,8 +186,7 @@ See [`release/v2.2/BOM.md`](release/v2.2/BOM.md).
 
 | Path | Content |
 |---|---|
-| [`release/v2.2`](release/v2.2) | Current release: Gerbers, BOM, placement, schematic, and EasyEDA project |
-| [`REQUIREMENTS.md`](REQUIREMENTS.md) | Requirements, with the V2.2 changes in their own section |
-| [`DESIGN_LOG.md`](DESIGN_LOG.md) | Decisions, calculations and verification results |
-| [`release/v2.2/FIRST_POWER_UP.md`](release/v2.2/FIRST_POWER_UP.md) | First power-up procedure |
-| [`release/v2.2/TEST_PLAN.md`](release/v2.2/TEST_PLAN.md) | Post-assembly test plan |
+| [`release/v2.2`](release/v2.2) | Ordering package: Gerber, BOM, placement, schematic PDF, EasyEDA project |
+| [`docs/SPEC.md`](docs/SPEC.md) | Requirements and fixed pinout |
+| [`docs/DESIGN-RECORD.md`](docs/DESIGN-RECORD.md) | Decisions, calculations, checks, bring-up |
+| [`docs/images`](docs/images) | Renders |
