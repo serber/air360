@@ -1,7 +1,7 @@
 # Release v2.2
 
 
-Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-07, all from one revision. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–26 hold the design notes and checks.
+Cost-down prototype package exported from EasyEDA Pro project `Air360_V2.2` on 2026-11-07, all from one revision; BOM, placement, Gerber and project exported again on 2026-11-09 after the 0805 resistors and capacitors were unified with the user's other boards (`../../DESIGN_LOG.md` section 27). Gerber content is unchanged. Nothing in this package has been built or measured. `../../DESIGN_LOG.md` sections 23–27 hold the design notes and checks.
 
 | File | Content |
 |---|---|

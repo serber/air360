@@ -60,6 +60,7 @@ Evidence labels: **[repo]** read from this repository; **[calc]** calculated her
 | D36 | 2026-11-04 | V2.2 buck is AP63205WU-7, fixed 5 V, 2 A, 32 V input | 2S input allows it, few external parts, datasheet Rev. Nov 2024. MP2315 rejected: marked not recommended for new designs. LMR33620 not needed |
 | D37 | 2026-11-04 | UVLO block clears the left edge by 4.4 mm, matching the right side | User review of V2.2 |
 | D38 | 2026-11-07 | V2.2 silkscreen shows `RESET` and `BOOT` in place of SW1 and SW2 | User: the button function must be readable on the board. The designators stay in the schematic, BOM and placement file; only their silkscreen text is hidden |
+| D39 | 2026-11-09 | V2.2 0805 resistors and capacitors follow the user's other boards: all 0805 resistors Yageo RC0805, and 100 nF, 1 µF and 10 µF 0805 the Samsung parts used there | User: one manufacturer per value across their projects, so the same value is not ordered twice. Scope limited to resistors and capacitors; D1, headers, LED2 and J4 stay. Section 27 |
 
 ## 2. Architecture
 
@@ -628,3 +629,34 @@ The package was exported again from the live project, which already held later m
 Compared with the 2026-11-04 package: inner layers, bottom copper, outline and drill positions match; top copper differs only by rounding of about 0.1 mil on the pour outline; BOM unchanged; schematic text unchanged on all five sheets; placement unchanged apart from 0.001 mm rounding on U5 and C16. EasyEDA DRC is empty. The new Gerber shows `RESET` and `BOOT`, and they survive closing and reopening the PCB.
 
 Renders in `docs/images/` come from the EasyEDA 3D Preview with purple board color. The EasyEDA background stays black because the setting did not reach the 3D scene.
+
+## 27. V2.2 passives unified with the user's other boards, 2026-11-09
+
+Reference BOMs, read on 2026-11-09: `serber/tiny-gps-logger` rev1, `serber/marauder-c5-pancake-board` rev1, `serber/solar-power-module-CN3722` rev2, `serber/lmp91000-afe` v1.0, `serber/solar-mppt-focv` rev1. Where a value and package match, V2.2 now uses the part from those boards. The user limited the change to resistors and capacitors and asked for every 0805 resistor to move to the Yageo RC0805 series, including values the other boards do not use.
+
+| Refs | Before | After | Source |
+|---|---|---|---|
+| C1, C5, C6, C12, C14, C21, C22, C24, C25, C27, 100 nF | Yageo CC0805KRX7R9BB104, C49678 | Samsung CL21B104KBCNNNC, C1711, X7R 50 V | CN3722, FOCV |
+| C26, 1 µF | CL21B105KAFNNNE, C116352, 25 V | CL21B105KBFNNNE, C28323, X7R 50 V | FOCV |
+| C15, C18, C23, 10 µF | CL21B106KOQNNNE, C95841, X7R 16 V | CL21A106KAYNNNE, C15850, X5R 25 V | lmp91000-afe |
+| R1, R6–R8, R14, R28, R29, 100 kΩ | UNI-ROYAL C17407 | RC0805FR-07100KL, C96346 | CN3722 |
+| R13, 1 MΩ | UNI-ROYAL C17514 | RC0805FR-071ML, C107700 | CN3722 |
+| R2, R3, R32, R35, R38, 0 Ω | UNI-ROYAL C17477 | RC0805JR-070RL, C96345 | CN3722 |
+| R9 499 kΩ, R10 124 kΩ, R11 787 kΩ, R12 1.13 MΩ | UNI-ROYAL C17721, C17440, C17825, C189663 | RC0805FR-07…, C274360, C273869, C273902, C482946 | Same series, no match in the references |
+| R15, R16 10 kΩ; R17, R18 5.1 kΩ; R19, R22–R27 100 Ω; R20, R21, R31, R34, R37, R39 4.7 kΩ; R30, R33, R36 470 Ω | UNI-ROYAL C17414, C27834, C17408, C17673, C17710 | RC0805FR-07…, C84376, C84375, C105577, C60816, C114564 | Same series; the references have 10k, 5.1k and 100 Ω only in 0603 |
+
+Resistance, tolerance (1 %, 0 Ω jumper 5 %) and 0.125 W rating are unchanged, so the UVLO thresholds in section 13 stand. Capacitor voltage ratings only go up. C15, C18 and C23 change from X7R to X5R, rated to 85 °C instead of 125 °C. Unchanged and not in the references: 470 nF, 220 nF (already the CN3722 part), 22 µF 0805 (already the marauder part), 10 µF and 22 µF 1206, 220 µF, RS1.
+
+Method: only attributes were changed through the bridge, on the schematic and on the PCB: manufacturer, part number, LCSC number, datasheet and the LCSC fields. The symbol, footprint, position and library link stay the same. On the PCB the `Device` field was set to the new part number, which feeds the placement file. Every LCSC number was opened on lcsc.com on 2026-11-09 and matched part number and maker. Stock and price were not checked. JLCPCB lists all new resistors and C1711 as Extended parts, while most replaced UNI-ROYAL values were Basic. This matters only for JLCPCB assembly fees.
+
+| Check | Result |
+|---|---|
+| Read-back of 60 R/C on schematic and PCB | 51 changed as planned, 9 unchanged, positions and footprints identical |
+| EasyEDA DRC, strict | Empty list. A transient Import Changes mismatch came from a trailing space in Description, set equal on both sides |
+| ERC | Passes in normal mode. Strict mode reports one warning; the API returns only the count, and the state before this change was not recorded, so it is unresolved |
+| Gerber and drill against the 2026-11-07 package | Identical after resolving aperture numbers, 0.01 mm coordinate and 0.001 mm aperture tolerance, all 15 files |
+| BOM | 54 lines, 106 parts; only the 15 R/C lines changed |
+| Placement | 106 rows after removing TP1–TP3; only the Device, Datasheet and Type columns changed |
+
+`schematic-v2.2.pdf` was not exported again: symbols show `={Value}` and values did not change. If it is ever exported again, it should look the same.
+
