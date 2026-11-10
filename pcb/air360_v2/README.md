@@ -165,14 +165,14 @@ The target of 1–1.5 A comes from field data on the shield build: about 140 mA 
 Upload [`release/v2.2/gerber-v2.2.zip`](release/v2.2) and send:
 
 ```text
-5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Standard Stack-up, Purple Soldermask, White Legend, ENIG, Tented Vias, No Impedance Control, 81.28x85MM, Min Track/Space 0.15/0.10MM, Min Via 0.3/0.5MM, order number will be added on bottom side.
+5PCS, 4 Layers, FR4, 1.6MM, Outer 1OZ, Inner 0.5OZ, Standard Stack-up, Purple Soldermask, White Legend, Lead-free HASL, Tented Vias, No Impedance Control, Min Track/Space 0.15/0.10MM, Min Via 0.3/0.5MM, order number will be added on bottom side.
 ```
 
 | Item | Why |
 |---|---|
 | Layers | Top, Inner1 GND, Inner2 power, Bottom |
 | Stack-up | Any standard one with 1 oz outer, 0.5 oz inner: impedance is not controlled, USB is full speed |
-| ENIG | Flat pads for USB-C and U1. HASL works with more risk at J1 |
+| Lead-free HASL | Cheaper. USB-C (J1) and U1 are soldered with a preheater and hot air; check J1 for bridges. ENIG is an option at extra cost |
 | Smallest features | 0.15 mm track, 0.10 mm space, 0.3 mm via drill, 0.5–0.6 mm via pad |
 | Holes | Six 3.03 mm mounting and two 0.6 mm USB-C pegs, non-plated |
 | Order number on the bottom | Bottom silkscreen is empty, top is dense |

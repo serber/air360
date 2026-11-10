@@ -24,5 +24,5 @@ The order instruction is in the [board README](../../README.md#ordering).
 ## Not verified
 
 - Placement rotations in the assembler's preview, especially U1, J1, LED1 and polarized parts. LED1 footprint orientation was not compared with the package drawing.
-- Purple solder mask availability for 4 layers with ENIG.
+- Purple solder mask availability for 4 layers with lead-free HASL.
 - Everything physical: [`docs/DESIGN-RECORD.md`](../../docs/DESIGN-RECORD.md#bring-up).
