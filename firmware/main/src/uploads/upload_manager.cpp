@@ -80,6 +80,19 @@ esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
         std::uint64_t enabled_at_uptime_ms = 0U;
         bool was_enabled = false;
     };
+    // Stop first: an in-flight request may still succeed and advance a
+    // backend's acknowledged cursor until the task exits. Snapshotting before
+    // that would hand the rebuilt backend a stale cursor and resend the window.
+    // On stop failure nothing below runs, so the live runtime stays untouched.
+    const esp_err_t stop_err = stop();
+    if (stop_err != ESP_OK) {
+        ESP_LOGE(
+            kTag,
+            "Upload reconfigure aborted: previous task did not stop within %" PRIu32 " ms",
+            kStopTimeoutMs);
+        return stop_err;
+    }
+
     std::vector<PreservedBackendState> preserved;
     lock();
     preserved.reserve(backends_.size());
@@ -92,15 +105,6 @@ esp_err_t UploadManager::applyConfig(const BackendConfigList& config) {
         });
     }
     unlock();
-
-    const esp_err_t stop_err = stop();
-    if (stop_err != ESP_OK) {
-        ESP_LOGE(
-            kTag,
-            "Upload reconfigure aborted: previous task did not stop within %" PRIu32 " ms",
-            kStopTimeoutMs);
-        return stop_err;
-    }
 
     std::vector<ManagedBackend> next_backends = buildManagedBackends(config);
     for (auto& backend : next_backends) {

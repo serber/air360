@@ -326,7 +326,7 @@ Sensor and backend configuration can be applied at runtime from the web UI. Both
 | `SensorManager` | `stop_requested_ = true` plus task notification | `lifecycle_events_` bit from `air360_sensor` exit path | 5 000 ms |
 | `UploadManager` | `stop_requested_ = true` plus task notification | `lifecycle_events_` bit from `air360_upload` exit path | 30 000 ms |
 
-`applyConfig()` first asks the existing task to stop and waits for the acknowledgement bit. If the task does not stop before the timeout, reconfiguration is aborted and the existing runtime objects are left untouched. This prevents replacing `sensors_`, backend uploaders, UART handles, or inflight upload windows while the old task may still be executing against them.
+`applyConfig()` first asks the existing task to stop and waits for the acknowledgement bit. If the task does not stop before the timeout, reconfiguration is aborted and the existing runtime objects are left untouched. This prevents replacing `sensors_`, backend uploaders, UART handles, or inflight upload windows while the old task may still be executing against them. `UploadManager::applyConfig()` snapshots each backend's `acknowledged_sample_id` (and warmup start) only after the stop is acknowledged, so a request that was still in flight and succeeded during the stop is reflected in the cursor carried over to the rebuilt backend and its window is not resent.
 
 The stop request wakes idle task waits immediately. It does not forcibly kill a task that is currently inside a driver call or HTTP request:
 
