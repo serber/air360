@@ -27,6 +27,7 @@ using web::FormFields;
 using web::findFormValue;
 using web::formHasKey;
 using web::inferredTransportKind;
+using web::parseFiniteFloat;
 using web::parseFormBody;
 using web::parseI2cAddress;
 using web::parseSignedLong;
@@ -73,14 +74,6 @@ std::string loadAir360UploadSecretPreview(
     return previewAir360UploadSecret(secret);
 }
 
-bool parseFloat(const std::string& input, float& value) {
-    if (input.empty()) {
-        return false;
-    }
-    char* end = nullptr;
-    value = std::strtof(input.c_str(), &end);
-    return end != nullptr && *end == '\0';
-}
 using web::logHttpHandlerWatermark;
 using web::readRequestBody;
 using web::renderBackendsPage;
@@ -492,10 +485,10 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                     findFormValue(fields, (std::string("lat_") + key).c_str());
                 const std::string lon_str =
                     findFormValue(fields, (std::string("lon_") + key).c_str());
-                if (!parseFloat(lat_str, lat) || lat < -90.0F || lat > 90.0F) {
+                if (!parseFiniteFloat(lat_str, lat) || lat < -90.0F || lat > 90.0F) {
                     return respond("Air360 latitude must be a number between -90 and 90.", true);
                 }
-                if (!parseFloat(lon_str, lon) || lon < -180.0F || lon > 180.0F) {
+                if (!parseFiniteFloat(lon_str, lon) || lon < -180.0F || lon > 180.0F) {
                     return respond("Air360 longitude must be a number between -180 and 180.", true);
                 }
                 record->latitude = lat;
@@ -504,8 +497,8 @@ esp_err_t WebServer::handleBackends(httpd_req_t* request) {
                 const std::string alt_str =
                     findFormValue(fields, (std::string("alt_") + key).c_str());
                 float alt = 0.0F;
-                if (!alt_str.empty() && !parseFloat(alt_str, alt)) {
-                    return respond("Air360 altitude must be a number.", true);
+                if (!alt_str.empty() && !parseFiniteFloat(alt_str, alt)) {
+                    return respond("Air360 altitude must be a finite number.", true);
                 }
                 record->altitude_m = alt;
 

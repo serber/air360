@@ -3,9 +3,17 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 
 namespace {
+
+void require(bool condition, const char* message) {
+    if (!condition) {
+        std::cerr << "FAIL: " << message << "\n";
+        std::exit(1);
+    }
+}
 
 void requireEqual(const std::string& actual, const std::string& expected, const char* message) {
     if (actual != expected) {
@@ -51,7 +59,23 @@ void testCustomPortsStayInUrls() {
 
 }  // namespace
 
+void testAir360LocationInvariant() {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float inf = std::numeric_limits<float>::infinity();
+    require(air360::isValidAir360Location(55.75F, 37.62F, 150.0F), "ordinary location valid");
+    require(air360::isValidAir360Location(-90.0F, -180.0F, 0.0F), "lower bounds valid");
+    require(air360::isValidAir360Location(90.0F, 180.0F, -10.0F), "upper bounds valid");
+    require(air360::isValidAir360Location(0.0F, 0.0F, 0.0F), "unset location is well-formed");
+    require(!air360::isValidAir360Location(nan, 0.0F, 0.0F), "nan latitude rejected");
+    require(!air360::isValidAir360Location(0.0F, inf, 0.0F), "inf longitude rejected");
+    require(!air360::isValidAir360Location(0.0F, 0.0F, -inf), "-inf altitude rejected");
+    require(!air360::isValidAir360Location(0.0F, 0.0F, nan), "nan altitude rejected");
+    require(!air360::isValidAir360Location(90.5F, 0.0F, 0.0F), "latitude above 90 rejected");
+    require(!air360::isValidAir360Location(0.0F, -180.5F, 0.0F), "longitude below -180 rejected");
+}
+
 int main() {
+    testAir360LocationInvariant();
     testDefaultPortsAreOmittedFromUrls();
     testCustomPortsStayInUrls();
     std::cout << "backend_config tests passed\n";

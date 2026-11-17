@@ -71,6 +71,25 @@ bool normalizeBackendConfigList(BackendConfigList& config) {
     return changed;
 }
 
+// A blob written before location validation existed may hold nan/inf or
+// out-of-range coordinates. Reset just that location to "not set" instead of
+// discarding the whole backend config as invalid.
+bool sanitizeAir360Location(BackendConfigList& config) {
+    bool changed = false;
+    const std::size_t count =
+        config.backend_count < config.backends.size() ? config.backend_count : config.backends.size();
+    for (std::size_t index = 0; index < count; ++index) {
+        BackendRecord& record = config.backends[index];
+        if (record.backend_type == BackendType::kAir360Api && !hasValidAir360Location(record)) {
+            record.latitude = 0.0F;
+            record.longitude = 0.0F;
+            record.altitude_m = 0.0F;
+            changed = true;
+        }
+    }
+    return changed;
+}
+
 void assignDefaultBackendConfigList(BackendConfigList& config) {
     config = BackendConfigList{};
     config.upload_interval_ms = kDefaultUploadIntervalMs;
@@ -100,6 +119,12 @@ bool BackendConfigRepository::isValid(const BackendConfigList& config) const {
     for (std::size_t index = 0; index < config.backend_count; ++index) {
         std::string error;
         if (!registry.validateRecord(config.backends[index], error)) {
+            return false;
+        }
+        // Checked regardless of enabled: a disabled record keeps its location
+        // and must not carry non-finite values into a later registration.
+        if (config.backends[index].backend_type == BackendType::kAir360Api &&
+            !hasValidAir360Location(config.backends[index])) {
             return false;
         }
 
@@ -146,10 +171,15 @@ esp_err_t BackendConfigRepository::loadOrCreate(
     if (blob_size == sizeof(BackendConfigList)) {
         out_config = BackendConfigList{};
         err = nvs_get_blob(handle, kConfigKey, &out_config, &blob_size);
+        const bool location_sanitized =
+            err == ESP_OK && sanitizeAir360Location(out_config);
+        if (location_sanitized) {
+            ESP_LOGW(kTag, "Stored Air360 location was not finite or out of range; cleared it");
+        }
         if (err == ESP_OK &&
             blob_size == sizeof(BackendConfigList) &&
             isValid(out_config)) {
-            if (normalizeBackendConfigList(out_config)) {
+            if (normalizeBackendConfigList(out_config) || location_sanitized) {
                 err = saveInternal(handle, out_config);
                 if (err != ESP_OK) {
                     nvs_close(handle);

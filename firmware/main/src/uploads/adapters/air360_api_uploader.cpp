@@ -218,6 +218,11 @@ UploadAttemptResult Air360ApiUploader::prepareSync(
         return result;
     }
 
+    if (!hasValidAir360Location(record)) {
+        result.result = UploadResultClass::kConfigError;
+        result.message = "Air360 location is invalid. Configure latitude and longitude in Backends.";
+        return result;
+    }
     if (record.latitude == 0.0F && record.longitude == 0.0F) {
         result.result = UploadResultClass::kConfigError;
         result.message = "Air360 location is not set. Configure latitude and longitude in Backends.";
