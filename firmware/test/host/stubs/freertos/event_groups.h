@@ -22,14 +22,14 @@ inline EventGroupHandle_t xEventGroupCreateStatic(StaticEventGroup_t* buffer) {
 }
 
 inline EventBits_t xEventGroupSetBits(EventGroupHandle_t group, EventBits_t bits) {
-    EventBits_t result = 0U;
-    {
-        std::lock_guard<std::mutex> guard(group->mutex);
-        group->bits |= bits;
-        result = group->bits;
-    }
+    // Notify while holding the mutex: a waiter that wakes may destroy the
+    // group's owner immediately (e.g. stop() returning and the manager going
+    // out of scope), so the setter must not touch the condition variable
+    // after releasing the lock. FreeRTOS sets bits atomically as well.
+    std::lock_guard<std::mutex> guard(group->mutex);
+    group->bits |= bits;
     group->cv.notify_all();
-    return result;
+    return group->bits;
 }
 
 inline EventBits_t xEventGroupClearBits(EventGroupHandle_t group, EventBits_t bits) {
