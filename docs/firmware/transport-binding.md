@@ -36,7 +36,7 @@ struct SensorDriverContext {
 };
 ```
 
-Drivers access hardware only through these pointers. Direct ESP-IDF I2C or UART calls are not made from driver code.
+Drivers access hardware only through these pointers. UART drivers are always installed through `UartPortManager`; component libraries (MH-Z19B, PMSX003) may then read and write the already-open port with ESP-IDF UART calls, but never install or delete the UART driver themselves.
 
 ---
 

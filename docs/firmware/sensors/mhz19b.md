@@ -26,7 +26,7 @@ Infrared CO2 sensor from Zhengzhou Winsen Electronics Technology. Communicates v
 
 - UART (9600 baud, 8N1)
 - Default binding: UART2, RX=`GPIO16`, TX=`GPIO15`; UART1 is selectable through the sensor descriptor
-- The `esp-idf-lib/mhz19b` component manages UART initialization internally; the driver calls `mhz19b_init()` directly and does not go through `UartPortManager`
+- The UART driver is owned by `UartPortManager`: the driver opens the port through `SensorDriverContext::uart_port_manager` and `SensorManager::stop()` deletes it. `mhz19b_init()` is not called because it installs the UART itself and `mhz19b_free()` never uninstalls it
 - Baud rate is fixed at 9600 by both the sensor and the component library
 
 ## Hardware
@@ -46,10 +46,11 @@ RXD         TX GPIO (default GPIO15)
 
 ## Initialization
 
-1. Call `mhz19b_init(&device_, uart_port, tx_gpio, rx_gpio)` — the library installs the UART driver on the given port.
-2. Set `initialized_ = true`.
+1. Open the configured port with `context.uart_port_manager->open(port, rx, tx, 9600)`. The call is idempotent for identical settings, so a re-init after a hard poll failure reuses the open port.
+2. Fill `mhz19b_dev_t` the way `mhz19b_init()` would (`uart_port`, `last_value = -1`, `last_ts = now`), but point `buf` at the driver-owned `rx_buffer_` (`MHZ19B_SERIAL_BUF_LEN` bytes) instead of a heap allocation.
+3. Set `initialized_ = true`.
 
-The driver ignores `SensorDriverContext` entirely; no I2C bus or port manager interaction occurs.
+`teardown()` only resets the device struct: there is no heap buffer to free and no UART to uninstall, so a teardown skipped after `initialized_` was cleared by three poll failures cannot leak anything. Replacing MH-Z19B with another UART sensor on the same port works because Apply stops the sensor task, which shuts down all `UartPortManager` ports before the new driver opens its port.
 
 ## Warmup
 

@@ -104,8 +104,8 @@ Reference drivers by transport type:
 | Transport | Reference |
 |-----------|-----------|
 | I2C | `bme280_sensor`, `ina219_sensor` |
-| UART (library-managed) | `mhz19b_sensor` |
-| UART (via UartPortManager) | `gps_nmea_sensor` |
+| UART (via UartPortManager) | `gps_nmea_sensor`, `sds011_sensor` |
+| UART (component protocol on a UartPortManager port) | `mhz19b_sensor`, `pmsx003_sensor` |
 | GPIO / 1-Wire | `dht_sensor`, `ds18b20_sensor` |
 | Analog / ADC | `me3_no2_sensor` |
 
@@ -120,8 +120,7 @@ Key rules:
 - **I2C**: resolve bus pins via `context.i2c_bus_manager->resolvePins()` in `init()`.
 - **I2C descriptor defaults**: after a third-party `*_init_desc()`, apply the shared electrical policy with `context.i2c_bus_manager->applyDescriptorDefaults(descriptor, kMySensorI2cSpeedHz)` instead of setting `clk_speed`/pull-up fields by hand. Drivers built on `setupDevice()` get it automatically.
 - **Teardown logging**: if a release call in `teardown()` returns `esp_err_t` (`*_free_desc()`, `i2c_dev_delete_mutex()`, component `*_delete()`), log a non-`ESP_OK` result with `ESP_LOGW` under the driver's `kTag` — do not discard it silently.
-- **UART via library**: call the library's `xxx_init()` directly — do not go through `UartPortManager` if the library manages UART internally (as with `mhz19b`).
-- **UART via UartPortManager**: call `context.uart_port_manager->open()` in `init()` and `close()` in `reset()`.
+- **UART**: always open the port with `context.uart_port_manager->open()` in `init()`; `UartPortManager` is the only owner of UART drivers and deletes them in `SensorManager::stop()`. There is no per-driver close. If a component library's `xxx_init()` installs the UART itself, do not call it — open the port through `UartPortManager` and initialize the component's device state directly (as `mhz19b_sensor` does), otherwise Apply/re-init fails on an already installed UART.
 - **Warmup / not-ready states**: return `ESP_OK` with `last_error_` set to a short message — do not return an error code. Do not store a measurement during warmup.
 - **Sentinel values**: if the device returns a known out-of-range sentinel on failure (e.g. MH-Z19B returns `5000` when not ready), detect and discard it — set `last_error_` and return `ESP_OK` without updating `measurement_`.
 - **On read error**: keep short glitches local to the driver. Increment a per-driver poll failure counter and set `initialized_ = false` only after `kSensorPollFailureReinitThreshold` consecutive poll failures so the manager can re-initialise with exponential backoff.
