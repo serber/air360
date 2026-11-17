@@ -219,8 +219,8 @@ Run the following checks before touching any doc:
 | All `.cpp` files | `ls firmware/main/src/` and `ls firmware/main/src/sensors/drivers/` |
 | All public headers | `ls firmware/main/include/air360/` |
 | All HTTP routes | `grep -n '\.uri\s*=' firmware/main/src/web_server.cpp` (handlers live in `firmware/main/src/web/*.cpp`) |
-| All NVS keys | `grep 'kConfigKey\|kNamespace\|nvs_set\|nvs_get' firmware/main/src/*.cpp` |
-| All NVS structs and their magic/schema | read `include/air360/config_repository.hpp`, `include/air360/cellular_config_repository.hpp`, `include/air360/sensors/sensor_config_repository.hpp`, `include/air360/uploads/backend_config_repository.hpp` |
+| All NVS namespaces and keys | Run `rg -n "nvs_[a-z0-9_]+" firmware/main/src` from the repository root, then resolve the namespace and key constants in each matching repository or transaction helper. |
+| Persisted layouts and validation | Follow each NVS read and write to its struct definition and validator, including the combined device/cellular blob in `config_transaction.cpp`, the openSenseMap mapping table and the separate Air360 credential string. |
 | All `SensorType` enum values | read `include/air360/sensors/sensor_types.hpp` |
 | All Kconfig constants used as defaults | read `main/Kconfig.projbuild` and grep `CONFIG_AIR360_` in `src/sensors/sensor_registry.cpp` |
 | Sensor category membership | grep `kParticulateMatter\|kClimate\|kLight\|kGas\|kLocation` in `web_server.cpp` |

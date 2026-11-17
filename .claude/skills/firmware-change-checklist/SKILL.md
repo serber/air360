@@ -44,9 +44,9 @@ Use this skill when the user asks to:
 bash .claude/skills/esp-idf-cpp-developer/scripts/validate.sh   # build + style + docs + host tests
 ```
 
-or the individual pieces: canonical build from `firmware/`, `python3 scripts/check_style.py`
-(from `firmware/`), `python3 scripts/check_firmware_docs.py`,
-`python3 scripts/check_firmware_host_tests.py`. Add the hardware checks the change
+For individual checks, run the canonical build from `firmware/`. From the repository
+root run `python3 scripts/check_style.py`, `python3 scripts/check_firmware_docs.py`,
+and `python3 scripts/check_firmware_host_tests.py`. Add the hardware checks the change
 needs (serial log lines to look for, web pages to open, behaviours to provoke).
 
 ## Output shape

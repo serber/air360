@@ -54,7 +54,7 @@ struct BackendRecord {
     float longitude  = 0.0F;
     float altitude_m = 0.0F;
 
-    // ── OpenSenseMap-specific (schema v2) ────────────────
+    // ── OpenSenseMap-specific ────────────────────────────
     char opensensemap_sensebox_id[kBackendSenseBoxIdCapacity]{};
     char opensensemap_access_token[kBackendAccessTokenCapacity]{};
 };

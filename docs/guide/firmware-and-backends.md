@@ -8,7 +8,7 @@ sent. For the physical build, see [Hardware Assembly](assembly.md).
 
 ## Flashing the device
 
-The easiest way to start is to flash the ready-made merged `full.bin` image with
+The easiest way to start is to flash the ready-made merged `*-full.bin` image with
 the browser-based ESP Flash tool. After first boot, the device starts a Wi-Fi
 setup access point.
 
@@ -17,10 +17,10 @@ setup access point.
 
 ### Steps
 
-1. **Download `full.bin`** — open Air360 releases and download the current
-   `full.bin`. This is the complete merged image for first-time flashing.
+1. **Download `*-full.bin`** — open Air360 releases and download the current
+   `*-full.bin`. This is the complete merged image for first-time flashing.
 2. **Flash via USB** — open [espflash.app](https://espflash.app/), connect the
-   ESP32-S3 by USB, select the serial port and the `full.bin` file, then start
+   ESP32-S3 by USB, select the serial port and the `*-full.bin` file, then start
    flashing. Wait for the process to finish.
 3. **First boot — setup AP** — the device reboots. The LED turns **pink** — it
    is in setup AP mode. Connect your phone or laptop to the `air360` Wi-Fi
@@ -71,8 +71,9 @@ does not look right.
 
 Network and device settings: Wi-Fi credentials, device name, static IP, cellular
 modem (APN, modem type, credentials), BLE advertising, and Wi-Fi power save. The
-firmware update card at the bottom of this page lets you upload a new `.bin` file
-directly from the browser without USB access.
+firmware update card accepts the application image. Download the release asset
+ending in `-ota.bin` and select it in the card. The merged `*-full.bin` image
+is for USB flashing.
 
 ![Device page in the Air360 firmware web interface](../firmware/images/firmware_device.png)
 

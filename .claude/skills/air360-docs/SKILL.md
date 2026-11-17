@@ -1,6 +1,6 @@
 ---
 name: air360-docs
-description: "Use this skill when the task is to create, update, audit, or improve repository-level documentation for the Air360 project: the root README.md, docs/README.md, the per-area docs indexes (docs/firmware, docs/backend, docs/portal, docs/guide, docs/hardware), onboarding and navigation docs, and explanations of how docs/ relates to the firmware/, backend/, and portal/ implementations. Do not use for firmware implementation docs (air360-firmware-docs) or for code changes."
+description: "Use this skill when the task is to create, update, audit, or improve repository-level documentation for the Air360 project: the root README.md, docs/README.md, the per-area docs indexes (docs/firmware, docs/backend, docs/portal, docs/guide), onboarding and navigation docs, and explanations of how docs/ relates to the firmware/, backend/, and portal/ implementations. Do not use for firmware implementation docs (air360-firmware-docs) or for code changes."
 ---
 
 # Air360 Repository Documentation Skill
@@ -46,7 +46,7 @@ Air360 is a multi-application repository:
 | `docs/guide/` | End-user build guide: assembly, flashing, web UI, backends, monitoring, troubleshooting | Must follow firmware behaviour |
 | `docs/hardware/` | Shield photos, Gerbers, solar module photos | Reference assets |
 
-Each area has its own `README.md` index. `docs/README.md` is the top-level index and
+Firmware, backend, portal and the build guide each have a `README.md`. The hardware directory contains reference assets. `docs/README.md` is the top-level index and
 lists the agent entry points. The root `README.md` is the public front page.
 
 ---
@@ -57,7 +57,7 @@ Always read, in this order:
 
 1. `README.md` (root) — current public structure; preserve its section shape.
 2. `docs/README.md` — area table, agent entry points, source-of-truth hierarchy.
-3. `docs/<area>/README.md` for every area the task touches.
+3. The relevant area indexes and any hardware assets referenced by the guide.
 4. `CLAUDE.md`, `firmware/CLAUDE.md`, `backend/CLAUDE.md`, `portal/CLAUDE.md` — the
    agent contracts must stay consistent with whatever navigation you write.
 5. The root `CLAUDE.md` skills table when a skill is added, renamed, or rescoped.

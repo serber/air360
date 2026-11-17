@@ -160,7 +160,7 @@ Headers: `main/include/air360/uploads/`
 Sources: `main/src/uploads/`
 
 - `measurement_store.cpp` — in-memory ring buffer (max `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH`, default 256 samples) with pending/inflight upload semantics
-- `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 5 backends, schema v1→v2 migration)
+- `backend_config_repository.cpp` — NVS-backed `BackendConfigList` persistence (up to 5 backends, defaults on incompatible layout)
 - `air360_api_credentials.cpp` — separate NVS-backed Air360 API upload secret storage and hash/generation helpers
 - `opensensemap_mapping_repository.cpp` — separate NVS-backed openSenseMap reading→sensor-ID mapping table (`osem_map` blob)
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type

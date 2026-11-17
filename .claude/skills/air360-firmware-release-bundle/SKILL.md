@@ -29,7 +29,7 @@ If the build or the bundle fails, a tag created by this run is deleted again, so
 ## When the user asks for a release
 
 1. Confirm the target version with the user if it is not explicit (look at `git tag -l --sort=-v:refname | head` for the last one). Stable tags look like `v1.4`; betas like `v1.5-beta.1`.
-2. Make sure the release PR is merged and the user is on `main` with the merged commit pulled. The script enforces this, so do not try to release from `development`.
+2. For a release from a merged PR, verify the PR was merged, fetch `origin`, and confirm local `main` points to the intended published commit before running the script. Preflight rejects a branch behind its available upstream ref but permits a local branch ahead of it. PR merge status is a separate check.
 3. Run the command above from the repo root. Let the build stream; it takes a few minutes.
 4. Open `firmware/release/air360-<version>/release-notes.md`, check the highlights, and add testing notes or sign-off by hand.
 5. Report the bundle path and the remaining manual steps printed under `==> Done` (push if `--push` was not used, then create the GitHub release and upload the assets). Do not push or create the GitHub release unless the user asked for it.
@@ -45,7 +45,7 @@ If the build or the bundle fails, a tag created by this run is deleted again, so
 | `--skip-build` | `firmware/build` was already built on this exact tag and only packaging is needed. The version check still applies. |
 | `--any-branch` | A hotfix or experiment must be tagged from a branch other than `main`. Say so explicitly in the report. |
 | `--branch NAME` | The release branch is not `main`. |
-| `--no-fetch` | Offline; skips `git fetch` and the behind/ahead check against origin. |
+| `--no-fetch` | Offline; compares against the locally cached upstream ref when available. |
 | `--idf-export PATH` | ESP-IDF lives elsewhere (also `AIR360_IDF_EXPORT`). |
 
 ## Packaging only

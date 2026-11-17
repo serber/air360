@@ -20,8 +20,7 @@ Deploy the Fastify-based Air360 API backend with:
 - `ufw` as the host firewall
 - `Node.js` LTS for the application runtime
 
-For the current backend scaffold, no database is required yet.
-When backend persistence is added, `PostgreSQL` and `TimescaleDB` are the intended data layer.
+The API uses PostgreSQL with the TimescaleDB extension for measurement storage.
 
 ## Recommended Host Shape
 
@@ -36,7 +35,7 @@ Recommended network model:
 
 - `nginx` listens on ports `80` and `443`
 - the Fastify app listens only on `127.0.0.1:3000`
-- PostgreSQL, if added later, should also stay private to the host or private network
+- PostgreSQL should stay private to the host or private network
 
 ## Why This Shape
 
@@ -78,7 +77,7 @@ Use the official Linux binary for the active LTS branch:
 
 ```bash
 cd /tmp
-curl -fsSLO https://nodejs.org/dist/latest-v24.x/node-v24.14.1-linux-x64.tar.xz
+curl -fsSLO https://nodejs.org/dist/v24.14.1/node-v24.14.1-linux-x64.tar.xz
 sudo mkdir -p /opt/node
 sudo tar -xJf node-v24.14.1-linux-x64.tar.xz -C /opt/node
 sudo ln -sf /opt/node/node-v24.14.1-linux-x64/bin/node /usr/local/bin/node
@@ -92,16 +91,16 @@ Before installing, re-check the current active LTS branch on the official Node.j
 
 ## Service User And Directory Layout
 
-Create a dedicated system user and deployment directory:
+Create the service account once per host. Both Air360 services can use it.
 
 ```bash
-sudo adduser --system --group --home /opt/air360 air360
-sudo mkdir -p /opt/air360/backend
-sudo chown -R air360:air360 /opt/air360
+id air360 >/dev/null 2>&1 || sudo adduser --system --group --home /opt/air360 air360
+sudo install -d -o air360 -g air360 /opt/air360
 ```
 
 Suggested layout:
 
+- `/opt/air360/backend-src` for the backend deployment checkout
 - `/opt/air360/backend` for the backend source and build output
 - `/etc/air360-backend.env` for environment variables
 - `/etc/systemd/system/air360-backend.service` for the service unit
@@ -115,16 +114,11 @@ Ready-to-copy examples for this guide are stored in `docs/backend/`:
 
 ## Deploy The Backend Code
 
-Clone the backend repository as the service user:
+On a new host, clone the monorepo and link the application's subdirectory to the path used by the service and deployment scripts:
 
 ```bash
-sudo -u air360 git clone <your-repo-url> /opt/air360/backend
-```
-
-If the repository was cloned or unpacked as `root`, fix ownership before installing dependencies:
-
-```bash
-sudo chown -R air360:air360 /opt/air360/backend
+sudo -u air360 git clone https://github.com/serber/air360.git /opt/air360/backend-src
+sudo -u air360 ln -sT /opt/air360/backend-src/backend /opt/air360/backend
 ```
 
 Install dependencies and build:
@@ -135,14 +129,27 @@ sudo -u air360 npm ci
 sudo -u air360 npm run build
 ```
 
+## Database
+
+Install PostgreSQL 18 and the TimescaleDB extension, enable `timescaledb` in `shared_preload_libraries` and restart PostgreSQL. Follow the Ubuntu steps in the [TimescaleDB installation guide](https://www.tigerdata.com/docs/get-started/choose-your-path/install-timescaledb).
+
+On first deployment, create the database role and choose its password at the prompt. Create the database and enable the extension as its administrator:
+
+```bash
+sudo -u postgres createuser --pwprompt air360
+sudo -u postgres createdb --owner=air360 air360_db
+sudo -u postgres psql --dbname=air360_db --set=ON_ERROR_STOP=1 --command='CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE'
+```
+
 ## Environment File
 
-Create `/etc/air360-backend.env`:
+Create `/etc/air360-backend.env`. Replace `PASSWORD` with the URI-encoded password for the database role:
 
 ```dotenv
 HOST=127.0.0.1
 PORT=3000
 LOG_LEVEL=info
+DATABASE_URL=postgresql://air360:PASSWORD@127.0.0.1:5432/air360_db
 # nginx on the same host forwards client addresses; keep true behind the proxy.
 TRUST_PROXY=true
 ```
@@ -154,7 +161,14 @@ sudo chown root:air360 /etc/air360-backend.env
 sudo chmod 640 /etc/air360-backend.env
 ```
 
-Later, this file can also contain database connection settings and API secrets.
+Apply the schema before starting the service. Run the migration as the service user with the same environment file systemd uses:
+
+```bash
+cd /opt/air360/backend
+sudo -u air360 node --env-file=/etc/air360-backend.env --import tsx scripts/migrate.ts
+```
+
+The runner records applied migrations. Repeat this command after installing dependencies when an update adds migrations.
 
 ## systemd Service
 
@@ -265,43 +279,7 @@ curl -i https://api.air360.ru/
 ss -ltnp
 ```
 
-## Database
-
-The backend requires PostgreSQL 18 with the TimescaleDB extension.
-
-### Installation
-
-```bash
-# Add TimescaleDB repository
-sudo apt install -y gnupg apt-transport-https lsb-release wget
-echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main" \
-  | sudo tee /etc/apt/sources.list.d/timescaledb.list
-wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo apt-key add -
-sudo apt update
-
-# Install TimescaleDB for PostgreSQL 18
-sudo apt install -y postgresql-18-timescaledb
-
-# Enable shared_preload_libraries in postgresql.conf
-sudo nano /etc/postgresql/18/main/postgresql.conf
-# Add or update: shared_preload_libraries = 'timescaledb'
-
-sudo systemctl restart postgresql
-```
-
-### First-time setup
-
-Create the database and user, then run migrations:
-
-```bash
-sudo -u postgres psql -c "CREATE USER air360 WITH PASSWORD 'yourpassword';"
-sudo -u postgres psql -c "CREATE DATABASE air360_db OWNER air360;"
-DATABASE_URL="postgres://air360:yourpassword@localhost/air360_db" npm run migrate
-```
-
-Migrations enable the TimescaleDB extension and convert the `measurements` table to a hypertable partitioned by `sampled_at` (7-day chunks).
-
-### Data retention
+## Data retention
 
 To drop chunks older than 30 days (run via cron or manually):
 
@@ -315,7 +293,7 @@ psql "$DATABASE_URL" -c "SELECT drop_chunks('measurements', INTERVAL '30 days');
 - do not store secrets in the repository
 - keep the backend running as the dedicated `air360` user
 - renew system packages regularly
-- back up the environment file and future database state
+- back up the environment file and database
 - if upload sizes grow later, revisit `client_max_body_size` and Fastify body limits
 
 ## Update Flow
@@ -338,8 +316,8 @@ To standardize the same flow, use the release deployment script from this reposi
 Example usage on the server:
 
 ```bash
-sudo bash air360-backend-release-deploy.sh main
-sudo bash air360-backend-release-deploy.sh v0.1.0
+sudo bash /opt/air360/backend-src/docs/backend/air360-backend-release-deploy.sh main
+sudo bash /opt/air360/backend-src/docs/backend/air360-backend-release-deploy.sh v0.1.0
 ```
 
 The script performs these steps:

@@ -22,7 +22,7 @@ Building the physical device.
 
 Getting the device online and sending data.
 
-- [Flashing the device](firmware-and-backends.md#flashing-the-device) — flash `full.bin`, first boot, setup Wi-Fi
+- [Flashing the device](firmware-and-backends.md#flashing-the-device) — flash `*-full.bin`, first boot, setup Wi-Fi
 - [Device web interface](firmware-and-backends.md#device-web-interface) — Overview, Device, Sensors, Backends
 - [Where your measurements go](firmware-and-backends.md#where-your-measurements-go) — Air360, Sensor.Community, openSenseMap, InfluxDB, Custom Upload
 - [Sensor.Community compatibility](firmware-and-backends.md#sensorcommunity-compatibility) — per-sensor value support

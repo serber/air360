@@ -16,6 +16,8 @@ This is the **binary-layout** view of persisted config. For field-level semantic
 - `firmware/main/src/config_transaction.cpp`
 - `firmware/main/src/sensors/sensor_config_repository.cpp`
 - `firmware/main/src/uploads/backend_config_repository.cpp`
+- `firmware/main/src/uploads/opensensemap_mapping_repository.cpp`
+- `firmware/main/src/uploads/air360_api_credentials.cpp`
 - `firmware/main/src/cellular_config_repository.cpp`
 
 ## Read next
@@ -24,9 +26,9 @@ This is the **binary-layout** view of persisted config. For field-level semantic
 - [startup-pipeline.md](startup-pipeline.md)
 - [cellular-manager.md](cellular-manager.md)
 
-The firmware uses a single NVS namespace `"air360"` for all persistent state. There are five keys stored under that namespace.
-
 ## Namespace and keys
+
+The table lists configuration and boot accounting in the `air360` namespace. The separate `air360_cred` namespace holds the `air360_us` upload secret.
 
 | Key | NVS type | Stored structure | Written by |
 |-----|----------|-----------------|------------|
@@ -42,7 +44,7 @@ The firmware uses a single NVS namespace `"air360"` for all persistent state. Th
 
 ## Blob guard fields
 
-All blob structs share the same integrity guard pattern at the start of the struct:
+The device, cellular, sensor and backend configuration blobs start with these guard fields:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -57,7 +59,7 @@ On load, all three fields are validated. For legacy individual blobs, a mismatch
 | `DeviceConfig` | `0x41333630` ("A360") | 1 |
 | `CellularConfig` | `0x43454C4C` ("CELL") | 1 |
 | `SensorConfigList` | `0x41333631` ("A361") | 1 |
-| `BackendConfigList` | `0x41333632` ("A362") | 2 |
+| `BackendConfigList` | `0x41333632` ("A362") | 1 |
 
 Each boot records the observed load path for every repository in the status JSON under `config.<repository>`. Current sources are `nvs_primary`, `nvs_backup`, and `defaults`; the present implementation uses `nvs_primary` or `defaults` and leaves the backup counter at zero until backup storage is implemented. `wrote_defaults` distinguishes a successful default write from an in-memory fallback after an NVS error.
 
@@ -269,7 +271,7 @@ Upload backend configuration. Holds up to `kMaxConfiguredBackends` (5) backend r
 ```cpp
 struct BackendConfigList {
     uint32_t magic;              // 0x41333632
-    uint16_t schema_version;     // 2
+    uint16_t schema_version;     // 1
     uint16_t record_size;        // sizeof(BackendRecord)
     uint16_t backend_count;
     uint16_t reserved0;
@@ -292,12 +294,12 @@ struct BackendRecord {
     BackendProtocol protocol;           // uint8_t enum
     uint8_t     reserved1;
     BackendAuthConfig auth;             // auth type + Basic Auth credentials
-    char        measurement_name[32];   // InfluxDB only
+    char        influxdb_measurement[32];   // InfluxDB only
     float       latitude;               // Air360 API only
     float       longitude;             // Air360 API only
     float       altitude_m;            // Air360 API only; 0.0 = not set
-    char        opensensemap_sensebox_id[32];  // openSenseMap only (schema v2)
-    char        opensensemap_access_token[72]; // openSenseMap only (schema v2)
+    char        opensensemap_sensebox_id[32];  // openSenseMap only
+    char        opensensemap_access_token[72]; // openSenseMap only
 };
 ```
 
@@ -322,11 +324,11 @@ struct BackendRecord {
 | InfluxDB | `""` | `""` | `443` | `1` with default measurement `air360` |
 | openSenseMap | `api.opensensemap.org` | `/boxes/{sensebox_id}/data` | `443` | `1` |
 
-HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` and `InfluxDB` expose editable host/path; `InfluxDB` also stores `measurement_name`. `openSenseMap` stores host/path too, but they are written from a `Platform` dropdown (classic vs next-gen) rather than typed, plus `opensensemap_sensebox_id` and `opensensemap_access_token`. The per-reading openSenseMap sensor-ID mapping is stored in the separate `osem_map` blob, not in `BackendRecord`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
+HTTP backends store host, path, port, and `use_https` separately. `Custom Upload` and `InfluxDB` expose editable host/path; `InfluxDB` also stores `influxdb_measurement`. `openSenseMap` stores host/path too, but they are written from a `Platform` dropdown (classic vs next-gen) rather than typed, plus `opensensemap_sensebox_id` and `opensensemap_access_token`. The per-reading openSenseMap sensor-ID mapping is stored in the separate `osem_map` blob, not in `BackendRecord`. When the web UI saves an empty port field, the stored port becomes the selected protocol default. Generated URLs omit `:443` for HTTPS and `:80` for HTTP.
 
-### Schema v1 → v2 migration
+### Loading an existing backend configuration
 
-Schema v2 grew the record array from 4 to 5 entries and appended the two openSenseMap fields to `BackendRecord`. `BackendConfigRepository::loadOrCreate()` migrates a stored v1 blob in place: it validates the v1 header (`magic`, `schema_version == 1`, stored `record_size` no larger than the current record, blob size equal to the v1 layout), copies each stored record's `record_size` bytes into a zero-initialised v2 record, appends the default openSenseMap record, and saves the result back as v2. Existing backend settings survive the upgrade; only an unrecognisable blob is replaced with defaults.
+The current schema version is 1. The loader reads a blob of exactly `sizeof(BackendConfigList)` and validates its header and records. An incompatible size or schema causes the firmware to write the default backend configuration. An upgrade that changes the stored layout can therefore clear configured upload destinations.
 
 ---
 
@@ -394,36 +396,21 @@ Incremented on every boot via `nvs_get_u32` / `nvs_set_u32`. If the key does not
 
 ## Validation and reset behavior
 
-All three blob repositories follow the same load pattern:
+When the device or cellular repository finds `network_cfg`, it loads the pair together. An invalid combined blob causes an in-memory fallback for both domains. If the combined key is absent, the individual repositories use their legacy keys. The next Device Configuration save writes the pair.
 
-1. Open namespace `"air360"` in `NVS_READWRITE` mode.
-2. Query blob size with a `nullptr` buffer call.
-3. If key not found (`ESP_ERR_NVS_NOT_FOUND`): write defaults, return.
-4. If stored blob size differs from `sizeof` of the struct: write defaults, return.
-5. Read the blob into a local struct.
-6. Validate magic, schema version, and record size.
-7. If any field mismatches: write defaults, return.
-8. Return the loaded struct.
-
-The only incremental migration is the `backend_cfg` schema v1 → v2 path described above. `sensor_cfg` also drops records whose `sensor_type` is retired (currently `8`, ME3-NO2) before validation and saves the cleaned list back. Without that step, one retired sensor would fail validation and reset every configured sensor to defaults. Any other structural change to a stored struct (new field, renamed field, changed size) causes the stored value to be silently replaced with compiled-in defaults on the next boot.
+The individual device, cellular, sensor and backend repositories write defaults for missing or incompatible blobs. For a compatible sensor list, the sensor repository removes retired sensor types (currently type 8, ME3-NO2) before validating and saving the remaining entries.
 
 ---
 
 ## Clearing NVS
 
-To reset all configuration to defaults, erase the NVS partition:
+To reset persistent settings, connect the station over USB and activate the ESP-IDF environment. Set `PORT` to its serial port. This command reads the device partition table and erases the partition named `nvs`:
 
 ```bash
-idf.py erase-flash
+python "$IDF_PATH/components/partition_table/parttool.py" --port "${PORT:?Set PORT to the station serial port}" erase_partition --partition-name nvs
 ```
 
-Or erase only the NVS partition using `esptool.py`:
-
-```bash
-esptool.py --port <PORT> erase_region 0x9000 0x6000
-```
-
-On next boot the firmware writes fresh defaults for all three blobs and resets the boot counter.
+On reboot the station loads defaults and starts the boot counter at 1. Erasing NVS also removes Wi-Fi credentials, sensor and backend settings, and the Air360 upload secret. To resume uploads to an existing Air360 device registration, confirm you have the original secret saved before erasing and re-enter it afterwards. See [Air360 backend setup](../guide/backends.md).
 
 ---
 
