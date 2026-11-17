@@ -49,15 +49,15 @@ firmware/
 │   │   └── uploads/                Backend config, transport, measurement store, uploaders
 │   ├── src/                        Implementation files
 │   │   ├── sensors/
-│   │   │   ├── drivers/            13 concrete sensor driver implementations
+│   │   │   ├── drivers/            22 sensor drivers + the Sensirion I2C HAL
 │   │   │   ├── sensor_manager.cpp
 │   │   │   ├── sensor_registry.cpp
 │   │   │   ├── sensor_config_repository.cpp
 │   │   │   ├── sensor_config_store.cpp
 │   │   │   └── transport_binding.cpp
 │   │   └── uploads/
-│   │       ├── adapters/           air360_api_uploader.cpp, sensor_community_uploader.cpp
-│   │       ├── upload_manager.cpp
+│   │       ├── adapters/           Air360 API, Sensor.Community, openSenseMap, InfluxDB, Custom Upload
+│   │       ├── upload_manager*.cpp  task, config build, status snapshots
 │   │       ├── upload_transport.cpp
 │   │       ├── measurement_store.cpp
 │   │       ├── air360_api_credentials.cpp
@@ -139,8 +139,10 @@ After startup the firmware runs several concurrent execution contexts:
 | BLE advertising | `air360_ble` | FreeRTOS task | 4096 B | 3 |
 | NimBLE host | `nimble_host` | FreeRTOS task (NimBLE) | — | — |
 | HTTP server | `httpd` | FreeRTOS task (ESP-IDF httpd) | 16 384 B | 5 |
+| Deferred reboot after a config save | `air360_reboot` | one-shot task, 400 ms delay then `esp_restart()` | 2048 B | idle + 1 |
+| Deferred reboot after an OTA commit | `air360_ota_reboot` | one-shot task, 1.5 s delay then `esp_restart()` | 2048 B | 1 |
 
-The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `CONFIG_AIR360_BLE_SUPPORT=y` and `DeviceConfig.ble_advertise_enabled = 1`. The httpd task is the sole HTTP request handler — all concurrent connections are multiplexed on this single task (no thread pool). `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y` enables a per-task stack canary; `vApplicationStackOverflowHook` in `app_main.cpp` logs the overflowing task name and reboots.
+The cellular task is spawned only when `CellularConfig.enabled = 1`. The BLE task and NimBLE host task are spawned only when `DeviceConfig.ble_advertise_enabled = 1` (BLE support is always compiled in). The httpd task is the sole HTTP request handler — all concurrent connections are multiplexed on this single task (no thread pool). `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y` enables a per-task stack canary; `vApplicationStackOverflowHook` in `app_main.cpp` logs the overflowing task name and reboots.
 
 BLE advertising reserves 26 bytes for BTHome service data after the flags and AD header. Measurements are packed first; the local name uses remaining space and is marked shortened when truncated, or omitted when no name fits.
 
@@ -452,30 +454,9 @@ Each sensor's warmup window is anchored at its own `eligible_since_ms`, not at t
 
 ### Sensor drivers — `sensors/drivers/`
 
-Each driver wraps an ESP-IDF managed component or vendored library and implements a common `ISensorDriver` interface. Drivers are owned exclusively by `SensorManager`; they retain their component handles between successful polls and only force re-init after 3 consecutive poll failures.
+Each driver wraps an ESP-IDF managed component, a vendored library, or an Air360 register/UART parser and implements the common `SensorDriver` interface. Drivers are owned exclusively by `SensorManager`; they retain their component handles between successful polls and only force re-init after 3 consecutive poll failures. UART drivers always open their port through `UartPortManager`.
 
-| Driver file | Sensor | Managed component |
-|-------------|--------|-------------------|
-| `bme280_sensor.cpp` | BME280 | `esp-idf-lib__bmp280` |
-| `bme680_sensor.cpp` | BME680 | `esp-idf-lib__bme680` |
-| `bmp390_sensor.cpp` | BMP390 | `k0i05__esp_bmp390` |
-| `sps30_sensor.cpp` | SPS30 | `third_party/sps30` (vendored) |
-| `sds011_sensor.cpp` | SDS011 | Air360 UART parser |
-| `pmsx003_sensor.cpp` | PMSX003 | `petrovgp__esp-pms` |
-| `scd30_sensor.cpp` | SCD30 | `esp-idf-lib__scd30` |
-| `scd4x_sensor.cpp` | SCD40, SCD41 | `esp-idf-lib__scd4x` |
-| `veml7700_sensor.cpp` | VEML7700 | `esp-idf-lib__veml7700` |
-| `opt3001_sensor.cpp` | OPT3001 | Air360 I2C register driver |
-| `htu2x_sensor.cpp` | HTU2X (Si7021) | `esp-idf-lib__si7021` |
-| `sht3x_sensor.cpp` | SHT3X | `esp-idf-lib__sht3x` |
-| `sht4x_sensor.cpp` | SHT4X | `esp-idf-lib__sht4x` |
-| `gps_nmea_sensor.cpp` | GPS NMEA | `cinderblocks__esp_tinygpsplusplus` |
-| `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` |
-| `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` |
-| `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
-| `sensirion_i2c_hal.cpp` | Sensirion HAL | (I2C HAL for SPS30) |
-
-GPS reports: latitude, longitude, altitude, satellites, speed, course, HDOP — through the generic `measurements` value array.
+The driver → library table lives in [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md#sensor-subsystem); per-sensor behaviour is in [sensors/README.md](sensors/README.md).
 
 ---
 
@@ -758,42 +739,11 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 
 ### Compile-time (`Kconfig.projbuild` / `sdkconfig.defaults`)
 
-| Option | Default | Meaning |
-|--------|---------|---------|
-| `CONFIG_AIR360_BOARD_NAME` | `esp32-s3-devkitc-1` | Board label in status |
-| `CONFIG_AIR360_DEVICE_NAME` | `air360` | Default device name |
-| `CONFIG_AIR360_HTTP_PORT` | 80 | Web server port |
-| `CONFIG_AIR360_I2C0_SDA_GPIO` | 8 | I2C bus 0 SDA |
-| `CONFIG_AIR360_I2C0_SCL_GPIO` | 9 | I2C bus 0 SCL |
-| `CONFIG_AIR360_GPS_DEFAULT_BAUD_RATE` | 9600 | GPS baud |
-| `CONFIG_AIR360_ENABLE_LAB_AP` | y | Lab AP default on |
-| `CONFIG_AIR360_LAB_AP_SSID` | `air360` | Lab AP SSID |
-| `CONFIG_AIR360_LAB_AP_PASSWORD` | `air360password` | Lab AP password |
-| `CONFIG_AIR360_LAB_AP_CHANNEL` | 1 | AP Wi-Fi channel |
-| `CONFIG_AIR360_LAB_AP_MAX_CONNECTIONS` | 4 | AP max stations |
-| `CONFIG_AIR360_CELLULAR_DEFAULT_UART` | 1 | Modem UART port |
-| `CONFIG_AIR360_CELLULAR_DEFAULT_RX_GPIO` | 18 | Modem RX GPIO |
-| `CONFIG_AIR360_CELLULAR_DEFAULT_TX_GPIO` | 17 | Modem TX GPIO |
-| `CONFIG_AIR360_CELLULAR_DEFAULT_PWRKEY_GPIO` | 12 | Modem PWRKEY GPIO |
-| `CONFIG_AIR360_CELLULAR_DEFAULT_SLEEP_GPIO` | 21 | Modem SLEEP/DTR GPIO |
-| `CONFIG_AIR360_CELLULAR_WIFI_DEBUG_WINDOW_S` | 600 | Wi-Fi stays up N s after PPP connects |
-
-AP channel and max connections remain compile-time constants. All other options become defaults in the first persisted `DeviceConfig`.
+`CONFIG_AIR360_*` options provide build-time defaults (board label, device name, HTTP port, I2C pins, setup-AP credentials, cellular pins, Wi-Fi reconnect timing, queue depth, …). Most of them only seed the first persisted `DeviceConfig` / `CellularConfig`; AP channel and max connections stay compile-time. The full option table is in [configuration-reference.md](configuration-reference.md#compile-time-defaults-sdkconfigdefaults).
 
 ### Runtime (NVS)
 
-Four independent NVS blobs under namespace `air360`:
-
-| Key | Structure | Description |
-|-----|-----------|-------------|
-| `network_cfg` | DeviceConfig + CellularConfig | Atomic device/cellular settings |
-| `device_cfg` (legacy) | `DeviceConfig` | Device name, Wi-Fi creds, SNTP, static IP, HTTP port |
-| `cellular_cfg` (legacy) | `CellularConfig` | Modem UART/GPIO, carrier APN, credentials |
-| `sensor_cfg` | `SensorConfigList` (up to 8 entries) | Sensor inventory |
-| `backend_cfg` | `BackendConfigList` (up to 4 entries) | Backend targets and upload interval |
-| `boot_count` | `uint32_t` | Incremented on every boot |
-
-Schema version and magic number guard each blob. Any mismatch triggers replacement with defaults; there is no migration.
+Persisted configuration lives in the `air360` NVS namespace (`network_cfg` = device + cellular config written atomically, legacy `device_cfg` / `cellular_cfg`, `sensor_cfg`, `backend_cfg`, `osem_map`, `boot_count`) plus the Air360 upload secret in `air360_cred`. Each blob is guarded by magic, schema version and size; invalid blobs fall back to defaults, and the documented migrations (legacy device/cellular keys → `network_cfg`, backend schema v1 → v2) run on load. Keys, structs and migration rules: [nvs.md](nvs.md).
 
 ---
 
@@ -886,27 +836,14 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 
 ### Log tags
 
-| Tag | Module |
-|-----|--------|
-| `air360.app` | Boot sequence |
-| `air360.config` | ConfigRepository |
-| `air360.net` | NetworkManager, SNTP |
-| `air360.sensor` | SensorManager, polling |
-| `air360.sensor_cfg` | SensorConfigRepository |
-| `air360.transport` | I2cBusManager, UartPortManager |
-| `air360.upload` | UploadManager |
-| `air360.http` | UploadTransport |
-| `air360.backend_cfg` | BackendConfigRepository |
-| `air360.web` | WebServer |
-| `air360.ble` | BleAdvertiser |
-| `air360.ota` | OtaService |
+Every translation unit uses a `kTag` of the form `air360.<subsystem>` (sensor drivers: `air360.sensor.<driver>`). The registry of tags in use is maintained in [`firmware/CLAUDE.md`](../../firmware/CLAUDE.md#log-tags) and enforced by `scripts/check_style.py`.
 
 ### Error handling patterns
 
 **NVS config:**
 - Magic or schema version mismatch → replace with defaults, log WARNING
 - Blob size mismatch → replace with defaults, log WARNING
-- NVS init failure → `ESP_ERROR_CHECK` (fatal panic)
+- NVS init failure → erase and retry once; if it still fails, the boot is fatal: red LED, `runFailedBootLoop()` (which first rolls back an unverified OTA image)
 
 **Network:**
 - Station join timeout → switch to Lab AP mode
@@ -931,16 +868,15 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | Constant | Value | Location |
 |----------|-------|----------|
 | Max configured sensors | 8 | `sensor_types.hpp` |
-| Max configured backends | 4 | `backend_config.hpp` |
-| Max measurement values per point | 16 | `sensor_types.hpp` |
+| Max configured backends | 5 | `backend_types.hpp` |
+| Max values per measurement | 16 | `sensor_types.hpp` |
 | Max queued samples | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` (default 256) | `tuning.hpp` / `measurement_store.cpp` |
 | Max samples per upload window | 32 | `upload_manager.cpp` |
 | Watchdog timeout | 30 s | `app.cpp` |
 | I2C clock | 100 kHz | `transport_binding.cpp` |
-| I2C transfer timeout | 200 ms | `transport_binding.cpp` |
 | UART RX buffer | 4096 B default; GPS may request more | `transport_binding.cpp` |
 | HTTP request timeout | 15 000 ms | upload adapters |
-| HTTP buffer size | 512 B | `upload_transport.cpp` |
+| HTTP client buffers | 2048 B RX / 1024 B TX | `upload_transport.cpp` |
 | Upload interval default | 145 000 ms | `backend_config.hpp` |
 | Upload interval range | 30 000–3 600 000 ms | `backend_config_repository.cpp` |
 | Sensor poll interval range | 30 000–1 800 000 ms | `sensor_registry.cpp` |
@@ -963,33 +899,19 @@ Runs on port 80. Serves a server-rendered HTML UI with embedded CSS/JS assets. P
 | `UploadManager` | Static mutex | `backends_`, runtime state |
 | `I2cBusManager` | Static mutex | bus handles, device list |
 | `NetworkManager` | Instance mutex + event group + timers | state snapshot, Wi-Fi scan cache, station connected / failed bits, reconnect scheduling |
+| `NetworkManager` | SNTP lifecycle mutex (non-blocking take) | global SNTP client init/start/deinit between background sync and `/check-sntp` |
+| `SensorConfigStore` | Static mutex | live sensor config + `sensor_cfg` writes (web Apply vs maintenance completion), config generation |
+| `OtaService` | Static mutex | OTA session handle, status, `reboot_pending_` |
 
 No application-level RTOS queues. Upload delivery progress is tracked via per-backend cursors and retry windows in `UploadManager`, while `MeasurementStore` owns the shared retained sample queue.
 
 ---
 
-## Implemented vs planned
+## Not implemented
 
-### Confirmed in implementation
+Reserved or deliberately absent in the current firmware:
 
-- Full 12-step, power-aware boot sequence with INA-driven power gate
-- NVS-backed config for device, sensors, and backends
-- FreeRTOS sensor polling task with per-sensor scheduling
-- 12 sensor driver types across I2C, UART, GPIO, and ADC transports
-- In-memory measurement queue with pending/inflight upload semantics
-- FreeRTOS upload task with per-backend cursors
-- Air360 API and Sensor.Community adapters
-- Server-rendered web UI with 5 HTML pages and embedded CSS/JS
-- Lab AP mode at `192.168.4.1` with `/wifi-scan` endpoint
-- SNTP synchronization gating upload start
-- Health check aggregation in the Diagnostics raw JSON dump
-- OTA firmware update via the Firmware update card on `/config` (POST `/ota` streaming endpoint) with automatic rollback on boot failure
-
-### Planned or reserved but not yet implemented
-
-- SPIFFS data partition (partition reserved, not mounted)
-- Captive portal / DNS redirect in Lab AP mode
-- Local auth enforcement (flag stored but not checked)
-- Device config changes without reboot
-- HTTPS for Air360 API (deferred, latency issues under investigation)
-- Full API-driven UI (currently server-rendered and form-driven)
+- The `storage` SPIFFS partition is reserved in `partitions.csv` but never mounted.
+- `DeviceConfig::local_auth_enabled` is stored but not enforced; the web UI has no authentication yet (issue #87).
+- Saving the Device page (`/config`) reboots the device to apply it; sensor and backend changes apply at runtime.
+- The web UI is server-rendered and form-driven; there is no general JSON configuration API.

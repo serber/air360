@@ -126,16 +126,6 @@ config AIR360_CELLULAR_DEFAULT_SLEEP_GPIO
     range 0 255
     default 21
 
-config AIR360_CELLULAR_MAX_RECONNECT_ATTEMPTS
-    int "PPP reconnect attempts before uplink fallback cascade"
-    range 1 20
-    default 4
-
-config AIR360_CELLULAR_RECONNECT_BACKOFF_MAX_S
-    int "Maximum backoff between PPP reconnect attempts (seconds)"
-    range 5 300
-    default 60
-
 config AIR360_CELLULAR_WIFI_DEBUG_WINDOW_S
     int "Wi-Fi debug window duration when cellular is the uplink (seconds)"
     range 0 3600
