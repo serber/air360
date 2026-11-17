@@ -415,11 +415,12 @@ A scan started by `startLabAp()` at boot (when the device enters setup AP mode) 
 | `error` value | Meaning |
 |---------------|---------|
 | `invalid_input` | Server string is empty, too long, or contains invalid characters |
-| `not_connected` | Device is not connected to station Wi-Fi |
+| `not_connected` | Device has no connected uplink (station Wi-Fi or cellular PPP) |
+| `busy` | A background time sync (or another check) currently owns the SNTP client; retry shortly |
 | `request_timeout` | The device timed out while receiving the form body |
 | `sync_failed` | SNTP init failed or server did not respond within the timeout |
 
-The check deinitialises the existing SNTP session (if any) and initialises a new one with the test server. If the check succeeds, SNTP stays running with the test server until the next reboot. If it fails, SNTP is deinitialised and the maintenance loop will retry with the configured server.
+The check takes the SNTP lifecycle lock shared with background time sync (non-blocking; `busy` if held), deinitialises the existing SNTP session (if any), and initialises a temporary one with the test server. Whatever the outcome, the temporary client is then deinitialised; if a background client was running before the check it is re-created with the configured server, so the diagnostic server never replaces the device's SNTP source. A successful check still marks time as synchronized.
 
 This endpoint does not modify stored configuration. Use `POST /config` followed by a reboot to persist the server.
 

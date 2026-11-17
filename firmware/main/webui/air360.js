@@ -556,6 +556,7 @@
           statusNode.textContent =
             err === 'invalid_input'  ? 'Invalid server address.' :
             err === 'not_connected'  ? 'Not connected to Wi-Fi. Cannot check SNTP server.' :
+            err === 'busy'           ? 'A time sync is already in progress. Retry in a few seconds.' :
             err === 'request_timeout'? 'Request timed out. Check the connection and retry.' :
                                        'SNTP sync failed. Server may be unreachable or invalid.';
         }

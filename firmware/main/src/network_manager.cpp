@@ -237,10 +237,34 @@ std::uint32_t reconnectDelayMs(std::uint32_t attempt_count) {
     return static_cast<std::uint32_t>(delay_ms);
 }
 
+// Non-blocking ownership of the SNTP lifecycle mutex for one operation. Both
+// owners (background sync, HTTP diagnostic) can wait up to their own timeout
+// once inside, so a second caller does not queue behind it: it reports "busy"
+// and the maintenance loop retries on its next pass.
+class SntpLifecycleGuard {
+  public:
+    explicit SntpLifecycleGuard(SemaphoreHandle_t mutex)
+        : mutex_(mutex), owned_(mutex != nullptr && xSemaphoreTake(mutex, 0) == pdTRUE) {}
+    ~SntpLifecycleGuard() {
+        if (owned_) {
+            xSemaphoreGive(mutex_);
+        }
+    }
+    SntpLifecycleGuard(const SntpLifecycleGuard&) = delete;
+    SntpLifecycleGuard& operator=(const SntpLifecycleGuard&) = delete;
+
+    bool owned() const { return owned_; }
+
+  private:
+    SemaphoreHandle_t mutex_;
+    bool owned_;
+};
+
 }  // namespace
 
 NetworkManager::NetworkManager() : last_config_(makeDefaultDeviceConfig()) {
     mutex_ = xSemaphoreCreateMutexStatic(&mutex_buffer_);
+    sntp_mutex_ = xSemaphoreCreateMutexStatic(&sntp_mutex_buffer_);
 }
 
 void NetworkManager::lock() const {
@@ -415,6 +439,15 @@ esp_err_t NetworkManager::synchronizeTime(std::uint32_t timeout_ms) {
         unlock();
         ESP_LOGI(kTag, "System time already valid, skipping SNTP wait");
         return ESP_OK;
+    }
+
+    const SntpLifecycleGuard sntp_guard(sntp_mutex_);
+    if (!sntp_guard.owned()) {
+        lock();
+        state_.time_sync_error = "SNTP client is busy";
+        unlock();
+        ESP_LOGI(kTag, "SNTP client busy (another sync or check in progress); will retry");
+        return ESP_ERR_INVALID_STATE;
     }
 
     esp_err_t err = ESP_OK;
@@ -1519,7 +1552,16 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
     }
 
     RuntimeContext& context = runtime_;
+    const SntpLifecycleGuard sntp_guard(sntp_mutex_);
+    if (!sntp_guard.owned()) {
+        result.error = "busy";
+        return result;
+    }
 
+    // The check temporarily replaces the global SNTP client with one bound to
+    // the server under test. Remember whether a background client was running
+    // so it can be restored with the configured server afterwards.
+    const bool restore_background_client = context.sntp_initialized;
     if (context.sntp_initialized) {
         esp_netif_sntp_deinit();
         context.sntp_initialized = false;
@@ -1534,6 +1576,7 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
             "Check SNTP init failed for '%s': %s",
             server.c_str(),
             esp_err_to_name(init_err));
+        restoreBackgroundSntpClient(restore_background_client);
         return result;
     }
     context.sntp_initialized = true;
@@ -1561,11 +1604,36 @@ SntpCheckResult NetworkManager::checkSntp(const std::string& server, std::uint32
     } else {
         result.error = "sync_failed";
         ESP_LOGW(kTag, "SNTP check timed out for server: %s", server.c_str());
-        esp_netif_sntp_deinit();
-        context.sntp_initialized = false;
     }
 
+    // Never leave the diagnostic server installed as the device's SNTP client.
+    esp_netif_sntp_deinit();
+    context.sntp_initialized = false;
+    restoreBackgroundSntpClient(restore_background_client);
     return result;
+}
+
+void NetworkManager::restoreBackgroundSntpClient(bool was_initialized) {
+    // Caller holds sntp_mutex_. Re-create the periodic client with the
+    // configured server; time is not waited for here.
+    if (!was_initialized) {
+        return;
+    }
+    lock();
+    const std::string configured = configured_sntp_server_;
+    unlock();
+    const char* server = configured.empty() ? kDefaultSntpServer : configured.c_str();
+    esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server);
+    const esp_err_t err = esp_netif_sntp_init(&sntp_config);
+    if (err == ESP_OK) {
+        runtime_.sntp_initialized = true;
+    } else {
+        ESP_LOGW(
+            kTag,
+            "Failed to restore SNTP client for '%s' after check: %s",
+            server,
+            esp_err_to_name(err));
+    }
 }
 
 void NetworkManager::configureTimeServer(const DeviceConfig& config) {

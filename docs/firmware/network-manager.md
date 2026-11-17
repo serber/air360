@@ -326,6 +326,8 @@ The Diagnostics page raw JSON dump exposes the same fields in machine-readable f
 
 Setup AP alone does not enable SNTP; a connected PPP uplink does. The web SNTP check accepts either uplink.
 
+The global SNTP client (`esp_netif_sntp_*` and `runtime_.sntp_initialized`) is owned through `sntp_mutex_`. `synchronizeTime()` (application task, network worker) and `checkSntp()` (HTTP task) take it non-blocking for their whole init/start/wait/deinit sequence; the loser returns "busy" instead of interrupting the other operation. `checkSntp()` restores the background client with the configured server after a check.
+
 ---
 
 ## Maintenance loop
