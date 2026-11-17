@@ -44,25 +44,39 @@ esp_err_t UartPortManager::open(std::uint8_t port_id, std::int16_t, std::int16_t
     return ESP_OK;
 }
 
-int UartPortManager::read(std::uint8_t, std::uint8_t*, std::size_t, TickType_t) {
-    return 0;
+int UartPortManager::read(std::uint8_t, std::uint8_t* buffer, std::size_t buffer_size, TickType_t) {
+    std::lock_guard<std::mutex> guard(fake_transport::uart_mutex);
+    std::size_t count = 0U;
+    while (count < buffer_size && !fake_transport::rx.empty()) {
+        buffer[count++] = fake_transport::rx.front();
+        fake_transport::rx.pop_front();
+    }
+    return static_cast<int>(count);
 }
 
-int UartPortManager::write(std::uint8_t, const std::uint8_t*, std::size_t size) {
+int UartPortManager::write(std::uint8_t, const std::uint8_t* data, std::size_t size) {
+    std::lock_guard<std::mutex> guard(fake_transport::uart_mutex);
+    fake_transport::writes.emplace_back(data, data + size);
     return static_cast<int>(size);
 }
 
 esp_err_t UartPortManager::bufferedDataLength(std::uint8_t, std::size_t& out_length) const {
-    out_length = 0U;
+    std::lock_guard<std::mutex> guard(fake_transport::uart_mutex);
+    out_length = fake_transport::rx.size();
     return ESP_OK;
 }
 
 esp_err_t UartPortManager::drainEvents(std::uint8_t, EventSummary& out_summary) {
+    std::lock_guard<std::mutex> guard(fake_transport::uart_mutex);
     out_summary = EventSummary{};
+    out_summary.overrun_count = fake_transport::pending_overruns;
+    fake_transport::pending_overruns = 0U;
     return ESP_OK;
 }
 
 esp_err_t UartPortManager::flush(std::uint8_t) {
+    std::lock_guard<std::mutex> guard(fake_transport::uart_mutex);
+    fake_transport::rx.clear();
     return ESP_OK;
 }
 
