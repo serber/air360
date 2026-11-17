@@ -240,6 +240,7 @@ Per-sensor transport bindings and allowed addresses/pins are canonical in [senso
 | PMSX003 | Baud rate must be 9600 |
 | MH-Z19B | Baud rate must be 9600 |
 | DS18B20 | One device per GPIO pin only |
+| LMP91000 AFE | I2C address fixed at `0x48`; the board's ADS1115 is always addressed at `0x49`, which the registry does not reserve; no other supported sensor uses `0x49` today |
 
 The common validation rule `poll_interval_ms ∈ [30000, 1800000]` applies to all sensors. Stored configs outside this range are invalid. I2C validation uses each sensor descriptor's `allowed_i2c_addresses`; address `0` is not valid for any I2C sensor and is only a zero-init placeholder.
 

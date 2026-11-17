@@ -107,7 +107,6 @@ Reference drivers by transport type:
 | UART (via UartPortManager) | `gps_nmea_sensor`, `sds011_sensor` |
 | UART (component protocol on a UartPortManager port) | `mhz19b_sensor`, `pmsx003_sensor` |
 | GPIO / 1-Wire | `dht_sensor`, `ds18b20_sensor` |
-| Analog / ADC | `me3_no2_sensor` |
 
 ---
 

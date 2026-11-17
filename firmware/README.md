@@ -381,7 +381,6 @@ Supported drivers confirmed by the current registry:
 - `GPS (NMEA)`
 - `DHT11`
 - `DHT22`
-- `ME3-NO2`
 
 Current transport model by sensor type:
 
@@ -401,8 +400,8 @@ Current UI/runtime notes confirmed by the implementation:
 - `Overview -> Backends` shows the configured global upload interval for all backends
 - the diagnostics raw JSON includes both numeric `reset_reason` and string `reset_reason_label`
 - the diagnostics raw JSON also includes `health_status`, `health_summary`, and `health_checks`
-- `DHT11`, `DHT22`, `ME3-NO2`
-  Board-pin sensors restricted to the allowed GPIO pins listed in each sensor descriptor. The selected sensor type determines whether the runtime uses GPIO or ADC.
+- `DHT11`, `DHT22`
+  Board-pin sensors restricted to the allowed GPIO pins listed in each sensor descriptor.
 
 Current default I2C addresses from the registry are:
 
