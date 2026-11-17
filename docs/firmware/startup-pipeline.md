@@ -105,7 +105,7 @@ Steps execute sequentially in the main task. There is no parallelism at this sta
 | 9/12 | Resolve network mode (cellular or Wi-Fi / setup AP) | No | `NetworkLayer::bootWifi` | `StatusService` updated with network and cellular state |
 | 10/12 | Release `kAfterNetwork` sensors; start BLE advertiser | No | `DataLayer::releaseDeferredSensors` | Parked sensors become eligible and start their warmup; **`air360_ble` task spawned** when enabled |
 | 11/12 | Start upload manager; apply backend config | No | `DataLayer::bootUploads` | **`air360_upload` task spawned** |
-| 12/12 | Start web server | **Yes** | `App::bootWebServer` | Green or pink LED on success (via `App::indicateReady`); fall through to `App::runMaintenanceLoop`. On failure the device enters `runFailedBootLoop` instead of letting the main task return — this keeps TWDT fed and avoids a panic-reboot cycle while leaving the red LED visible. |
+| 12/12 | Start web server | **Yes** | `App::bootWebServer` | Green or pink LED on success (via `App::indicateReady`); fall through to `App::runMaintenanceLoop`. On failure the device enters `runFailedBootLoop`. If the running image is still `PENDING_VERIFY` (first boot after OTA), `OtaService::rollBackUnverifiedImage()` marks it invalid and reboots into the previous slot; otherwise the loop keeps TWDT fed and avoids a panic-reboot cycle while leaving the red LED visible. |
 
 ---
 
@@ -401,8 +401,8 @@ I (air360.ota) Marked running image valid (rollback cancelled)   (only after a f
 
 | Failure | Step | Effect |
 |---------|------|--------|
-| NVS init fails | 2 | Red LED, `run()` returns, device halts |
-| Network core init fails | 3 | Red LED, `run()` returns, device halts |
+| NVS init fails | 2 | Red LED; first boot after OTA (`PENDING_VERIFY`) → automatic rollback to the previous slot; confirmed image → `runFailedBootLoop()` (TWDT fed, device idles) |
+| Network core init fails | 3 | Red LED; first boot after OTA (`PENDING_VERIFY`) → automatic rollback to the previous slot; confirmed image → `runFailedBootLoop()` (TWDT fed, device idles) |
 | Config load fails | 4 | Warning logged, in-memory defaults used, boot continues |
 | Sensor config load fails | 5 | Warning logged, empty sensor list used, boot continues |
 | Sensor task creation fails | 5 | All sensor states set to `kError`, boot continues without polling |
@@ -416,4 +416,4 @@ I (air360.ota) Marked running image valid (rollback cancelled)   (only after a f
 | Station join fails (cellular mode) | 9 | Warning logged, Wi-Fi skipped, cellular is still primary uplink |
 | Lab AP start fails | 9 | Warning logged; with stored station credentials `scheduleStationRecovery()` arms the station reconnect backoff so the upstream network is still retried |
 | Upload task creation fails | 11 | All backend states set to `kError`, boot continues without uploads |
-| Web server start fails | 12 | Red LED, `run()` returns, device halts |
+| Web server start fails | 12 | Red LED; first boot after OTA (`PENDING_VERIFY`) → automatic rollback to the previous slot; confirmed image → `runFailedBootLoop()` (TWDT fed, device idles) |

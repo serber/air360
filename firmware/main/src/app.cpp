@@ -306,10 +306,23 @@ void App::runMaintenanceLoop() {
 }
 
 void App::runFailedBootLoop() {
-    // Without this loop the main task returns and stops feeding TWDT, which
-    // panics and reboots after 30 s — turning a recoverable boot failure into
-    // a reboot cycle. Just keep TWDT happy and let the operator see the red
-    // LED and any logs that did make it out.
+    // First boot after an OTA (image still PENDING_VERIFY): this image never
+    // proved itself, so hand control back to the previous slot instead of
+    // parking here with the watchdog fed, which would block the bootloader's
+    // rollback forever. Does not return on success.
+    const esp_err_t rollback_err = ota_service_.rollBackUnverifiedImage();
+    if (rollback_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(
+            kTag,
+            "Unverified image could not be rolled back (%s); staying in failed-boot loop",
+            esp_err_to_name(rollback_err));
+    }
+
+    // Confirmed images (or a failed rollback): without this loop the main
+    // task returns and stops feeding TWDT, which panics and reboots after
+    // 30 s — turning a recoverable boot failure into a reboot cycle. Just keep
+    // TWDT happy and let the operator see the red LED and any logs that did
+    // make it out.
     for (;;) {
         std::uint32_t remaining_ms = kRuntimeMaintenanceDelayMs;
         while (remaining_ms > 0U) {
