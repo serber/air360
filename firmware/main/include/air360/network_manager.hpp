@@ -81,7 +81,7 @@ struct WifiScanSnapshot {
 
 struct SntpCheckResult {
     bool success = false;
-    std::string error;  // "invalid_input" | "not_connected" | "sync_failed"
+    std::string error;  // "invalid_input" | "not_connected" | "busy" | "sync_failed"
 };
 
 class NetworkManager {
@@ -174,11 +174,18 @@ class NetworkManager {
     void workerLoop();
     void notifyWorker(std::uint32_t request_bits);
     void startMdns(const std::string& hostname);
+    void restoreBackgroundSntpClient(bool was_initialized);
     void lock() const;
     void unlock() const;
 
     mutable StaticSemaphore_t mutex_buffer_{};
     mutable SemaphoreHandle_t mutex_ = nullptr;
+    // Serializes the global SNTP client lifecycle (init/start/wait/deinit and
+    // runtime_.sntp_initialized) between background synchronizeTime() callers
+    // and the HTTP-task checkSntp() diagnostic. Never held together with
+    // mutex_ across a blocking wait.
+    StaticSemaphore_t sntp_mutex_buffer_{};
+    SemaphoreHandle_t sntp_mutex_ = nullptr;
     RuntimeContext runtime_{};
     DeviceConfig last_config_{};
     bool has_last_config_ = false;

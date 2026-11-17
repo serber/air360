@@ -96,11 +96,12 @@ SNTP runs over a connected Wi-Fi station or cellular PPP uplink. Setup AP alone 
 
 1. Requires `NetworkState::hasConnectedUplink() == true`; returns `ESP_ERR_INVALID_STATE` otherwise.
 2. If `hasValidUnixTime()` is already true — marks `time_synchronized = true` and returns `ESP_OK` immediately (no SNTP traffic sent).
-3. First call: `esp_netif_sntp_init()` with `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org`. Sets `sntp_initialized = true`.
-4. Subsequent calls: `esp_netif_sntp_start()` (re-arms the already-initialised client).
-5. Polls `hasValidUnixTime()` every **250 ms**, resetting the task watchdog on each iteration, until the threshold is crossed or the timeout expires.
-6. On success: sets `time_synchronized = true`, records `last_time_sync_unix_ms`.
-7. On timeout: sets `time_sync_error = "time is still invalid after SNTP sync"`, returns `ESP_ERR_TIMEOUT`.
+3. Takes the SNTP lifecycle lock (`sntp_mutex_`) without waiting. If the `/check-sntp` diagnostic or another sync holds it, sets `time_sync_error = "SNTP client is busy"` and returns `ESP_ERR_INVALID_STATE`; the maintenance loop retries 10 s later. Steps 4–8 run under this lock, so init/start/deinit never overlap.
+4. First call: `esp_netif_sntp_init()` with `DeviceConfig.sntp_server` if non-empty, otherwise `pool.ntp.org`. Sets `sntp_initialized = true`.
+5. Subsequent calls: `esp_netif_sntp_start()` (re-arms the already-initialised client).
+6. Polls `hasValidUnixTime()` every **250 ms**, resetting the task watchdog on each iteration, until the threshold is crossed or the timeout expires.
+7. On success: sets `time_synchronized = true`, records `last_time_sync_unix_ms`.
+8. On timeout: sets `time_sync_error = "time is still invalid after SNTP sync"`, returns `ESP_ERR_TIMEOUT`.
 
 ### Maintenance loop retry
 
