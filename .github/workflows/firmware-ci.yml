@@ -1,0 +1,91 @@
+name: Firmware CI
+
+# Verification only: builds and tests every PR and every push to main.
+# Nothing is published; releases are still cut locally with the release script.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: firmware-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Repository checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Style
+        run: python3 scripts/check_style.py
+      - name: Firmware docs
+        run: python3 scripts/check_firmware_docs.py
+      - name: API contracts (firmware / backend / portal)
+        run: python3 scripts/check_api_contracts.py
+
+  host-tests:
+    name: Host tests (${{ matrix.variant }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: plain
+            cxxflags: ""
+          - variant: asan-ubsan
+            cxxflags: "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
+    env:
+      BUILD_DIR: firmware/test/host/build-${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S firmware/test/host -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="${{ matrix.cxxflags }}"
+      - name: Build
+        run: cmake --build "$BUILD_DIR" --parallel
+      - name: Test
+        run: ctest --test-dir "$BUILD_DIR" --output-on-failure
+
+  firmware-build:
+    name: ESP-IDF build (esp32s3)
+    runs-on: ubuntu-24.04
+    container:
+      image: espressif/idf:v6.0
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags are needed for the version string embedded at build time.
+          fetch-depth: 0
+      - name: Build
+        working-directory: firmware
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          . "$IDF_PATH/export.sh"
+          idf.py build
+      - name: Size report
+        working-directory: firmware
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py size
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.sha }}
+          path: |
+            firmware/build/*.bin
+            firmware/build/*.elf
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/flasher_args.json
+          retention-days: 14
+          if-no-files-found: error
