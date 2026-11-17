@@ -195,3 +195,41 @@ target_include_directories(test_backend_config_repository PRIVATE
 target_compile_features(test_backend_config_repository PRIVATE cxx_std_17)
 
 add_test(NAME backend_config_repository COMMAND test_backend_config_repository)
+
+add_executable(test_sensor_manager_lifecycle
+    ../../main/src/sensors/sensor_manager.cpp
+    ../../main/src/sensors/sensor_driver.cpp
+    ../../main/src/uploads/measurement_store.cpp
+    ../../main/src/uploads/upload_prune_policy.cpp
+    fakes/sensor_registry_fake.cpp
+    fakes/transport_binding_fake.cpp
+    test_sensor_manager_lifecycle.cpp
+)
+
+target_include_directories(test_sensor_manager_lifecycle PRIVATE
+    stubs
+    fakes
+    ../../main/include
+)
+
+target_compile_features(test_sensor_manager_lifecycle PRIVATE cxx_std_20)
+target_link_libraries(test_sensor_manager_lifecycle PRIVATE Threads::Threads)
+
+add_test(NAME sensor_manager_lifecycle COMMAND test_sensor_manager_lifecycle)
+
+add_executable(test_sensor_config_repository
+    ../../main/src/sensors/sensor_config_repository.cpp
+    fakes/sensor_registry_fake.cpp
+    ../../main/src/sensors/sensor_driver.cpp
+    test_sensor_config_repository.cpp
+)
+
+target_include_directories(test_sensor_config_repository PRIVATE
+    stubs
+    fakes
+    ../../main/include
+)
+
+target_compile_features(test_sensor_config_repository PRIVATE cxx_std_20)
+
+add_test(NAME sensor_config_repository COMMAND test_sensor_config_repository)
