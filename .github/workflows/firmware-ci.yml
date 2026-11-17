@@ -42,6 +42,8 @@ jobs:
             cxxflags: ""
           - variant: asan-ubsan
             cxxflags: "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
+          - variant: tsan
+            cxxflags: "-fsanitize=thread -g"
     env:
       BUILD_DIR: firmware/test/host/build-${{ matrix.variant }}
     steps:
@@ -52,6 +54,16 @@ jobs:
         run: cmake --build "$BUILD_DIR" --parallel
       - name: Test
         run: ctest --test-dir "$BUILD_DIR" --output-on-failure
+
+  host-coverage:
+    name: Host test coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Coverage report (clang source-based, scoped)
+        env:
+          CXX: clang++
+        run: python3 scripts/host_coverage.py
 
   firmware-build:
     name: ESP-IDF build (esp32s3)

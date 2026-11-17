@@ -2,7 +2,10 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <atomic>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 namespace {
 
@@ -171,6 +174,55 @@ void testPersistFailureLeavesLiveUnchanged() {
             "live unchanged on failure");
 }
 
+void testConcurrentApplyAndCompletionKeepNvsInSync() {
+    // Real threads against the mutex-backed semaphore stub: the main thread
+    // ("HTTP task") keeps applying configs that re-arm actions while
+    // "sensor task" threads report completions. Whatever the interleaving,
+    // the persisted blob must equal the live config, the last Apply's operator
+    // edit must survive, and ThreadSanitizer must see no data race. Stale
+    // generations are covered deterministically above.
+    SensorConfigStore store;
+    FakeNvs nvs;
+    bind(store, nvs, twoSensors(kFrc));
+
+    std::atomic<bool> done{false};
+    std::vector<std::thread> completers;
+    for (int worker = 0; worker < 3; ++worker) {
+        completers.emplace_back([&store, &done] {
+            while (!done.load()) {
+                bool cleared = false;
+                require(store.clearMaintenanceAction(1U, store.generation(), cleared) == ESP_OK,
+                        "concurrent clear ok");
+            }
+        });
+    }
+
+    for (int round = 0; round < 2000; ++round) {
+        SensorConfigList base;
+        store.copyTo(base);
+        SensorConfigList staged = base;
+        air360::findSensorRecordById(staged, 1U)->pending_maintenance_action =
+            (round % 2 == 0) ? kFanClean : kFrc;
+        air360::findSensorRecordById(staged, 2U)->poll_interval_ms =
+            60000U + static_cast<std::uint32_t>(round);
+        std::uint32_t generation = 0U;
+        require(store.replace(staged, base, generation) == ESP_OK, "concurrent apply ok");
+    }
+    done.store(true);
+    for (auto& thread : completers) {
+        thread.join();
+    }
+
+    SensorConfigList live;
+    store.copyTo(live);
+    require(actionOf(live, 1U) == actionOf(nvs.persisted, 1U), "NVS action matches live");
+    require(air360::findSensorRecordById(live, 2U)->poll_interval_ms ==
+                air360::findSensorRecordById(nvs.persisted, 2U)->poll_interval_ms,
+            "NVS operator edit matches live");
+    require(air360::findSensorRecordById(live, 2U)->poll_interval_ms == 60000U + 1999U,
+            "last Apply wins");
+}
+
 }  // namespace
 
 int main() {
@@ -179,6 +231,7 @@ int main() {
     testStaleStagedCopyDoesNotReArmFinishedAction();
     testDeletedSensorCompletionIsIgnored();
     testPersistFailureLeavesLiveUnchanged();
+    testConcurrentApplyAndCompletionKeepNvsInSync();
     std::cout << "sensor config store tests passed\n";
     return 0;
 }
