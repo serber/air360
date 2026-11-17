@@ -206,74 +206,54 @@ TickType_t GpsNmeaSensor::computeReadTimeoutTicks() const {
 }
 
 void GpsNmeaSensor::rebuildMeasurement() {
-    measurement_.clear();
-
     if (!parser_) {
+        measurement_.clear();
         setError("GPS parser is not initialized.");
         return;
     }
 
-    bool has_values = false;
-    const bool location_valid = parser_->location.isValid();
-    if (location_valid) {
-        if (!has_values) {
-            measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-            has_values = true;
-        }
-        measurement_.addValue(
-            SensorValueKind::kLatitudeDeg,
-            static_cast<float>(parser_->location.lat()));
-        measurement_.addValue(
-            SensorValueKind::kLongitudeDeg,
-            static_cast<float>(parser_->location.lng()));
-    }
-    if (parser_->altitude.isValid()) {
-        if (!has_values) {
-            measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-            has_values = true;
-        }
-        measurement_.addValue(
-            SensorValueKind::kAltitudeM,
-            static_cast<float>(parser_->altitude.meters()));
-    }
-    if (parser_->satellites.isValid()) {
-        if (!has_values) {
-            measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-            has_values = true;
-        }
-        measurement_.addValue(
-            SensorValueKind::kSatellites,
-            static_cast<float>(parser_->satellites.value()));
-    }
-    if (parser_->speed.isValid()) {
-        if (!has_values) {
-            measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-            has_values = true;
-        }
-        measurement_.addValue(
-            SensorValueKind::kSpeedKnots,
-            static_cast<float>(parser_->speed.knots()));
-    }
-    if (parser_->course.isValid()) {
-        if (!has_values) {
-            measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-            has_values = true;
-        }
-        measurement_.addValue(
-            SensorValueKind::kCourseDeg,
-            static_cast<float>(parser_->course.deg()));
-    }
-    if (parser_->hdop.isValid()) {
-        if (!has_values) {
-            measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
-            has_values = true;
-        }
-        measurement_.addValue(
-            SensorValueKind::kHdop,
-            static_cast<float>(parser_->hdop.hdop()));
+    // TinyGPS++ keeps the last committed value of every field valid forever.
+    // Only fields committed since the previous rebuild are fresh; reading a
+    // value clears its isUpdated() flag. If nothing was committed (noise,
+    // partial sentences, or a receiver that stopped talking), keep the previous
+    // measurement and its original sample_time_ms so SensorManager does not
+    // queue it again and the status page can age it out as stale.
+    TinyGPSPlus& gps = *parser_;
+    const bool location_updated = gps.location.isUpdated() && gps.location.isValid();
+    const bool altitude_updated = gps.altitude.isUpdated() && gps.altitude.isValid();
+    const bool satellites_updated = gps.satellites.isUpdated() && gps.satellites.isValid();
+    const bool speed_updated = gps.speed.isUpdated() && gps.speed.isValid();
+    const bool course_updated = gps.course.isUpdated() && gps.course.isValid();
+    const bool hdop_updated = gps.hdop.isUpdated() && gps.hdop.isValid();
+    if (!location_updated && !altitude_updated && !satellites_updated && !speed_updated &&
+        !course_updated && !hdop_updated) {
+        setError("No new GPS data received.");
+        return;
     }
 
-    if (location_valid) {
+    measurement_.clear();
+    measurement_.sample_time_ms = static_cast<std::uint64_t>(esp_timer_get_time() / 1000ULL);
+    if (location_updated) {
+        measurement_.addValue(SensorValueKind::kLatitudeDeg, static_cast<float>(gps.location.lat()));
+        measurement_.addValue(SensorValueKind::kLongitudeDeg, static_cast<float>(gps.location.lng()));
+    }
+    if (altitude_updated) {
+        measurement_.addValue(SensorValueKind::kAltitudeM, static_cast<float>(gps.altitude.meters()));
+    }
+    if (satellites_updated) {
+        measurement_.addValue(SensorValueKind::kSatellites, static_cast<float>(gps.satellites.value()));
+    }
+    if (speed_updated) {
+        measurement_.addValue(SensorValueKind::kSpeedKnots, static_cast<float>(gps.speed.knots()));
+    }
+    if (course_updated) {
+        measurement_.addValue(SensorValueKind::kCourseDeg, static_cast<float>(gps.course.deg()));
+    }
+    if (hdop_updated) {
+        measurement_.addValue(SensorValueKind::kHdop, static_cast<float>(gps.hdop.hdop()));
+    }
+
+    if (location_updated) {
         clearError();
     } else {
         setError("No GPS fix yet.");

@@ -69,8 +69,9 @@ All fields are included only when valid GPS data is available:
 ## Notes
 
 - **No fix** — until the first GPS fix is acquired the driver returns `ESP_OK` with `"No GPS fix yet."` in the error field. This is expected behavior at startup and after loss of signal.
-- Fields are added to the measurement independently. If the module has satellite data but no coordinates yet, `kSatellites` will be present while `kLatitudeDeg` and `kLongitudeDeg` will not.
-- All fields collected in a single poll share the same timestamp (the moment the first valid field is found).
+- Only fields that TinyGPS++ committed since the previous poll (`isUpdated()`) are added to the measurement. If the module has satellite data but no coordinates yet, `kSatellites` will be present while `kLatitudeDeg` and `kLongitudeDeg` will not. After loss of fix the last known coordinates are not repeated.
+- If no field was committed since the previous poll (no UART data, noise, or partial sentences), the driver keeps the previous measurement and its original timestamp, reports `"No new GPS data received."` (or `"No GPS UART data received."` when nothing arrived), and the sensor manager does not queue it again.
+- All fields collected in a single poll share the same timestamp (the moment the measurement is rebuilt).
 - The first read may block for up to `80 %` of the configured poll interval, which gives slow GPS UART links time to accumulate a full NMEA burst before the driver switches to drain-to-empty reads.
 - UART overrun events are counted from the UART driver's event queue and logged via `ESP_LOGW` so field reports can distinguish real parser starvation from line noise or wiring issues.
 - Speed is reported in **knots**. To convert: `km/h = knots × 1.852`.

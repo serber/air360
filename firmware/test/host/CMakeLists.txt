@@ -139,3 +139,16 @@ target_include_directories(test_ble_encoding PRIVATE
 target_compile_features(test_ble_encoding PRIVATE cxx_std_17)
 
 add_test(NAME ble_encoding COMMAND test_ble_encoding)
+
+add_executable(test_sensor_sample_freshness
+    test_sensor_sample_freshness.cpp
+)
+
+target_include_directories(test_sensor_sample_freshness PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_sensor_sample_freshness PRIVATE cxx_std_17)
+
+add_test(NAME sensor_sample_freshness COMMAND test_sensor_sample_freshness)
