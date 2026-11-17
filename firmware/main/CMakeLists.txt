@@ -38,6 +38,7 @@ idf_component_register(
         "src/uploads/upload_manager_status.cpp"
         "src/uploads/upload_transport.cpp"
         "src/sensors/sensor_config_repository.cpp"
+        "src/sensors/sensor_config_store.cpp"
         "src/sensors/drivers/aht30_sensor.cpp"
         "src/sensors/drivers/bme280_sensor.cpp"
         "src/sensors/drivers/bmp390_sensor.cpp"

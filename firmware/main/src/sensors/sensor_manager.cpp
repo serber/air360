@@ -160,7 +160,9 @@ void SensorManager::setMaintenanceActionClearedHandler(MaintenanceActionClearedF
     maintenance_action_cleared_handler_ = std::move(handler);
 }
 
-esp_err_t SensorManager::applyConfig(const SensorConfigList& config) {
+esp_err_t SensorManager::applyConfig(
+    const SensorConfigList& config,
+    std::uint32_t config_generation) {
     const esp_err_t stop_err = stop();
     if (stop_err != ESP_OK) {
         ESP_LOGE(
@@ -190,6 +192,7 @@ esp_err_t SensorManager::applyConfig(const SensorConfigList& config) {
 
     lock();
     sensors_ = std::move(next_sensors);
+    config_generation_ = config_generation;
     const esp_err_t start_err = startLocked();
     unlock();
     return start_err;
@@ -498,6 +501,7 @@ void SensorManager::taskMain() {
             bool in_warmup = false;
             bool clear_pending_action = false;
             std::uint32_t cleared_action_sensor_id = 0U;
+            std::uint32_t cleared_action_generation = 0U;
 
             lock();
             if (index < sensors_.size()) {
@@ -600,6 +604,7 @@ void SensorManager::taskMain() {
                     sensor.record.pending_maintenance_action =
                         static_cast<std::uint8_t>(MaintenanceActionKind::kNone);
                     cleared_action_sensor_id = sensor.record.id;
+                    cleared_action_generation = config_generation_;
                     clear_pending_action = true;
                     driver->acknowledgeMaintenanceAction();
                     ESP_LOGI(
@@ -675,7 +680,9 @@ void SensorManager::taskMain() {
             // so next boot does not re-run it. The handler must not re-enter the
             // manager.
             if (clear_pending_action && maintenance_action_cleared_handler_) {
-                maintenance_action_cleared_handler_(cleared_action_sensor_id);
+                maintenance_action_cleared_handler_(
+                    cleared_action_sensor_id,
+                    cleared_action_generation);
             }
         }
 

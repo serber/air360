@@ -34,17 +34,16 @@ const char* configLoadSourceLabel(ConfigLoadSource source) {
 }  // namespace
 
 DataLayer::DataLayer()
-    : sensor_config_list_(makeDefaultSensorConfigList()),
-      backend_config_list_(makeDefaultBackendConfigList()) {}
+    : backend_config_list_(makeDefaultBackendConfigList()) {}
 
 void DataLayer::bootSensors(StatusService& status_service) {
-    sensor_config_list_ = makeDefaultSensorConfigList();
+    SensorConfigList sensor_config_list = makeDefaultSensorConfigList();
     bool sensor_config_loaded = false;
     bool sensor_defaults_written = false;
 
     ESP_LOGI(kTag, "Boot step 5/12: load or create sensor config");
     const esp_err_t sensor_config_err = sensor_config_repository_.loadOrCreate(
-        sensor_config_list_,
+        sensor_config_list,
         sensor_config_loaded,
         sensor_defaults_written);
     if (sensor_config_err != ESP_OK) {
@@ -52,7 +51,7 @@ void DataLayer::bootSensors(StatusService& status_service) {
             kTag,
             "Sensor config load failed, using in-memory defaults: %s",
             esp_err_to_name(sensor_config_err));
-        sensor_config_list_ = makeDefaultSensorConfigList();
+        sensor_config_list = makeDefaultSensorConfigList();
     }
     const ConfigLoadSource sensor_config_source = resolveConfigLoadSource(sensor_config_loaded);
     status_service.recordConfigLoad(
@@ -66,31 +65,39 @@ void DataLayer::bootSensors(StatusService& status_service) {
         configLoadSourceLabel(sensor_config_source),
         sensor_defaults_written ? "yes" : "no");
 
+    sensor_config_store_.reset(
+        sensor_config_list,
+        [this](const SensorConfigList& config) { return sensor_config_repository_.save(config); });
+
     sensor_manager_.setMeasurementStore(measurement_store_);
     // Clear a one-shot maintenance action from the persisted config once its
     // driver state machine reports completion, so it runs only on this boot.
-    // Runs in the sensor manager task; touches only DataLayer-owned config + NVS
-    // and never re-enters the manager.
+    // Runs in the sensor manager task and never re-enters the manager; the
+    // store serializes it with web Apply and ignores completions from a
+    // configuration generation that Apply has already replaced.
     sensor_manager_.setMaintenanceActionClearedHandler(
-        [this](std::uint32_t sensor_id) {
-            SensorRecord* record = findSensorRecordById(sensor_config_list_, sensor_id);
-            if (record == nullptr ||
-                record->pending_maintenance_action ==
-                    static_cast<std::uint8_t>(MaintenanceActionKind::kNone)) {
-                return;
-            }
-            record->pending_maintenance_action =
-                static_cast<std::uint8_t>(MaintenanceActionKind::kNone);
-            const esp_err_t save_err = sensor_config_repository_.save(sensor_config_list_);
-            if (save_err != ESP_OK) {
+        [this](std::uint32_t sensor_id, std::uint32_t config_generation) {
+            bool cleared = false;
+            const esp_err_t clear_err = sensor_config_store_.clearMaintenanceAction(
+                sensor_id,
+                config_generation,
+                cleared);
+            if (clear_err != ESP_OK) {
                 ESP_LOGW(
                     kTag,
                     "Failed to persist cleared maintenance action for sensor #%" PRIu32 ": %s",
                     sensor_id,
-                    esp_err_to_name(save_err));
+                    esp_err_to_name(clear_err));
+            } else if (!cleared) {
+                ESP_LOGI(
+                    kTag,
+                    "Maintenance completion for sensor #%" PRIu32
+                    " not recorded: action already cleared or configuration changed",
+                    sensor_id);
             }
         });
-    const esp_err_t sensor_apply_err = sensor_manager_.applyConfig(sensor_config_list_);
+    const esp_err_t sensor_apply_err =
+        sensor_manager_.applyConfig(sensor_config_list, sensor_config_store_.generation());
     if (sensor_apply_err != ESP_OK) {
         ESP_LOGW(
             kTag,

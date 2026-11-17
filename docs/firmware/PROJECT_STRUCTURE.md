@@ -116,6 +116,7 @@ Core files:
 - `sensor_driver.hpp` — `ISensorDriver` interface and generic measurement model
 - `sensor_registry.hpp` / `sensor_registry.cpp` — static catalog of supported sensors with factory and validator per type
 - `sensor_config_repository.cpp` — NVS-backed sensor config persistence and schema validation
+- `sensor_config_store.hpp` / `sensor_config_store.cpp` — `SensorConfigStore`: single owner of the live sensor config; serializes web Apply with maintenance-action completion and tracks the configuration generation
 - `sensor_manager.cpp` — orchestrator and `air360_sensor` FreeRTOS polling task (stack 6 KB, priority 5)
 - `transport_binding.cpp` — `I2cBusManager` and `UartPortManager`: shared hardware bus lifecycle for drivers
 
@@ -211,6 +212,6 @@ VS Code: open `firmware/` directly or `firmware/firmware.code-workspace` with th
 - **Device persistence** → `main/src/config_repository.cpp`
 - **Cellular modem** → `main/src/cellular_manager.cpp` (lifecycle), `cellular_config_repository.cpp` (persistence)
 - **Sensor catalog** → `main/src/sensors/sensor_registry.cpp` (read before any driver)
-- **Sensor config persistence** → `main/src/sensors/sensor_config_repository.cpp`
+- **Sensor config persistence** → `main/src/sensors/sensor_config_repository.cpp`, runtime ownership in `main/src/sensors/sensor_config_store.cpp`
 - **Measurement ownership and queueing** → `main/src/uploads/measurement_store.cpp`
 - **Upload scheduling** → `main/src/uploads/upload_manager.cpp`

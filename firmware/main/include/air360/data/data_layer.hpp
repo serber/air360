@@ -2,6 +2,7 @@
 
 #include "air360/ble_advertiser.hpp"
 #include "air360/sensors/sensor_config_repository.hpp"
+#include "air360/sensors/sensor_config_store.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/backend_config_repository.hpp"
 #include "air360/uploads/measurement_store.hpp"
@@ -50,7 +51,7 @@ class DataLayer {
     SensorManager&            sensorManager()       { return sensor_manager_; }
     const SensorManager&      sensorManager() const { return sensor_manager_; }
     SensorConfigRepository&   sensorConfigRepo()    { return sensor_config_repository_; }
-    SensorConfigList&         sensorConfigList()    { return sensor_config_list_; }
+    SensorConfigStore&        sensorConfigStore()   { return sensor_config_store_; }
     MeasurementStore&         measurementStore()    { return measurement_store_; }
     BackendConfigRepository&  backendConfigRepo()   { return backend_config_repository_; }
     BackendConfigList&        backendConfigList()   { return backend_config_list_; }
@@ -60,7 +61,7 @@ class DataLayer {
 
   private:
     SensorConfigRepository  sensor_config_repository_;
-    SensorConfigList        sensor_config_list_;
+    SensorConfigStore       sensor_config_store_;
     SensorManager           sensor_manager_;
     MeasurementStore        measurement_store_;
     BackendConfigRepository backend_config_repository_;

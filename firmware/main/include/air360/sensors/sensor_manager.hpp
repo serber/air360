@@ -56,13 +56,20 @@ class SensorManager {
 
     // Invoked (from the manager task) with a sensor id after a one-shot
     // maintenance action reaches a terminal state, so the owner can clear the
-    // pending action from the persisted config (run-once). Must not call back
-    // into the manager. Set once at boot before applyConfig.
-    using MaintenanceActionClearedFn = std::function<void(std::uint32_t sensor_id)>;
+    // pending action from the persisted config (run-once). `config_generation`
+    // is the value passed to the applyConfig() that started this task; the
+    // owner ignores completions from a superseded configuration. Must not call
+    // back into the manager. Set once at boot before applyConfig.
+    using MaintenanceActionClearedFn =
+        std::function<void(std::uint32_t sensor_id, std::uint32_t config_generation)>;
 
     void setMeasurementStore(MeasurementStore& measurement_store);
     void setMaintenanceActionClearedHandler(MaintenanceActionClearedFn handler);
-    [[nodiscard]] esp_err_t applyConfig(const SensorConfigList& config);
+    // `config_generation` identifies the configuration revision (see
+    // SensorConfigStore) and is reported back with maintenance completions.
+    [[nodiscard]] esp_err_t applyConfig(
+        const SensorConfigList& config,
+        std::uint32_t config_generation);
     [[nodiscard]] esp_err_t stop();
 
     // Opens the kAfterNetwork startup phase: every parked (kDeferred) sensor
@@ -123,6 +130,9 @@ class SensorManager {
     UartPortManager uart_port_manager_;
     MeasurementStore* measurement_store_ = nullptr;
     MaintenanceActionClearedFn maintenance_action_cleared_handler_;
+    // Generation of the config the running task was started with. Written in
+    // applyConfig() only after the previous task stopped; read under lock.
+    std::uint32_t config_generation_ = 0U;
 };
 
 }  // namespace air360

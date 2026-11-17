@@ -214,9 +214,13 @@ bool App::bootSystem() {
 
 void App::bootPowerGate() {
     ESP_LOGI(kTag, "Boot step 7/12: evaluate power gate");
+    // The sensor task is already running and may update the live config, so
+    // evaluate against a consistent snapshot.
+    SensorConfigList sensor_config_list{};
+    data_.sensorConfigStore().copyTo(sensor_config_list);
     const PowerGateDecision decision = power_gate_.evaluate(
         platform_.deviceConfig(),
-        data_.sensorConfigList(),
+        sensor_config_list,
         data_.measurementStore(),
         esp_reset_reason());
     status_service_.setPowerGate(decision);
@@ -244,8 +248,7 @@ bool App::bootWebServer() {
             network_.networkManager(),
             platform_.deviceConfigRepo(),
             platform_.deviceConfig(),
-            data_.sensorConfigRepo(),
-            data_.sensorConfigList(),
+            data_.sensorConfigStore(),
             data_.sensorManager(),
             data_.measurementStore(),
             data_.backendConfigRepo(),

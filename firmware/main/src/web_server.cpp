@@ -2670,8 +2670,7 @@ esp_err_t WebServer::start(
     NetworkManager& network_manager,
     ConfigRepository& config_repository,
     DeviceConfig& config,
-    SensorConfigRepository& sensor_config_repository,
-    SensorConfigList& sensor_config_list,
+    SensorConfigStore& sensor_config_store,
     SensorManager& sensor_manager,
     MeasurementStore& measurement_store,
     BackendConfigRepository& backend_config_repository,
@@ -2691,8 +2690,7 @@ esp_err_t WebServer::start(
     network_manager_ = &network_manager;
     config_repository_ = &config_repository;
     config_ = &config;
-    sensor_config_repository_ = &sensor_config_repository;
-    sensor_config_list_ = &sensor_config_list;
+    sensor_config_store_ = &sensor_config_store;
     sensor_manager_ = &sensor_manager;
     measurement_store_ = &measurement_store;
     backend_config_repository_ = &backend_config_repository;
@@ -2703,7 +2701,8 @@ esp_err_t WebServer::start(
     cellular_config_repository_ = &cellular_config_repository;
     cellular_config_ = &cellular_config;
     ota_service_ = &ota_service;
-    staged_sensor_config_ = sensor_config_list;
+    sensor_config_store.copyTo(staged_sensor_config_);
+    staged_sensor_base_ = staged_sensor_config_;
     has_pending_sensor_changes_ = false;
 
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();

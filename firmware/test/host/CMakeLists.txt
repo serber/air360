@@ -152,3 +152,17 @@ target_include_directories(test_sensor_sample_freshness PRIVATE
 target_compile_features(test_sensor_sample_freshness PRIVATE cxx_std_17)
 
 add_test(NAME sensor_sample_freshness COMMAND test_sensor_sample_freshness)
+
+add_executable(test_sensor_config_store
+    ../../main/src/sensors/sensor_config_store.cpp
+    test_sensor_config_store.cpp
+)
+
+target_include_directories(test_sensor_config_store PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_sensor_config_store PRIVATE cxx_std_17)
+
+add_test(NAME sensor_config_store COMMAND test_sensor_config_store)
