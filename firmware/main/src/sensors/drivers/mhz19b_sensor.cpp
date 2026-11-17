@@ -1,6 +1,8 @@
 #include "air360/sensors/drivers/mhz19b_sensor.hpp"
 
-#include <cstring>
+#include "air360/sensors/transport_binding.hpp"
+
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -12,6 +14,8 @@ namespace air360 {
 
 namespace {
 constexpr char kTag[] = "air360.sensor.mhz19b";
+// MH-Z19B UART protocol is fixed at 9600 8N1.
+constexpr std::uint32_t kMhz19bBaudRate = 9600U;
 }  // namespace
 
 Mhz19bSensor::~Mhz19bSensor() {
@@ -23,24 +27,37 @@ SensorType Mhz19bSensor::type() const {
 }
 
 esp_err_t Mhz19bSensor::init(const SensorRecord& record, const SensorDriverContext& context) {
-    // MH-Z19B owns its UART setup through the component driver; context is not needed.
-    static_cast<void>(context);
     teardown();
     measurement_.clear();
     clearError();
     soft_fail_policy_.onPollOk();
 
-    std::memset(&device_, 0, sizeof(device_));
-
-    const esp_err_t err = mhz19b_init(
-        &device_,
-        static_cast<uart_port_t>(record.uart_port_id),
-        static_cast<gpio_num_t>(record.uart_tx_gpio_pin),
-        static_cast<gpio_num_t>(record.uart_rx_gpio_pin));
-    if (err != ESP_OK) {
-        setError(std::string("Failed to initialize MH-Z19B: ") + esp_err_to_name(err));
-        return err;
+    uart_port_manager_ = context.uart_port_manager;
+    if (uart_port_manager_ == nullptr) {
+        setError("UART port manager is unavailable.");
+        return ESP_ERR_INVALID_STATE;
     }
+
+    // UartPortManager is the single owner of the UART driver: it is installed
+    // here (or verified if already open with the same settings) and deleted by
+    // SensorManager::stop(). mhz19b_init() is not used because it installs the
+    // UART itself and mhz19b_free() never uninstalls it.
+    const esp_err_t open_err = uart_port_manager_->open(
+        record.uart_port_id,
+        record.uart_rx_gpio_pin,
+        record.uart_tx_gpio_pin,
+        kMhz19bBaudRate);
+    if (open_err != ESP_OK) {
+        setError(std::string("Failed to open configured UART for MH-Z19B: ") +
+                 esp_err_to_name(open_err));
+        return open_err;
+    }
+
+    // Same device state mhz19b_init() would set up, with a driver-owned buffer.
+    device_.uart_port = static_cast<uart_port_t>(record.uart_port_id);
+    device_.buf = rx_buffer_.data();
+    device_.last_value = -1;
+    device_.last_ts = esp_timer_get_time();
 
     initialized_ = true;
     return ESP_OK;
@@ -89,12 +106,11 @@ SensorMeasurement Mhz19bSensor::latestMeasurement() const {
 }
 
 void Mhz19bSensor::teardown() {
-    if (initialized_) {
-        mhz19b_free(&device_);
-    }
+    // Nothing to release here: the buffer is a member and the UART belongs to
+    // UartPortManager. Never call mhz19b_free() on the member buffer.
     initialized_ = false;
     soft_fail_policy_.onPollOk();
-    std::memset(&device_, 0, sizeof(device_));
+    device_ = mhz19b_dev_t{};
 }
 
 std::unique_ptr<SensorDriver> createMhz19bSensor() {
