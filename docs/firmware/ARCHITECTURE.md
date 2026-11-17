@@ -494,7 +494,7 @@ struct MeasurementBatch {
 
 ### `BackendConfigRepository` — `uploads/backend_config_repository.cpp`
 
-Manages the `BackendConfigList` NVS blob (up to 5 backends). Migrates stored schema v1 blobs (4 records, no openSenseMap fields) to v2 in place, preserving existing backend settings.
+Manages the `BackendConfigList` NVS blob (up to 5 backends). Writes default settings when the stored layout is incompatible.
 
 **Per-backend config:**
 
@@ -743,7 +743,7 @@ Detects chip family (ESP32-S3, ESP32-C3, etc.), features (Wi-Fi, BLE, PSRAM), co
 
 ### Runtime (NVS)
 
-Persisted configuration lives in the `air360` NVS namespace (`network_cfg` = device + cellular config written atomically, legacy `device_cfg` / `cellular_cfg`, `sensor_cfg`, `backend_cfg`, `osem_map`, `boot_count`) plus the Air360 upload secret in `air360_cred`. Each blob is guarded by magic, schema version and size; invalid blobs fall back to defaults, and the documented migrations (legacy device/cellular keys → `network_cfg`, backend schema v1 → v2) run on load. Keys, structs and migration rules: [nvs.md](nvs.md).
+Persisted configuration lives in the `air360` NVS namespace (`network_cfg` = device + cellular config written atomically, legacy `device_cfg` / `cellular_cfg`, `sensor_cfg`, `backend_cfg`, `osem_map`, `boot_count`) plus the Air360 upload secret in `air360_cred`. Saving the Device Configuration form migrates the legacy device and cellular records into one blob. For per-key validation and fallback behavior, see [nvs.md](nvs.md).
 
 ---
 

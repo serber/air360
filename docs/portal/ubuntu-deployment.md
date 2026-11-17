@@ -9,7 +9,7 @@ This guide assumes:
 - no cloud platform
 - one plain Ubuntu machine
 - the portal is deployed as a separate application from `backend/`
-- the current portal is a `Next.js` web application with one public landing page and room for future account screens
+- the current portal is a `Next.js` web application with a public map, device pages and a build guide
 
 ## Goal
 
@@ -21,7 +21,7 @@ Deploy the Air360 portal with:
 - `Node.js` LTS for the application runtime
 
 At the current stage, the portal does not require application-specific secrets or database access on the host.
-When backend integration starts, environment variables for API endpoints and auth settings should be added to the portal environment file.
+The portal proxies browser requests under `/v1` to the Air360 API.
 
 ## Recommended Host Shape
 
@@ -35,7 +35,7 @@ When backend integration starts, environment variables for API endpoints and aut
 Recommended network model:
 
 - `nginx` listens on ports `80` and `443`
-- the portal app listens only on `127.0.0.1:3000`
+- the portal app listens only on `127.0.0.1:3001`
 - the backend API remains a separate service, ideally on its own local port or host
 
 ## Why This Shape
@@ -78,7 +78,7 @@ Use the official Linux binary for the active LTS branch:
 
 ```bash
 cd /tmp
-curl -fsSLO https://nodejs.org/dist/latest-v24.x/node-v24.14.1-linux-x64.tar.xz
+curl -fsSLO https://nodejs.org/dist/v24.14.1/node-v24.14.1-linux-x64.tar.xz
 sudo mkdir -p /opt/node
 sudo tar -xJf node-v24.14.1-linux-x64.tar.xz -C /opt/node
 sudo ln -sf /opt/node/node-v24.14.1-linux-x64/bin/node /usr/local/bin/node
@@ -92,12 +92,11 @@ Before installing, re-check the current active LTS branch on the official Node.j
 
 ## Service User And Directory Layout
 
-Create a dedicated system user and deployment directory:
+Create the service account once per host. Both Air360 services can use it.
 
 ```bash
-sudo adduser --system --group --home /opt/air360 air360
-sudo mkdir -p /opt/air360/app
-sudo chown -R air360:air360 /opt/air360
+id air360 >/dev/null 2>&1 || sudo adduser --system --group --home /opt/air360 air360
+sudo install -d -o air360 -g air360 /opt/air360
 ```
 
 Suggested layout:
@@ -110,16 +109,11 @@ Suggested layout:
 
 ## Deploy The Portal Code
 
-Clone the Air360 repository as the service user:
+On a new host, clone the monorepo and link the application's subdirectory to the path used by the service and deployment scripts:
 
 ```bash
-sudo -u air360 git clone <your-repo-url> /opt/air360/app
-```
-
-If the repository was cloned or unpacked as `root`, fix ownership before installing dependencies:
-
-```bash
-sudo chown -R air360:air360 /opt/air360/app
+sudo -u air360 git clone https://github.com/serber/air360.git /opt/air360/app
+sudo -u air360 ln -sT /opt/air360/app/portal /opt/air360/portal
 ```
 
 Install dependencies and build:
@@ -162,7 +156,7 @@ sudo chown root:air360 /etc/air360-portal.env
 sudo chmod 640 /etc/air360-portal.env
 ```
 
-Later, this file can also contain portal-specific runtime settings such as backend API base URLs.
+The service reads its listening port from `PORT`. If you change it, update the nginx upstream and the local checks below.
 
 ## systemd Service
 
@@ -179,7 +173,7 @@ User=air360
 Group=air360
 WorkingDirectory=/opt/air360/portal
 EnvironmentFile=/etc/air360-portal.env
-ExecStart=/usr/local/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+ExecStart=/usr/local/bin/npm run start -- --hostname 127.0.0.1
 Restart=always
 RestartSec=3
 KillSignal=SIGINT
@@ -215,7 +209,7 @@ server {
     server_name portal.example.com;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -264,9 +258,9 @@ Example checks:
 ```bash
 systemctl status nginx
 systemctl status air360-portal
-curl -I http://127.0.0.1:3000
+curl -I http://127.0.0.1:3001
 curl -I https://air360.ru
-ss -ltnp | grep 3000
+ss -ltnp | grep 3001
 ```
 
 ## Update Deployment
@@ -274,6 +268,7 @@ ss -ltnp | grep 3000
 When new portal changes are deployed:
 
 ```bash
+sudo -u air360 git -C /opt/air360/app pull --ff-only
 sudo /opt/air360/portal/deploy-portal.sh
 ```
 
@@ -292,4 +287,4 @@ sudo systemctl restart air360-portal
 
 - the portal is a separate application from `backend/`, even if both are deployed on the same Ubuntu host
 - at the current stage, no portal-specific secrets are required on the server
-- once backend integration starts, document required API base URLs and auth-related variables in `/etc/air360-portal.env`
+- the default API proxy target is `https://api.air360.ru`; set `AIR360_API_BASE_URL` in the build environment when building for a different API

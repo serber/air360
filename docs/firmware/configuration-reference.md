@@ -41,7 +41,7 @@ For storage format details (magic numbers, schema versions, struct layouts) see 
 | Sensors | `sensor_cfg` | `SensorConfigList` | Which sensors are active and how each is polled |
 | Backends | `backend_cfg` | `BackendConfigList` | Upload destinations and upload interval |
 
-Device, sensor, and backend config are loaded at boot steps 4–6 and cellular config at boot step 8; each is validated and replaced with compiled-in defaults on any integrity failure. Legacy device/cellular keys migrate to `network_cfg` on the first Device page save; `backend_cfg` also supports v1 → v2 migration. An invalid combined blob causes an in-memory default fallback for both domains without replacing storage; legacy individual blobs are reset on incompatible schema or size changes. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
+Device, sensor, and backend config are loaded at boot steps 4–6 and cellular config at boot step 8. Legacy device/cellular keys migrate to `network_cfg` on the first Device page save. An incompatible `backend_cfg` layout is replaced with compiled-in defaults. An invalid combined blob causes an in-memory default fallback for both domains without replacing storage; legacy individual blobs are reset on incompatible schema or size changes. The status JSON reports each repository load path under `config.<repository>.load_source` with per-source counters and `wrote_defaults` so operators can distinguish preserved NVS config from regenerated defaults.
 
 ---
 

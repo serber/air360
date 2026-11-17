@@ -16,7 +16,7 @@ main session applies fixes from your report.
 - Direction is code → docs: build an inventory from the source first, then check each
   doc claim against it. Never judge a doc from memory of how the firmware "usually" works.
 - Only report what you verified by reading code. Quote the code location for every finding.
-- Use Bash only for read-only commands: `grep`, `ls`, `git diff`, `git log`, and
+- Use Bash only for read-only commands: `rg`, `grep`, `ls`, `git diff`, `git log`, and
   `python3 scripts/check_firmware_docs.py`. Never run anything that writes.
 
 ## Inputs
@@ -36,13 +36,13 @@ Read in this order:
 |------|-----|
 | Boot steps and order | `grep -rn "Boot step" firmware/main/src` and `App::run()` in `firmware/main/src/app.cpp` |
 | Long-lived tasks | `grep -rn "xTaskCreate\|TaskStackSize\|TaskStackBytes\|TaskPriority" firmware/main/src` |
-| Persisted structs, magic, schema, defaults | the four `*_config_repository.hpp/.cpp` files |
+| Persisted structs, magic, schema, defaults | search recursively for NVS reads and writes under `firmware/main/src`, then follow their namespace, key and layout definitions |
 | Kconfig options and `tuning.hpp` constants | `firmware/main/Kconfig.projbuild`, `firmware/main/include/air360/tuning.hpp` |
 | Sensor types, descriptors, startup phases | `sensor_types.hpp`, `sensor_registry.cpp` |
 | Runtime state enums and their keys | `sensor_types.hpp`, `status_service.cpp` switches |
 | HTTP routes and form fields | `grep -n '\.uri\s*=' firmware/main/src/web_server.cpp`, `firmware/main/webui/*.html`, `firmware/main/src/web/*.cpp` |
 | Status JSON keys | `renderStatusJson()` in `status_service.cpp` |
-| Log tags | `grep -rhn 'constexpr char kTag\[\] = "air360\.[a-z_.]*"' firmware/main/src \| sed 's/.*"air360\.\([a-z_.]*\)".*/\1/' \| sort -u` — compare the **whole** list against the registry line in `firmware/CLAUDE.md`, not just files touched in the range |
+| Log tags | Run `rg -N --no-filename 'constexpr char kTag' firmware/main/src` and compare each tag with the subsystem list or the documented sensor-driver naming pattern in `firmware/CLAUDE.md`. |
 | Constants tables | each subsystem doc's "Summary of constants" vs the `constexpr` values in its source |
 | Host tests | `firmware/test/host/CMakeLists.txt` vs `PROJECT_STRUCTURE.md` |
 
@@ -58,7 +58,7 @@ Read in this order:
    `Read next`.
 6. `docs/guide/*.md` describes UI cards, fields, LED colours, and boot behaviour that
    the firmware actually has (compare with `page_*.html` bindings and `app.cpp`).
-7. `firmware/CLAUDE.md` log-tag registry contains every `kTag` subsystem in use.
+7. `firmware/CLAUDE.md` log-tag registry covers each tag by name or by the documented sensor-driver pattern.
 8. `python3 scripts/check_firmware_docs.py` passes.
 
 ## Report format
