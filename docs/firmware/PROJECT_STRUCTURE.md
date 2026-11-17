@@ -61,7 +61,7 @@ firmware/
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom 16 MB partition table (nvs, otadata, phy_init, ota_0, ota_1, storage)
 - `managed_components/` — ESP-IDF component manager dependencies (bmp280, bme680, dht, ds18b20, scd30, scd4x, sht3x, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus)
-- `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; currently covers web form parsing, backend URL helpers, `MeasurementStore`, and upload prune policy invariants
+- `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; `stubs/` holds ESP-IDF/FreeRTOS header stand-ins (in-memory NVS with fault injection, real mutex semaphores, controllable clock) and `fakes/` link-time replacements for production files that need unavailable libraries. Targets and coverage are listed in [`firmware/README.md`](../../firmware/README.md#host-tests)
 
 ---
 

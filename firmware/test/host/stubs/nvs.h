@@ -66,3 +66,11 @@ inline esp_err_t nvs_get_u32(nvs_handle_t h, const char* key, std::uint32_t* val
 inline esp_err_t nvs_set_u32(nvs_handle_t h, const char* key, std::uint32_t value) {
     return nvs_set_blob(h, key, &value, sizeof(value));
 }
+// Strings share the blob map (stored with their NUL terminator), matching the
+// ESP-IDF length contract: a null out buffer returns the required size.
+inline esp_err_t nvs_set_str(nvs_handle_t h, const char* key, const char* value) {
+    return nvs_set_blob(h, key, value, std::strlen(value) + 1U);
+}
+inline esp_err_t nvs_get_str(nvs_handle_t h, const char* key, char* out, std::size_t* size) {
+    return nvs_get_blob(h, key, out, size);
+}

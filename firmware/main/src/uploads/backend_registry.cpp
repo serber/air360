@@ -1,6 +1,7 @@
 #include "air360/uploads/backend_registry.hpp"
 
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <string>
 
@@ -132,10 +133,14 @@ bool validateInfluxDbRecord(const BackendRecord& record, std::string& error) {
     return true;
 }
 
+// Layout tripwires measured on the 32-bit ESP32 target. Host test builds
+// (64-bit pointers) compile this file too, so the checks apply to ILP32 only.
+#if UINTPTR_MAX == 0xFFFFFFFFU
 static_assert(sizeof(BackendTypeDefaults) == 16U,
     "BackendTypeDefaults layout changed — update kDescriptors designated initializers");
 static_assert(sizeof(BackendDescriptor) == 36U,
     "BackendDescriptor layout changed — update kDescriptors designated initializers");
+#endif
 
 // Order here drives the Backends page card order (the view model iterates the
 // descriptors). Records are always looked up by BackendType, so this order has

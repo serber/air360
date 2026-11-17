@@ -26,6 +26,7 @@
 *.log
 
 # Build artifacts and directories
+firmware/test/host/build-*/
 **/build/
 build/
 !portal/src/app/build/

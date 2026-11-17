@@ -165,4 +165,33 @@ target_include_directories(test_sensor_config_store PRIVATE
 
 target_compile_features(test_sensor_config_store PRIVATE cxx_std_17)
 
+find_package(Threads REQUIRED)
+target_link_libraries(test_sensor_config_store PRIVATE Threads::Threads)
+
 add_test(NAME sensor_config_store COMMAND test_sensor_config_store)
+
+add_executable(test_backend_config_repository
+    ../../main/src/uploads/backend_config_repository.cpp
+    ../../main/src/uploads/backend_registry.cpp
+    ../../main/src/uploads/adapters/air360_api_uploader.cpp
+    ../../main/src/uploads/adapters/air360_json_payload.cpp
+    ../../main/src/uploads/adapters/custom_upload_uploader.cpp
+    ../../main/src/uploads/adapters/influxdb_uploader.cpp
+    ../../main/src/uploads/adapters/opensensemap_uploader.cpp
+    ../../main/src/uploads/adapters/sensor_community_uploader.cpp
+    ../../main/src/uploads/air360_api_credentials.cpp
+    ../../main/src/uploads/opensensemap_mapping_repository.cpp
+    ../../main/src/uploads/upload_transport.cpp
+    ../../main/src/uploads/upload_log_endpoint.cpp
+    fakes/crypto_utils_fake.cpp
+    test_backend_config_repository.cpp
+)
+
+target_include_directories(test_backend_config_repository PRIVATE
+    stubs
+    ../../main/include
+)
+
+target_compile_features(test_backend_config_repository PRIVATE cxx_std_17)
+
+add_test(NAME backend_config_repository COMMAND test_backend_config_repository)

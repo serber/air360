@@ -218,7 +218,12 @@ Generated artifacts are written under `build/`. For the current project that inc
 
 ### Host tests
 
-Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. The current targets cover web form parsing, backend URL config helpers, `MeasurementStore` queue behavior, and the upload prune/quorum policy used by `UploadManager`.
+Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. Targets cover web form and request-body parsing, upload transport and log endpoint, `MeasurementStore`, the upload prune/quorum policy, BLE packet assembly, sensor sample freshness, the device/cellular and backend config repositories (with NVS fault injection), and `SensorConfigStore` (deterministic interleavings plus a multi-threaded run).
+
+Test seams live next to the tests:
+
+- `test/host/stubs/` — header stand-ins for ESP-IDF/FreeRTOS APIs. `nvs.h` keeps blobs in memory and injects read/write/commit failures (`nvs_test::fail_*`); `freertos/semphr.h` is a real `std::timed_mutex`, so threaded tests exercise actual mutual exclusion; `esp_timer.h` is a controllable clock (`esp_timer_test::now_us`, `auto_advance_us`); `esp_random.h` is deterministic.
+- `test/host/fakes/` — link-time replacements for production files that need unavailable libraries (`crypto_utils_fake.cpp` replaces the mbedTLS-based `crypto_utils.cpp`).
 
 ```bash
 cd firmware
@@ -232,6 +237,14 @@ From the repository root, the same sequence is wrapped by:
 ```bash
 python3 scripts/check_firmware_host_tests.py
 ```
+
+Coverage of the host-compiled subset (clang source-based coverage; the report states how many production `.cpp` files are in scope, so it is not read as whole-firmware coverage):
+
+```bash
+python3 scripts/host_coverage.py
+```
+
+CI (`.github/workflows/firmware-ci.yml`) runs the host tests plain, with ASan + UBSan, and with ThreadSanitizer, publishes the coverage report in the job summary, and builds the firmware with ESP-IDF on every PR and push to `main`.
 
 ## Release Packaging
 
