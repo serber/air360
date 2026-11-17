@@ -90,6 +90,12 @@ class SensorManager {
         // Uptime at which the sensor became eligible for init/poll; anchors its
         // warmup window. 0 while the sensor is parked in kDeferred.
         std::uint64_t eligible_since_ms = 0U;
+        // Driver sample_time_ms of the last measurement handed to the
+        // MeasurementStore. A successful poll that returns the same cached
+        // sample (no new UART frame, no new GPS sentence) is not recorded
+        // again, so it is neither re-queued with a fresh Unix timestamp nor
+        // refreshed as the latest reading.
+        std::uint64_t last_recorded_sample_time_ms = 0U;
     };
 
     void lock() const;

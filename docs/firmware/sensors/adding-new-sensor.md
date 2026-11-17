@@ -92,6 +92,8 @@ SensorMeasurement latestMeasurement() const override;
 std::string lastError() const override;
 ```
 
+Set `measurement_.sample_time_ms` (uptime ms) only when the driver actually acquires a new sample, and keep the previous measurement untouched when a poll returns `ESP_OK` without new data. `SensorManager` records and queues a measurement only when its `sample_time_ms` changes (`isFreshSample()`), so re-stamping a cached reading would upload it again as a new observation.
+
 Also declare the factory function:
 ```cpp
 std::unique_ptr<SensorDriver> createMyNewSensor();

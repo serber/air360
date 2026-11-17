@@ -97,20 +97,24 @@ struct SensorValue {
 
 Maximum values per measurement: **16** (`kMaxMeasurementValues`).
 
+Drivers stamp `sample_time_ms` only when they acquire new data. A poll that returns `ESP_OK` without a new sample (no complete UART frame, no newly committed GPS sentence, sensor not data-ready) leaves the previous measurement and its original `sample_time_ms` in place.
+
 ---
 
 ## Stage 2 — Recording into `MeasurementStore`
 
-After a successful poll, the sensor task calls:
+After a successful poll, the sensor task records the measurement only if `isFreshSample()` (`sensor_driver.hpp`) reports that its `sample_time_ms` differs from the last one recorded for that sensor (`ManagedSensor::last_recorded_sample_time_ms`):
 
 ```cpp
 measurement_store_->recordMeasurement(
     record.id,
     record.sensor_type,
     measurement,          // SensorMeasurement from driver
-    currentUnixMilliseconds()
+    in_warmup ? 0 : currentUnixMilliseconds()
 );
 ```
+
+A cached reading is therefore never queued twice with a fresh Unix timestamp. It also leaves `latest_by_sensor_` untouched, so `last_sample_time_ms` keeps aging and the status page reports the sensor as `stale` once the age exceeds three poll intervals (minimum 15 s) — for example after a UART sensor is disconnected. The successful poll still resets the failure counters; staleness is reported independently of poll errors.
 
 `recordMeasurement()` does three things under a single mutex lock:
 

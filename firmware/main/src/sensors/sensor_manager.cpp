@@ -534,7 +534,20 @@ void SensorManager::taskMain() {
             const std::string last_error =
                 op_err == ESP_OK ? std::string{} : errorText(*driver, op_err);
 
-            if (op_err == ESP_OK && !measurement.empty() && measurement_store_ != nullptr) {
+            // Drivers keep their last measurement across polls that did not
+            // acquire a new sample; sample_time_ms only changes when they do.
+            bool fresh_sample = false;
+            if (op_err == ESP_OK) {
+                lock();
+                if (index < sensors_.size() && sensors_[index].driver.get() == driver &&
+                    isFreshSample(measurement, sensors_[index].last_recorded_sample_time_ms)) {
+                    sensors_[index].last_recorded_sample_time_ms = measurement.sample_time_ms;
+                    fresh_sample = true;
+                }
+                unlock();
+            }
+
+            if (fresh_sample && measurement_store_ != nullptr) {
                 measurement_store_->recordMeasurement(
                     record.id,
                     record.sensor_type,

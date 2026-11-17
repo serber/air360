@@ -66,6 +66,17 @@ struct SensorMeasurement {
     }
 };
 
+// True when a driver's latestMeasurement() holds a sample acquired after the
+// one last recorded for that sensor. Drivers stamp sample_time_ms (uptime ms)
+// only when they acquire new data and keep the previous measurement across
+// polls that did not, so an unchanged timestamp means "nothing new".
+inline bool isFreshSample(
+    const SensorMeasurement& measurement,
+    std::uint64_t last_recorded_sample_time_ms) {
+    return !measurement.empty() && measurement.sample_time_ms != 0U &&
+           measurement.sample_time_ms != last_recorded_sample_time_ms;
+}
+
 struct SensorDriverContext {
     I2cBusManager* i2c_bus_manager = nullptr;
     UartPortManager* uart_port_manager = nullptr;
