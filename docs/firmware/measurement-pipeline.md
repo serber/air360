@@ -20,6 +20,7 @@ This document covers how sensor readings become queued measurements and how thos
 - [upload-adapters.md](upload-adapters.md)
 - [upload-transport.md](upload-transport.md)
 - [time.md](time.md)
+- [hardware-test-scenarios.md](hardware-test-scenarios.md) — on-device link-loss and sensor-disconnect checks
 
 This document describes how sensor readings move from hardware acquisition through in-memory queuing to upload — covering the data structures, queue mechanics, upload window, and all the conditions that affect the flow.
 

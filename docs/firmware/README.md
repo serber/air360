@@ -49,6 +49,7 @@ The `firmware/` directory is the source of truth for all implemented behaviour d
 | Change web routes or forms | [web-ui.md](web-ui.md) | [configuration-reference.md](configuration-reference.md) |
 | Change upload behavior | [measurement-pipeline.md](measurement-pipeline.md) | [upload-adapters.md](upload-adapters.md) + [upload-transport.md](upload-transport.md) |
 | Change OTA update behavior | [ota.md](ota.md) | [adr/implemented-ota-firmware-update-adr.md](adr/implemented-ota-firmware-update-adr.md) |
+| Verify a change on a real device | [hardware-test-scenarios.md](hardware-test-scenarios.md) | the subsystem doc linked from the scenario |
 | Estimate doc fallout before editing | [change-impact-map.md](change-impact-map.md) | [doc-template.md](doc-template.md) |
 
 ---
@@ -146,6 +147,14 @@ Transport bindings and addresses are canonical in [sensors/supported-sensors.md]
 | Document | Description |
 |----------|-------------|
 | [ota.md](ota.md) | Over-the-air update: streaming write session, OTA HTTP endpoints, deferred reboot, rollback and first-boot confirmation |
+
+---
+
+## Verification
+
+| Document | Description |
+|----------|-------------|
+| [hardware-test-scenarios.md](hardware-test-scenarios.md) | Manual on-device scenarios: link loss, sensor disconnect, OTA interruption, sustained operation, pending hardware checks for recent fixes |
 
 ---
 

@@ -244,6 +244,8 @@ Coverage of the host-compiled subset (clang source-based coverage; the report st
 python3 scripts/host_coverage.py
 ```
 
+Behaviour that needs real hardware (radios, modem, flash, sensors, power) is verified manually with [`docs/firmware/hardware-test-scenarios.md`](../docs/firmware/hardware-test-scenarios.md).
+
 CI (`.github/workflows/firmware-ci.yml`) runs the host tests plain, with ASan + UBSan, and with ThreadSanitizer, publishes the coverage report in the job summary, and builds the firmware with ESP-IDF on every PR and push to `main`.
 
 ## Release Packaging
