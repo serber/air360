@@ -53,6 +53,7 @@ firmware/
 │   │   │   ├── sensor_manager.cpp
 │   │   │   ├── sensor_registry.cpp
 │   │   │   ├── sensor_config_repository.cpp
+│   │   │   ├── sensor_config_store.cpp
 │   │   │   └── transport_binding.cpp
 │   │   └── uploads/
 │   │       ├── adapters/           air360_api_uploader.cpp, sensor_community_uploader.cpp
@@ -103,6 +104,7 @@ NVS
  └─ ConfigRepository          (device_cfg, boot_count)
  └─ CellularConfigRepository  (cellular_cfg)
  └─ SensorConfigRepository    (sensor_cfg)
+     └─ SensorConfigStore     → owns live sensor config + saves (web Apply, maintenance completion)
      └─ SensorManager         → builds drivers, starts air360_sensor task
          └─ I2cBusManager     (shared I2C buses)
          └─ UartPortManager   (shared UART ports)
@@ -324,6 +326,8 @@ Manages the configured cellular modem lifecycle. Spawned only when `CellularConf
 
 Manages the `SensorConfigList` NVS blob (up to 8 sensors).
 
+At runtime the live list is owned by `SensorConfigStore` (`sensors/sensor_config_store.cpp`, held by `DataLayer`). It is the only writer of the live list and the `sensor_cfg` blob after boot: web Apply (`replace()`) and maintenance-action completion from the sensor task (`clearMaintenanceAction()`) both persist and publish under one mutex, so RAM and NVS cannot diverge and neither update is lost. Each accepted Apply bumps a configuration generation that is passed to `SensorManager::applyConfig()`; a completion reported by a task started for an older generation is ignored. Readers (sensors page, config page, power gate) take a copy with `copyTo()`.
+
 **Per-sensor config:**
 
 | Field | Description |
@@ -418,7 +422,7 @@ Owns the sensor runtime lifecycle.
 - Thread-safe sensors collection protected by static mutex
 
 **Lifecycle methods:**
-- `applyConfig(SensorConfigList)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
+- `applyConfig(SensorConfigList, config_generation)` — validates config, requests old task stop, waits up to 5 s for task-exit acknowledgement, instantiates drivers, starts task
 - `buildManagedSensors()` — validates transport bindings, calls `SensorRegistry::createDriver()` for each enabled sensor
 - `taskMain()` — polls each eligible sensor at its configured interval (5 s during its 60 s warmup window), updates measurements, handles errors
 - `releaseAfterNetworkPhase()` — opens the `kAfterNetwork` startup phase; called once by `App` after cellular/Wi-Fi bring-up (boot step 10)

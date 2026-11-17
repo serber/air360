@@ -232,7 +232,7 @@ Unparsable numeric values fall back to the currently stored ones before validati
 Sensor edits use a **two-phase staged commit** pattern. Field constraints, per-sensor address rules, and poll interval ranges are in [configuration-reference.md](configuration-reference.md#sensor-configuration-sensor_cfg).
 
 1. Each form action (`add`, `update`, `delete`) modifies an in-memory **staged config** (`staged_sensor_config_`) and sets `has_pending_sensor_changes_ = true`. Nothing is written to NVS yet.
-2. "Apply now" (`action=apply`) writes the staged config to NVS and calls `SensorManager::applyConfig()` — changes normally take effect immediately without a reboot. If the old sensor task does not acknowledge stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
+2. "Apply now" (`action=apply`) hands the staged config to `SensorConfigStore::replace()`, which merges firmware-owned fields, writes it to NVS, publishes it as the live config and bumps the configuration generation; the handler then calls `SensorManager::applyConfig()` with that generation — changes normally take effect immediately without a reboot. If the old sensor task does not acknowledge stop before its runtime timeout, the page reports that the config was saved but requires a reboot to apply.
 3. "Discard pending changes" (`action=discard`) resets the staged config to the last saved config.
 
 **Page header actions** — **Apply** and **Discard** buttons are always visible in the page `title-row` (rendered via `lead_html` in `renderPageDocument`). The notice area below the title row shows a staging summary message when `has_pending_sensor_changes_` is true.
@@ -268,12 +268,14 @@ For single-sensor categories, the "Add sensor" form is hidden if the category al
 | `add` | Creates a new `SensorRecord`, assigns next ID, stages it |
 | `update` | Updates the existing record with matching `sensor_id`, stages it |
 | `delete` | Removes the record by `sensor_id`, stages the deletion |
-| `apply` | Writes staged config to NVS, calls `applyConfig()`, reports runtime apply failure if the old task cannot stop |
+| `apply` | `SensorConfigStore::replace()` (merge, NVS write, publish, new generation), then `applyConfig()`; reports runtime apply failure if the old task cannot stop |
 | `discard` | Resets staged config to last saved config |
 
 Category uniqueness is enforced at stage time — staging a second sensor in a single-sensor category returns an error.
 
 When there are no pending staged changes, `handleSensors()` re-syncs the staged buffer from the live config on each request. This reflects firmware-owned changes the operator did not make — in particular a one-shot maintenance action the sensor manager cleared after it ran — so the "Run on next boot" selector returns to "None" instead of lingering as a stale, re-appliable value. The re-sync is skipped while edits are pending so unsaved selections are preserved.
+
+Alongside the staged buffer the server keeps `staged_sensor_base_`, the live config the edits started from. On Apply, `SensorConfigStore` compares each record's `pending_maintenance_action` with the base: if the operator did not change it, the live value wins, so an action that completed while edits were pending is not re-armed by the stale staged copy; an explicit new selection is kept.
 
 ---
 

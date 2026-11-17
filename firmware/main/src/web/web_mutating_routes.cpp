@@ -156,7 +156,8 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     // of lingering as a stale, re-appliable value. Skipped while edits are
     // pending so the operator's unsaved selections are preserved.
     if (!server->has_pending_sensor_changes_) {
-        server->staged_sensor_config_ = *server->sensor_config_list_;
+        server->sensor_config_store_->copyTo(server->staged_sensor_config_);
+        server->staged_sensor_base_ = server->staged_sensor_config_;
     }
 
     const auto respond = [&](const std::string& notice, bool error) {
@@ -190,16 +191,23 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
     SensorRegistry registry;
 
     if (action == "apply") {
-        const esp_err_t save_err = server->sensor_config_repository_->save(server->staged_sensor_config_);
+        // Persist and publish atomically with maintenance-completion updates;
+        // staged_sensor_config_ holds the accepted (merged) config afterwards.
+        std::uint32_t config_generation = 0U;
+        const esp_err_t save_err = server->sensor_config_store_->replace(
+            server->staged_sensor_config_,
+            server->staged_sensor_base_,
+            config_generation);
         if (save_err != ESP_OK) {
             return respond(
                 std::string("Failed to save sensor configuration: ") + esp_err_to_name(save_err),
                 true);
         }
 
-        *server->sensor_config_list_ = server->staged_sensor_config_;
-        const esp_err_t apply_err =
-            server->sensor_manager_->applyConfig(*server->sensor_config_list_);
+        server->staged_sensor_base_ = server->staged_sensor_config_;
+        const esp_err_t apply_err = server->sensor_manager_->applyConfig(
+            server->staged_sensor_config_,
+            config_generation);
         server->has_pending_sensor_changes_ = false;
         if (apply_err != ESP_OK) {
             return respond(
@@ -209,7 +217,8 @@ esp_err_t WebServer::handleSensors(httpd_req_t* request) {
         }
         return respond("Sensor configuration saved and applied.", false);
     } else if (action == "discard") {
-        server->staged_sensor_config_ = *server->sensor_config_list_;
+        server->sensor_config_store_->copyTo(server->staged_sensor_config_);
+        server->staged_sensor_base_ = server->staged_sensor_config_;
         server->has_pending_sensor_changes_ = false;
         return respond("Pending sensor changes discarded.", false);
     } else if (action == "delete") {
@@ -717,6 +726,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
             const CellularConfig& cell_preview,
             const std::string& notice,
             bool error) {
+            server->sensor_config_store_->copyTo(server->live_sensor_config_);
             return sendHtmlResponse(
                 request,
                 renderConfigPage(
@@ -724,7 +734,7 @@ esp_err_t WebServer::handleConfig(httpd_req_t* request) {
                     cell_preview,
                     server->status_service_->networkState(),
                     *server->network_manager_,
-                    *server->sensor_config_list_,
+                    server->live_sensor_config_,
                     *server->measurement_store_,
                     server->ota_service_->snapshot(),
                     notice,

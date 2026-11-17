@@ -7,7 +7,7 @@
 #include "air360/network_manager.hpp"
 #include "air360/ota_service.hpp"
 #include "air360/status_service.hpp"
-#include "air360/sensors/sensor_config_repository.hpp"
+#include "air360/sensors/sensor_config_store.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/measurement_store.hpp"
 #include "air360/uploads/air360_api_credentials.hpp"
@@ -32,8 +32,7 @@ class WebServer {
         NetworkManager& network_manager,
         ConfigRepository& config_repository,
         DeviceConfig& config,
-        SensorConfigRepository& sensor_config_repository,
-        SensorConfigList& sensor_config_list,
+        SensorConfigStore& sensor_config_store,
         SensorManager& sensor_manager,
         MeasurementStore& measurement_store,
         BackendConfigRepository& backend_config_repository,
@@ -71,8 +70,7 @@ class WebServer {
     NetworkManager* network_manager_ = nullptr;
     ConfigRepository* config_repository_ = nullptr;
     DeviceConfig* config_ = nullptr;
-    SensorConfigRepository* sensor_config_repository_ = nullptr;
-    SensorConfigList* sensor_config_list_ = nullptr;
+    SensorConfigStore* sensor_config_store_ = nullptr;
     SensorManager* sensor_manager_ = nullptr;
     MeasurementStore* measurement_store_ = nullptr;
     BackendConfigRepository* backend_config_repository_ = nullptr;
@@ -83,7 +81,12 @@ class WebServer {
     CellularConfigRepository* cellular_config_repository_ = nullptr;
     CellularConfig* cellular_config_ = nullptr;
     OtaService* ota_service_ = nullptr;
+    // Operator edits not yet applied. staged_sensor_base_ is the live config
+    // the edits started from; Apply merges firmware-owned fields against it.
     SensorConfigList staged_sensor_config_{};
+    SensorConfigList staged_sensor_base_{};
+    // httpd-task scratch copy of the live config for read-only rendering.
+    SensorConfigList live_sensor_config_{};
     bool has_pending_sensor_changes_ = false;
 };
 
