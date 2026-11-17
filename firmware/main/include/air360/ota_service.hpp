@@ -51,6 +51,14 @@ class OtaService {
     // state (after WebServer + managers are running).
     void confirmRunningImage();
 
+    // Fatal-boot recovery: if the running image is still PENDING_VERIFY (first
+    // boot after an OTA), mark it invalid and reboot into the previous slot.
+    // Does not return when the rollback succeeds. Returns ESP_ERR_INVALID_STATE
+    // when the image is already confirmed (or its state is unknown), so the
+    // caller applies its normal recovery policy; other errors come from
+    // esp_ota_mark_app_invalid_rollback_and_reboot().
+    [[nodiscard]] esp_err_t rollBackUnverifiedImage();
+
     // Starts an OTA session targeting the next update partition.
     // content_length is informational only (used for progress UI); it may be 0
     // if the client did not send Content-Length.

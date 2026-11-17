@@ -136,6 +136,26 @@ void OtaService::confirmRunningImage() {
     unlock();
 }
 
+esp_err_t OtaService::rollBackUnverifiedImage() {
+    lock();
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    esp_ota_img_states_t image_state = ESP_OTA_IMG_UNDEFINED;
+    const bool pending_verify =
+        running != nullptr &&
+        esp_ota_get_state_partition(running, &image_state) == ESP_OK &&
+        image_state == ESP_OTA_IMG_PENDING_VERIFY;
+    unlock();
+    if (!pending_verify) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    ESP_LOGE(kTag, "Boot failed on an unverified OTA image; rolling back to previous slot");
+    // Returns only on failure; on success the device restarts immediately.
+    const esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
+    ESP_LOGE(kTag, "Automatic rollback failed: %s", esp_err_to_name(err));
+    return err;
+}
+
 esp_err_t OtaService::begin(std::uint32_t content_length) {
     lock();
     // After a commit, esp_ota_get_next_update_partition() would select the
