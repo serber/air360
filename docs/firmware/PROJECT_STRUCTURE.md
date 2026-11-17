@@ -60,7 +60,7 @@ firmware/
 - `main/Kconfig.projbuild` — project-specific `CONFIG_AIR360_*` options exposed through `menuconfig`
 - `sdkconfig.defaults` — repository defaults for target, partition table, task stack, and board pins
 - `partitions.csv` — custom 16 MB partition table (nvs, otadata, phy_init, ota_0, ota_1, storage)
-- `managed_components/` — ESP-IDF component manager dependencies (bmp280, bme680, dht, ds18b20, scd30, scd4x, sht3x, sht4x, si7021, veml7700, tinygpsplusplus, esp_modem, led_strip, onewire_bus)
+- `managed_components/` — downloaded by the ESP-IDF component manager at build time (not committed); the direct dependencies are declared in `main/idf_component.yml`: esp-idf-lib `i2cdev`, `bmp280`, `bme680`, `dht`, `ina219`, `mhz19b`, `scd30`, `scd4x`, `sht3x`, `sht4x`, `si7021`, `veml7700`; espressif `esp_modem`, `ds18b20`, `led_strip`, `mdns`, `aht30`; `k0i05/esp_bmp390`, `k0i05/esp_ina226`, `petrovgp/esp-pms`, `cinderblocks/esp_tinygpsplusplus`, `nordesems/esp-captive-portal` (plus transitive ones such as `onewire_bus`)
 - `test/host/` — native CMake/CTest harness for host-testable firmware logic that does not require ESP-IDF runtime or hardware; `stubs/` holds ESP-IDF/FreeRTOS header stand-ins (in-memory NVS with fault injection, real mutex semaphores, controllable clock) and `fakes/` link-time replacements for production files that need unavailable libraries. Targets and coverage are listed in [`firmware/README.md`](../../firmware/README.md#host-tests)
 
 ---
@@ -77,6 +77,10 @@ firmware/
 - `main/src/data/data_layer.cpp` — `DataLayer` facade owning sensors, measurement store, BLE advertiser, backend config and `UploadManager`
 - `main/src/build_info.cpp` — build metadata and device identity (device_id, short_device_id, esp_mac_id)
 - `main/src/config_repository.cpp` — NVS-backed `DeviceConfig` persistence and boot counter
+- `main/src/config_transaction.cpp` — atomic device + cellular persistence through the paired `network_cfg` blob
+- `main/src/crypto_utils.cpp` — mbedTLS-based Base64 / SHA-256 helpers (Air360 upload secret, InfluxDB Basic Auth)
+- `main/src/log_buffer.cpp` — in-RAM copy of the ESP-IDF log output served by `/logs/data` for the Diagnostics log console
+- `main/src/ble_advertiser.cpp` — `BleAdvertiser`: NimBLE BTHome advertising of the latest measurements (`air360_ble` task)
 - `main/src/network_manager.cpp` — Wi-Fi station connect, SNTP, and setup AP fallback at `192.168.4.1`
 - `main/src/cellular_config_repository.cpp` — NVS-backed `CellularConfig` persistence (independent schema version)
 - `main/src/cellular_manager.cpp` — configurable cellular modem lifecycle: PPP session, reconnect task, exponential backoff, hardware reset
@@ -113,7 +117,7 @@ Core files:
 
 - `sensor_types.hpp` — enums for sensor types, transports, runtime states, and measurement value kinds
 - `sensor_config.hpp` — persisted `SensorRecord` and `SensorConfigList` (up to 8 sensors)
-- `sensor_driver.hpp` — `ISensorDriver` interface and generic measurement model
+- `sensor_driver.hpp` / `sensor_driver.cpp` — `SensorDriver` base class (soft-fail policy, poll-failure reporting), `SensorMeasurement` model, and `isFreshSample()`
 - `sensor_registry.hpp` / `sensor_registry.cpp` — static catalog of supported sensors with factory and validator per type
 - `sensor_config_repository.cpp` — NVS-backed sensor config persistence and schema validation
 - `sensor_config_store.hpp` / `sensor_config_store.cpp` — `SensorConfigStore`: single owner of the live sensor config; serializes web Apply with maintenance-action completion and tracks the configuration generation
@@ -141,6 +145,11 @@ Driver implementations under `main/src/sensors/drivers/`:
 | `dht_sensor.cpp` | DHT11 / DHT22 | `esp-idf-lib__dht` (managed component) |
 | `ds18b20_sensor.cpp` | DS18B20 | `espressif__ds18b20` (managed component) |
 | `ppd42ns_sensor.cpp` | PPD42NS | ESP-IDF GPIO ISR |
+| `aht30_sensor.cpp` | AHT30 | `espressif__aht30` (managed component) |
+| `ina219_sensor.cpp` | INA219 | `esp-idf-lib__ina219` (managed component) |
+| `ina226_sensor.cpp` | INA226 | `k0i05__esp_ina226` (managed component) |
+| `mhz19b_sensor.cpp` | MH-Z19B | `esp-idf-lib__mhz19b` protocol over a `UartPortManager` port |
+| `lmp91000_sensor.cpp` | LMP91000 AFE (+ ADS1115) | Air360 I2C register driver |
 | `sensirion_i2c_hal.cpp` | Sensirion I2C HAL | (bridge for SPS30 vendored lib) |
 
 Adding a new sensor means one new driver file plus one registry entry — no changes to the rest of the runtime.
@@ -157,6 +166,7 @@ Sources: `main/src/uploads/`
 - `backend_registry.cpp` — static catalog of supported backends with factory and validator per type
 - `upload_manager.cpp` — `air360_upload` FreeRTOS task (stack 7 KB, priority 4); upload cycle and per-backend cursors
 - `upload_transport.cpp` — `esp_http_client` wrapper with CRT bundle support
+- `upload_log_endpoint.cpp` — formats upload endpoints for logs without credentials or query strings
 - `adapters/air360_json_payload.cpp` — shared Air360 JSON body builder used by multiple backend uploaders
 - `adapters/air360_api_uploader.cpp` — register with Air360 API and PUT signed-by-secret Air360 JSON to the configured backend host/path
 - `adapters/custom_upload_uploader.cpp` — POST the Air360 JSON body to a user-supplied protocol/host/path/port endpoint

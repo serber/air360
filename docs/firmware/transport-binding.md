@@ -47,7 +47,7 @@ A thin coordination layer that owns the `i2cdev` subsystem lifecycle and central
 ### Responsibilities
 
 - Call `i2cdev_init()` once before any driver initialises.
-- Map logical bus IDs to ESP-IDF port numbers and GPIO pin numbers — the single authoritative source for `CONFIG_AIR360_I2C0_SDA/SCL_GPIO`.
+- Map logical bus IDs to ESP-IDF port numbers and GPIO pin numbers — the single authoritative source for `CONFIG_AIR360_I2C0_SDA_GPIO` / `CONFIG_AIR360_I2C0_SCL_GPIO`.
 - Prepare `i2c_dev_t` descriptors for drivers that use `i2cdev` directly.
 - Supply the raw `i2c_master_bus_handle_t` for drivers built on the new ESP-IDF I2C master API.
 

@@ -177,10 +177,12 @@ Key cross-document relationships:
 
 ```
 startup-pipeline
-  ├─ nvs                     (steps 4–6: config load)
+  ├─ nvs                     (steps 4–6, 8: config load)
   ├─ configuration-reference (field defaults and validation)
-  ├─ network-manager         (step 7: Wi-Fi connection)
-  └─ measurement-pipeline    (step 8: upload task spawn)
+  ├─ power-gate              (step 7: boot-time voltage gate)
+  ├─ cellular-manager        (step 8: modem / PPP)
+  ├─ network-manager         (step 9: Wi-Fi / network mode)
+  └─ measurement-pipeline    (steps 5, 10, 11: sensors, upload task)
 
 measurement-pipeline
   ├─ transport-binding       (sensor driver hardware access)
