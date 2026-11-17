@@ -271,3 +271,21 @@ target_compile_features(test_upload_manager_lifecycle PRIVATE cxx_std_20)
 target_link_libraries(test_upload_manager_lifecycle PRIVATE Threads::Threads)
 
 add_test(NAME upload_manager_lifecycle COMMAND test_upload_manager_lifecycle)
+
+add_executable(test_uart_frames
+    ../../main/src/sensors/drivers/sds011_sensor.cpp
+    ../../main/src/sensors/drivers/pmsx003_sensor.cpp
+    ../../main/src/sensors/sensor_driver.cpp
+    fakes/transport_binding_fake.cpp
+    test_uart_frames.cpp
+)
+
+target_include_directories(test_uart_frames PRIVATE
+    stubs
+    fakes
+    ../../main/include
+)
+
+target_compile_features(test_uart_frames PRIVATE cxx_std_20)
+
+add_test(NAME uart_frames COMMAND test_uart_frames)
