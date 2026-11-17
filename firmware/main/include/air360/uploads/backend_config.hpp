@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -160,6 +161,20 @@ inline std::string formatBackendDisplayEndpoint(const BackendRecord& record) {
     }
     ep += boundedCString(record.path, kBackendPathCapacity);
     return ep;
+}
+
+// Air360 API location invariant shared by the web form, the backend config
+// repository and the registration serializer: every value finite, latitude in
+// [-90, 90], longitude in [-180, 180]. 0/0 means "not set" and is valid here;
+// the uploader reports it as a configuration error separately.
+inline bool isValidAir360Location(float latitude, float longitude, float altitude_m) {
+    return std::isfinite(latitude) && std::isfinite(longitude) && std::isfinite(altitude_m) &&
+           latitude >= -90.0F && latitude <= 90.0F &&
+           longitude >= -180.0F && longitude <= 180.0F;
+}
+
+inline bool hasValidAir360Location(const BackendRecord& record) {
+    return isValidAir360Location(record.latitude, record.longitude, record.altitude_m);
 }
 
 }  // namespace air360

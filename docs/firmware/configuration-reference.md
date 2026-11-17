@@ -286,9 +286,9 @@ Five backends are pre-configured by default — all **disabled**:
 | `measurement_name` | `char[32]` | `"air360"` for InfluxDB, else `""` | InfluxDB measurement name |
 | `port` | `uint16_t` | backend default | HTTP backends |
 | `use_https` | `uint8_t` | backend default | `1` = HTTPS, `0` = HTTP |
-| `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
-| `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, must be non-zero when enabled |
-| `altitude_m` | `float` | `0.0` | Air360 API only; metres above sea level; optional, `0.0` = not set |
+| `latitude` | `float` | `0.0` | Air360 API only; decimal degrees, finite, `-90`…`90`; must be non-zero when enabled |
+| `longitude` | `float` | `0.0` | Air360 API only; decimal degrees, finite, `-180`…`180`; must be non-zero when enabled |
+| `altitude_m` | `float` | `0.0` | Air360 API only; metres above sea level, finite; optional, `0.0` = not set |
 | `opensensemap_sensebox_id` | `char[32]` | `""` | openSenseMap only; 16–31 char alphanumeric box ID (classic hex ObjectId or next-gen cuid), required when enabled |
 | `opensensemap_access_token` | `char[72]` | `""` | openSenseMap only; optional box access token, printable non-space ASCII |
 
@@ -325,7 +325,8 @@ The Air360 API latitude and longitude fields can be entered manually or selected
 **Air360 API:**
 - `host`, `path`, `username`, `password`, and `measurement_name` must be null-terminated.
 - If `enabled == 1`: `host`, `path`, and `port` must be valid.
-- `latitude` and `longitude` must both be non-zero before the first upload cycle; the adapter enforces this at registration time (not at config-load time).
+- `latitude`, `longitude`, and `altitude_m` must be finite and the coordinates within `-90`…`90` / `-180`…`180` (`isValidAir360Location()` in `backend_config.hpp`). The form parser (`parseFiniteFloat()`) rejects `nan`, `inf`, and overflowing input such as `1e999`; `BackendConfigRepository::save()` rejects a list that violates the invariant even for a disabled record; on load, a stored location that violates it is reset to `0/0` (not set) and re-saved instead of discarding the whole backend config.
+- `latitude` and `longitude` must both be non-zero before the first upload cycle; the adapter enforces this at registration time (not at config-load time), and also refuses to serialize an invalid location.
 - A valid upload secret must be stored separately before uploads can start.
 
 **Custom Upload:**

@@ -54,7 +54,23 @@ void testDuplicateAndEmptyFields() {
 
 }  // namespace
 
+void testParseFiniteFloat() {
+    float value = 7.0F;
+    for (const char* rejected : {"nan", "NaN", "inf", "-inf", "INFINITY", "1e999", "-1e999",
+                                 "", "abc", "1.5x", " "}) {
+        value = 7.0F;
+        require(!air360::web::parseFiniteFloat(rejected, value), rejected);
+        require(value == 7.0F, "rejected input leaves value untouched");
+    }
+    require(air360::web::parseFiniteFloat("55.7558", value) && value > 55.75F && value < 55.76F,
+            "ordinary latitude parses");
+    require(air360::web::parseFiniteFloat("-180", value) && value == -180.0F, "boundary parses");
+    require(air360::web::parseFiniteFloat("90.0", value) && value == 90.0F, "boundary parses");
+    require(air360::web::parseFiniteFloat("0", value) && value == 0.0F, "zero parses");
+}
+
 int main() {
+    testParseFiniteFloat();
     testUrlDecode();
     testParseFormBody();
     testDuplicateAndEmptyFields();

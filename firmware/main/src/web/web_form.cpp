@@ -1,6 +1,9 @@
 #include "air360/web_form.hpp"
 
+#include <cerrno>
+#include <cmath>
 #include <cstddef>
+#include <cstdlib>
 
 namespace air360::web {
 
@@ -92,6 +95,21 @@ bool formHasKey(const FormFields& fields, const char* key) {
         }
     }
     return false;
+}
+
+bool parseFiniteFloat(const std::string& input, float& value) {
+    if (input.empty()) {
+        return false;
+    }
+    errno = 0;
+    char* end = nullptr;
+    const float parsed = std::strtof(input.c_str(), &end);
+    if (end == input.c_str() || end == nullptr || *end != '\0' || errno == ERANGE ||
+        !std::isfinite(parsed)) {
+        return false;
+    }
+    value = parsed;
+    return true;
 }
 
 }  // namespace air360::web

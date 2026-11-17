@@ -294,7 +294,7 @@ PUT {scheme}://{host}{:port}/v1/devices/{device_id}/register
 }
 ```
 
-- If `latitude` and `longitude` are both `0.0`, `deliver()` returns `kConfigError` during the registration phase and the upload cycle is skipped. Set coordinates on the Backends page before enabling Air360 API.
+- If the location is not finite or out of range, or `latitude` and `longitude` are both `0.0`, `deliver()` returns `kConfigError` during the registration phase and the upload cycle is skipped, so the registration JSON never contains `nan`/`inf`. Set coordinates on the Backends page before enabling Air360 API.
 - `altitude_m` is optional. If `0.0` or not entered, it is still sent as `0.0`; the backend uses it for sea-level pressure correction and treats `0` as "not configured".
 - If the upload secret is missing or invalid, `deliver()` returns `kConfigError`; generate or enter the secret on the Backends page.
 - HTTP 2xx → device registered, `registered_` set to `true`.
