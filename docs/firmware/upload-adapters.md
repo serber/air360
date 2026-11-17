@@ -34,7 +34,8 @@ Backend adapters implement `IBackendUploader`:
 
 ```cpp
 class IBackendUploader {
-    bool validateConfig(const BackendRecord& record, string& error);
+    BackendType type() const;
+    bool validateConfig(const BackendRecord& record, string& error) const;
     UploadAttemptResult deliver(const BackendRecord& record,
                                 const MeasurementBatch& batch,
                                 const BackendDeliveryContext& context);
@@ -54,6 +55,7 @@ struct UploadAttemptResult {
     uint32_t           response_time_ms;
     uint32_t           retry_after_seconds;
     string             message;
+    string             response_body_snippet;  // upload warning log only
 };
 ```
 
@@ -113,6 +115,10 @@ The batch may contain points from multiple sensors. Sensor.Community expects **o
 | PMSX003 | UART | 1 | Sent as PM1.0, PM2.5, and PM10 particulate matter data |
 | PPD42NS | GPIO | — | Not supported by Sensor.Community, skipped |
 | GPS (NMEA) | UART1 | 9 | Sent as `lat` / `lon` / `height`; other GPS fields are skipped |
+| SCD40 / SCD41 | I2C | — | Not supported, skipped |
+| AHT30 | I2C | — | Not supported, skipped |
+| MH-Z19B | UART | — | Not supported, skipped |
+| INA219 / INA226 | I2C | — | Power monitors, skipped |
 | LMP91000 AFE | I2C | — | Not supported, skipped |
 
 Sensors not in this table produce no request. If the batch contains only unsupported sensor types, `deliver()` returns `kNoData`.
@@ -298,7 +304,7 @@ PUT {scheme}://{host}{:port}/v1/devices/{device_id}/register
 - `altitude_m` is optional. If `0.0` or not entered, it is still sent as `0.0`; the backend uses it for sea-level pressure correction and treats `0` as "not configured".
 - If the upload secret is missing or invalid, `deliver()` returns `kConfigError`; generate or enter the secret on the Backends page.
 - HTTP 2xx → device registered, `registered_` set to `true`.
-- Transport error or non-2xx HTTP → error is logged, the cycle is counted as a transport error, and registration retries on the next upload cycle.
+- Transport error → `kTransportError`; non-2xx HTTP → `kHttpError`. Either way the error is logged and registration retries on the next upload cycle.
 
 ### One request per batch
 
@@ -454,11 +460,9 @@ If the same `SensorValueKind` appears more than once in one group, the latest va
 
 | Header | Value |
 |--------|-------|
-| `Content-Type` | `application/x-www-form-urlencoded` |
+| `Content-Type` | `text/plain; charset=utf-8` |
 | `User-Agent` | `air360/{project_version}` |
 | `Authorization` | `Basic ...` when username or password is configured |
-
-The `Content-Type` follows the historical airrohr InfluxDB integration.
 
 ### Body format
 
@@ -551,31 +555,7 @@ HTTP 200–208 (a successful canonical POST returns **201 Measurements saved in 
 
 ## Transport layer
 
-The current adapters are HTTP-backed and execute internal `UploadRequestSpec` objects with `UploadTransport::execute()`. This is no longer part of the cross-backend interface; it is the shared helper used by HTTP backends. See [upload-transport.md](upload-transport.md) for the full `esp_http_client` configuration, response struct field population, and timing details.
-
-- HTTP client: `esp_http_client` with CRT bundle (TLS capable)
-- Timeout: 15 000 ms per request
-- RX buffer: 2 048 bytes
-- TX buffer: 1 024 bytes
-- Keep-alive: disabled
-
-The transport returns `UploadTransportResponse`:
-
-```cpp
-struct UploadTransportResponse {
-    esp_err_t   transport_err;        // ESP_OK or ESP-IDF error
-    int         http_status;          // 0 if transport failed before response
-    int         response_size;        // bytes received
-    uint32_t    response_time_ms;     // total request duration
-    uint32_t    connect_time_ms;
-    uint32_t    request_send_time_ms;
-    uint32_t    first_response_time_ms;
-    uint32_t    retry_after_seconds;
-    string      body_snippet;         // sanitized response body for upload warning logs
-};
-```
-
-If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-backed adapters return `kTransportError` in their `UploadAttemptResult` — regardless of what the HTTP status might say.
+HTTP-backed adapters execute their `UploadRequestSpec` objects through `UploadTransport::execute()` (`esp_http_client` with the CRT bundle, 15 s timeout per request, keep-alive off). A transport failure (`transport_err != ESP_OK`: connection refused, DNS failure, timeout) always maps to `kTransportError`, regardless of any HTTP status. Buffers, the `UploadTransportResponse` fields and timing are documented in [upload-transport.md](upload-transport.md).
 
 ---
 
@@ -588,8 +568,8 @@ If `transport_err != ESP_OK` (connection refused, DNS failure, timeout), HTTP-ba
 | Payload format | String values in `sensordatavalues` | Number values in typed `samples` | Same Air360 JSON body as `Air360 API` | Influx line protocol | Canonical object keyed by openSenseMap sensor ID |
 | Device identification | `X-Sensor: esp32-{short_device_id}` | URL path: `/devices/{device_id}` | Device block inside JSON body | `node` tag plus `sensor_type` / `sensor_id` tags | URL path: `/boxes/{sensebox_id}` |
 | Authentication | None | Bearer upload secret | None | Optional Basic Auth | Box access token (required when box `useAuth`) |
-| Supported sensors | BME280, BME680, BMP390, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | All sensor types, including PPD42NS, PMSX003, and OPT3001 | Any reading the user maps to a box sensor ID |
+| Supported sensors | BME280, BME680, BMP390, DHT11/22, HTU2X, SHT3X, SHT4X, DS18B20, SCD30, GPS, SPS30, SDS011, PMSX003 | All sensor types | All sensor types | All sensor types | Any reading the user maps to a box sensor ID |
 | Success HTTP codes | 200–208 | 200–208, 409 | 200–208, 409 | 200–208 | 200–208 (canonical POST returns 201) |
-| Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config | Valid senseBox ID, mapping table loadable |
+| Extra preconditions | None | unix_ms > 0, device_id non-empty | unix_ms > 0, device_id non-empty | unix_ms > 0, valid Influx config | Valid senseBox ID and token characters, mapping table loadable |
 
 HTTP adapters receive `retry_after_seconds` from response-header events in `UploadTransport`. Numeric server delays of 1–3600 seconds override the next attempt deadline, measured from delivery completion; outgoing request headers are not used.

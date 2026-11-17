@@ -33,7 +33,7 @@ Build after the code steps, run `validate.sh` at the end.
 3. Anything that must not run before the radios goes after step 7 (power gate).
 4. Docs: `startup-pipeline.md` (overview tree, step table, per-step section, log
    sample, long-lived task table, failure modes), `ARCHITECTURE.md` (step table,
-   facade paragraph, "Confirmed in implementation"), `PROJECT_STRUCTURE.md`
+   facade paragraph), `docs/firmware/README.md` (document map), `PROJECT_STRUCTURE.md`
    (`app.cpp` line), `web-ui.md` ("server starts during boot step M/M").
 
 ## 3. Add a `SensorDescriptor` capability field
@@ -75,8 +75,11 @@ Build after the code steps, run `validate.sh` at the end.
 ## 6. Add a Kconfig tunable
 
 1. `main/Kconfig.projbuild` — `config AIR360_…` with `range` and `default`.
-2. `include/air360/tuning.hpp` — expose it as a `constexpr` in the matching namespace
-   with a comment; consume the constant, never the raw `CONFIG_` macro, in code.
+2. Runtime tunables: expose it in `include/air360/tuning.hpp` as a `constexpr` in the
+   matching namespace with a comment and consume that constant. Options that only seed
+   a persisted default may be read directly where the default is built
+   (`config_repository.cpp`, `cellular_config_repository.cpp`). Every option must be
+   read somewhere — an option no code reads is dead and gets removed.
 3. `sdkconfig.defaults` only if the default must differ from the Kconfig default.
 4. Docs: `configuration-reference.md` (runtime tuning table), the subsystem doc's
    constants table, `firmware/README.md` if user-facing.
@@ -88,3 +91,21 @@ Build after the code steps, run `validate.sh` at the end.
 2. Match it against the table in `coding-rules.md` (`missing-declarations`,
    `double-promotion`, format specifiers) before changing anything else.
 3. Rebuild; `idf.py build` is incremental, a fix takes under a minute.
+
+## 8. Add a host test
+
+1. Prefer extracting pure logic into a small header/`.cpp` with no ESP-IDF calls; test
+   that directly.
+2. Otherwise compile the production `.cpp` against `test/host/stubs/` (ESP-IDF/FreeRTOS
+   headers: in-memory NVS with `nvs_test::fail_*`, real mutex/event-group/task
+   emulation on `std::thread`, controllable clock `esp_timer_test::*`, scripted HTTP
+   `http_test::*`) and replace unavailable collaborators with `test/host/fakes/`
+   (sensor registry, transport binding, network manager, crypto).
+3. `test/host/CMakeLists.txt` — one `add_executable` + `add_test`; `cxx_std_20` when the
+   headers need `<span>`; link `Threads::Threads` for threaded tests.
+4. Threaded tests wait on observable events (counters, request logs), never fixed
+   sleeps; verify a regression test by reverting the fix once and seeing it fail.
+5. Run plain, ASan+UBSan and TSan (CI does all three); stubs must also build with
+   libstdc++ (CI uses gcc).
+6. Docs: the host-test list in `firmware/README.md`.
+

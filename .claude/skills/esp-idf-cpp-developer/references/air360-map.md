@@ -28,7 +28,7 @@ firmware/
 │   ├── webui/                      air360.css, air360.js, page_*.html templates ({{BINDING}})
 │   └── third_party/sps30/
 ├── managed_components/             component-manager deps (esp_modem, esp-idf-lib drivers, led_strip, …)
-└── test/host/                      CMake/CTest host tests (web form, request body, store, prune policy, …)
+└── test/host/                      CMake/CTest host tests; stubs/ (ESP-IDF/FreeRTOS stand-ins), fakes/ (link-time replacements)
 ```
 
 ## Where a concern lives
@@ -36,15 +36,19 @@ firmware/
 | Concern | Code | Doc |
 |---------|------|-----|
 | Boot order, step numbering | `app.cpp`, `data/data_layer.cpp`, `network/network_layer.cpp`, `platform/platform_layer.cpp` | `startup-pipeline.md`, `ARCHITECTURE.md` |
-| Device settings field | `include/air360/config_repository.hpp`, `config_repository.cpp`, `web_server.cpp`, `web/web_mutating_routes.cpp`, `webui/page_config.html` | `nvs.md`, `configuration-reference.md`, `web-ui.md` |
+| Device settings field | `include/air360/config_repository.hpp`, `config_repository.cpp`, `config_transaction.cpp` (atomic `network_cfg` save), `web_server.cpp`, `web/web_mutating_routes.cpp`, `webui/page_config.html` | `nvs.md`, `configuration-reference.md`, `web-ui.md` |
 | Cellular settings | `cellular_config_repository.cpp`, same web files | `configuration-reference.md`, `cellular-manager.md` |
 | Sensor type / driver | `sensors/sensor_registry.cpp`, `sensors/drivers/*`, `sensor_types.hpp` | `sensors/adding-new-sensor.md`, `sensors/<driver>.md`, `sensors/README.md` |
 | Sensor scheduling, warmup, states | `sensors/sensor_manager.cpp` | `measurement-pipeline.md`, `ARCHITECTURE.md` |
+| Live sensor config, Apply, maintenance-action clearing | `sensors/sensor_config_store.cpp` (single owner), `data/data_layer.cpp`, `web/web_mutating_routes.cpp` | `sensors/maintenance-actions.md`, `web-ui.md` |
+| UART / I2C ownership | `sensors/transport_binding.cpp` (`UartPortManager`, `I2cBusManager`) | `transport-binding.md` |
 | Wi-Fi join / recovery | `network_manager.cpp` | `network-manager.md` |
 | Status JSON / Overview rows | `status_service.cpp` (`renderStatusJson`, `renderConnectionBlock`) | `web-ui.md` |
 | Uploads / backends | `uploads/*` | `measurement-pipeline.md`, `upload-adapters.md` |
+| OTA update, rollback | `ota_service.cpp`, `web/web_ota_routes.cpp`, `app.cpp` (`runFailedBootLoop`) | `ota.md` |
+| BLE advertising | `ble_advertiser.cpp`, `include/air360/ble_encoding.hpp` | `ble-advertiser.md` |
 | Kconfig tunables | `main/Kconfig.projbuild`, `include/air360/tuning.hpp` | `configuration-reference.md` |
-| Host-testable logic | `web/web_form.cpp`, `uploads/upload_prune_policy.cpp`, `measurement_store.cpp` + `test/host/` | `PROJECT_STRUCTURE.md` |
+| Host tests, stubs, fakes | `test/host/CMakeLists.txt`, `test/host/stubs/`, `test/host/fakes/` | `firmware/README.md` (Host tests), `hardware-test-scenarios.md` for what needs a device |
 
 ## Boot order (12 steps)
 

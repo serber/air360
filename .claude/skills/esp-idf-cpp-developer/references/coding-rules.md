@@ -55,7 +55,12 @@ Read that file first. This page only adds what it does not say.
 ## Persistence patterns
 
 - Each blob repository: magic + schema_version + record_size guard, size check on
-  load, `isValid()` on load and on save, defaults written on any failure.
+  load, `isValid()` on load and on save, defaults written on any failure (exception:
+  an invalid combined `network_cfg` blob falls back to in-memory defaults without
+  overwriting storage).
+- The live sensor config has one owner, `SensorConfigStore`: read it with `copyTo()`,
+  change it only through `replace()` / `clearMaintenanceAction()`, never through a raw
+  `SensorConfigList&` or a direct `SensorConfigRepository::save()`.
 - New fields are appended at the end of the struct; add them to
   `makeDefault…()`, the validator, the web form, and the docs (`nvs.md`,
   `configuration-reference.md`). No migration unless the user asks for one.
@@ -79,6 +84,11 @@ Read that file first. This page only adds what it does not say.
 
 - Drivers implement `SensorDriver` (`init`, `poll`, `latestMeasurement`, `lastError`);
   the manager owns retries, warmup, and state transitions.
+- Set `measurement_.sample_time_ms` only when a new sample was acquired and leave the
+  cached measurement untouched otherwise: `SensorManager` queues a reading only when
+  `sample_time_ms` changes (`isFreshSample()`).
+- UART drivers open their port through `context.uart_port_manager->open()`; never let a
+  component install or delete the UART driver itself.
 - Warmup readings are recorded with `sample_unix_ms = 0`: they update the latest
   snapshot but are not queued for upload. Anything that needs "the first reading"
   can read `MeasurementStore::runtimeInfoForSensor()` during warmup.
