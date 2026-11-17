@@ -18,6 +18,7 @@ This document covers the implemented over-the-air firmware update flow: the stre
 - [adr/implemented-ota-firmware-update-adr.md](adr/implemented-ota-firmware-update-adr.md) — decision record and partition rationale
 - [web-ui.md](web-ui.md) — full HTTP route reference
 - [startup-pipeline.md](startup-pipeline.md) — where `confirmRunningImage()` runs during boot
+- [hardware-test-scenarios.md](hardware-test-scenarios.md) — on-device OTA interruption and rollback checks
 
 ## Overview
 
