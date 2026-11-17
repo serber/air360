@@ -9,6 +9,10 @@
 // run real threads exercise actual mutual exclusion (and ThreadSanitizer sees
 // the synchronization). One tick is one millisecond (see pdMS_TO_TICKS).
 struct StaticSemaphore_t {
+    // User-provided constructor: firmware declares buffers as
+    // `StaticSemaphore_t x = {};`, which libstdc++ rejects for an aggregate
+    // holding a mutex (copy-list-initialization of its protected base).
+    StaticSemaphore_t() {}
     std::timed_mutex mutex;
 };
 
