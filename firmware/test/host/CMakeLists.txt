@@ -233,3 +233,41 @@ target_include_directories(test_sensor_config_repository PRIVATE
 target_compile_features(test_sensor_config_repository PRIVATE cxx_std_20)
 
 add_test(NAME sensor_config_repository COMMAND test_sensor_config_repository)
+
+add_executable(test_upload_manager_lifecycle
+    ../../main/src/uploads/upload_manager.cpp
+    ../../main/src/uploads/upload_manager_config.cpp
+    ../../main/src/uploads/upload_manager_status.cpp
+    ../../main/src/uploads/measurement_store.cpp
+    ../../main/src/uploads/upload_prune_policy.cpp
+    ../../main/src/uploads/backend_config_repository.cpp
+    ../../main/src/uploads/backend_registry.cpp
+    ../../main/src/uploads/adapters/air360_api_uploader.cpp
+    ../../main/src/uploads/adapters/air360_json_payload.cpp
+    ../../main/src/uploads/adapters/custom_upload_uploader.cpp
+    ../../main/src/uploads/adapters/influxdb_uploader.cpp
+    ../../main/src/uploads/adapters/opensensemap_uploader.cpp
+    ../../main/src/uploads/adapters/sensor_community_uploader.cpp
+    ../../main/src/uploads/air360_api_credentials.cpp
+    ../../main/src/uploads/opensensemap_mapping_repository.cpp
+    ../../main/src/uploads/upload_transport.cpp
+    ../../main/src/uploads/upload_log_endpoint.cpp
+    ../../main/src/sensors/sensor_manager.cpp
+    ../../main/src/sensors/sensor_driver.cpp
+    fakes/sensor_registry_fake.cpp
+    fakes/transport_binding_fake.cpp
+    fakes/network_manager_fake.cpp
+    fakes/crypto_utils_fake.cpp
+    test_upload_manager_lifecycle.cpp
+)
+
+target_include_directories(test_upload_manager_lifecycle PRIVATE
+    stubs
+    fakes
+    ../../main/include
+)
+
+target_compile_features(test_upload_manager_lifecycle PRIVATE cxx_std_20)
+target_link_libraries(test_upload_manager_lifecycle PRIVATE Threads::Threads)
+
+add_test(NAME upload_manager_lifecycle COMMAND test_upload_manager_lifecycle)
