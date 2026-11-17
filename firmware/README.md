@@ -218,12 +218,12 @@ Generated artifacts are written under `build/`. For the current project that inc
 
 ### Host tests
 
-Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. Targets cover web form and request-body parsing, upload transport and log endpoint, `MeasurementStore`, the upload prune/quorum policy, BLE packet assembly, sensor sample freshness, the device/cellular and backend config repositories (with NVS fault injection), and `SensorConfigStore` (deterministic interleavings plus a multi-threaded run).
+Host-testable firmware logic lives under `test/host/` and builds with the native system compiler, not the ESP-IDF toolchain. Targets cover web form and request-body parsing, upload transport and log endpoint, `MeasurementStore`, the upload prune/quorum policy, BLE packet assembly, sensor sample freshness, the device/cellular, backend and sensor config repositories (with NVS fault injection), `SensorConfigStore` (deterministic interleavings plus a multi-threaded run), and the `SensorManager` lifecycle on emulated tasks (start/stop, startup phases, Apply, stop during a slow poll, poll-failure re-init, cached-sample deduplication).
 
 Test seams live next to the tests:
 
-- `test/host/stubs/` — header stand-ins for ESP-IDF/FreeRTOS APIs. `nvs.h` keeps blobs in memory and injects read/write/commit failures (`nvs_test::fail_*`); `freertos/semphr.h` is a real `std::timed_mutex`, so threaded tests exercise actual mutual exclusion; `esp_timer.h` is a controllable clock (`esp_timer_test::now_us`, `auto_advance_us`); `esp_random.h` is deterministic.
-- `test/host/fakes/` — link-time replacements for production files that need unavailable libraries (`crypto_utils_fake.cpp` replaces the mbedTLS-based `crypto_utils.cpp`).
+- `test/host/stubs/` — header stand-ins for ESP-IDF/FreeRTOS APIs. `nvs.h` keeps blobs in memory and injects read/write/commit failures (`nvs_test::fail_*`); `freertos/semphr.h` is a real `std::timed_mutex`, so threaded tests exercise actual mutual exclusion; `freertos/task.h` runs each `xTaskCreate()` on a `std::thread` with real direct-to-task notifications, and `freertos/event_groups.h` blocks on a condition variable; `esp_timer.h` is a controllable clock (call-driven by default, or `real_time` with `advanceMs()` jumps); `esp_task_wdt.h` is a no-op; `driver/*.h`, `i2cdev.h` and `freertos/queue.h` provide types only; `esp_random.h` is deterministic.
+- `test/host/fakes/` — link-time replacements for production files that need unavailable libraries or hardware: `crypto_utils_fake.cpp` (mbedTLS), `transport_binding_fake.cpp` (I2C/UART managers that only count lifecycle calls, see `fake_transport.hpp`), and `sensor_registry_fake.cpp` (two descriptors — SHT4x after-network, INA219 before-network — backed by a driver scripted per sensor id through `fake_sensor_registry.hpp`).
 
 ```bash
 cd firmware
