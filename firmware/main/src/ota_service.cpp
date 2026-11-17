@@ -138,7 +138,10 @@ void OtaService::confirmRunningImage() {
 
 esp_err_t OtaService::begin(std::uint32_t content_length) {
     lock();
-    if (transfer_active_) {
+    // After a commit, esp_ota_get_next_update_partition() would select the
+    // just-written slot again (it is still inactive relative to the running
+    // image) and a second upload would overwrite the committed update.
+    if (transfer_active_ || reboot_pending_) {
         unlock();
         return ESP_ERR_INVALID_STATE;
     }
@@ -302,12 +305,14 @@ esp_err_t OtaService::commitAndScheduleReboot() {
         status_.target_slot_label.c_str(),
         status_.pending_version.c_str());
 
-    // Mark transfer as inactive so /ota/status reports success and a second
-    // begin() would be rejected.  Leave target_slot_label/pending_version in
-    // status_ so the UI can show them until reboot.
+    // The transfer is over, so /ota/status reports success; reboot_pending_
+    // keeps a second begin(), rollback or abort from touching the committed
+    // slot before the deferred reboot. Leave target_slot_label/pending_version
+    // in status_ so the UI can show them until reboot.
     handle_ = 0;
     target_ = nullptr;
     transfer_active_ = false;
+    reboot_pending_ = true;
     status_.state = OtaState::kSuccess;
     status_.error.clear();
     status_.finished_uptime_ms = uptimeMilliseconds();
@@ -320,6 +325,12 @@ esp_err_t OtaService::commitAndScheduleReboot() {
 
 void OtaService::abortTransfer(const char* reason) {
     lock();
+    if (reboot_pending_) {
+        // A late abort (e.g. client disconnect after the response) must not
+        // turn the committed update's success status into an error.
+        unlock();
+        return;
+    }
     if (transfer_active_) {
         static_cast<void>(esp_ota_abort(handle_));
         resetTransferLocked();
@@ -336,7 +347,7 @@ void OtaService::abortTransfer(const char* reason) {
 
 esp_err_t OtaService::requestRollback() {
     lock();
-    if (transfer_active_) {
+    if (transfer_active_ || reboot_pending_) {
         unlock();
         return ESP_ERR_INVALID_STATE;
     }

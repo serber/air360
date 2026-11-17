@@ -325,7 +325,7 @@ Accepts `application/octet-stream` request bodies. The handler:
 
 1. Rejects requests without a positive `Content-Length` (`400`).
 2. Rejects requests larger than 4 MB (`413`).
-3. Calls `OtaService::begin(content_length)`; returns `409 Conflict` if a transfer is already in progress.
+3. Calls `OtaService::begin(content_length)`; returns `409 Conflict` if a transfer is already in progress or a committed update is waiting for its deferred reboot.
 4. Streams the body in 4 KB chunks via `httpd_req_recv`, calling `OtaService::writeChunk()` each time. Up to 5 consecutive socket timeouts are tolerated before the transfer aborts.
 5. Calls `OtaService::commitAndScheduleReboot()`. On success the response is JSON `state=success`; on any failure the response is a JSON OTA status with the failure reason and an appropriate HTTP status code.
 
@@ -352,7 +352,7 @@ Returns the OTA `snapshot()` as JSON:
 
 ### `POST /ota/rollback`
 
-Forces the running image to be marked invalid and reboots back to the previous slot. To prevent accidents the endpoint requires `?confirm=yes` in the query string; without it the response is `400 Bad Request`. Calls `esp_ota_mark_app_invalid_rollback_and_reboot()` — on success the device reboots and the request never receives a body; on failure the response is JSON with the ESP-IDF error name.
+Forces the running image to be marked invalid and reboots back to the previous slot. To prevent accidents the endpoint requires `?confirm=yes` in the query string; without it the response is `400 Bad Request`. Calls `esp_ota_mark_app_invalid_rollback_and_reboot()` — on success the device reboots and the request never receives a body; on failure the response is JSON with the ESP-IDF error name — `409 Conflict` while a transfer is running or a committed update awaits its reboot, `500` otherwise.
 
 ---
 
