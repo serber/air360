@@ -86,6 +86,10 @@ class OtaService {
     esp_ota_handle_t handle_ = 0;
     const esp_partition_t* target_ = nullptr;
     bool transfer_active_ = false;
+    // Set once an image has been committed and the deferred reboot scheduled.
+    // Never cleared: every further OTA mutation (begin, rollback, abort) is
+    // rejected until the device restarts into the new slot.
+    bool reboot_pending_ = false;
     OtaStatus status_{};
 };
 

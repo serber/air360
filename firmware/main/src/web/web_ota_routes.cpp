@@ -112,7 +112,7 @@ esp_err_t WebServer::handleOtaUpload(httpd_req_t* request) {
     const esp_err_t begin_err =
         ota.begin(static_cast<std::uint32_t>(content_len));
     if (begin_err == ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(kTag, "OTA upload rejected: transfer already in progress");
+        ESP_LOGW(kTag, "OTA upload rejected: transfer in progress or update awaiting reboot");
         return sendOtaJsonStatus(request, ota.snapshot(), 409);
     }
     if (begin_err != ESP_OK) {
@@ -181,7 +181,11 @@ esp_err_t WebServer::handleOtaRollback(httpd_req_t* request) {
 
     const esp_err_t err = server->ota_service_->requestRollback();
     // requestRollback only returns on failure (success reboots the device).
-    httpd_resp_set_status(request, "500 Internal Server Error");
+    // INVALID_STATE means a transfer is running or a committed update is
+    // waiting for its reboot: a conflict, not a server fault.
+    httpd_resp_set_status(
+        request,
+        err == ESP_ERR_INVALID_STATE ? "409 Conflict" : "500 Internal Server Error");
     httpd_resp_set_type(request, "application/json");
     std::string response;
     response.reserve(64U);
