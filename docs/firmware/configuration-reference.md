@@ -82,6 +82,7 @@ Some fields are initialised from Kconfig constants baked into the firmware image
 | `CONFIG_AIR360_MEASUREMENT_QUEUE_DEPTH` | `256` | Shared queued-sample capacity before oldest uploads are dropped |
 | `CONFIG_AIR360_BLE_PAYLOAD_REFRESH_INTERVAL_MS` | `5000` | Period between BTHome payload rebuilds in `air360_ble` |
 | `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` | `y` | Enables the bootloader rollback path. After an OTA the new image boots in `ESP_OTA_IMG_PENDING_VERIFY`; if it crashes before `OtaService::confirmRunningImage()` runs, the bootloader returns to the previous slot. |
+| `CONFIG_CAPTIVE_PORTAL_ENABLE_DHCP_OPTION_114` | `n` | Keeps `esp-captive-portal` from restarting the setup-AP DHCP server to announce an RFC 8910 URI; see [Network Manager](network-manager.md#captive-portal). |
 
 AP channel and max-connections are read from Kconfig at runtime and are **not** written to NVS.
 

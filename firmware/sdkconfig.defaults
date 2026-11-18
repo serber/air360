@@ -43,3 +43,7 @@ CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # Cellular uplink (SIM7600E) runs PPP over lwIP; the driver does not compile without it.
 CONFIG_LWIP_PPP_SUPPORT=y
+# esp-captive-portal >= 1.3.0 can advertise DHCP Option 114 (RFC 8910) by
+# restarting the setup-AP DHCP server. Keep it off: NetworkManager owns the AP
+# DHCP server, and RFC 8910 expects a Captive Portal API URI, not the UI root.
+CONFIG_CAPTIVE_PORTAL_ENABLE_DHCP_OPTION_114=n

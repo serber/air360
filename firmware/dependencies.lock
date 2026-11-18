@@ -17,7 +17,7 @@ dependencies:
     - esp32h2
     version: 1.1.1
   esp-idf-lib/bme680:
-    component_hash: a1fe811e9ff6143a738222a543087a726883ab35aff340afa60347ff837a2dca
+    component_hash: 9c6e7bc1779acb9de5dc9504acd5c1a3849cd4027918d63bc23aeb0140664c53
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -30,20 +30,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.7
+    version: 1.0.8
   esp-idf-lib/bmp280:
-    component_hash: 82b01a37c200ed66a6c451026e2afdbe8046c6f702d41085e5a1d83aec3a90d8
+    component_hash: 2844208f34d55125fe9acf9bdf5f6c0158d50ff26c22f1b9e8868bf48c5c9671
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -56,58 +45,21 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.7
+    version: 1.0.9
   esp-idf-lib/dht:
-    component_hash: a0a1b26519566809041bc8fccf754e3ee9b25f73b0decbdc51bfd16143dedd66
-    dependencies:
-    - name: esp-idf-lib/esp_idf_lib_helpers
-      registry_url: https://components.espressif.com
-      require: private
-      version: '*'
+    component_hash: 257e0d75dc0cc7d274f64860ea389c815cfc056997e74454ac8a815d16008c10
+    dependencies: []
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.2.0
+    version: 1.3.0
   esp-idf-lib/esp_idf_lib_helpers:
-    component_hash: 689853bb8993434f9556af0f2816e808bf77b5d22100144b21f3519993daf237
+    component_hash: 2b46288d7500846fe9f5ca7bfa2597067de9e38d94fb0d6ff834639ab02734ba
     dependencies: []
     source:
       registry_url: https://components.espressif.com
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.4.0
+    version: 1.4.2
   esp-idf-lib/i2cdev:
     component_hash: 9e22a91420695242ceac2c00788820ae45826224d38ef003a1a894367c55ede4
     dependencies:
@@ -131,7 +83,7 @@ dependencies:
     - esp32s3
     version: 2.1.1
   esp-idf-lib/ina219:
-    component_hash: 87cee7e93d0913cd80f99aee88eadf2cba769b4504cfea19af0a13327a7038e1
+    component_hash: a625162bffcb9fe26ba89f88b7748f8d1a5e8861c7bd3464a030b3eacb853d1b
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -144,20 +96,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.7
+    version: 1.0.8
   esp-idf-lib/mhz19b:
-    component_hash: 2be2e9b82fd0cb02a86ccb0abb2171e055c90a9756c76b4f964b0ae8b3d0375c
+    component_hash: a104c1c5785bb00c89d7098d8693af7c77c29bf68a93b3bb90202d47e75d11b7
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -166,20 +107,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.2.0
+    version: 1.2.1
   esp-idf-lib/scd30:
-    component_hash: 6b05e1e936a2ecce0e2e92af02ef129c0e91e6ee1964d64bf43e6a11e692f3cc
+    component_hash: 40d64924635b069f6782007adfdbea39a6ebb174578ddf3c12a52726abd74bd2
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -192,20 +122,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.12
+    version: 1.0.13
   esp-idf-lib/scd4x:
-    component_hash: 75ce5e78e24eb0c1e601564f0ded14ea8d994de6e499c10b5f1700f557df8563
+    component_hash: 7ac556689fb768a8737385a11207fa7ba8f38b07ecaacd21f42fbe8404b094ae
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -218,20 +137,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.8
+    version: 1.0.9
   esp-idf-lib/sht3x:
-    component_hash: f4f036c61678e78baf3ba6eeeb152de852cd1f34a4afcef664629ef60cb9a689
+    component_hash: 2bf970cb33b3a81055af8653c8dcc0d7cf771ef31ff6b74e0057856faed61dfa
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -244,20 +152,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.8
+    version: 1.0.9
   esp-idf-lib/sht4x:
-    component_hash: 49dee93eedc30383b3ee81f32540ac56f8f52ef0f451bc13db3b6e1ee246e531
+    component_hash: 448d04ac8e924857058b722176a9b8569f673ce3f9f5423e59cafbdce0dca82a
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -270,46 +167,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.7
-  esp-idf-lib/si7021:
-    component_hash: 4914a85735b5e457ec08b809e058911c7245f0c3c5ab5b290aae3156ec4e0337
-    dependencies:
-    - name: esp-idf-lib/esp_idf_lib_helpers
-      registry_url: https://components.espressif.com
-      require: private
-      version: '*'
-    - name: esp-idf-lib/i2cdev
-      registry_url: https://components.espressif.com
-      require: private
-      version: '*'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
     version: 1.0.8
-  esp-idf-lib/veml7700:
-    component_hash: befc99425dd4810c5b56eb76e3a583422f5ddb2a6f1e7e04ca8845892447114f
+  esp-idf-lib/si7021:
+    component_hash: a043f3b65d418a559c6c1048d00003ce8cf7c1e5c7e4d50be9f58d974037f219
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -322,20 +182,24 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32c61
-    - esp32h2
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 1.0.7
+    version: 1.0.9
+  esp-idf-lib/veml7700:
+    component_hash: 456f19da4a3791638c613d4f217dfa158240f2e54a1ad14ae589ba15ec6fb429
+    dependencies:
+    - name: esp-idf-lib/esp_idf_lib_helpers
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: esp-idf-lib/i2cdev
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.9
   espressif/aht30:
-    component_hash: 939149f0f4a3aad63b8f9bf04218fdeb01c34062f73847fee99e90a619461ad3
+    component_hash: f245a3c679496faec20c23df20eef2a974167a9e7b32630758bb375734ef901c
     dependencies:
     - name: idf
       require: private
@@ -347,7 +211,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.0
+    version: 1.0.0~1
   espressif/cmake_utilities:
     component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
     dependencies:
@@ -359,18 +223,24 @@ dependencies:
       type: service
     version: 0.5.3
   espressif/ds18b20:
-    component_hash: 13c5310b993bda17bd507b2c25cacce6962fe092029a5232815814d40339cec0
+    component_hash: 38022d0c39c08b1df3e77f95a3f9544251549a1fd9b6263357bf714026f4bb6b
     dependencies:
     - name: espressif/onewire_bus
       registry_url: https://components.espressif.com
       require: private
       version: ^1.1.0
+    - matches:
+      - if: $CONFIG{DS18B20_SENSOR_HUB} == True
+      name: espressif/sensor_hub
+      registry_url: https://components.espressif.com
+      require: public
+      version: ^0.1.4
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 0.3.1
+    version: 0.4.0
   espressif/esp_modem:
-    component_hash: 40af7f39c6c8c0c85c98014721fca8d9d2186f18f70645c66b94548192cf1e03
+    component_hash: 71c9f54fc512c60d93ea9763377ceb1d5b575a4616f3f3344440b97e2a38da29
     dependencies:
     - name: idf
       require: private
@@ -378,7 +248,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.4.2
+    version: 1.4.3
   espressif/i2c_bus:
     component_hash: 483112c1619c54c38d0b734fb25f1678733267858a77b7af2f48cc7db6dbbd84
     dependencies:
@@ -394,17 +264,17 @@ dependencies:
       type: service
     version: 1.5.2
   espressif/led_strip:
-    component_hash: 28621486f77229aaf81c71f5e15d6fbf36c2949cf11094e07090593e659e7639
+    component_hash: 027f68f2b57b0dca1d68dff6cc1139d9093825aa808c2bc3ca42bb2ce530fce9
     dependencies:
     - name: idf
       require: private
-      version: '>=5.0'
+      version: '>=5.2'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 3.0.3
+    version: 3.1.1
   espressif/mdns:
-    component_hash: e81ca7a7f53ea34e78274df054da692c272e1315572876b237b1748e267c013b
+    component_hash: 2fa43caa78cc170842255bc7bf71f306bc815cae12e9496bfb12372423019ac7
     dependencies:
     - name: idf
       require: private
@@ -412,9 +282,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.11.3
+    version: 1.15.1
   espressif/onewire_bus:
-    component_hash: a85dc1ceb71fb87af77c57d5fd4e6f48a504de1fc2b83fc302ec0cea331d05ce
+    component_hash: dcce4fb1c2fc43c3d02de1cc9abdf062127468a785578723696de3817c526f99
     dependencies:
     - name: idf
       require: private
@@ -422,7 +292,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 1.1.1
+    version: 1.1.2
   espressif/sensor_hub:
     component_hash: ea30db551c34aee2862482abf8b3164dd3855ecb4b4659b1e6878455c9cb9e22
     dependencies:
@@ -484,7 +354,7 @@ dependencies:
       type: service
     version: 1.2.7
   nordesems/esp-captive-portal:
-    component_hash: bb3cc81e8eb184e0313f01c998763b39e5a2f2f0ab295e774e98192e2949a8b8
+    component_hash: 839807a8c55ccf61827b42c2c7657b1ca71e010529d71d7b8c5c1cd05d0d15f9
     dependencies:
     - name: idf
       require: private
@@ -499,7 +369,7 @@ dependencies:
     - esp32c3
     - esp32c6
     - esp32h2
-    version: 1.2.0
+    version: 1.3.0
   petrovgp/esp-pms:
     component_hash: 99ece412a2ee051ba1a467d42297e231f5c42e89da768b0f9dde7f8fb9a285dc
     dependencies:
@@ -533,6 +403,6 @@ direct_dependencies:
 - k0i05/esp_ina226
 - nordesems/esp-captive-portal
 - petrovgp/esp-pms
-manifest_hash: f3101e641f7c3d64f8e88f49b18593d68dc941c7b37deddfee419f348ecaaee8
+manifest_hash: edb526b6f799709c55e17303a6fc33d3ab274ee6444f68c230169f7dc2958f98
 target: esp32s3
 version: 3.0.0
