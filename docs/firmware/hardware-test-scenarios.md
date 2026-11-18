@@ -94,6 +94,17 @@ Expected: every Apply succeeds without a reboot and without "UART driver already
 
 Expected: the finished action is not re-run after the second Apply (except in the documented narrow window, see [sensors/maintenance-actions.md](sensors/maintenance-actions.md)); the selector returns to "None"; after reboot the stored config matches the page.
 
+## Local web access
+
+### AUTH-1 — Optional password, session and BOOT recovery
+
+1. Start with a device without a web password. Confirm that the setup AP opens the Device page. Set a web password there and sign in. Record the device name, Wi-Fi settings and configured sensors.
+2. In a fresh browser profile, open Diagnostics. Expect a 302 to login and a return to Diagnostics after a correct password. A wrong password returns 401. Confirm the favicon and stylesheet still load, including from the captive portal.
+3. In that profile after logout, check that logs, OTA status and POST requests to configuration, OTA and rollback return 401. Check that the running slot and the configuration are unchanged. Repeat access checks on station Wi-Fi.
+4. Open sessions in two browsers. With a wrong current password, changing or removing the password fails. With the correct current password, change it. Both old sessions must require login again. Reboot and verify that the new password works and pre-reboot sessions have expired.
+5. Hold BOOT for less than ten seconds and release. Confirm that the login is still required. With the device running, hold BOOT until the LED blinks (about ten seconds). Confirm that both browsers can now access Device, and that Wi-Fi, sensor settings and OTA slots match the baseline. Reboot and confirm that access remains open.
+6. Set the password again, log in, then use **Remove password** with the current password. Confirm that Diagnostics opens from a fresh browser. Record the time taken for login and password changes and check serial logs for watchdog warnings.
+
 ## OTA interruption
 
 ### OTA-1 — Power loss during upload
@@ -142,6 +153,7 @@ During normal operation press "Check SNTP" repeatedly (also during boot time syn
 
 | Fix | Scenario | Status |
 |-----|----------|--------|
+| #87 optional web password and BOOT recovery | AUTH-1 | Pending |
 | #75 cached UART/GPS readings not re-queued | SENS-1, SENS-2 | Pending |
 | #76 MH-Z19B UART owned by `UartPortManager` | SENS-4 | Pending |
 | #77 sensor Apply vs maintenance completion | SENS-5 | Pending |

@@ -111,7 +111,7 @@ Struct: `DeviceConfig`
 |-------|------|---------|-------------|
 | `http_port` | `uint16_t` | `80` | 1–65535; must be non-zero |
 | `lab_ap_enabled` | `uint8_t` | `1` | 0 or 1 |
-| `local_auth_enabled` | `uint8_t` | `0` | Stored but not enforced |
+| `local_auth_enabled` | `uint8_t` | `0` | Runtime password-enabled flag derived from the `web_auth` key |
 | `wifi_power_save_enabled` | `uint8_t` | `0` | 0 = power save off; 1 = `WIFI_PS_MIN_MODEM` |
 | `ble_advertise_enabled` | `uint8_t` | `0` | 0 = BLE off; 1 = BTHome v2 passive advertising |
 | `ble_adv_interval_index` | `uint8_t` | `2` | Index into `{100, 300, 1000, 3000}` ms table; default 1000 ms |
@@ -148,7 +148,7 @@ Struct: `DeviceConfig`
 
 - `device_name` is used as the DHCP hostname: lowercased, non-alphanumeric characters replaced with `-`, trailing hyphens stripped. Falls back to `"air360"` if the result is empty.
 - `lab_ap_enabled` is stored but the current firmware always starts the AP when station connection fails, regardless of this field.
-- `local_auth_enabled` is reserved; the web server does not enforce it.
+- `local_auth_enabled` reflects the web password. Set, change or remove it using the separate password form on the Device page.
 - `sntp_server`: when empty, `NetworkManager` uses `kDefaultSntpServer` (`pool.ntp.org`). When non-empty, the stored value is used as the NTP hostname on the next boot. The value is validated for printable ASCII before save; DNS resolution and reachability are tested via `POST /check-sntp` before committing.
 - `sta_use_static_ip`: when `1`, `NetworkManager` applies the stored address/netmask/gateway/DNS to the `WIFI_STA_DEF` netif instead of using DHCP. Applies to station mode only; the setup AP is unaffected. When the config page is loaded and `sta_ip` is empty, the form pre-fills these fields from the current DHCP lease to make conversion easier.
 - `wifi_power_save_enabled`: when `1`, `NetworkManager` calls `esp_wifi_set_ps(WIFI_PS_MIN_MODEM)` after Wi-Fi start instead of `WIFI_PS_NONE`. Reduces idle power consumption (~80–100 mA → ~20–30 mA average) at the cost of slightly increased upload latency. Applies to station mode only; the setup AP is unaffected.

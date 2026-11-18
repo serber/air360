@@ -30,6 +30,7 @@ class StatusService {
 
     void markNvsReady(bool ready);
     void markWatchdogArmed(bool armed);
+    void setWebPasswordEnabled(bool enabled);
     void setConfig(
         const DeviceConfig& config,
         bool loaded_from_storage,

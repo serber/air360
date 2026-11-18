@@ -28,6 +28,7 @@ enum class WebTemplateKey {
     kShell = 10,
     kReading = 11,
     kSectionRow = 12,
+    kLogin = 13,
 };
 
 using WebTemplateBindings = std::vector<std::pair<std::string, std::string>>;

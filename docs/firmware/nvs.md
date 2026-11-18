@@ -38,9 +38,14 @@ The table lists configuration and boot accounting in the `air360` namespace. The
 | `sensor_cfg` | blob | `SensorConfigList` | `SensorConfigRepository` |
 | `backend_cfg` | blob | `BackendConfigList` | `BackendConfigRepository` |
 | `osem_map` | blob | `OpenSenseMapMappingTable` | `OpenSenseMapMappingRepository` |
+| `web_auth` | blob | 16-byte random salt, 32-byte PBKDF2-HMAC-SHA256 hash, then a little-endian 32-bit iteration count (10,000) | Web password form and BOOT recovery |
 | `boot_count` | u32 | `uint32_t` | `ConfigRepository` |
 
 ---
+
+The optional `web_auth` record is the sole persistent authority for web access. Its presence enables authentication. An unreadable or malformed record locks the UI until physical recovery. Credential updates change only this key. Older device records work without migration. Diagnostics expose only `local_auth_enabled`.
+
+A record of any other size or with an iteration count other than 10,000 is treated as malformed. PBKDF2 runs synchronously on the HTTP task. Changing a password verifies the current password and derives the new hash.
 
 ## Blob guard fields
 
@@ -84,7 +89,7 @@ struct DeviceConfig {
     uint16_t record_size;            // 384
     uint16_t http_port;              // default: 80
     uint8_t  lab_ap_enabled;         // 0 or 1
-    uint8_t  local_auth_enabled;     // reserved, not enforced
+    uint8_t  local_auth_enabled;     // mirrors web_auth at runtime
     uint8_t  wifi_power_save_enabled;// 0 or 1
     uint8_t  ble_advertise_enabled;  // 0 or 1
     char     device_name[32];        // default: "air360"
@@ -114,7 +119,7 @@ struct DeviceConfig {
 |-------|---------|-------|
 | `http_port` | `80` | Web server port |
 | `lab_ap_enabled` | `1` | Whether setup AP is enabled by default |
-| `local_auth_enabled` | `0` | Stored but not enforced in the current firmware |
+| `local_auth_enabled` | `0` | Derived at web server startup from the presence of `web_auth` |
 | `wifi_power_save_enabled` | `0` | 0 = off; 1 = `WIFI_PS_MIN_MODEM` in station mode |
 | `ble_advertise_enabled` | `0` | 0 = BLE off; 1 = BTHome v2 advertising active |
 | `device_name` | `"air360"` | Also used as the DHCP hostname and BLE device name |

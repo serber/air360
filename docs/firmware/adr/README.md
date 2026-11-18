@@ -19,12 +19,10 @@ Decisions already present in the current firmware.
 - [`implemented-i2c-master-bus-ownership-hardening-adr.md`](implemented-i2c-master-bus-ownership-hardening-adr.md)
   Exact pin of `esp-idf-lib/i2cdev` 2.1.1, documented borrowed master-bus-handle lifetime invariant (AHT30, BMP390), and an upgrade gate requiring re-audit of `i2c_dev_delete_mutex()` before any i2cdev bump.
 
-## Proposed — New features
-
-New capabilities not present in the current firmware.
+## Superseded proposals
 
 - [`proposed-station-web-authentication-adr.md`](proposed-station-web-authentication-adr.md)
-  Optional station-mode web UI authorization using HTTP Basic authentication.
+  Historical station-mode Basic authentication proposal. The implemented password and session model is described in [Web UI](../web-ui.md#optional-web-password).
 
 ## Deferred — Production hardening
 

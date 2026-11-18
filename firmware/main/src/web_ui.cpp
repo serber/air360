@@ -16,6 +16,8 @@ struct EmbeddedTemplateView {
 
 extern const std::uint8_t page_root_html_start[] asm("_binary_page_root_html_start");
 extern const std::uint8_t page_root_html_end[] asm("_binary_page_root_html_end");
+extern const std::uint8_t page_login_html_start[] asm("_binary_page_login_html_start");
+extern const std::uint8_t page_login_html_end[] asm("_binary_page_login_html_end");
 extern const std::uint8_t page_config_html_start[] asm("_binary_page_config_html_start");
 extern const std::uint8_t page_config_html_end[] asm("_binary_page_config_html_end");
 extern const std::uint8_t page_sensors_html_start[] asm("_binary_page_sensors_html_start");
@@ -92,6 +94,8 @@ const char* pageCrumb(WebPageKey page) {
 const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
     static const EmbeddedTemplateView kRootTemplate =
         makeTemplateView(page_root_html_start, page_root_html_end);
+    static const EmbeddedTemplateView kLoginTemplate =
+        makeTemplateView(page_login_html_start, page_login_html_end);
     static const EmbeddedTemplateView kConfigTemplate =
         makeTemplateView(page_config_html_start, page_config_html_end);
     static const EmbeddedTemplateView kSensorsTemplate =
@@ -117,6 +121,8 @@ const EmbeddedTemplateView* findEmbeddedTemplate(WebTemplateKey template_key) {
     switch (template_key) {
         case WebTemplateKey::kHome:
             return &kRootTemplate;
+        case WebTemplateKey::kLogin:
+            return &kLoginTemplate;
         case WebTemplateKey::kConfig:
             return &kConfigTemplate;
         case WebTemplateKey::kSensors:

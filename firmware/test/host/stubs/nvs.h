@@ -42,6 +42,12 @@ inline esp_err_t nvs_set_blob(nvs_handle_t, const char* key, const void* data, s
     nvs_test::blobs[key] = std::vector<std::uint8_t>(bytes, bytes + size);
     return ESP_OK;
 }
+inline esp_err_t nvs_erase_key(nvs_handle_t, const char* key) {
+    if (nvs_test::fail_write) {
+        return ESP_FAIL;
+    }
+    return nvs_test::blobs.erase(key) ? ESP_OK : ESP_ERR_NVS_NOT_FOUND;
+}
 inline esp_err_t nvs_get_blob(nvs_handle_t, const char* key, void* out, std::size_t* size) {
     if (nvs_test::fail_read) {
         return ESP_FAIL;

@@ -1718,6 +1718,12 @@ void StatusService::markWatchdogArmed(bool armed) {
     unlock();
 }
 
+void StatusService::setWebPasswordEnabled(bool enabled) {
+    lock();
+    config_.local_auth_enabled = enabled;
+    unlock();
+}
+
 void StatusService::setConfig(
     const DeviceConfig& config,
     bool loaded_from_storage,
