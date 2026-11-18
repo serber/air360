@@ -92,13 +92,13 @@ The vendored SPS30 Sensirion C library still exposes global HAL hooks. SPS30 dri
 
 ### Bus ownership
 
-`i2cdev` owns the I2C master bus. It installs the bus lazily — inside `i2c_setup_port()`, on the first actual transaction (read/write/probe) of an `i2cdev`-based device, not at `i2cdev_init()` or `i2c_dev_create_mutex()` time — and reference-counts usage per port; the bus is torn down only when the last `i2c_dev_delete_mutex()` drops the ref-count to zero.
+`i2cdev` owns the I2C master bus. It installs the bus lazily — inside `i2c_setup_port()`, on the first actual transaction (read/write/probe) of an `i2cdev`-based device, not at `i2cdev_init()` or `i2c_dev_create_mutex()` time — and keeps it until `i2cdev_done()`, which the firmware never calls. Removing the last `i2cdev` device with `i2c_dev_delete_mutex()` does not tear the bus down.
 
 Because the install is lazy, `getMasterBusHandle()` cannot assume the bus already exists: when the only configured I2C sensors are new-master-API drivers (AHT30, BMP390), no `i2cdev` transaction ever runs. In that case it triggers the install itself by calling `i2c_dev_check_present()` on a throwaway `i2c_dev_t` carrying the canonical pins, then borrows the freshly created handle. `i2cdev` remains the sole bus owner either way.
 
 The handle returned by `getMasterBusHandle()` is _borrowed_: callers must not delete the master bus — only remove their own device from it (e.g. `bmp390_delete()`), leaving the bus to `i2cdev`.
 
-Borrowed handles carry a lifetime invariant: they remain valid only while `i2cdev` never deletes the bus. `i2cdev` does not know about devices added directly with `i2c_master_bus_add_device()` (AHT30, BMP390) — its per-port `ref_count` tracks only `i2cdev`-registered devices. As of `i2cdev` 2.1.1 the bus-delete path in `i2c_dev_delete_mutex()` is unreachable due to an upstream bug (the function nulls `dev_handle` before the ref-count decrement checks it), so the bus survives removal of the last `i2cdev` device. The version is therefore pinned exactly in `firmware/main/idf_component.yml`, and any `i2cdev` upgrade must re-verify `i2c_dev_delete_mutex()` before merging. See [adr/implemented-i2c-master-bus-ownership-hardening-adr.md](adr/implemented-i2c-master-bus-ownership-hardening-adr.md).
+Borrowed handles carry a lifetime invariant: they remain valid only while `i2cdev` never deletes the bus. `i2cdev` does not know about devices added directly with `i2c_master_bus_add_device()` (AHT30, BMP390, INA226) — it tracks only `i2cdev`-registered devices. As of `i2cdev` 2.2.2 the only `i2c_del_master_bus()` call is in `i2cdev_done()`, and `i2c_dev_delete_mutex()` removes only its own device, so the bus survives removal of the last `i2cdev` device by design (2.1.1 reached the same result only through an upstream bug). The version is still pinned exactly in `firmware/main/idf_component.yml`, and any `i2cdev` upgrade must re-verify bus teardown before merging. See [adr/implemented-i2c-master-bus-ownership-hardening-adr.md](adr/implemented-i2c-master-bus-ownership-hardening-adr.md).
 
 ---
 

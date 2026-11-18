@@ -1,9 +1,10 @@
 dependencies:
-  # Exact pin, load-bearing: borrowed master bus handles (AHT30, BMP390) stay
-  # valid only because i2cdev 2.1.1 never reaches its bus-delete path in
-  # i2c_dev_delete_mutex(). Bumping this version requires re-auditing that
-  # function first — see docs/firmware/adr/implemented-i2c-master-bus-ownership-hardening-adr.md.
-  esp-idf-lib/i2cdev: "2.1.1"
+  # Exact pin, load-bearing: borrowed master bus handles (AHT30, BMP390, INA226)
+  # stay valid only while i2cdev never deletes the bus. Audited for 2.2.2: the
+  # bus lives until i2cdev_done() (never called), i2c_dev_delete_mutex() only
+  # removes its own device. Bumping this version requires re-auditing bus
+  # teardown first — see docs/firmware/adr/implemented-i2c-master-bus-ownership-hardening-adr.md.
+  esp-idf-lib/i2cdev: "2.2.2"
   espressif/esp_modem: ^1.1.0
   espressif/ds18b20: 0.4.0
   esp-idf-lib/scd30: 1.0.13

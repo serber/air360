@@ -17,7 +17,7 @@ Decisions already present in the current firmware.
 - [`implemented-sensor-driver-i2c-hygiene-adr.md`](implemented-sensor-driver-i2c-hygiene-adr.md)
   Centralised I2C descriptor electrical policy (`applyDescriptorDefaults()`), shared Pa→hPa constant, removal of write-only `record_` members, and consistent teardown-failure logging.
 - [`implemented-i2c-master-bus-ownership-hardening-adr.md`](implemented-i2c-master-bus-ownership-hardening-adr.md)
-  Exact pin of `esp-idf-lib/i2cdev` 2.1.1, documented borrowed master-bus-handle lifetime invariant (AHT30, BMP390), and an upgrade gate requiring re-audit of `i2c_dev_delete_mutex()` before any i2cdev bump.
+  Exact pin of `esp-idf-lib/i2cdev` (2.2.2 after the audited upgrade), documented borrowed master-bus-handle lifetime invariant (AHT30, BMP390, INA226), and an upgrade gate requiring re-audit of bus teardown before any i2cdev bump.
 
 ## Superseded proposals
 
