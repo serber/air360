@@ -199,6 +199,27 @@
 
 </form>
 
+<section class='card'>
+  <div class='card-header'>
+    <h3 class='card-title'>Web interface password</h3>
+    <form method='post' action='/logout'{{PASSWORD_CONTROLS_HIDDEN}}>
+      <button class='btn' type='submit'>Log out</button>
+    </form>
+  </div>
+  <form class='card-body stack-14' method='post' action='/config/password'>
+    <label class='field'{{PASSWORD_CONTROLS_HIDDEN}}>Current password
+      <input class='input' type='password' name='current' autocomplete='current-password'{{CURRENT_PASSWORD_STATE}}>
+    </label>
+    <label class='field'>New password
+      <input class='input' type='password' name='password' autocomplete='new-password'{{PASSWORD_REQUIRED}}>
+    </label>
+    <div class='actions'>
+      <button class='btn primary' type='submit' name='action' value='set'>{{PASSWORD_ACTION}}</button>
+      <button class='btn' name='action' value='remove' type='submit'{{PASSWORD_CONTROLS_HIDDEN}}>Remove password</button>
+    </div>
+  </form>
+</section>
+
 <section class='card' data-ota-card>
   <div class='card-header'>
     <div>

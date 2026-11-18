@@ -312,15 +312,16 @@ The full pipeline — queue mechanics, upload window, batch assembly, acknowledg
 `WebServer::start()` configures and starts `esp_http_server`:
 
 - Stack size: 16 384 bytes
-- Max URI handlers: 24
+- Max URI handlers: 28
 
-HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, OTA endpoints (`POST /ota`, `GET /ota/status`, `POST /ota/rollback`), Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
+The web server loads the optional web credential before accepting HTTP requests. HTTP handlers are registered for the overview, diagnostics/logs, config, sensors, backends, OTA endpoints (`POST /ota`, `GET /ota/status`, `POST /ota/rollback`), Wi-Fi scan, SNTP check, embedded assets, and captive-portal catch-all routes. The web server runs in its own internal FreeRTOS task managed by `esp_http_server`.
 
 Failure is **fatal** — sets red LED, returns from `run()`.
 
 On success:
 - `StatusService` is updated (web server started flag)
 - LED turns green (station mode) or pink (setup AP mode)
+- The BOOT button monitor starts after the ready LED is set. If GPIO setup or task creation fails, the firmware logs a warning and continues to OTA confirmation and normal operation.
 - `OtaService::confirmRunningImage()` is invoked. If the running image is in `ESP_OTA_IMG_PENDING_VERIFY` (i.e. this is the first boot after a successful OTA), `esp_ota_mark_app_valid_cancel_rollback()` cancels the pending verification so future reboots keep this slot. If the new image had crashed before reaching this point, the bootloader would have already rolled back automatically.
 - Main task enters the maintenance loop (remains subscribed to TWDT)
 
@@ -337,15 +338,16 @@ for (;;) {
     }
     status_service.setNetworkState(network_manager.state());
     status_service.setCellularState(cellular_manager.state());
-    esp_task_wdt_reset();   // feed TWDT before sleeping
-    vTaskDelay(10000 ms);
+    // Wait up to 10 s in watchdog-safe slices. A recovery signal wakes the
+    // main task to blink the LED for 200 ms and restore its ready color.
 }
 ```
 
-The loop has four responsibilities:
+The loop has five responsibilities:
 - **SNTP retry** — if Wi-Fi or PPP is connected but time sync has not succeeded yet, it retries every 10 seconds
 - **Network state refresh** — keeps `StatusService` in sync with the current Wi-Fi network state so the web UI reflects live uplink status
 - **Cellular state refresh** — keeps `StatusService` in sync with the current cellular state (PPP IP, RSSI, ping result)
+- **Password recovery indication** — after a ten-second BOOT hold, the HTTP task clears the credential and signals the main task on success. The main task owns the LED and resumes the remaining maintenance wait after the blink.
 - **Watchdog feed** — resets the TWDT after every 3 s slice of the 10 s sleep (`kRuntimeMaintenanceSliceMs`), keeping each gap under the 5 s timeout
 
 The main task runs at the default FreeRTOS task priority and stays alive for the lifetime of the firmware.

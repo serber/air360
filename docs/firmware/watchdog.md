@@ -70,6 +70,7 @@ Rules:
 | `cellular` | ✓ | During setup waits, PPP monitoring, connectivity checks, backoff, and PWRKEY waits | Bounded waits replace infinite PPP blocking |
 | `air360_ble` | ✓ | After sync waits and notification/timeout wakeups | 5 s advertisement refresh loop; cooperative shutdown via task notification |
 | `air360_net` | ✓ | After worker notification waits | Handles reconnect, setup-AP retry, debug-window station stop, and Wi-Fi scan requests; timer callbacks only notify it |
+| `air360_boot_btn` | ✓ | Every 100 ms while sampling GPIO0 | Runtime web password recovery |
 | `esp_httpd` | ✗ IDF-managed | — | httpd has its own internal timeout handling |
 
 ## Long-blocking tasks: `wdtFeedingDelay`

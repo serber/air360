@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <title>Air360 login</title>
+  <link rel='icon' href='/favicon.ico'>
+  <link rel='stylesheet' href='/assets/air360.css'>
+</head>
+<body>
+  <main class='main'>
+    <section class='card'>
+      <div class='card-header'><h1 class='page-title'>Air360 login</h1></div>
+      <form method='post' class='card-body stack-14'>
+        <p role='alert'{{LOGIN_ERROR_HIDDEN}}>Incorrect password.</p>
+        <label class='field'>Password
+          <input class='input' type='password' name='password' autocomplete='current-password' required autofocus>
+        </label>
+        <div class='actions'><button class='btn primary' type='submit'>Log in</button></div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

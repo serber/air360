@@ -193,7 +193,7 @@ Manages the `DeviceConfig` record (schema version 1). Both device and cellular r
 | lab_ap_ssid | `char[33]` | Lab AP SSID |
 | lab_ap_password | `char[65]` | Lab AP password |
 | lab_ap_enabled | `uint8_t` | Default: 1 |
-| local_auth_enabled | `uint8_t` | Reserved, not enforced |
+| local_auth_enabled | `uint8_t` | Mirrors the optional web password |
 | wifi_power_save_enabled | `uint8_t` | 0 = off; 1 = WIFI_PS_MIN_MODEM after station join |
 | sntp_server | `char[64]` | Empty = use `pool.ntp.org` |
 | sta_use_static_ip | `uint8_t` | 0=DHCP, 1=static |
@@ -642,13 +642,15 @@ HTTP server running on port 80 (configurable via `CONFIG_AIR360_HTTP_PORT`).
 
 **esp_http_server configuration:**
 - Stack size: 16 KB (`kHttpdStackBytes`)
-- Max URI handlers: 24 (`kHttpServerMaxUriHandlers`)
+- Max URI handlers: 28 (`kHttpServerMaxUriHandlers`)
 
 `web_server.cpp` owns `esp_http_server` startup, URI registration, and page rendering helpers. The route handlers are decomposed under `main/src/web/`:
 
 - `web_runtime_routes.cpp` — read-only/runtime endpoints (`/`, `/diagnostics`, `/logs/data`, `/api/gps-location`, `/assets/*`, `/favicon.ico`, `/wifi-scan`, `/check-sntp`).
 - `web_mutating_routes.cpp` — config, sensor, and backend persistence/runtime-apply handlers (`/config`, `/sensors`, `/backends`, `/backends/air360-upload-secret`), plus the deferred reboot task.
 - `web_ota_routes.cpp` — OTA upload, status, and rollback endpoints (see [OTA](ota.md)).
+- `web_auth_routes.cpp` — optional web password: session gate for protected routes, `/login`, `/logout`, `/config/password`, and BOOT recovery queued on the HTTP task.
+- `web_auth.cpp` / `web_auth_store.cpp` — host-testable PBKDF2 hashing, session table and access decision; `web_auth` NVS record load/store.
 - `web_form.cpp` — host-testable URL/form decoding.
 - `web_request_body.cpp` — `readRequestBodyWithRetries`, the size-limited request-body reader used by mutating handlers.
 - `web_server_helpers.cpp` — shared chunked HTML response helpers and other HTTP request/response support.
@@ -912,6 +914,6 @@ No application-level RTOS queues. Upload delivery progress is tracked via per-ba
 Reserved or deliberately absent in the current firmware:
 
 - The `storage` SPIFFS partition is reserved in `partitions.csv` but never mounted.
-- `DeviceConfig::local_auth_enabled` is stored but not enforced; the web UI has no authentication yet (issue #87).
+- The local UI uses plain HTTP. Its optional password and session cookie are visible to observers of the network traffic.
 - Saving the Device page (`/config`) reboots the device to apply it; sensor and backend changes apply at runtime.
 - The web UI is server-rendered and form-driven; there is no general JSON configuration API.

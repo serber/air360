@@ -289,3 +289,14 @@ target_include_directories(test_uart_frames PRIVATE
 target_compile_features(test_uart_frames PRIVATE cxx_std_20)
 
 add_test(NAME uart_frames COMMAND test_uart_frames)
+
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+add_executable(test_web_auth
+    test_web_auth.cpp
+    ../../main/src/web/web_auth.cpp
+    ../../main/src/web/web_auth_store.cpp
+)
+target_include_directories(test_web_auth PRIVATE stubs ../../main/include)
+target_link_libraries(test_web_auth PRIVATE OpenSSL::Crypto)
+target_compile_features(test_web_auth PRIVATE cxx_std_17)
+add_test(NAME web_auth COMMAND test_web_auth)

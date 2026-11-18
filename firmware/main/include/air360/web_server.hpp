@@ -7,6 +7,7 @@
 #include "air360/network_manager.hpp"
 #include "air360/ota_service.hpp"
 #include "air360/status_service.hpp"
+#include "air360/web_auth.hpp"
 #include "air360/sensors/sensor_config_store.hpp"
 #include "air360/sensors/sensor_manager.hpp"
 #include "air360/uploads/measurement_store.hpp"
@@ -43,10 +44,26 @@ class WebServer {
         CellularConfigRepository& cellular_config_repository,
         CellularConfig& cellular_config,
         OtaService& ota_service,
-        std::uint16_t port);
+        std::uint16_t port,
+        void (*on_password_recovered)());
     void stop();
+    // Execute recovery on the HTTP task, serialized with credential and config writes.
+    [[nodiscard]] esp_err_t queuePasswordRecovery();
 
   private:
+    using Handler = esp_err_t (*)(httpd_req_t*);
+    template<Handler handler>
+    static esp_err_t protectedRoute(httpd_req_t* request) {
+        return static_cast<WebServer*>(request->user_ctx)->dispatch(request, handler);
+    }
+    esp_err_t dispatch(httpd_req_t* request, Handler handler);
+    static esp_err_t handleLogin(httpd_req_t* request);
+    static esp_err_t handlePassword(httpd_req_t* request);
+    static esp_err_t handleLogout(httpd_req_t* request);
+    esp_err_t storeCredential(const web::WebCredential* credential);
+    void setPasswordEnabled(bool enabled);
+    web::WebAuth auth_;
+    void (*on_password_recovered_)() = nullptr;
     static esp_err_t handleAsset(httpd_req_t* request);
     static esp_err_t handleFavicon(httpd_req_t* request);
     static esp_err_t handleRoot(httpd_req_t* request);

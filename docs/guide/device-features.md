@@ -33,6 +33,16 @@ follows saving, since the mDNS hostname is set at network start.
 
 ---
 
+## Web interface password
+
+Open **Device → Web interface password** to set an optional password. It takes effect immediately on both station Wi-Fi and the setup access point. Use the same section to log out, change the password, or remove it. Changing or removing it requires your current password and signs out all browsers.
+
+If you forget the password, hold **BOOT** for ten seconds while the device is running. Release it when the status LED blinks and open the Device page again. This clears only the web password and sessions. Your Wi-Fi and sensor settings are preserved.
+
+Use the local UI on a trusted network. It uses plain HTTP, so someone who can observe the traffic can read the password and session cookie.
+
+---
+
 ## Wi-Fi station
 
 Credentials for the device's primary Wi-Fi uplink — the network it joins to reach

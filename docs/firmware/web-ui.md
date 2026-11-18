@@ -11,6 +11,7 @@ This document covers the local firmware web interface, including routes, page pu
 ## Source of truth in code
 
 - `firmware/main/src/web_server.cpp`
+- `firmware/main/src/web/web_auth_routes.cpp`, `web_auth.cpp`, `web_auth_store.cpp`
 - `firmware/main/src/web/web_form.cpp`
 - `firmware/main/src/web/web_runtime_routes.cpp`
 - `firmware/main/src/web/web_mutating_routes.cpp`
@@ -39,7 +40,7 @@ The firmware includes an embedded HTTP server that serves a multi-page configura
 | Port | `http_port` from `DeviceConfig` (default 80) |
 | Task stack | 16 384 bytes (`web::kHttpdStackBytes`) |
 | Worker model | Single httpd task; all concurrent connections share the one stack |
-| URI handlers | up to 24 |
+| URI handlers | up to 28 |
 | URI matching | wildcard (`httpd_uri_match_wildcard`) |
 | Request body limit | 4 096 bytes; oversized POST bodies return `413 Payload Too Large` |
 | Request body receive timeouts | `httpd_req_recv()` timeout results are retried up to 5 consecutive times before the request fails with a timeout |
@@ -60,10 +61,25 @@ In station mode the web UI is reachable at both the DHCP IP address and `{device
 
 ---
 
+## Optional web password
+
+In **Device → Web interface password**, set a password to require login in both station and setup AP modes. A device without a password allows setup and normal use immediately. Anyone with network access to it can set the first password. The password form takes effect without rebooting. Changing or removing a password requires an active session and the current password.
+
+Unauthenticated page requests redirect to `/login?next=/page` (302). API, log, JSON and POST requests receive 401 before their handlers run. Static assets, the favicon and the login page are public. The captive portal can still redirect a client to the device. A successful login sets the `air360_session` cookie with `HttpOnly; SameSite=Strict; Path=/`. Protected POSTs and password setup reject foreign browser origins.
+
+There are four sessions in RAM. Each expires after 30 minutes idle or 24 hours from login. A fifth login replaces the least recently used session. Log out on the Device page to end one session. Password changes, removal, physical recovery and reboot end all sessions.
+
+Hold BOOT (GPIO0) for 10 seconds while the device is running to clear the password. The status LED blinks when the erase succeeds. Wi-Fi, sensors and backends retain their settings.
+
+The UI uses plain HTTP. Someone able to observe traffic on the network can read the login password and session cookie. OTA uses the same optional session guard and checks the firmware project name. Images have no cryptographic authenticity check.
+
 ## Routes
 
 | Method | Path | Handler |
 |--------|------|---------|
+| `GET` / `POST` | `/login` | Show the password form or open a session |
+| `POST` | `/logout` | End the current session |
+| `POST` | `/config/password` | Set, change or remove the web password |
 | `GET` | `/` | Overview page |
 | `GET` | `/diagnostics` | Diagnostics page (includes live log console) |
 | `GET` | `/logs/data` | Plain-text log buffer (polled by diagnostics page JS) |

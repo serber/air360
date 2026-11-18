@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Superseded by the password-only session design agreed in [issue 87](https://github.com/serber/air360/issues/87). The original proposal below is retained for context. Current behavior is documented in [Web UI](../web-ui.md#optional-web-password).
 
 ## Decision Summary
 

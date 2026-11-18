@@ -6,12 +6,15 @@
 
 #include "air360/log_buffer.hpp"
 #include "esp_err.h"
+#include "driver/gpio.h"
+#include "esp_timer.h"
 #include "led_strip.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
@@ -34,6 +37,9 @@ constexpr int kRgbLedGpio = 48;
 constexpr std::uint8_t kLedBrightness = 16U;  // dim — WS2812 full range is 255
 
 led_strip_handle_t g_led_strip = nullptr;
+bool g_ready_in_setup_ap = false;
+StaticSemaphore_t g_password_recovered_storage;
+SemaphoreHandle_t g_password_recovered = nullptr;
 
 void setLedColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
     if (g_led_strip == nullptr) {
@@ -45,6 +51,56 @@ void setLedColor(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
         led_strip_set_pixel(g_led_strip, 0, r, g, b);
         led_strip_refresh(g_led_strip);
     }
+}
+
+void setReadyLed() {
+    if (g_ready_in_setup_ap) {
+        setLedColor(kLedBrightness, 0U, kLedBrightness / 2U);
+    } else {
+        setLedColor(0U, kLedBrightness, 0U);
+    }
+}
+
+void blinkPasswordRecovery() {
+    setLedColor(0U, 0U, 0U);
+    vTaskDelay(pdMS_TO_TICKS(200));
+    setReadyLed();
+}
+
+void monitorBootButton(void* context) {
+    auto& server = *static_cast<WebServer*>(context);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_task_wdt_add(nullptr));
+    std::int64_t pressed_at = -1;
+    bool handled = false;
+    for (;;) {
+        if (gpio_get_level(GPIO_NUM_0) != 0) {
+            pressed_at = -1;
+            handled = false;
+        } else if (pressed_at < 0) {
+            pressed_at = esp_timer_get_time();
+        } else if (!handled && esp_timer_get_time() - pressed_at >= 10'000'000) {
+            handled = true;
+            const auto err = server.queuePasswordRecovery();
+            if (err != ESP_OK) {
+                ESP_LOGE(kTag, "Could not queue BOOT password recovery: %s", esp_err_to_name(err));
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_task_wdt_reset();
+    }
+}
+
+esp_err_t startBootButtonMonitor(WebServer& server) {
+    gpio_config_t button{};
+    button.pin_bit_mask = 1ULL << GPIO_NUM_0;
+    button.mode = GPIO_MODE_INPUT;
+    button.pull_up_en = GPIO_PULLUP_ENABLE;
+    const auto err = gpio_config(&button);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return xTaskCreate(monitorBootButton, "air360_boot_btn", 3072, &server,
+                       tskIDLE_PRIORITY + 1U, nullptr) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
 esp_err_t initRgbLed() {
@@ -159,9 +215,13 @@ void App::run() {
         return;
     }
     indicateReady();
+    const esp_err_t monitor_err = startBootButtonMonitor(web_server_);
+    if (monitor_err != ESP_OK) {
+        ESP_LOGW(kTag, "BOOT password recovery unavailable: %s", esp_err_to_name(monitor_err));
+    }
 
-    // Confirm the running image only after every managed subsystem has reached
-    // a steady state.  If a freshly-flashed image crashed earlier in boot, the
+    // Confirm the running image after the required boot steps succeed.
+    // If a freshly-flashed image crashed earlier in boot, the
     // bootloader would have already rolled back; reaching this point means the
     // image is good and we can cancel the pending-verify state so future
     // reboots stay on this slot.
@@ -242,6 +302,7 @@ void App::bootPowerGate() {
 
 bool App::bootWebServer() {
     ESP_LOGI(kTag, "Boot step 12/12: start status web server");
+    g_password_recovered = xSemaphoreCreateBinaryStatic(&g_password_recovered_storage);
     const esp_err_t web_err =
         web_server_.start(
             status_service_,
@@ -259,7 +320,8 @@ bool App::bootWebServer() {
             network_.cellularConfigRepo(),
             network_.cellularConfig(),
             ota_service_,
-            platform_.deviceConfig().http_port);
+            platform_.deviceConfig().http_port,
+            [] { xSemaphoreGive(g_password_recovered); });
     if (reportBootError("Web server start", web_err)) {
         return false;
     }
@@ -272,11 +334,8 @@ void App::indicateReady() {
         kTag,
         "Runtime ready on port %" PRIu16,
         platform_.deviceConfig().http_port);
-    if (network_.networkManager().state().mode == NetworkMode::kSetupAp) {
-        setLedColor(kLedBrightness, 0U, kLedBrightness / 2U);  // pink — AP mode
-    } else {
-        setLedColor(0U, kLedBrightness, 0U);  // green — station mode
-    }
+    g_ready_in_setup_ap = network_.networkManager().state().mode == NetworkMode::kSetupAp;
+    setReadyLed();
 }
 
 void App::runMaintenanceLoop() {
@@ -295,13 +354,16 @@ void App::runMaintenanceLoop() {
 
         status_service_.setNetworkState(network_.networkManager().state());
         status_service_.setCellularState(network_.cellularManager().state());
-        std::uint32_t remaining_ms = kRuntimeMaintenanceDelayMs;
-        while (remaining_ms > 0U) {
-            const std::uint32_t slice = std::min(remaining_ms, kRuntimeMaintenanceSliceMs);
-            vTaskDelay(pdMS_TO_TICKS(slice));
+        TimeOut_t timeout;
+        vTaskSetTimeOutState(&timeout);
+        TickType_t remaining = pdMS_TO_TICKS(kRuntimeMaintenanceDelayMs);
+        do {
+            const TickType_t slice = std::min(remaining, pdMS_TO_TICKS(kRuntimeMaintenanceSliceMs));
+            if (xSemaphoreTake(g_password_recovered, slice) == pdTRUE) {
+                blinkPasswordRecovery();
+            }
             esp_task_wdt_reset();
-            remaining_ms -= slice;
-        }
+        } while (xTaskCheckForTimeOut(&timeout, &remaining) == pdFALSE);
     }
 }
 

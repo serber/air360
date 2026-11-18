@@ -33,7 +33,7 @@ namespace air360 {
 namespace {
 
 constexpr char kTag[] = "air360.web";
-constexpr std::size_t kHttpServerMaxUriHandlers = 24U;
+constexpr std::size_t kHttpServerMaxUriHandlers = 28U;
 constexpr char kAir360MapBaseUrl[]              = "https://air360.ru/map";
 constexpr char kSensorCommunityMapBaseUrl[]     = "https://maps.sensor.community/";
 // Match the save-time validation floor so the web UI cannot submit a poll
@@ -361,6 +361,10 @@ std::string renderConfigPage(
         WebTemplateKey::kConfig,
         WebTemplateBindings{
             {"NETWORK_MODE", htmlEscape(model.network_mode)},
+            {"PASSWORD_CONTROLS_HIDDEN", config.local_auth_enabled ? "" : " hidden"},
+            {"CURRENT_PASSWORD_STATE", config.local_auth_enabled ? " required" : " disabled"},
+            {"PASSWORD_REQUIRED", config.local_auth_enabled ? "" : " required"},
+            {"PASSWORD_ACTION", config.local_auth_enabled ? "Change password" : "Set password"},
             {"IP_ADDRESS", htmlEscape(model.ip_address)},
             {"DEVICE_NAME", htmlEscape(model.device_name)},
             {"NOTICE", model.notice_html},
@@ -2681,7 +2685,8 @@ esp_err_t WebServer::start(
     CellularConfigRepository& cellular_config_repository,
     CellularConfig& cellular_config,
     OtaService& ota_service,
-    std::uint16_t port) {
+    std::uint16_t port,
+    void (*on_password_recovered)()) {
     if (handle_ != nullptr) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -2705,6 +2710,13 @@ esp_err_t WebServer::start(
     staged_sensor_base_ = staged_sensor_config_;
     has_pending_sensor_changes_ = false;
 
+    on_password_recovered_ = on_password_recovered;
+    const auto credential_err = auth_.load();
+    setPasswordEnabled(auth_.enabled());
+    if (credential_err != ESP_OK) {
+        ESP_LOGE(kTag, "Web credential unavailable: %s", esp_err_to_name(credential_err));
+    }
+
     httpd_config_t config_httpd = HTTPD_DEFAULT_CONFIG();
     config_httpd.server_port = port;
     // Single httpd task; all concurrent connections share this one stack.
@@ -2718,224 +2730,48 @@ esp_err_t WebServer::start(
         return err;
     }
 
-    httpd_uri_t root_uri{};
-    root_uri.uri = "/";
-    root_uri.method = HTTP_GET;
-    root_uri.handler = &WebServer::handleRoot;
-    root_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &root_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t asset_uri{};
-    asset_uri.uri = "/assets/*";
-    asset_uri.method = HTTP_GET;
-    asset_uri.handler = &WebServer::handleAsset;
-    asset_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &asset_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t favicon_uri{};
-    favicon_uri.uri = "/favicon.ico";
-    favicon_uri.method = HTTP_GET;
-    favicon_uri.handler = &WebServer::handleFavicon;
-    favicon_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &favicon_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t diagnostics_uri{};
-    diagnostics_uri.uri = "/diagnostics";
-    diagnostics_uri.method = HTTP_GET;
-    diagnostics_uri.handler = &WebServer::handleDiagnostics;
-    diagnostics_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &diagnostics_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t logs_data_uri{};
-    logs_data_uri.uri = "/logs/data";
-    logs_data_uri.method = HTTP_GET;
-    logs_data_uri.handler = &WebServer::handleLogsData;
-    logs_data_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &logs_data_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t wifi_scan_uri{};
-    wifi_scan_uri.uri = "/wifi-scan";
-    wifi_scan_uri.method = HTTP_GET;
-    wifi_scan_uri.handler = &WebServer::handleWifiScan;
-    wifi_scan_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &wifi_scan_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t wifi_scan_refresh_uri{};
-    wifi_scan_refresh_uri.uri = "/wifi-scan";
-    wifi_scan_refresh_uri.method = HTTP_POST;
-    wifi_scan_refresh_uri.handler = &WebServer::handleWifiScanRefresh;
-    wifi_scan_refresh_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &wifi_scan_refresh_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t config_get_uri{};
-    config_get_uri.uri = "/config";
-    config_get_uri.method = HTTP_GET;
-    config_get_uri.handler = &WebServer::handleConfig;
-    config_get_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &config_get_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t config_post_uri{};
-    config_post_uri.uri = "/config";
-    config_post_uri.method = HTTP_POST;
-    config_post_uri.handler = &WebServer::handleConfig;
-    config_post_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &config_post_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t sensors_get_uri{};
-    sensors_get_uri.uri = "/sensors";
-    sensors_get_uri.method = HTTP_GET;
-    sensors_get_uri.handler = &WebServer::handleSensors;
-    sensors_get_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &sensors_get_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t sensors_post_uri{};
-    sensors_post_uri.uri = "/sensors";
-    sensors_post_uri.method = HTTP_POST;
-    sensors_post_uri.handler = &WebServer::handleSensors;
-    sensors_post_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &sensors_post_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t backends_get_uri{};
-    backends_get_uri.uri = "/backends";
-    backends_get_uri.method = HTTP_GET;
-    backends_get_uri.handler = &WebServer::handleBackends;
-    backends_get_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &backends_get_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t backends_post_uri{};
-    backends_post_uri.uri = "/backends";
-    backends_post_uri.method = HTTP_POST;
-    backends_post_uri.handler = &WebServer::handleBackends;
-    backends_post_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &backends_post_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t air360_secret_uri{};
-    air360_secret_uri.uri = "/backends/air360-upload-secret";
-    air360_secret_uri.method = HTTP_GET;
-    air360_secret_uri.handler = &WebServer::handleAir360UploadSecret;
-    air360_secret_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &air360_secret_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t osem_box_sensors_uri{};
-    osem_box_sensors_uri.uri = "/api/opensensemap/box-sensors";
-    osem_box_sensors_uri.method = HTTP_GET;
-    osem_box_sensors_uri.handler = &WebServer::handleOpenSenseMapBoxSensors;
-    osem_box_sensors_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &osem_box_sensors_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t check_sntp_uri{};
-    check_sntp_uri.uri = "/check-sntp";
-    check_sntp_uri.method = HTTP_POST;
-    check_sntp_uri.handler = &WebServer::handleCheckSntp;
-    check_sntp_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &check_sntp_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t gps_location_uri{};
-    gps_location_uri.uri = "/api/gps-location";
-    gps_location_uri.method = HTTP_GET;
-    gps_location_uri.handler = &WebServer::handleGpsLocation;
-    gps_location_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &gps_location_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t ota_upload_uri{};
-    ota_upload_uri.uri = "/ota";
-    ota_upload_uri.method = HTTP_POST;
-    ota_upload_uri.handler = &WebServer::handleOtaUpload;
-    ota_upload_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &ota_upload_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t ota_status_uri{};
-    ota_status_uri.uri = "/ota/status";
-    ota_status_uri.method = HTTP_GET;
-    ota_status_uri.handler = &WebServer::handleOtaStatus;
-    ota_status_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &ota_status_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
-    }
-
-    httpd_uri_t ota_rollback_uri{};
-    ota_rollback_uri.uri = "/ota/rollback";
-    ota_rollback_uri.method = HTTP_POST;
-    ota_rollback_uri.handler = &WebServer::handleOtaRollback;
-    ota_rollback_uri.user_ctx = this;
-    err = httpd_register_uri_handler(handle_, &ota_rollback_uri);
-    if (err != ESP_OK) {
-        stop();
-        return err;
+    struct Route {
+        const char* path;
+        httpd_method_t method;
+        Handler handler;
+    };
+    static constexpr Route routes[] = {
+        {"/", HTTP_GET, protectedRoute<handleRoot>},
+        {"/assets/*", HTTP_GET, handleAsset},
+        {"/favicon.ico", HTTP_GET, handleFavicon},
+        {"/diagnostics", HTTP_GET, protectedRoute<handleDiagnostics>},
+        {"/logs/data", HTTP_GET, protectedRoute<handleLogsData>},
+        {"/wifi-scan", HTTP_GET, protectedRoute<handleWifiScan>},
+        {"/wifi-scan", HTTP_POST, protectedRoute<handleWifiScanRefresh>},
+        {"/config", HTTP_GET, protectedRoute<handleConfig>},
+        {"/config", HTTP_POST, protectedRoute<handleConfig>},
+        {"/sensors", HTTP_GET, protectedRoute<handleSensors>},
+        {"/sensors", HTTP_POST, protectedRoute<handleSensors>},
+        {"/backends", HTTP_GET, protectedRoute<handleBackends>},
+        {"/backends", HTTP_POST, protectedRoute<handleBackends>},
+        {"/backends/air360-upload-secret", HTTP_GET, protectedRoute<handleAir360UploadSecret>},
+        {"/api/opensensemap/box-sensors", HTTP_GET, protectedRoute<handleOpenSenseMapBoxSensors>},
+        {"/check-sntp", HTTP_POST, protectedRoute<handleCheckSntp>},
+        {"/api/gps-location", HTTP_GET, protectedRoute<handleGpsLocation>},
+        {"/ota", HTTP_POST, protectedRoute<handleOtaUpload>},
+        {"/ota/status", HTTP_GET, protectedRoute<handleOtaStatus>},
+        {"/ota/rollback", HTTP_POST, protectedRoute<handleOtaRollback>},
+        {"/login", HTTP_GET, handleLogin},
+        {"/login", HTTP_POST, handleLogin},
+        {"/config/password", HTTP_POST, protectedRoute<handlePassword>},
+        {"/logout", HTTP_POST, protectedRoute<handleLogout>},
+    };
+    for (const auto& route : routes) {
+        httpd_uri_t uri{};
+        uri.uri = route.path;
+        uri.method = route.method;
+        uri.handler = route.handler;
+        uri.user_ctx = this;
+        err = httpd_register_uri_handler(handle_, &uri);
+        if (err != ESP_OK) {
+            stop();
+            return err;
+        }
     }
 
     const esp_err_t captive_err = captive_portal_register_catchall(handle_, nullptr);
