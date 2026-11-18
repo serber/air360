@@ -88,7 +88,7 @@ Default poll interval: 10 seconds. The sensor updates its reading approximately 
 
 ## Component
 
-`esp-idf-lib__mhz19b` v1.2.0 (managed component via `idf_component.yml`)
+`esp-idf-lib__mhz19b` v1.2.1 (managed component via `idf_component.yml`)
 
 ## Source files
 

@@ -207,6 +207,8 @@ Air360 uses the `nordesems/esp-captive-portal` managed component to intercept th
 
 The catchall is registered last so it does not shadow the existing `/`, `/config`, `/sensors`, `/diagnostics`, and asset routes.
 
+The component's DHCP Option 114 (RFC 8910) announcement is disabled in `sdkconfig.defaults` (`CONFIG_CAPTIVE_PORTAL_ENABLE_DHCP_OPTION_114=n`). If it were enabled, the component would restart the setup-AP DHCP server, which `NetworkManager` owns. RFC 8910 also expects a Captive Portal API URI there, not the UI root. Detection relies on the DNS and HTTP mechanisms above.
+
 The component has no effect when the AP is not running (station-only mode).
 
 ---

@@ -53,7 +53,7 @@ The component internally sends the measurement trigger command (`0xAC 0x33 0x00`
 ## Notes
 
 - The AHT30 has a single fixed I2C address (`0x38`). No address selection is available in hardware.
-- The driver uses the `espressif/aht30` managed component (v1.0.0).
+- The driver uses the `espressif/aht30` managed component (v1.0.0~1).
 - The component requires `i2c_master_bus_handle_t` (new ESP-IDF I2C master API). The bus handle is obtained via `I2cBusManager::getMasterBusHandle()`, which installs the `i2cdev`-owned bus on demand if needed and borrows its handle.
 - If the measurement returns an error or NaN, the driver keeps short glitches local and marks the sensor for reinitialization after three consecutive poll failures.
 
@@ -63,7 +63,7 @@ Minimum 30 seconds.
 
 ## Component
 
-`espressif__aht30` (managed component, version 1.0.0)
+`espressif__aht30` (managed component, version 1.0.0~1)
 
 ## Source files
 
